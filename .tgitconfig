@@ -1,0 +1,4 @@
+[hook "precommit"]
+	cmdline = D:\\Projects\\PetEngine\\pre_commit_hook.bat
+	wait = true
+	show = true
