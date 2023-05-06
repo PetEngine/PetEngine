@@ -8,13 +8,11 @@ QueueTypes :: enum u32 {
     GRAPHICS;
     COMPUTE;
     COPY;
-
-    MAX;
 }
 
 GraphicsAPI :: enum u8 {
     VULKAN;
-};
+}
 
 PCIVendorID :: enum u32 {
     NVIDIA   :: 0x10DE;
@@ -25,8 +23,6 @@ PCIVendorID :: enum u32 {
 }
 
 Device :: struct {
-    MAX_SWAPCHAIN_BUFFERS :: 3;
-
     type         : DeviceTypes;
     graphics_api : GraphicsAPI;
 }

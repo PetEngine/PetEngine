@@ -164,7 +164,8 @@ VkStructureType :: enum VkEnum {
 }
 
     // Provided by VK_KHR_swapchain
-    VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR         :: 1000060008;
+    VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR               :: 1000001000;
+    VK_STRUCTURE_TYPE_PRESENT_INFO_KHR                        :: 1000001001;
     VK_STRUCTURE_TYPE_ACQUIRE_NEXT_IMAGE_INFO_KHR             :: 1000060010;
 }
 
@@ -263,14 +264,14 @@ VkExtent3D :: struct {
     depth  : u32;
 }
 
-// @Cleanup
+// @Cleanup: move to their own files
 VkCommandBuffer :: VK_HANDLE;
 VkSemaphore     :: VK_NON_DISPATCHABLE_HANDLE;
 VkFence         :: VK_NON_DISPATCHABLE_HANDLE;
 VkImage         :: VK_NON_DISPATCHABLE_HANDLE;
 
 // Provided by VK_VERSION_1_0
-VkImageUsageFlags :: enum VkEnum { // @Cleanup
+VkImageUsageFlags :: enum_flags VkFlags { // @Cleanup: move to image file
     VK_IMAGE_USAGE_TRANSFER_SRC_BIT                         :: 0x00000001;
     VK_IMAGE_USAGE_TRANSFER_DST_BIT                         :: 0x00000002;
     VK_IMAGE_USAGE_SAMPLED_BIT                              :: 0x00000004;
@@ -296,8 +297,12 @@ VkImageUsageFlags :: enum VkEnum { // @Cleanup
 }
 
 // Provided by VK_VERSION_1_0
-VkFormat :: enum VkEnum { // @Cleanup
-    VK_FORMAT_UNDEFINED :: 0;
+VkFormat :: enum VkEnum { // @Cleanup: move to image file
+    VK_FORMAT_UNDEFINED                :: 0;
+    VK_FORMAT_R8G8B8A8_UNORM           :: 37;
+    VK_FORMAT_B8G8R8A8_UNORM           :: 44;
+    VK_FORMAT_B8G8R8A8_SRGB            :: 50;
+    VK_FORMAT_A2B10G10R10_UNORM_PACK32 :: 64;
 }
 
 #scope_module

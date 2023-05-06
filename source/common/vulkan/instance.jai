@@ -338,11 +338,42 @@ VkSurfaceTransformFlagsKHR :: enum_flags VkFlags {
     VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR                      :: 0x00000100;
 }
 
+VkSurfaceCapabilitiesKHR :: struct {
+    minImageCount           : u32;
+    maxImageCount           : u32;
+    currentExtent           : VkExtent2D;
+    minImageExtent          : VkExtent2D;
+    maxImageExtent          : VkExtent2D;
+    maxImageArrayLayers     : u32;
+    supportedTransforms     : VkSurfaceTransformFlagsKHR;
+    currentTransform        : VkSurfaceTransformFlagsKHR;
+    supportedCompositeAlpha : VkCompositeAlphaFlagsKHR;
+    supportedUsageFlags     : VkImageUsageFlags;
+}
+
+VkSurfaceFormatKHR :: struct {
+    format     : VkFormat;
+    colorSpace : VkColorSpaceKHR;
+}
+
 PFN_vkDestroySurfaceKHR :: #type (
     instance   : VkInstance,
     surface    : VkSurfaceKHR,
     pAllocator : *VkAllocationCallbacks
-);
+) #c_call;
+
+PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR :: #type (
+    physicalDevice       : VkPhysicalDevice,
+    surface              : VkSurfaceKHR,
+    pSurfaceCapabilities : *VkSurfaceCapabilitiesKHR
+) -> VkResult #c_call;
+
+PFN_vkGetPhysicalDeviceSurfaceFormatsKHR :: #type (
+    physicalDevice      : VkPhysicalDevice,
+    surface             : VkSurfaceKHR,
+    pSurfaceFormatCount : *u32,
+    pSurfaceFormats     : *VkSurfaceFormatKHR
+) -> VkResult #c_call;
 
 //
 // VK_KHR_win32_surface

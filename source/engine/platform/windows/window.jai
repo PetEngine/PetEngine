@@ -32,9 +32,11 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
 
     setMonitorDPIAwareness();
 
-    ASCII_CLASS_NAME :: "PetWindowClass";
+    ASCII_CLASS_NAME :: "PetEngineWindowClass";
     unicode_class_name : [ASCII_CLASS_NAME.count + 1] s16;
-    memcpy(unicode_class_name.data, ASCII_CLASS_NAME.data, ASCII_CLASS_NAME.count);
+    for 0 .. ASCII_CLASS_NAME.count - 1 { // @TODO: #utf8_to_wide
+        unicode_class_name[it] = ASCII_CLASS_NAME[it];
+    }
 
     window_class : WNDCLASSEXW = ---;
     window_class.cbSize        = size_of(WNDCLASSEXW);
@@ -135,6 +137,9 @@ createWin32Window :: (
     window_rect_height := CW_USEDEFAULT;
 
     if surface_width != Window.OS_DEFAULT_SIZE && surface_height != Window.OS_DEFAULT_SIZE {
+        window.surface.width  = surface_width;
+        window.surface.height = surface_height;
+
         window_rect := RECT.{ 0, 0, surface_width, surface_height };
         if AdjustWindowRectEx(*window_rect, WINDOW_STYLES, FALSE, EXTENDED_WINDOW_STYLES) {
             // @TODO: WS_EX_LAYOUTRTL ?
@@ -144,7 +149,7 @@ createWin32Window :: (
     }
 
     unicode_title := pushToArena(*context.pet_engine_state.per_frame_arena, s16, title.count + 1);
-    for 0..title.count-1 {
+    for 0..title.count-1 { // @TODO: #utf8_to_wide
         unicode_title[it] = title[it];
     }
 

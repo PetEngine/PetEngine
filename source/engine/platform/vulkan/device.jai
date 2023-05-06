@@ -7,7 +7,7 @@ VulkanDevice :: struct {
     physical_device : VkPhysicalDevice = VK_NULL_HANDLE;
     device          : VkDevice         = VK_NULL_HANDLE;
 
-    queues : [QueueTypes.MAX] VulkanQueue;
+    queues : [#run Basic.enum_highest_value(QueueTypes) + 1] VulkanQueue;
 
     surface   : VkSurfaceKHR;
     swapchain : VkSwapchainKHR;
@@ -32,9 +32,11 @@ VulkanDevice :: struct {
 
     instance_extensions : struct {
         required : struct {
-            vkDestroySurfaceKHR : PFN_vkDestroySurfaceKHR; @VK_KHR_surface;
+            vkDestroySurfaceKHR                       : PFN_vkDestroySurfaceKHR;                       @VK_KHR_surface;
+            vkGetPhysicalDeviceSurfaceCapabilitiesKHR : PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR; @VK_KHR_surface;
+            vkGetPhysicalDeviceSurfaceFormatsKHR      : PFN_vkGetPhysicalDeviceSurfaceFormatsKHR;      @VK_KHR_surface;
             #if OS == .WINDOWS {
-                vkCreateWin32SurfaceKHR : PFN_vkCreateWin32SurfaceKHR; @VK_KHR_win32_surface;
+                vkCreateWin32SurfaceKHR               : PFN_vkCreateWin32SurfaceKHR;                   @VK_KHR_win32_surface;
             } else {
                 notImplemented();
             }
@@ -93,7 +95,7 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     loadDeviceExtensionsFunctions(device, *enabled_device_extensions);
     getQueues(device);
     createSurface(device, window);
-    createSwapchain(device);
+    createSwapchain(device, window);
 
     return device;
 }
@@ -823,7 +825,7 @@ scanVulkanDeviceForDeviceExtensions :: () -> (required : [] string, optional : [
 //    vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR (VK_KHR_performance_query) Is it actully useful?
 //    VkDeviceMemoryOverallocationCreateInfoAMD (VK_AMD_memory_overallocation_behavior) sounds useful.
 createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] string) {
-    queues_per_family : [QueueTypes.MAX] u32;
+    queues_per_family : [VulkanDevice.queues.count] u32;
 
     for * device.queues {
         queues_per_family[it.family_index] += 1;
@@ -832,7 +834,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     // @TODO: For now queues have equal priority. Should be tweaked later.
     QUEUE_PRIORITIES :: f32.[ 1.0, 1.0, 1.0 ];
 
-    queue_create_infos       : [QueueTypes.MAX] VkDeviceQueueCreateInfo = ---;
+    queue_create_infos       : [VulkanDevice.queues.count] VkDeviceQueueCreateInfo = ---;
     queue_create_infos_count : u32 = 0;
 
     for * device.queues {
@@ -1014,34 +1016,129 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
     }
 }
 
-// @Continue
-createSwapchain :: (device : *VulkanDevice) {
-/*
+createSwapchain :: (device : *VulkanDevice, window : *Window) {
+    surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
+    result := device.instance_extensions.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
+                                                                                            device.surface,
+                                                                                            *surface_capabilities);
+    assert(result == .VK_SUCCESS);
+
+    surface_formats_count : u32;
+    result = device.instance_extensions.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
+                                                                                      device.surface,
+                                                                                      *surface_formats_count,
+                                                                                      null);
+    assert(result == .VK_SUCCESS);
+
+    surface_formats := pushToArena(*context.pet_engine_state.per_frame_arena, VkSurfaceFormatKHR, surface_formats_count);
+    result = device.instance_extensions.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
+                                                                                      device.surface,
+                                                                                      *surface_formats_count,
+                                                                                      surface_formats);
+    assert(result == .VK_SUCCESS);
+
+    // @TODO: #Settings. Number of buffers in a swapchain
+    num_images : u32 = 2;
+    if num_images < surface_capabilities.minImageCount {
+        warningMessage("Requested number of images in a swapchain is %, but surface supports at least % of them. % will be created",
+                       num_images,
+                       surface_capabilities.minImageCount,
+                       surface_capabilities.minImageCount);
+        num_images = surface_capabilities.minImageCount;
+    } else if num_images > surface_capabilities.maxImageCount {
+        warningMessage("Requested number of images in a swapchain is %, but surface supports maximum % of them. % will be created",
+                       num_images,
+                       surface_capabilities.maxImageCount,
+                       surface_capabilities.maxImageCount);
+        num_images = surface_capabilities.maxImageCount;
+    }
+
+    surface_format := surface_formats;
+    for 0 .. surface_formats_count - 1 {
+        if surface_format.format == .VK_FORMAT_B8G8R8A8_UNORM {
+            break;
+        }
+        surface_format += 1;
+    }
+
+    if surface_format >= surface_formats + surface_formats_count {
+        assertMessage("Chosen image format (VK_FORMAT_B8G8R8A8_UNORM) for swapchain images is not supported on this device");
+    }
+
+    surface_extent : VkExtent2D = ---;
+    surface_extent.width  = window.surface.width;
+    surface_extent.height = window.surface.height;
+
+    if !memcmp(*surface_capabilities.maxImageExtent, *VkExtent2D.{0, 0}, size_of(VkExtent2D)) {
+        assertMessage("There is no way to create swapchain while window is minimized");
+    } else if memcmp(*surface_extent, *surface_capabilities.maxImageExtent, size_of(VkExtent2D)) > 0 {
+        warningMessage("Requested surface extent for swapchain (% x %) is too big. Will be adjusted to % x %",
+                       surface_extent.width,
+                       surface_extent.height,
+                       surface_capabilities.maxImageExtent.width,
+                       surface_capabilities.maxImageExtent.height);
+        surface_extent = surface_capabilities.maxImageExtent;
+    } else if memcmp(*surface_extent, *surface_capabilities.minImageExtent, size_of(VkExtent2D)) < 0 {
+        warningMessage("Requested surface extent for swapchain (% x %) is too small. Will be adjusted to % x %",
+                       surface_extent.width,
+                       surface_extent.height,
+                       surface_capabilities.minImageExtent.width,
+                       surface_capabilities.minImageExtent.height);
+        surface_extent = surface_capabilities.minImageExtent;
+    }
+
+    REQUESTED_USAGE_FLAGS :: VkImageUsageFlags.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | .VK_IMAGE_USAGE_SAMPLED_BIT;
+    allowed_usage_flags   := REQUESTED_USAGE_FLAGS & surface_capabilities.supportedUsageFlags;
+
+    if allowed_usage_flags != REQUESTED_USAGE_FLAGS {
+        assertMessage("Requested surface image usage flags are %, but surface supports only % flags. % flags can not be used",
+                      REQUESTED_USAGE_FLAGS,
+                      surface_capabilities.supportedUsageFlags,
+                      ~allowed_usage_flags & REQUESTED_USAGE_FLAGS);
+    }
+
+    queue_families_having_access_to_swapchain_images : [1] u32;
+    queue_families_having_access_to_swapchain_images[0] = device.queues[QueueTypes.GRAPHICS].family_index;
+
+    // @TODO: What if the monitor is located vertically?
+    if !(surface_capabilities.supportedTransforms & .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+        assertMessage("For some reason monitor does not support landscape mode");
+    }
+
+    if surface_capabilities.currentTransform != .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR {
+        warningMessage("Requested surface transform is %, but current surface transform is %. The fact they differ may perform in worse performance",
+                       VkSurfaceTransformFlagsKHR.VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+                       surface_capabilities.currentTransform);
+    }
+
+    if !(surface_capabilities.supportedCompositeAlpha & .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
+        assertMessage("Surface does not support opaque alpha mode");
+    }
+
     create_info := VkSwapchainCreateInfoKHR.{
-        sType                 = .VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR,
+        sType                 = .VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         pNext                 = null,
         flags                 = 0,
         surface               = device.surface,
-        minImageCount         = ,
-        imageFormat           = ,
-        imageColorSpace       = ,
-        imageExtent           = ,
-        imageArrayLayers      = ,
-        imageUsage            = ,
-        imageSharingMode      = ,
-        queueFamilyIndexCount = ,
-        pQueueFamilyIndices   = ,
-        preTransform          = ,
-        compositeAlpha        = ,
-        presentMode           = ,
+        minImageCount         = num_images,
+        imageFormat           = surface_format.format,
+        imageColorSpace       = surface_format.colorSpace,
+        imageExtent           = surface_extent,
+        imageArrayLayers      = 1,
+        imageUsage            = REQUESTED_USAGE_FLAGS,
+        imageSharingMode      = .VK_SHARING_MODE_EXCLUSIVE,
+        queueFamilyIndexCount = cast(u32) queue_families_having_access_to_swapchain_images.count,
+        pQueueFamilyIndices   = queue_families_having_access_to_swapchain_images.data,
+        preTransform          = .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+        compositeAlpha        = .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        presentMode           = .VK_PRESENT_MODE_MAILBOX_KHR, // @TODO: #Settings. Vsync (fifo), allow tearing (immediate), vsync + allow tearing (fifo_relaxed)
         clipped               = VK_TRUE,
         oldSwapchain          = VK_NULL_HANDLE
     };
 
     // @TODO: VkAllocationCallbacks
-    result := device.device_extensions.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain);
+    result = device.device_extensions.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain);
     assert(result == .VK_SUCCESS);
-*/
 }
 
 vendorIdToString :: inline (vendor_id : u32) -> string {
