@@ -1,3 +1,7 @@
+SemaphoreKind :: enum {
+    ACQUIRE_IMAGE;
+}
+
 VulkanDevice :: struct {
     #as using public_data : Device;
 
@@ -12,6 +16,10 @@ VulkanDevice :: struct {
 
     surface   : VkSurfaceKHR;
     swapchain : VkSwapchainKHR;
+
+    semaphores : [#run Basic.enum_highest_value(SemaphoreKind) + 1] VkSemaphore;
+
+    swapchain_images : [] VkImage;
 
     messenger : VkDebugUtilsMessengerEXT = VK_NULL_HANDLE;
 
@@ -48,12 +56,22 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     getQueues(device);
     createSurface(device, window);
     createSwapchain(device, window);
+    getSwapchainImages(device);
+    createSemaphores(device);
 
     return device;
 }
 
 destroyVulkanDevice :: (device : *VulkanDevice) {
     assert(device == *g_device);
+
+    result := vkDeviceWaitIdle(device.device);
+    assert(result == .VK_SUCCESS);
+
+    for device.semaphores {
+        // @TODO: VkAllocationCallbacks
+        vkDestroySemaphore(device.device, it, null);
+    }
 
     device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, device.swapchain, null); // @TODO: VkAllocationCallbacks
     device.loader.extensions.instance.required.vkDestroySurfaceKHR(device.instance, device.surface, null); // @TODO: VkAllocationCallbacks
@@ -65,6 +83,37 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
         device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT(device.instance, device.messenger, null);
     }
     vkDestroyInstance(device.instance, null); // @TODO: VkAllocationCallbacks
+}
+
+beginVulkanFrame :: (device : *VulkanDevice) {
+    acquire_info := VkAcquireNextImageInfoKHR.{
+        sType      = .VK_STRUCTURE_TYPE_ACQUIRE_NEXT_IMAGE_INFO_KHR,
+        pNext      = null,
+        swapchain  = device.swapchain,
+        timeout    = 0xFFFF_FFFF_FFFF_FFFF,
+        semaphore  = device.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
+        fence      = VK_NULL_HANDLE, // @TODO
+        deviceMask = 1
+    };
+
+    result := device.loader.extensions.device.required.vkAcquireNextImage2KHR(device.device, *acquire_info, *device.backbuffer_index);
+    assert(result == .VK_SUCCESS);
+}
+
+endVulkanFrame :: (device : *VulkanDevice) {
+    present_info := VkPresentInfoKHR.{
+        sType              = .VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        pNext              = null,
+        waitSemaphoreCount = 1,
+        pWaitSemaphores    = *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
+        swapchainCount     = 1,
+        pSwapchains        = *device.swapchain,
+        pImageIndices      = *device.backbuffer_index,
+        pResults           = null
+    };
+
+    result := device.loader.extensions.device.required.vkQueuePresentKHR(device.queues[QueueType.GRAPHICS].handle, *present_info);
+    assert(result == .VK_SUCCESS);
 }
 
 setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *void, name : string) {
@@ -772,21 +821,21 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
     assert(result == .VK_SUCCESS);
 
     // @TODO: #Settings. Get the number of swapchain buffers from settings
-    device.swapchain_buffers_count = 2;
-    if device.swapchain_buffers_count < surface_capabilities.minImageCount {
+    requested_swapchain_buffers_count : u32 = 2;
+    if requested_swapchain_buffers_count < surface_capabilities.minImageCount {
         warningMessage("Requested number of swapchain buffers is %, but surface supports at least % of them. % will be created",
-                       device.swapchain_buffers_count,
+                       requested_swapchain_buffers_count,
                        surface_capabilities.minImageCount,
                        surface_capabilities.minImageCount);
-        device.swapchain_buffers_count = surface_capabilities.minImageCount;
-    } else if device.swapchain_buffers_count > surface_capabilities.maxImageCount && surface_capabilities.maxImageCount > 0 {
+        requested_swapchain_buffers_count = surface_capabilities.minImageCount;
+    } else if requested_swapchain_buffers_count > surface_capabilities.maxImageCount && surface_capabilities.maxImageCount > 0 {
         warningMessage("Requested number of swapchain buffers is %, but surface supports maximum % of them. % will be created",
-                       device.swapchain_buffers_count,
+                       requested_swapchain_buffers_count,
                        surface_capabilities.maxImageCount,
                        surface_capabilities.maxImageCount);
-        device.swapchain_buffers_count = surface_capabilities.maxImageCount;
+        requested_swapchain_buffers_count = surface_capabilities.maxImageCount;
     }
-    infoMessage("Swapchain buffers count: %", device.swapchain_buffers_count);
+    infoMessage("Requested swapchain buffers count: %", requested_swapchain_buffers_count);
 
     surface_format := surface_formats;
     for 0 .. surface_formats_count - 1 {
@@ -855,7 +904,7 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
         pNext                 = null,
         flags                 = 0,
         surface               = device.surface,
-        minImageCount         = device.swapchain_buffers_count,
+        minImageCount         = requested_swapchain_buffers_count,
         imageFormat           = surface_format.format,
         imageColorSpace       = surface_format.colorSpace,
         imageExtent           = surface_extent,
@@ -874,6 +923,41 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
     // @TODO: VkAllocationCallbacks
     result = device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain);
     assert(result == .VK_SUCCESS);
+}
+
+getSwapchainImages :: (device : *VulkanDevice) {
+    device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
+                                                                     device.swapchain,
+                                                                     *device.swapchain_buffers_count,
+                                                                     null);
+    assert(device.swapchain_buffers_count > 0);
+
+    infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
+
+    device.swapchain_images.data  = pushToArena(*context.pet_engine_state.persistent_arena, VkImage, device.swapchain_buffers_count);
+    device.swapchain_images.count = device.swapchain_buffers_count;
+
+    device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
+                                                                     device.swapchain,
+                                                                     *device.swapchain_buffers_count,
+                                                                     device.swapchain_images.data);
+
+}
+
+createSemaphores :: (device : *VulkanDevice) {
+    create_info := VkSemaphoreCreateInfo.{
+        sType = .VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        pNext = null,
+        flags = 0
+    };
+
+    for * device.semaphores {
+        // @TODO: VkAllocationCallbacks
+        result := vkCreateSemaphore(device.device, *create_info, null, it);
+        assert(result == .VK_SUCCESS);
+
+        setObjectName(device, .VK_OBJECT_TYPE_SEMAPHORE, <<it, "% semaphore", cast(SemaphoreKind) it_index);
+    }
 }
 
 vendorIdToString :: inline (vendor_id : u32) -> string {

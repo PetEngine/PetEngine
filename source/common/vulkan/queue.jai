@@ -3,6 +3,9 @@
 // Provided by VK_VERSION_1_0
 VkQueue :: VK_HANDLE;
 
+// Provided by VK_VERSION_1_0
+VK_QUEUE_FAMILY_IGNORED : u32 : 0xFFFF_FFFF;
+
 // Provided by VK_VERSION_1_1
 VkDeviceQueueInfo2 :: struct {
     sType            : VkStructureType;

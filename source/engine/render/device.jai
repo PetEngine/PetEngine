@@ -51,6 +51,20 @@ destroyDevice :: (device : *Device) {
     }
 }
 
+beginFrame :: (device : *Device) {
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            beginVulkanFrame(cast(*VulkanDevice) device);
+    }
+}
+
+endFrame :: (device : *Device) {
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            endVulkanFrame(cast(*VulkanDevice) device);
+    }
+}
+
 #scope_file
 
 #load "../platform/vulkan/loader.jai";

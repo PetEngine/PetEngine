@@ -142,6 +142,7 @@ VkStructureType :: enum VkEnum {
     VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO                    :: 1;
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO                :: 2;
     VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO                      :: 3;
+    VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO                   :: 9;
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2            :: 1000059001;
     // Provided by VK_VERSION_1_1
@@ -150,6 +151,8 @@ VkStructureType :: enum VkEnum {
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2                     :: 1000145003;
     // Provided by VK_VERSION_1_2
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES       :: 1000196000;
+    // Provided by VK_VERSION_1_2
+    VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO                     :: 1000207004;
 
     // Provided by VK_EXT_debug_utils
     VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT        :: 1000128000;
@@ -264,9 +267,18 @@ VkExtent3D :: struct {
     depth  : u32;
 }
 
-// @Cleanup: move to their own files
+// @Cleanup: Move to their own files
+VK_ATTACHMENT_UNUSED              : u32 : 0xFFFF_FFFF;
+VK_LOD_CLAMP_NONE                 : f32 : 1000.0;
+VK_REMAINING_ARRAY_LAYERS         : u32 : 0xFFFF_FFFF;
+VK_REMAINING_MIP_LEVELS           : u32 : 0xFFFF_FFFF;
+VK_SUBPASS_EXTERNAL               : u32 : 0xFFFF_FFFF;
+VK_WHOLE_SIZE                     : u64 : 0xFFFF_FFFF_FFFF_FFFF;
+VK_MAX_MEMORY_TYPES               : u32 : 32;
+VK_MAX_MEMORY_HEAPS               : u32 : 16;
+
+// @Cleanup: Move to their own files
 VkCommandBuffer :: VK_HANDLE;
-VkSemaphore     :: VK_NON_DISPATCHABLE_HANDLE;
 VkFence         :: VK_NON_DISPATCHABLE_HANDLE;
 VkImage         :: VK_NON_DISPATCHABLE_HANDLE;
 
@@ -311,6 +323,7 @@ VkFormat :: enum VkEnum { // @Cleanup: move to image file
 #load "physcial_device.jai";
 #load "device.jai";
 #load "queue.jai";
+#load "semaphore.jai";
 
 #if OS == .WINDOWS {
     vulkan :: #system_library "vulkan-1";

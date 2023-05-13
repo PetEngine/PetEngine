@@ -78,6 +78,11 @@ vkGetDeviceProcAddr :: (
     pName  : *s8
 ) -> PFN_vkVoidFunction #foreign vulkan;
 
+// Provided by VK_VERSION_1_0
+vkDeviceWaitIdle :: (
+    device : VkDevice
+) -> VkResult #foreign vulkan;
+
 //
 // VK_KHR_swapchain
 //
@@ -116,6 +121,16 @@ VkSwapchainCreateInfoKHR :: struct {
     oldSwapchain          : VkSwapchainKHR;
 }
 
+VkAcquireNextImageInfoKHR :: struct {
+    sType       : VkStructureType;
+    pNext       : *void;
+    swapchain   : VkSwapchainKHR;
+    timeout     : u64;
+    semaphore   : VkSemaphore;
+    fence       : VkFence;
+    deviceMask  : u32;
+}
+
 VkPresentInfoKHR :: struct {
     sType              : VkStructureType;
     pNext              : *void;
@@ -148,12 +163,9 @@ PFN_vkGetSwapchainImagesKHR :: #type (
 ) #c_call;
 
 PFN_vkAcquireNextImage2KHR :: #type (
-    device      : VkDevice,
-    swapchain   : VkSwapchainKHR,
-    timeout     : u64,
-    semaphore   : VkSemaphore,
-    fence       : VkFence,
-    pImageIndex : *u32
+    device       : VkDevice,
+    pAcquireInfo : *VkAcquireNextImageInfoKHR,
+    pImageIndex  : *u32
 ) -> VkResult #c_call;
 
 PFN_vkQueuePresentKHR :: #type (

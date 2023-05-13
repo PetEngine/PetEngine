@@ -181,6 +181,7 @@ DefWindowProcW :: (
 ) -> LRESULT #foreign user32;
 
 COLOR_BACKGROUND : s32 : 1;
+COLOR_WINDOW     : s32 : 5;
 
 GetLastError :: (
 ) -> u32 #foreign kernel32;

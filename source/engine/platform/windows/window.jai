@@ -127,7 +127,6 @@ createWin32Window :: (
 
     // @TODO: #Editor. WS_EX_ACCEPTFILES only in editor builds.
     // @TODO: System language reading alignment: WS_EX_LAYOUTRTL, WS_EX_RTLREADING
-    // @TODO: Try WS_EX_NOREDIRECTIONBITMAP when we will have a renderer.
     WINDOW_STYLES          :: WS_OVERLAPPEDWINDOW;
     EXTENDED_WINDOW_STYLES :: WS_EX_OVERLAPPEDWINDOW
                             | WS_EX_ACCEPTFILES
@@ -154,17 +153,17 @@ createWin32Window :: (
     }
 
     window.handle = CreateWindowExW(EXTENDED_WINDOW_STYLES,
-                                           cast,no_check(LPCWSTR) manager.window_class,
-                                           unicode_title,
-                                           WINDOW_STYLES,
-                                           ifx x == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else x,
-                                           ifx y == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else y,
-                                           window_rect_width,
-                                           window_rect_height,
-                                           null,
-                                           null,
-                                           manager.app_instance,
-                                           null);
+                                    cast,no_check(LPCWSTR) manager.window_class,
+                                    unicode_title,
+                                    WINDOW_STYLES,
+                                    ifx x == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else x,
+                                    ifx y == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else y,
+                                    window_rect_width,
+                                    window_rect_height,
+                                    null,
+                                    null,
+                                    manager.app_instance,
+                                    null);
     assert(window.handle != null);
 
     SetWindowLongPtrW(window.handle, GWLP_USERDATA, cast,no_check(LONG_PTR) window);

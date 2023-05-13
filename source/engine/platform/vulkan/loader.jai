@@ -39,10 +39,11 @@ VulkanLoader :: struct {
 
         device : struct {
             required : struct {
-                vkAcquireNextImage2KHR  : PFN_vkAcquireNextImage2KHR;  @VK_KHR_swapchain
                 vkCreateSwapchainKHR    : PFN_vkCreateSwapchainKHR;    @VK_KHR_swapchain
                 vkDestroySwapchainKHR   : PFN_vkDestroySwapchainKHR;   @VK_KHR_swapchain
                 vkGetSwapchainImagesKHR : PFN_vkGetSwapchainImagesKHR; @VK_KHR_swapchain
+                vkAcquireNextImage2KHR  : PFN_vkAcquireNextImage2KHR;  @VK_KHR_swapchain
+                vkQueuePresentKHR       : PFN_vkQueuePresentKHR;       @VK_KHR_swapchain
             };
 
             optional : struct {
