@@ -3,6 +3,14 @@
 f32 :: float32;
 f64 :: float64;
 
+s8_array_to_string :: inline (array : [] s8) -> string #no_context {
+    str : string = ---;
+    str.data  = cast(*u8) array.data;
+    str.count = array.count;
+
+    return str;
+}
+
 #load "arena.jai";
 #load "debug.jai";
 #load "math.jai";

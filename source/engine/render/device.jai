@@ -50,3 +50,8 @@ destroyDevice :: (device : *Device) {
             destroyVulkanDevice(cast(*VulkanDevice) device);
     }
 }
+
+#scope_file
+
+#load "../platform/vulkan/loader.jai";
+#load "../platform/vulkan/device.jai";

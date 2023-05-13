@@ -2,7 +2,7 @@ VulkanDevice :: struct {
     #as using public_data : Device;
 
     MINIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_2;
-    MAXIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_3;
+    LATEST_VULKAN_MINOR_VERSION   :: 3;
 
     instance        : VkInstance       = VK_NULL_HANDLE;
     physical_device : VkPhysicalDevice = VK_NULL_HANDLE;
@@ -15,53 +15,7 @@ VulkanDevice :: struct {
 
     messenger : VkDebugUtilsMessengerEXT = VK_NULL_HANDLE;
 
-    instance_layers : struct {
-        required : struct {
-            #if DEBUG_BUILD {
-                validation : void; @VK_LAYER_KHRONOS_validation
-            }
-        };
-
-        optional : struct {
-        };
-    };
-
-    instance_extensions : struct {
-        required : struct {
-            vkDestroySurfaceKHR                       : PFN_vkDestroySurfaceKHR;                       @VK_KHR_surface;
-            vkGetPhysicalDeviceSurfaceCapabilitiesKHR : PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR; @VK_KHR_surface;
-            vkGetPhysicalDeviceSurfaceFormatsKHR      : PFN_vkGetPhysicalDeviceSurfaceFormatsKHR;      @VK_KHR_surface;
-            #if OS == .WINDOWS {
-                vkCreateWin32SurfaceKHR               : PFN_vkCreateWin32SurfaceKHR;                   @VK_KHR_win32_surface;
-            } else {
-                notImplemented();
-            }
-        };
-
-        optional : struct {
-            #if DEBUG_BUILD {
-                vkSetDebugUtilsObjectNameEXT : PFN_vkSetDebugUtilsObjectNameEXT;    @VK_EXT_debug_utils
-            }
-            vkQueueBeginDebugUtilsLabelEXT   : PFN_vkQueueBeginDebugUtilsLabelEXT;  @VK_EXT_debug_utils
-            vkQueueEndDebugUtilsLabelEXT     : PFN_vkQueueEndDebugUtilsLabelEXT;    @VK_EXT_debug_utils
-            vkCmdBeginDebugUtilsLabelEXT     : PFN_vkCmdBeginDebugUtilsLabelEXT;    @VK_EXT_debug_utils
-            vkCmdEndDebugUtilsLabelEXT       : PFN_vkCmdEndDebugUtilsLabelEXT;      @VK_EXT_debug_utils
-            vkCreateDebugUtilsMessengerEXT   : PFN_vkCreateDebugUtilsMessengerEXT;  @VK_EXT_debug_utils
-            vkDestroyDebugUtilsMessengerEXT  : PFN_vkDestroyDebugUtilsMessengerEXT; @VK_EXT_debug_utils
-        };
-    };
-
-    device_extensions : struct {
-        required : struct {
-            vkAcquireNextImage2KHR  : PFN_vkAcquireNextImage2KHR;  @VK_KHR_swapchain
-            vkCreateSwapchainKHR    : PFN_vkCreateSwapchainKHR;    @VK_KHR_swapchain
-            vkDestroySwapchainKHR   : PFN_vkDestroySwapchainKHR;   @VK_KHR_swapchain
-            vkGetSwapchainImagesKHR : PFN_vkGetSwapchainImagesKHR; @VK_KHR_swapchain
-        };
-
-        optional : struct {
-        };
-    };
+    loader : VulkanLoader;
 }
 
 VulkanQueue :: struct {
@@ -85,12 +39,12 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     defer Basic.array_free(enabled_device_extensions);
 
     createInstance(device, *enabled_instance_extensions);
-    loadInstanceExtensionsFunctions(device, *enabled_instance_extensions);
+    loadVulkanInstanceExtensionsFunctions(*device.loader, device.instance, *enabled_instance_extensions);
     initMessengerCallback(device);
     findCompatiblePhysicalDevice(device);
     gatherQueuesInfo(device);
     createDevice(device, *enabled_device_extensions);
-    loadDeviceExtensionsFunctions(device, *enabled_device_extensions);
+    loadVulkanDeviceExtensionsFunctions(*device.loader, device.device, *enabled_device_extensions);
     getQueues(device);
     createSurface(device, window);
     createSwapchain(device, window);
@@ -101,14 +55,14 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
 destroyVulkanDevice :: (device : *VulkanDevice) {
     assert(device == *g_device);
 
-    device.device_extensions.required.vkDestroySwapchainKHR(device.device, device.swapchain, null); // @TODO: VkAllocationCallbacks
-    device.instance_extensions.required.vkDestroySurfaceKHR(device.instance, device.surface, null); // @TODO: VkAllocationCallbacks
+    device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, device.swapchain, null); // @TODO: VkAllocationCallbacks
+    device.loader.extensions.instance.required.vkDestroySurfaceKHR(device.instance, device.surface, null); // @TODO: VkAllocationCallbacks
 
     vkDestroyDevice(device.device, null); // @TODO: VkAllocationCallbacks
 
-    if device.instance_extensions.optional.vkDestroyDebugUtilsMessengerEXT {
+    if device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT {
         // @TODO: VkAllocationCallbacks
-        device.instance_extensions.optional.vkDestroyDebugUtilsMessengerEXT(device.instance, device.messenger, null);
+        device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT(device.instance, device.messenger, null);
     }
     vkDestroyInstance(device.instance, null); // @TODO: VkAllocationCallbacks
 }
@@ -135,7 +89,7 @@ setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *
 
 setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *void, $format : string, args : ..Any) {
     #if DEBUG_BUILD {
-        if device.instance_extensions.optional.vkSetDebugUtilsObjectNameEXT {
+        if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
             builder : Basic.String_Builder;
             builder.allocator = Basic.temporary_allocator;
 
@@ -152,103 +106,13 @@ setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *
                 pObjectName  = cast(*s8) object_name.data
             };
 
-            result := device.instance_extensions.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info);
+            result := device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info);
             assert(result == .VK_SUCCESS);
         }
     }
 }
 
 #scope_file
-
-// @TODO: #PersistentArena
-scanVulkanDeviceForInstanceLayers :: () -> (required : [] string, optional : [] string) {
-    required_layers : [..] string;
-    required_layers.allocator = Basic.temporary_allocator;
-
-    for * type_info(type_of(VulkanDevice.instance_layers.required)).members {
-        layer_name := it.notes[0];
-
-        already_added := false;
-        for required_layers {
-            if String.equal(it, layer_name) {
-                already_added = true;
-                break;
-            }
-        }
-
-        if !already_added {
-            assert(layer_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-            Basic.array_add(*required_layers, layer_name);
-        }
-    }
-
-    optional_layers : [..] string;
-    optional_layers.allocator = Basic.temporary_allocator;
-
-    for * type_info(type_of(VulkanDevice.instance_layers.optional)).members {
-        layer_name := it.notes[0];
-
-        already_added := false;
-        for optional_layers {
-            if String.equal(it, layer_name) {
-                already_added = true;
-                break;
-            }
-        }
-
-        if !already_added {
-            assert(layer_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-            Basic.array_add(*optional_layers, layer_name);
-        }
-    }
-
-    return required_layers, optional_layers;
-}
-
-// @TODO: #PersistentArena
-scanVulkanDeviceForInstanceExtensions :: () -> (required : [] string, optional : [] string) {
-    required_extensions : [..] string;
-    required_extensions.allocator = Basic.temporary_allocator;
-
-    for * type_info(type_of(VulkanDevice.instance_extensions.required)).members {
-        extension_name := it.notes[0];
-
-        already_added := false;
-        for required_extensions {
-            if String.equal(it, extension_name) {
-                already_added = true;
-                break;
-            }
-        }
-
-        if !already_added {
-            assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-            Basic.array_add(*required_extensions, extension_name);
-        }
-    }
-
-    optional_extensions : [..] string;
-    optional_extensions.allocator = Basic.temporary_allocator;
-
-    for * type_info(type_of(VulkanDevice.instance_extensions.optional)).members {
-        extension_name := it.notes[0];
-
-        already_added := false;
-        for optional_extensions {
-            if String.equal(it, extension_name) {
-                already_added = true;
-                break;
-            }
-        }
-
-        if !already_added {
-            assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-            Basic.array_add(*optional_extensions, extension_name);
-        }
-    }
-
-    return required_extensions, optional_extensions;
-}
 
 createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] string) {
     defer Basic.reset_temporary_storage();
@@ -277,7 +141,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
 
-        REQUIRED_LAYERS, OPTIONAL_LAYERS :: #run scanVulkanDeviceForInstanceLayers();
+        REQUIRED_LAYERS, OPTIONAL_LAYERS :: #run gatherVulkanLayers();
 
         for required_layers_it : REQUIRED_LAYERS {
             layers_it = layers;
@@ -338,7 +202,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
 
-        REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run scanVulkanDeviceForInstanceExtensions();
+        REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanInstanceExtensions();
 
         for required_extensions_it : REQUIRED_EXTENSIONS {
             extensions_it = extensions;
@@ -403,9 +267,8 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     };
 
     MINIMAL_MINOR_VERSION :: #run VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION);
-    MAXIMAL_MINOR_VERSION :: #run VK_API_VERSION_MINOR(VulkanDevice.MAXIMAL_SUPPORTED_API_VERSION);
 
-    for < MAXIMAL_MINOR_VERSION .. MINIMAL_MINOR_VERSION {
+    for < VulkanDevice.LATEST_VULKAN_MINOR_VERSION .. MINIMAL_MINOR_VERSION {
         application_info.apiVersion = VK_MAKE_API_VERSION(0, 1, cast(u32) it, 0);
 
         // @TODO: VkAllocationCallbacks
@@ -437,48 +300,6 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     }
 }
 
-loadInstanceExtensionsFunctions :: (device : *VulkanDevice, enabled_instance_extensions : *[..] string) {
-    base_address := cast(*void) *device.instance_extensions.required;
-
-    for * type_info(type_of(device.instance_extensions.required)).members {
-        if it.type.type == .VOID {
-            continue;
-        }
-
-        function := vkGetInstanceProcAddr(device.instance, cast(*s8) it.name.data);
-        if function == null {
-            assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled", it.name, it.notes[0]);
-        }
-
-        member_address   := cast(**void) (base_address + it.offset_in_bytes);
-        <<member_address  = cast(*void) function;
-    }
-
-    base_address = cast(*void) *device.instance_extensions.optional;
-
-    for *members_it : type_info(type_of(device.instance_extensions.optional)).members {
-        if members_it.type.type == .VOID {
-            continue;
-        }
-
-        memeber_extension_name := members_it.notes[0];
-        function               := vkGetInstanceProcAddr(device.instance, cast(*s8) members_it.name.data);
-
-        for <<enabled_instance_extensions {
-            if String.equal(it, memeber_extension_name) {
-                if function == null {
-                    assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled",
-                                  members_it.name, memeber_extension_name);
-                }
-                break;
-            }
-        }
-
-        member_address   := cast(**void) (base_address + members_it.offset_in_bytes);
-        <<member_address  = cast(*void) function;
-    }
-}
-
 messengerCallback :: (
     messageSeverity : VkDebugUtilsMessageSeverityFlagsEXT,
     messageTypes    : VkDebugUtilsMessageTypeFlagsEXT,
@@ -507,7 +328,7 @@ messengerCallback :: (
 }
 
 initMessengerCallback :: (device : *VulkanDevice) {
-    if device.instance_extensions.optional.vkCreateDebugUtilsMessengerEXT {
+    if device.loader.extensions.instance.optional.vkCreateDebugUtilsMessengerEXT {
         create_info := VkDebugUtilsMessengerCreateInfoEXT.{
             sType           = .VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
             pNext           = null,
@@ -528,10 +349,10 @@ initMessengerCallback :: (device : *VulkanDevice) {
         }
 
         // @TODO: VkAllocationCallbacks
-        result := device.instance_extensions.optional.vkCreateDebugUtilsMessengerEXT(device.instance,
-                                                                                     *create_info,
-                                                                                     null,
-                                                                                     *device.messenger);
+        result := device.loader.extensions.instance.optional.vkCreateDebugUtilsMessengerEXT(device.instance,
+                                                                                            *create_info,
+                                                                                            null,
+                                                                                            *device.messenger);
         assert(result == .VK_SUCCESS);
     }
 }
@@ -775,50 +596,6 @@ END;
     }
 }
 
-scanVulkanDeviceForDeviceExtensions :: () -> (required : [] string, optional : [] string) {
-    required_extensions : [..] string;
-    required_extensions.allocator = Basic.temporary_allocator;
-
-    for * type_info(type_of(VulkanDevice.device_extensions.required)).members {
-        extension_name := it.notes[0];
-
-        already_added := false;
-        for required_extensions {
-            if String.equal(it, extension_name) {
-                already_added = true;
-                break;
-            }
-        }
-
-        if !already_added {
-            assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-            Basic.array_add(*required_extensions, extension_name);
-        }
-    }
-
-    optional_extensions : [..] string;
-    optional_extensions.allocator = Basic.temporary_allocator;
-
-    for * type_info(type_of(VulkanDevice.device_extensions.optional)).members {
-        extension_name := it.notes[0];
-
-        already_added := false;
-        for optional_extensions {
-            if String.equal(it, extension_name) {
-                already_added = true;
-                break;
-            }
-        }
-
-        if !already_added {
-            assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-            Basic.array_add(*optional_extensions, extension_name);
-        }
-    }
-
-    return required_extensions, optional_extensions;
-}
-
 // @TODO:
 //    VkQueueFamilyGlobalPriorityPropertiesKHR (VK_KHR_global_priority).
 //    vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR (VK_KHR_performance_query) Is it actully useful?
@@ -878,7 +655,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
 
-        REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run scanVulkanDeviceForDeviceExtensions();
+        REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanDeviceExtensions();
 
         for required_extensions_it : REQUIRED_EXTENSIONS {
             extensions_it = extensions;
@@ -936,48 +713,6 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     assert(result == .VK_SUCCESS && device.device != VK_NULL_HANDLE);
 }
 
-loadDeviceExtensionsFunctions :: (device : *VulkanDevice, enabled_device_extensions : *[..] string) {
-    base_address := cast(*void) *device.device_extensions.required;
-
-    for * type_info(type_of(device.device_extensions.required)).members {
-        if it.type.type == .VOID {
-            continue;
-        }
-
-        function := vkGetDeviceProcAddr(device.device, cast(*s8) it.name.data);
-        if function == null {
-            assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled", it.name, it.notes[0]);
-        }
-
-        member_address   := cast(**void) (base_address + it.offset_in_bytes);
-        <<member_address  = cast(*void) function;
-    }
-
-    base_address = cast(*void) *device.device_extensions.optional;
-
-    for *members_it : type_info(type_of(device.device_extensions.optional)).members {
-        if members_it.type.type == .VOID {
-            continue;
-        }
-
-        memeber_extension_name := members_it.notes[0];
-        function               := vkGetDeviceProcAddr(device.device, cast(*s8) members_it.name.data);
-
-        for <<enabled_device_extensions {
-            if String.equal(it, memeber_extension_name) {
-                if function == null {
-                    assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled",
-                                  members_it.name, memeber_extension_name);
-                }
-                break;
-            }
-        }
-
-        member_address   := cast(**void) (base_address + members_it.offset_in_bytes);
-        <<member_address  = cast(*void) function;
-    }
-}
-
 getQueues :: (device : *VulkanDevice) {
     for * device.queues {
         queue_info := VkDeviceQueueInfo2.{
@@ -1008,7 +743,7 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
         };
 
         // @TODO: VkAllocationCallbacks
-        result := device.instance_extensions.required.vkCreateWin32SurfaceKHR(device.instance, *create_info, null, *device.surface);
+        result := device.loader.extensions.instance.required.vkCreateWin32SurfaceKHR(device.instance, *create_info, null, *device.surface);
         assert(result == .VK_SUCCESS);
     } else {
         notImplemented();
@@ -1017,23 +752,23 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
 
 createSwapchain :: (device : *VulkanDevice, window : *Window) {
     surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
-    result := device.instance_extensions.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
-                                                                                            device.surface,
-                                                                                            *surface_capabilities);
+    result := device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
+                                                                                                   device.surface,
+                                                                                                   *surface_capabilities);
     assert(result == .VK_SUCCESS);
 
     surface_formats_count : u32;
-    result = device.instance_extensions.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
-                                                                                      device.surface,
-                                                                                      *surface_formats_count,
-                                                                                      null);
+    result = device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
+                                                                                             device.surface,
+                                                                                             *surface_formats_count,
+                                                                                             null);
     assert(result == .VK_SUCCESS);
 
     surface_formats := pushToArena(*context.pet_engine_state.per_frame_arena, VkSurfaceFormatKHR, surface_formats_count);
-    result = device.instance_extensions.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
-                                                                                      device.surface,
-                                                                                      *surface_formats_count,
-                                                                                      surface_formats);
+    result = device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
+                                                                                             device.surface,
+                                                                                             *surface_formats_count,
+                                                                                             surface_formats);
     assert(result == .VK_SUCCESS);
 
     // @TODO: #Settings. Get the number of swapchain buffers from settings
@@ -1137,7 +872,7 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
     };
 
     // @TODO: VkAllocationCallbacks
-    result = device.device_extensions.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain);
+    result = device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain);
     assert(result == .VK_SUCCESS);
 }
 
@@ -1158,12 +893,4 @@ vendorIdToString :: inline (vendor_id : u32) -> string {
     }
 
     return "Unknown";
-}
-
-s8_array_to_string :: inline (array : [] s8) -> string #no_context {
-    str : string = ---;
-    str.data  = cast(*u8) array.data;
-    str.count = array.count;
-
-    return str;
 }

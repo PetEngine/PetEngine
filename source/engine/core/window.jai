@@ -1,5 +1,3 @@
-#scope_export
-
 //
 // WindowManager
 //
@@ -16,7 +14,7 @@ createWindowManager :: () -> *WindowManager #must {
     #if OS == .WINDOWS {
         manager = createWin32WindowManager();
     } else {
-        Common.notImplemented();
+        notImplemented();
     }
 
     return manager;
@@ -26,7 +24,7 @@ destroyWindowManager :: (manager : *WindowManager) {
     #if OS == .WINDOWS {
         destroyWin32WindowManager(cast(*Win32WindowManager) manager);
     } else {
-        Common.notImplemented();
+        notImplemented();
     }
 }
 
@@ -74,7 +72,7 @@ createWindow :: (
     #if OS == .WINDOWS {
         window = createWin32Window(cast(*Win32WindowManager) manager, x, y, surface_width, surface_height, title);
     } else {
-        Common.notImplemented();
+        notImplemented();
     }
 
     return window;
@@ -84,7 +82,7 @@ destroyWindow :: (window : *Window) {
     #if OS == .WINDOWS {
         destroyWin32Window(cast(*Win32Window) window);
     } else {
-        Common.notImplemented();
+        notImplemented();
     }
 }
 
@@ -92,7 +90,7 @@ showWindow :: (window : *Window) {
     #if OS == .WINDOWS {
         showWin32Window(cast(*Win32Window) window);
     } else {
-        Common.notImplemented();
+        notImplemented();
     }
 
     window.flags &= ~.CLOSED;
@@ -105,8 +103,16 @@ processWindowEvents :: (window : *Window) -> bool {
     #if OS == .WINDOWS {
         processWin32WindowEvents(cast(*Win32Window) window);
     } else {
-        Common.notImplemented();
+        notImplemented();
     }
 
     return !(window.flags & .CLOSED);
+}
+
+#scope_file
+
+#if OS == .WINDOWS {
+    #load "../platform/windows/window.jai";
+} else {
+    notImplemented();
 }

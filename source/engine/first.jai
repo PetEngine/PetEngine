@@ -47,21 +47,17 @@ main :: ()
     }
 }
 
-#import "common"()(DEBUG_BUILD = DEBUG_BUILD);
-
-#if OS == .WINDOWS {
-    #load "platform/windows/window.jai";
-}
-#load "core/window.jai";
-#load "platform/vulkan/device.jai";
-#load "render/device.jai";
-
 DEBUG_BUILD :: #run -> bool {
     llvm_options := Compiler.get_build_options().llvm_options;
 
     return llvm_options.bitcode_optimization_setting == .O0
         || llvm_options.bitcode_optimization_setting == .O1;
 };
+
+#import "common"()(DEBUG_BUILD = DEBUG_BUILD);
+
+#load "core/window.jai";
+#load "render/device.jai";
 
 String :: #import "String";
 
