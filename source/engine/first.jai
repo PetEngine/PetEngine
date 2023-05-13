@@ -1,3 +1,5 @@
+#scope_export
+
 ENGINE_NAME    :: "PetEngine";
 ENGINE_VERSION :: #run makeEngineVersion(ENGINE_VERSION_MAJOR, ENGINE_VERSION_MINOR, ENGINE_VERSION_PATCH);
 
@@ -13,6 +15,8 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
     return (major << 16) | (minor << 8) | patch;
 }
 
+#scope_module
+
 #add_context pet_engine_state : struct {
     per_frame_arena : Arena;
 };
@@ -20,7 +24,7 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 main :: ()
 {
     // @TODO: #Settings. Get per frame arena capacity from settings.
-    createArena(*context.pet_engine_state.per_frame_arena, megaByte(512), "PerFrame");
+    createArena(*context.pet_engine_state.per_frame_arena, megaByte(512), "Per frame");
     defer destroyArena(*context.pet_engine_state.per_frame_arena);
 
     window_manager : *WindowManager = createWindowManager();
@@ -47,9 +51,9 @@ main :: ()
 
 #if OS == .WINDOWS {
     #load "platform/windows/window.jai";
-    #load "platform/vulkan/device.jai";
 }
 #load "core/window.jai";
+#load "platform/vulkan/device.jai";
 #load "render/device.jai";
 
 DEBUG_BUILD :: #run -> bool {
@@ -57,7 +61,9 @@ DEBUG_BUILD :: #run -> bool {
 
     return llvm_options.bitcode_optimization_setting == .O0
         || llvm_options.bitcode_optimization_setting == .O1;
-}
+};
+
+String :: #import "String";
 
 #scope_file
 

@@ -1,10 +1,4 @@
-DeviceTypes :: enum u32 {
-    INVALID;
-    DISCRETE;
-    INTEGRATED;
-}
-
-QueueTypes :: enum u32 {
+QueueType :: enum u8 {
     GRAPHICS;
     COMPUTE;
     COPY;
@@ -23,8 +17,16 @@ PCIVendorID :: enum u32 {
 }
 
 Device :: struct {
-    type         : DeviceTypes;
-    graphics_api : GraphicsAPI;
+    Type :: enum u32 {
+        INVALID;
+        DISCRETE;
+        INTEGRATED;
+    }
+
+    type                    : Type;
+    graphics_api            : GraphicsAPI;
+    swapchain_buffers_count : u32;
+    backbuffer_index        : u32;
 }
 
 createDevice :: (graphics_api : GraphicsAPI, window : *Window) -> *Device #must {
@@ -35,7 +37,7 @@ createDevice :: (graphics_api : GraphicsAPI, window : *Window) -> *Device #must 
     if #complete graphics_api == {
         case .VULKAN;
             device = createVulkanDevice(window);
-    };
+    }
 
     device.graphics_api = graphics_api;
 
@@ -43,5 +45,8 @@ createDevice :: (graphics_api : GraphicsAPI, window : *Window) -> *Device #must 
 }
 
 destroyDevice :: (device : *Device) {
-    destroyVulkanDevice(cast(*VulkanDevice) device);
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            destroyVulkanDevice(cast(*VulkanDevice) device);
+    }
 }

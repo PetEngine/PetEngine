@@ -73,7 +73,7 @@ pushToArena :: (arena : *Arena, bytes : s64) -> *void #must {
     return pointer;
 }
 
-pushToArena :: inline (arena : *Arena, $type : Type, $$count : s64 = 1) -> *type #must {
+pushToArena :: inline (arena : *Arena, $type : Type, $$count := 1) -> *type #must {
     memory := pushToArena(arena, size_of(type) * count);
 
     init :: initializer_of(type);

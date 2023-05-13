@@ -19,7 +19,7 @@ Win32WindowManager :: struct {
     windows      : [WindowManager.MAX_WINDOWS] Win32Window;
 }
 
-// @TODO: #Win32WindowManagerStorage. Find a better way.
+// @TODO: #PersistentArena
 g_windowManager : Win32WindowManager;
 
 createWin32WindowManager :: () -> *Win32WindowManager #must {

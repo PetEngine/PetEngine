@@ -1,13 +1,14 @@
 VulkanDevice :: struct {
     #as using public_data : Device;
 
-    MINIMAL_REQUIRED_API_VERSION :: VK_API_VERSION_1_1;
+    MINIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_2;
+    MAXIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_3;
 
     instance        : VkInstance       = VK_NULL_HANDLE;
     physical_device : VkPhysicalDevice = VK_NULL_HANDLE;
     device          : VkDevice         = VK_NULL_HANDLE;
 
-    queues : [#run Basic.enum_highest_value(QueueTypes) + 1] VulkanQueue;
+    queues : [#run Basic.enum_highest_value(QueueType) + 1] VulkanQueue;
 
     surface   : VkSurfaceKHR;
     swapchain : VkSwapchainKHR;
@@ -69,15 +70,17 @@ VulkanQueue :: struct {
     index_in_family : u32;
 }
 
-// @TODO: #VulkanDeviceStorage. Find a better way.
+// @TODO: #PersistentArena
 g_device : VulkanDevice;
 
 createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     device := *g_device;
 
+    // @TODO: #PerFrameArena
     enabled_instance_extensions : [..] string;
     defer Basic.array_free(enabled_instance_extensions);
 
+    // @TODO: #PerFrameArena
     enabled_device_extensions : [..] string;
     defer Basic.array_free(enabled_device_extensions);
 
@@ -157,9 +160,7 @@ setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *
 
 #scope_file
 
-String   :: #import "String";
-Compiler :: #import "Compiler";
-
+// @TODO: #PersistentArena
 scanVulkanDeviceForInstanceLayers :: () -> (required : [] string, optional : [] string) {
     required_layers : [..] string;
     required_layers.allocator = Basic.temporary_allocator;
@@ -204,6 +205,7 @@ scanVulkanDeviceForInstanceLayers :: () -> (required : [] string, optional : [] 
     return required_layers, optional_layers;
 }
 
+// @TODO: #PersistentArena
 scanVulkanDeviceForInstanceExtensions :: () -> (required : [] string, optional : [] string) {
     required_extensions : [..] string;
     required_extensions.allocator = Basic.temporary_allocator;
@@ -400,7 +402,10 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         ppEnabledExtensionNames = cast(**s8) extensions_to_apply.data
     };
 
-    for < 3..1 {
+    MINIMAL_MINOR_VERSION :: #run VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION);
+    MAXIMAL_MINOR_VERSION :: #run VK_API_VERSION_MINOR(VulkanDevice.MAXIMAL_SUPPORTED_API_VERSION);
+
+    for < MAXIMAL_MINOR_VERSION .. MINIMAL_MINOR_VERSION {
         application_info.apiVersion = VK_MAKE_API_VERSION(0, 1, cast(u32) it, 0);
 
         // @TODO: VkAllocationCallbacks
@@ -425,10 +430,10 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
     if application_info.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
         assertMessage("Instance API version is less than minimal requied API version: %.%.%.%",
-                      VK_API_VERSION_VARIANT(VulkanDevice.MINIMAL_REQUIRED_API_VERSION),
-                      VK_API_VERSION_MAJOR(VulkanDevice.MINIMAL_REQUIRED_API_VERSION),
-                      VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_REQUIRED_API_VERSION),
-                      VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_REQUIRED_API_VERSION));
+                      VK_API_VERSION_VARIANT(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
+                      VK_API_VERSION_MAJOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
+                      VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
+                      VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION));
     }
 }
 
@@ -578,12 +583,14 @@ findCompatiblePhysicalDevice :: (device : *VulkanDevice) {
                       COMPATIBLE_PHYSICAL_DEVICE_TYPES[1]);
     }
 
-    if physical_device_properties.apiVersion < VK_API_VERSION_1_1 {
+    infoMessage("Using device type: %", device.type);
+
+    if physical_device_properties.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
         assertMessage("Physical device API version is less than minimal requied API version: %.%.%.%",
-                      VK_API_VERSION_VARIANT(VulkanDevice.MINIMAL_REQUIRED_API_VERSION),
-                      VK_API_VERSION_MAJOR(VulkanDevice.MINIMAL_REQUIRED_API_VERSION),
-                      VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_REQUIRED_API_VERSION),
-                      VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_REQUIRED_API_VERSION));
+                      VK_API_VERSION_VARIANT(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
+                      VK_API_VERSION_MAJOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
+                      VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
+                      VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION));
     }
 
     PHYSICAL_DEVICE_INFO_MESSAGE :: #string END
@@ -609,37 +616,35 @@ END;
                 s8_array_to_string(physical_device_properties.deviceName),
                 new_line = false);
 
-    if physical_device_properties.apiVersion >= VK_API_VERSION_1_2 {
-        driver_properties := VkPhysicalDeviceDriverProperties.{
-            sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES,
-            pNext = null,
-        };
+    driver_properties := VkPhysicalDeviceDriverProperties.{
+        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES,
+        pNext = null,
+    };
 
-        properties2 := VkPhysicalDeviceProperties2.{
-            sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
-            pNext = *driver_properties,
-        };
+    properties2 := VkPhysicalDeviceProperties2.{
+        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        pNext = *driver_properties,
+    };
 
-        vkGetPhysicalDeviceProperties2(device.physical_device, *properties2);
+    vkGetPhysicalDeviceProperties2(device.physical_device, *properties2);
 
-        DRIVER_INFO_MESSAGE :: #string END
+    DRIVER_INFO_MESSAGE :: #string END
 Driver info:
-            Driver ID:           %
-            Driver name:         %
-            Driver info:         %
-            Conformance version: %.%.%.%
+        Driver ID:           %
+        Driver name:         %
+        Driver info:         %
+        Conformance version: %.%.%.%
 END;
 
-        infoMessage(DRIVER_INFO_MESSAGE,
-                    driver_properties.driverID,
-                    s8_array_to_string(driver_properties.driverName),
-                    s8_array_to_string(driver_properties.driverInfo),
-                    driver_properties.conformanceVersion.major,
-                    driver_properties.conformanceVersion.minor,
-                    driver_properties.conformanceVersion.subminor,
-                    driver_properties.conformanceVersion.patch,
-                    new_line = false);
-    }
+    infoMessage(DRIVER_INFO_MESSAGE,
+                driver_properties.driverID,
+                s8_array_to_string(driver_properties.driverName),
+                s8_array_to_string(driver_properties.driverInfo),
+                driver_properties.conformanceVersion.major,
+                driver_properties.conformanceVersion.minor,
+                driver_properties.conformanceVersion.subminor,
+                driver_properties.conformanceVersion.patch,
+                new_line = false);
 }
 
 findQueueFamily :: ($condition : Code) #expand {
@@ -693,7 +698,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
 
     // Find queue family indices
     for * queue_it : device.queues {
-        queue_type := cast(QueueTypes) it_index;
+        queue_type := cast(QueueType) it_index;
 
         QUEUE_TYPE_TO_VK_QUEUE_FLAGS :: VkQueueFlags.[
             .VK_QUEUE_GRAPHICS_BIT,
@@ -721,9 +726,9 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
         assert(queue_it.family_index != 0xFFFF_FFFF, "% queue family was not found", queue_type);
     }
 
-    graphics_queue := *device.queues[QueueTypes.GRAPHICS];
-    compute_queue  := *device.queues[QueueTypes.COMPUTE];
-    copy_queue     := *device.queues[QueueTypes.COPY];
+    graphics_queue := *device.queues[QueueType.GRAPHICS];
+    compute_queue  := *device.queues[QueueType.COMPUTE];
+    copy_queue     := *device.queues[QueueType.COPY];
 
     // Detect queue index in queue family
     {
@@ -986,7 +991,7 @@ getQueues :: (device : *VulkanDevice) {
         vkGetDeviceQueue2(device.device, *queue_info, *it.handle);
         assert(it.handle != VK_NULL_HANDLE);
 
-        setObjectName(device, .VK_OBJECT_TYPE_QUEUE, it.handle, "% queue", cast(QueueTypes) it_index);
+        setObjectName(device, .VK_OBJECT_TYPE_QUEUE, it.handle, "% queue", cast(QueueType) it_index);
     }
 }
 
@@ -1031,21 +1036,22 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
                                                                                       surface_formats);
     assert(result == .VK_SUCCESS);
 
-    // @TODO: #Settings. Number of buffers in a swapchain
-    num_images : u32 = 2;
-    if num_images < surface_capabilities.minImageCount {
-        warningMessage("Requested number of images in a swapchain is %, but surface supports at least % of them. % will be created",
-                       num_images,
+    // @TODO: #Settings. Get the number of swapchain buffers from settings
+    device.swapchain_buffers_count = 2;
+    if device.swapchain_buffers_count < surface_capabilities.minImageCount {
+        warningMessage("Requested number of swapchain buffers is %, but surface supports at least % of them. % will be created",
+                       device.swapchain_buffers_count,
                        surface_capabilities.minImageCount,
                        surface_capabilities.minImageCount);
-        num_images = surface_capabilities.minImageCount;
-    } else if num_images > surface_capabilities.maxImageCount {
-        warningMessage("Requested number of images in a swapchain is %, but surface supports maximum % of them. % will be created",
-                       num_images,
+        device.swapchain_buffers_count = surface_capabilities.minImageCount;
+    } else if device.swapchain_buffers_count > surface_capabilities.maxImageCount && surface_capabilities.maxImageCount > 0 {
+        warningMessage("Requested number of swapchain buffers is %, but surface supports maximum % of them. % will be created",
+                       device.swapchain_buffers_count,
                        surface_capabilities.maxImageCount,
                        surface_capabilities.maxImageCount);
-        num_images = surface_capabilities.maxImageCount;
+        device.swapchain_buffers_count = surface_capabilities.maxImageCount;
     }
+    infoMessage("Swapchain buffers count: %", device.swapchain_buffers_count);
 
     surface_format := surface_formats;
     for 0 .. surface_formats_count - 1 {
@@ -1092,7 +1098,7 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
     }
 
     queue_families_having_access_to_swapchain_images : [1] u32;
-    queue_families_having_access_to_swapchain_images[0] = device.queues[QueueTypes.GRAPHICS].family_index;
+    queue_families_having_access_to_swapchain_images[0] = device.queues[QueueType.GRAPHICS].family_index;
 
     // @TODO: What if the monitor is located vertically?
     if !(surface_capabilities.supportedTransforms & .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
@@ -1114,7 +1120,7 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
         pNext                 = null,
         flags                 = 0,
         surface               = device.surface,
-        minImageCount         = num_images,
+        minImageCount         = device.swapchain_buffers_count,
         imageFormat           = surface_format.format,
         imageColorSpace       = surface_format.colorSpace,
         imageExtent           = surface_extent,
