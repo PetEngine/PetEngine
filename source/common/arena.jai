@@ -1,11 +1,14 @@
 #scope_export
 
 Arena :: struct {
-    memory   : *void;
-    occupied : s64;
-    capacity : s64;
-    marker   : s64;
-    name     : string;
+    memory       : *void;
+    occupied     : s64;
+    capacity     : s64;
+    marker       : s64;
+    name         : string;
+#if DEBUG_BUILD {
+    max_occupied : s64;
+}
 }
 
 createArena :: (arena : *Arena, capacity : s64, name : string) {
@@ -53,6 +56,11 @@ destroyArena :: (arena : *Arena) {
 
     assert(result != FALSE);
 
+    #if DEBUG_BUILD {
+        debugMessage("% arena: max occupied bytes: % / %", arena.name, arena.max_occupied, arena.capacity);
+        arena.max_occupied = 0;
+    }
+
     arena.memory   = null;
     arena.occupied = 0;
     arena.capacity = 0;
@@ -69,6 +77,12 @@ pushToArena :: (arena : *Arena, bytes : s64) -> *void #must {
 
     pointer := arena.memory + arena.occupied;
     arena.occupied += bytes;
+
+    #if DEBUG_BUILD {
+        if arena.occupied > arena.max_occupied {
+            arena.max_occupied = arena.occupied;
+        }
+    }
 
     return pointer;
 }
