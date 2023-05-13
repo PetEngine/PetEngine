@@ -14,52 +14,49 @@ warningMessage :: #bake_arguments message(priority = .WARNING, print_sys_error =
 errorMessage   :: #bake_arguments message(priority = .ERROR);
 assertMessage  :: #bake_arguments message(priority = .ASSERT);
 
-#if DEBUG_BUILD {
-    assert :: inline (
-        $$expression     : bool,
-        $format          := "",
-        args             : ..Any,
-        $dot             := false,
-        $new_line        := true,
-        $print_sys_error := true,
-        $location        := #caller_location
-    ) {
-        #if is_constant(expression) {
-            #if !expression {
-                assertMessage(format, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
-            }
-        } else if !expression {
-            assertMessage(format, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
-        }
-    }
-} else {
-    assert :: inline (
-        $$expression     : Code,
-        $format          := "",
-        args             : ..Any,
-        $dot             := false,
-        $new_line        := true,
-        $print_sys_error := true,
-        $location        := #caller_location
-    ) {
-    }
-}
-
-debugCheck :: inline (
-    $$expression     : bool,
+assert :: (
+    $expression      : Code,
     $format          := "",
     args             : ..Any,
     $dot             := false,
     $new_line        := true,
     $print_sys_error := true,
     $location        := #caller_location
-) {
-    assert(expression, format, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+) #expand {
+    #if DEBUG_BUILD {
+        #if is_constant(#insert expression) {
+            #if !(#insert expression) {
+                FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
+                assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+            }
+        } else if !(#insert expression) {
+            FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
+            assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+        }
+    }
+}
+
+debugCheck :: (
+    $expression      : Code,
+    $format          := "",
+    args             : ..Any,
+    $dot             := false,
+    $new_line        := true,
+    $print_sys_error := true,
+    $location        := #caller_location
+) #expand {
+    #if DEBUG_BUILD {
+        assert(expression, format, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+    } else {
+        #insert expression;
+    }
 }
 
 notImplemented :: () #expand {
     #assert false "Not implemented";
 }
+
+#scope_file
 
 message :: (
     $priority        : MessagePriority,
@@ -93,24 +90,21 @@ message :: (
         normalized_filename, result := File.get_absolute_path(location.fully_pathed_filename);
         Basic.assert(result);
 
-        Basic.print_to_builder(*builder, "%(%,%)", normalized_filename, location.line_number, location.character_number);
+        Basic.print_to_builder(*builder, "%(%,%): ", normalized_filename, location.line_number, location.character_number);
     }
 
-    if args.count {
-        #if priority == .ASSERT {
-            Basic.append(*builder, ": ");
-        }
+    if args.count > 0 {
+        #assert format.count > 0;
         Basic.print_to_builder(*builder, format, ..args);
-    } else #if format.count {
-        #if priority == .ASSERT {
-            Basic.append(*builder, ": ");
-        }
+    } else #if format.count > 0 {
         Basic.append(*builder, format);
+    } else {
+        Basic.append(*builder, "<no message>");
     }
 
     #if print_sys_error {
         if sys_error_code != 0 {
-            Basic.print_to_builder(*builder, ". System error(%): ", sys_error_code);
+            Basic.print_to_builder(*builder, ". System error (%): ", sys_error_code);
 
             sys_error_message : string;
 
@@ -154,10 +148,7 @@ message :: (
 
     #if OS == .WINDOWS {
         #if priority != .INFO {
-            c_string : *u8 = Basic.talloc(message.count + 1);
-            memcpy(c_string, message.data, message.count);
-            c_string[message.count] = 0;
-
+            c_string := Basic.temp_c_string(message);
             OutputDebugStringA(c_string);
         }
 
@@ -190,6 +181,20 @@ message :: (
     }
 }
 
-#scope_file
+formatOrExpression :: ($format : string, $expression : Code) -> string {
+    Basic.assert(#compile_time, "This function should be run only in compile time");
+
+    #if format.count > 0 {
+        return format;
+    } else {
+        builder : Basic.String_Builder;
+        builder.allocator = Basic.temporary_allocator;
+
+        nodes := Compiler.compiler_get_nodes(expression);
+        Program_Print.print_expression(*builder, nodes);
+
+        return Basic.builder_to_string(*builder);
+    }
+}
 
 File :: #import "File";

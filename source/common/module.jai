@@ -13,4 +13,6 @@ f64 :: float64;
     notImplemented();
 }
 
-Basic :: #import "Basic";
+Basic         :: #import "Basic";
+Compiler      :: #import "Compiler";
+Program_Print :: #import "Program_Print";
