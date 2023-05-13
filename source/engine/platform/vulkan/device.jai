@@ -14,11 +14,6 @@ VulkanDevice :: struct {
 
     messenger : VkDebugUtilsMessengerEXT = VK_NULL_HANDLE;
 
-    api_versions : struct {
-        instance        : u32;
-        physical_device : u32;
-    };
-
     instance_layers : struct {
         required : struct {
             #if DEBUG_BUILD {
@@ -419,17 +414,16 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     assert(device.instance != VK_NULL_HANDLE,
            "Vulkan instance initialization has failed for some reason. Maybe vulkan is just not supported");
 
-    device.api_versions.instance = application_info.apiVersion;
-    result := vkEnumerateInstanceVersion(*device.api_versions.instance);
+    result := vkEnumerateInstanceVersion(*application_info.apiVersion);
     assert(result == .VK_SUCCESS);
 
     infoMessage("Instance API version: %.%.%.%",
-                VK_API_VERSION_VARIANT(device.api_versions.instance),
-                VK_API_VERSION_MAJOR(device.api_versions.instance),
-                VK_API_VERSION_MINOR(device.api_versions.instance),
-                VK_API_VERSION_PATCH(device.api_versions.instance));
+                VK_API_VERSION_VARIANT(application_info.apiVersion),
+                VK_API_VERSION_MAJOR(application_info.apiVersion),
+                VK_API_VERSION_MINOR(application_info.apiVersion),
+                VK_API_VERSION_PATCH(application_info.apiVersion));
 
-    if device.api_versions.instance < VulkanDevice.MINIMAL_REQUIRED_API_VERSION {
+    if application_info.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
         assertMessage("Instance API version is less than minimal requied API version: %.%.%.%",
                       VK_API_VERSION_VARIANT(VulkanDevice.MINIMAL_REQUIRED_API_VERSION),
                       VK_API_VERSION_MAJOR(VulkanDevice.MINIMAL_REQUIRED_API_VERSION),
