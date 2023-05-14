@@ -1,11 +1,28 @@
-QueueType :: enum u8 {
+Device :: struct {
+    Type :: enum u16 {
+        INVALID;
+        DISCRETE;
+        INTEGRATED;
+    }
+
+    MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME :: 16;
+
+    vendor_id               : PCIVendorID;
+    type                    : Type;
+    graphics_api            : GraphicsAPI;
+    swapchain_buffers_count : u32;
+    backbuffer_index        : u32;
+}
+
+GraphicsAPI :: enum u32 {
+    VULKAN;
+}
+
+// @TODO: Rename to DEFAULT, ASYNC_COMPUTE, ASYNC_COPY and, probably, PRESENT.
+QueueType :: enum u16 {
     GRAPHICS;
     COMPUTE;
     COPY;
-}
-
-GraphicsAPI :: enum u8 {
-    VULKAN;
 }
 
 PCIVendorID :: enum u32 {
@@ -14,19 +31,15 @@ PCIVendorID :: enum u32 {
     INTEL    :: 0x8086; // Very wow, actually
     QUALCOMM :: 0x17CB;
     ARM      :: 0x13B5;
-}
 
-Device :: struct {
-    Type :: enum u32 {
-        INVALID;
-        DISCRETE;
-        INTEGRATED;
-    }
-
-    type                    : Type;
-    graphics_api            : GraphicsAPI;
-    swapchain_buffers_count : u32;
-    backbuffer_index        : u32;
+    // Vulkan specific vendor IDs
+    VK_VENDOR_ID_VIV      :: 0x10001;
+    VK_VENDOR_ID_VSI      :: 0x10002;
+    VK_VENDOR_ID_KAZAN    :: 0x10003;
+    VK_VENDOR_ID_CODEPLAY :: 0x10004;
+    VK_VENDOR_ID_MESA     :: 0x10005;
+    VK_VENDOR_ID_POCL     :: 0x10006;
+    VK_VENDOR_ID_MOBILEYE :: 0x10007;
 }
 
 createDevice :: (graphics_api : GraphicsAPI, window : *Window) -> *Device #must {

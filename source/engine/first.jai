@@ -39,8 +39,12 @@ main :: ()
     window := createWindow(window_manager, surface_width = 960, surface_height = 540);
     defer destroyWindow(window);
 
+    // @TODO: #Settings. Get graphics API from settings.
     device := createDevice(.VULKAN, window);
     defer destroyDevice(device);
+
+    command_buffer := createCommandBuffer(device);
+    defer destroyCommandBuffer(device, *command_buffer);
 
     showWindow(window);
 
@@ -64,6 +68,7 @@ DEBUG_BUILD :: #run -> bool {
 
 #load "core/window.jai";
 #load "render/device.jai";
+#load "render/command_buffer.jai";
 
 String :: #import "String";
 

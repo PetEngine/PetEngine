@@ -1,35 +1,38 @@
-SemaphoreKind :: enum {
-    ACQUIRE_IMAGE;
-}
-
 VulkanDevice :: struct {
     #as using public_data : Device;
 
     MINIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_2;
     LATEST_VULKAN_MINOR_VERSION   :: 3;
 
-    instance        : VkInstance       = VK_NULL_HANDLE;
-    physical_device : VkPhysicalDevice = VK_NULL_HANDLE;
-    device          : VkDevice         = VK_NULL_HANDLE;
+    instance        : VkInstance;
+    physical_device : VkPhysicalDevice;
+    device          : VkDevice;
 
     queues : [#run Basic.enum_highest_value(QueueType) + 1] VulkanQueue;
 
-    surface   : VkSurfaceKHR;
-    swapchain : VkSwapchainKHR;
+    surface          : VkSurfaceKHR;
+    swapchain        : VkSwapchainKHR;
+    swapchain_images : [] VkImage;     // count = swapchain buffers count
 
     semaphores : [#run Basic.enum_highest_value(SemaphoreKind) + 1] VkSemaphore;
 
-    swapchain_images : [] VkImage;
+    command_pools        : [] VkCommandPool;   // count = swapchain buffers count * queues count
+    command_buffers      : [] VkCommandBuffer; // count = swapchain buffers count * queues count * MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME
+    command_buffers_used : [] u32;             // count = swapchain buffers count * queues count
 
-    messenger : VkDebugUtilsMessengerEXT = VK_NULL_HANDLE;
+    messenger : VkDebugUtilsMessengerEXT;
 
     loader : VulkanLoader;
 }
 
 VulkanQueue :: struct {
-    handle          : VkQueue = VK_NULL_HANDLE;
-    family_index    : u32     = 0xFFFF_FFFF;
+    handle          : VkQueue;
+    family_index    : u32 = 0xFFFF_FFFF;
     index_in_family : u32;
+}
+
+SemaphoreKind :: enum {
+    ACQUIRE_IMAGE;
 }
 
 // @TODO: #PersistentArena
@@ -58,6 +61,8 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     createSwapchain(device, window);
     getSwapchainImages(device);
     createSemaphores(device);
+    createCommandPools(device);
+    allocateCommandBuffers(device);
 
     return device;
 }
@@ -65,24 +70,36 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
 destroyVulkanDevice :: (device : *VulkanDevice) {
     assert(device == *g_device);
 
+    // @Important: Should be the first call
     result := vkDeviceWaitIdle(device.device);
     assert(result == .VK_SUCCESS);
+
+    for device.command_pools {
+        // @TODO: VkAllocationCallbacks
+        vkDestroyCommandPool(device.device, it, null);
+    }
 
     for device.semaphores {
         // @TODO: VkAllocationCallbacks
         vkDestroySemaphore(device.device, it, null);
     }
 
-    device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, device.swapchain, null); // @TODO: VkAllocationCallbacks
-    device.loader.extensions.instance.required.vkDestroySurfaceKHR(device.instance, device.surface, null); // @TODO: VkAllocationCallbacks
+    // @TODO: VkAllocationCallbacks
+    device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, device.swapchain, null);
 
-    vkDestroyDevice(device.device, null); // @TODO: VkAllocationCallbacks
+    // @TODO: VkAllocationCallbacks
+    device.loader.extensions.instance.required.vkDestroySurfaceKHR(device.instance, device.surface, null);
+
+    // @TODO: VkAllocationCallbacks
+    vkDestroyDevice(device.device, null);
 
     if device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT {
         // @TODO: VkAllocationCallbacks
         device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT(device.instance, device.messenger, null);
     }
-    vkDestroyInstance(device.instance, null); // @TODO: VkAllocationCallbacks
+
+    // @TODO: VkAllocationCallbacks
+    vkDestroyInstance(device.instance, null);
 }
 
 beginVulkanFrame :: (device : *VulkanDevice) {
@@ -349,6 +366,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     }
 }
 
+// @TODO: Deduplicate messages
 messengerCallback :: (
     messageSeverity : VkDebugUtilsMessageSeverityFlagsEXT,
     messageTypes    : VkDebugUtilsMessageTypeFlagsEXT,
@@ -383,7 +401,7 @@ initMessengerCallback :: (device : *VulkanDevice) {
             pNext           = null,
             flags           = 0,
             messageSeverity = VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-//                              | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+//                          | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
                             | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
             messageType     = VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
                             | .VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
@@ -463,6 +481,8 @@ findCompatiblePhysicalDevice :: (device : *VulkanDevice) {
                       VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION));
     }
 
+    device.vendor_id = cast(PCIVendorID) physical_device_properties.vendorID;
+
     PHYSICAL_DEVICE_INFO_MESSAGE :: #string END
 Physical device info:
             API version:    %.%.%.%
@@ -500,10 +520,10 @@ END;
 
     DRIVER_INFO_MESSAGE :: #string END
 Driver info:
-        Driver ID:           %
-        Driver name:         %
-        Driver info:         %
-        Conformance version: %.%.%.%
+            Driver ID:           %
+            Driver name:         %
+            Driver info:         %
+            Conformance version: %.%.%.%
 END;
 
     infoMessage(DRIVER_INFO_MESSAGE,
@@ -960,18 +980,100 @@ createSemaphores :: (device : *VulkanDevice) {
     }
 }
 
-vendorIdToString :: inline (vendor_id : u32) -> string {
-    info := type_info(VkVendorId);
+createCommandPools :: (device : *VulkanDevice) {
+    // May be greater than we need, but never mind, extra ones will just never be used then.
+    // It's just chipper to have slightly bigger amount of them.
+    device.command_pools.count = device.swapchain_buffers_count * VulkanDevice.queues.count;
+    device.command_pools.data  = pushToArena(*context.pet_engine_state.persistent_arena, VkCommandPool, device.command_pools.count);
 
-    lowest_value, highest_value := Basic.enum_range_given_info(info);
+    create_info := VkCommandPoolCreateInfo.{
+        sType            = .VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        pNext            = null,
+        flags            = 0,
+        queueFamilyIndex = 0xFFFF_FFFF // Will be set in a loop
+    };
 
-    if lowest_value <= vendor_id && vendor_id <= highest_value {
-        return info.names[vendor_id];
+    command_pools_it := device.command_pools.data;
+
+    for buffer_index : 0 .. device.swapchain_buffers_count - 1 {
+        for device.queues {
+            create_info.queueFamilyIndex = it.family_index;
+
+            // @TODO: VkAllocationCallbacks
+            result := vkCreateCommandPool(device.device, *create_info, null, command_pools_it);
+            assert(result == .VK_SUCCESS);
+
+            setObjectName(device, .VK_OBJECT_TYPE_COMMAND_POOL, <<command_pools_it, "% command pool for swapchain buffer #%",
+                          cast(QueueType) it_index,
+                          buffer_index);
+
+            command_pools_it += 1;
+        }
     }
 
-    info = type_info(PCIVendorID);
+    assert(command_pools_it == device.command_pools.data + device.command_pools.count);
+}
+
+getCommandPool :: inline (device : *VulkanDevice, queue_type : QueueType) -> VkCommandPool {
+    return device.command_pools[device.backbuffer_index * VulkanDevice.queues.count + queue_type];
+}
+
+allocateCommandBuffers :: (device : *VulkanDevice) {
+    device.command_buffers.count = device.swapchain_buffers_count * VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME;
+    device.command_buffers.data  = pushToArena(*context.pet_engine_state.persistent_arena, VkCommandBuffer, device.command_buffers.count);
+
+    device.command_buffers_used.count = device.swapchain_buffers_count * VulkanDevice.queues.count;
+    device.command_buffers_used.data  = pushToArena(*context.pet_engine_state.persistent_arena, u32, device.command_buffers_used.count);
+
+    allocation_info := VkCommandBufferAllocateInfo.{
+        sType              = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        pNext              = null,
+        commandPool        = null, // Will be set in a loop
+        level              = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        commandBufferCount = Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME
+    };
+
+    command_buffers_it := device.command_buffers.data;
+
+    for device.command_pools {
+        allocation_info.commandPool = it;
+
+        result := vkAllocateCommandBuffers(device.device, *allocation_info, command_buffers_it);
+        assert(result == .VK_SUCCESS);
+
+        command_buffers_it += Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME;
+    }
+
+    assert(command_buffers_it == device.command_buffers.data + device.command_buffers.count);
+
+    #if DEBUG_BUILD {
+        command_buffers_it = device.command_buffers.data;
+
+        for swapchain_buffer_index : 0 .. device.swapchain_buffers_count - 1 {
+            for queue_type : 0 .. VulkanDevice.queues.count - 1 {
+                for command_buffer_index : 0 .. Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME - 1 {
+                    setObjectName(device,
+                                  .VK_OBJECT_TYPE_COMMAND_BUFFER,
+                                  <<command_buffers_it,
+                                  "% command buffer #% for swapchain buffer #%",
+                                  cast(QueueType) queue_type,
+                                  command_buffer_index,
+                                  swapchain_buffer_index);
+
+                    command_buffers_it += 1;
+                }
+            }
+        }
+
+        assert(command_buffers_it == device.command_buffers.data + device.command_buffers.count);
+    }
+}
+
+vendorIdToString :: inline (vendor_id : u32) -> string {
+    info := type_info(PCIVendorID);
+
     for info.values {
-        if vendor_id == it {
+        if it == vendor_id {
             return info.names[it_index];
         }
     }

@@ -16,12 +16,17 @@ VkDeviceQueueInfo2 :: struct {
 }
 
 // Provided by VK_VERSION_1_0
-vkGetDeviceQueue :: (
-    device           : VkDevice,
-    queueFamilyIndex : u32,
-    queueIndex       : u32,
-    pQueue           : *VkQueue
-) #foreign vulkan;
+VkSubmitInfo :: struct {
+    sType                : VkStructureType;
+    pNext                : *void;
+    waitSemaphoreCount   : u32;
+    pWaitSemaphores      : *VkSemaphore;
+    pWaitDstStageMask    : *VkPipelineStageFlags;
+    commandBufferCount   : u32;
+    pCommandBuffers      : *VkCommandBuffer;
+    signalSemaphoreCount : u32;
+    pSignalSemaphores    : *VkSemaphore;
+}
 
 // Provided by VK_VERSION_1_1
 vkGetDeviceQueue2 :: (
@@ -29,3 +34,11 @@ vkGetDeviceQueue2 :: (
     pQueueInfo : *VkDeviceQueueInfo2,
     pQueue     : *VkQueue
 ) #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkQueueSubmit :: (
+    queue       : VkQueue,
+    submitCount : u32,
+    pSubmits    : *VkSubmitInfo,
+    fence       : VkFence
+) -> VkResult #foreign vulkan;
