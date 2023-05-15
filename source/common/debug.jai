@@ -190,8 +190,8 @@ formatOrExpression :: ($format : string, $expression : Code) -> string {
         builder : Basic.String_Builder;
         builder.allocator = Basic.temporary_allocator;
 
-        nodes := Compiler.compiler_get_nodes(expression);
-        Program_Print.print_expression(*builder, nodes);
+        root := Compiler.compiler_get_nodes(expression);
+        Program_Print.print_expression(*builder, root);
 
         return Basic.builder_to_string(*builder);
     }

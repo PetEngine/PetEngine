@@ -17,7 +17,7 @@ createCommandBuffer :: (device : *Device) -> CommandBuffer #must {
         case .VULKAN;
             for swapchain_buffer_index : 0 .. device.swapchain_buffers_count - 1 {
                 for queue_type : 0 .. QUEUES_COUNT - 1 {
-                    <<handles_it = pushVulkanCommandBuffer(cast(*VulkanDevice) device, cast(QueueType) queue_type, swapchain_buffer_index);
+                    <<handles_it = pushVulkanCommandBuffer(cast(*VulkanDevice) device, swapchain_buffer_index, cast(QueueType) queue_type);
                     handles_it += 1;
                 }
             }

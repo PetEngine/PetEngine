@@ -11,7 +11,7 @@ Device :: struct {
     type                    : Type;
     graphics_api            : GraphicsAPI;
     swapchain_buffers_count : u32;
-    backbuffer_index        : u32;
+    back_buffer_index       : u32;
 }
 
 GraphicsAPI :: enum u32 {
