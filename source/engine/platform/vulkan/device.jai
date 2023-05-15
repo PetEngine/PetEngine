@@ -20,29 +20,19 @@ VulkanDevice :: struct {
     command_buffers      : [] VkCommandBuffer; // count = swapchain buffers count * queues count * MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME
     command_buffers_used : [] u32;             // count = swapchain buffers count * queues count
 
-    messenger : VkDebugUtilsMessengerEXT;
+    messenger      : VkDebugUtilsMessengerEXT;
+    message_hashes : [..] u32;
+
+    // @TODO: #ContextDependency
+    jai_context : *Context;
 
     loader : VulkanLoader;
 }
 
-VulkanQueue :: struct {
-    handle          : VkQueue;
-    family_index    : u32 = 0xFFFF_FFFF;
-    index_in_family : u32;
-}
-
-SemaphoreKind :: enum u8 {
-    ACQUIRE_IMAGE;
-    SUBMIT_GRAPHICS;
-    SUBMIT_COMPUTE;
-    SUBMIT_COPY;
-}
-
-// @TODO: #PersistentArena
-g_device : VulkanDevice;
-
 createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     device := *g_device;
+
+    device.jai_context = *context;
 
     // @TODO: #PerFrameArena
     enabled_instance_extensions : [..] string;
@@ -282,6 +272,24 @@ setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *
 
 #scope_file
 
+Hash :: #import "Hash";
+
+VulkanQueue :: struct {
+    handle          : VkQueue;
+    family_index    : u32 = 0xFFFF_FFFF;
+    index_in_family : u32;
+}
+
+SemaphoreKind :: enum u8 {
+    ACQUIRE_IMAGE;
+    SUBMIT_GRAPHICS;
+    SUBMIT_COMPUTE;
+    SUBMIT_COPY;
+}
+
+// @TODO: #PersistentArena
+g_device : VulkanDevice;
+
 createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] string) {
     defer Basic.reset_temporary_storage();
 
@@ -468,28 +476,64 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     }
 }
 
-// @TODO: Deduplicate messages
 messengerCallback :: (
     messageSeverity : VkDebugUtilsMessageSeverityFlagsEXT,
     messageTypes    : VkDebugUtilsMessageTypeFlagsEXT,
     pCallbackData   : *VkDebugUtilsMessengerCallbackDataEXT,
     pUserData       : *void
 ) -> VkBool32 #c_call {
+    device : *VulkanDevice = pUserData;
 
     message := to_string(cast(*u8) pCallbackData.pMessage);
     if message[message.count - 1] == #char "." {
         message.count -= 1;
     }
 
-    push_context cast(*Context) pUserData {
-        if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT {
-            errorMessage("[VULKAN]: %", message, print_sys_error = false);
-        } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT {
-            warningMessage("[VULKAN]: %", message);
-        } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT {
-            debugMessage("[VULKAN]: %", message);
+    MESSAGE_DEDUPLICATION_STRATEGY : enum u8 {
+        VUID_HASH    :: 1;
+        MESSAGE_HASH;
+    } : .VUID_HASH;
+
+    push_context device.jai_context {
+        #if MESSAGE_DEDUPLICATION_STRATEGY == .VUID_HASH {
+            message_end := message.data + message.count;
+
+            vuid_start := message.data;
+            while vuid_start < message_end && <<vuid_start != #char "[" {
+                vuid_start += 1;
+            }
+
+            vuid_end := vuid_start;
+            while vuid_end < message_end && <<vuid_end != #char "]" {
+                vuid_end += 1;
+            }
+            vuid_end += 1;
+
+            vuid_string : string = ---;
+            vuid_string.data  = vuid_start;
+            vuid_string.count = vuid_end - vuid_start;
+
+            hash := Hash.get_hash(vuid_string);
+
+            should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
+        } else #if MESSAGE_DEDUPLICATION_STRATEGY == .MESSAGE_HASH {
+            hash := Hash.get_hash(message);
+
+            should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
         } else {
-            infoMessage("[VULKAN]: %", message);
+            should_be_printed :: true;
+        }
+
+        if should_be_printed {
+            if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT {
+                errorMessage("[VULKAN]: %", message, print_sys_error = false);
+            } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT {
+                warningMessage("[VULKAN]: %", message);
+            } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT {
+                debugMessage("[VULKAN]: %", message);
+            } else {
+                infoMessage("[VULKAN]: %", message);
+            }
         }
     }
 
@@ -510,7 +554,7 @@ initMessengerCallback :: (device : *VulkanDevice) {
                             | .VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
                             | .VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT,
             pfnUserCallback = messengerCallback,
-            pUserData       = *context,
+            pUserData       = device,
         };
 
         #if DEBUG_BUILD {
