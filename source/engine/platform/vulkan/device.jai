@@ -285,6 +285,31 @@ SemaphoreKind :: enum u8 {
 }
 
 createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] string) {
+    MINIMAL_MINOR_VERSION :: #run VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION);
+
+    api_version : u32;
+    for < VulkanDevice.LATEST_VULKAN_MINOR_VERSION .. MINIMAL_MINOR_VERSION {
+        api_version = VK_MAKE_API_VERSION(0, 1, cast(u32) it, 0);
+
+        if vkEnumerateInstanceVersion(*api_version) == .VK_SUCCESS {
+            break;
+        }
+    }
+
+    infoMessage("Instance API version: %.%.%.%",
+                VK_API_VERSION_VARIANT(api_version),
+                VK_API_VERSION_MAJOR(api_version),
+                VK_API_VERSION_MINOR(api_version),
+                VK_API_VERSION_PATCH(api_version));
+
+    if api_version < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
+        assertMessage("Instance API version is less than minimal requied API version: %.%.%.%",
+                      VK_API_VERSION_VARIANT(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
+                      VK_API_VERSION_MAJOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
+                      VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
+                      VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION));
+    }
+
     defer Basic.reset_temporary_storage();
 
     builder : Basic.String_Builder;
@@ -422,7 +447,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         applicationVersion = 0,
         pEngineName        = nt_engine_name.data,
         engineVersion      = ENGINE_VERSION,
-        apiVersion         = 0, // Will be set later in the loop
+        apiVersion         = api_version
     };
 
     instance_create_info := VkInstanceCreateInfo.{
@@ -436,38 +461,9 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         ppEnabledExtensionNames = cast(**s8) extensions_to_apply.data
     };
 
-    MINIMAL_MINOR_VERSION :: #run VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION);
-
-    for < VulkanDevice.LATEST_VULKAN_MINOR_VERSION .. MINIMAL_MINOR_VERSION {
-        application_info.apiVersion = VK_MAKE_API_VERSION(0, 1, cast(u32) it, 0);
-
-        // @TODO: VkAllocationCallbacks
-        if vkCreateInstance(*instance_create_info, null, *device.instance) == .VK_SUCCESS {
-            break;
-        }
-
-        assert(device.instance == VK_NULL_HANDLE);
-    }
-
-    assert(device.instance != VK_NULL_HANDLE,
-           "Vulkan instance initialization has failed for some reason. Maybe vulkan is just not supported");
-
-    result := vkEnumerateInstanceVersion(*application_info.apiVersion);
+    // @TODO: VkAllocationCallbacks
+    result := vkCreateInstance(*instance_create_info, null, *device.instance);
     assert(result == .VK_SUCCESS);
-
-    infoMessage("Instance API version: %.%.%.%",
-                VK_API_VERSION_VARIANT(application_info.apiVersion),
-                VK_API_VERSION_MAJOR(application_info.apiVersion),
-                VK_API_VERSION_MINOR(application_info.apiVersion),
-                VK_API_VERSION_PATCH(application_info.apiVersion));
-
-    if application_info.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
-        assertMessage("Instance API version is less than minimal requied API version: %.%.%.%",
-                      VK_API_VERSION_VARIANT(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
-                      VK_API_VERSION_MAJOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
-                      VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
-                      VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION));
-    }
 }
 
 messengerCallback :: (
