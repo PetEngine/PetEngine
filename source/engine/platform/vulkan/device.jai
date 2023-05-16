@@ -4,6 +4,8 @@ VulkanDevice :: struct {
     MINIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_2;
     LATEST_VULKAN_MINOR_VERSION   :: 3;
 
+    api_version : u32;
+
     instance        : VkInstance;
     physical_device : VkPhysicalDevice;
     device          : VkDevice;
@@ -41,10 +43,18 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     enabled_device_extensions : [..] string;
     defer Basic.array_free(enabled_device_extensions);
 
-    createInstance(device, *enabled_instance_extensions);
+    instance_api_version := createInstance(device, *enabled_instance_extensions);
     loadVulkanInstanceExtensionsFunctions(*device.loader, device.instance, *enabled_instance_extensions);
     initMessengerCallback(device);
-    findCompatiblePhysicalDevice(device);
+    physical_device_api_version := findCompatiblePhysicalDevice(device);
+
+    device.api_version = Basic.min(instance_api_version, physical_device_api_version);
+    infoMessage("Using Vulkan API version: %.%.%.%",
+                VK_API_VERSION_VARIANT(device.api_version),
+                VK_API_VERSION_MAJOR(device.api_version),
+                VK_API_VERSION_MINOR(device.api_version),
+                VK_API_VERSION_PATCH(device.api_version));
+
     gatherQueuesInfo(device);
     createDevice(device, *enabled_device_extensions);
     loadVulkanDeviceExtensionsFunctions(*device.loader, device.device, *enabled_device_extensions);
@@ -284,7 +294,7 @@ SemaphoreKind :: enum u8 {
     SUBMIT_COPY;
 }
 
-createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] string) {
+createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] string) -> u32 {
     MINIMAL_MINOR_VERSION :: #run VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION);
 
     api_version : u32;
@@ -296,14 +306,14 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         }
     }
 
-    infoMessage("Instance API version: %.%.%.%",
+    infoMessage("Vulkan instance API version: %.%.%.%",
                 VK_API_VERSION_VARIANT(api_version),
                 VK_API_VERSION_MAJOR(api_version),
                 VK_API_VERSION_MINOR(api_version),
                 VK_API_VERSION_PATCH(api_version));
 
     if api_version < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
-        assertMessage("Instance API version is less than minimal requied API version: %.%.%.%",
+        assertMessage("Vulkan instance API version is less than minimal requied API version: %.%.%.%",
                       VK_API_VERSION_VARIANT(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
                       VK_API_VERSION_MAJOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
                       VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
@@ -464,6 +474,8 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     // @TODO: VkAllocationCallbacks
     result := vkCreateInstance(*instance_create_info, null, *device.instance);
     assert(result == .VK_SUCCESS);
+
+    return api_version;
 }
 
 messengerCallback :: (
@@ -561,7 +573,7 @@ initMessengerCallback :: (device : *VulkanDevice) {
 }
 
 // @TODO: Multiple GPU support: vkEnumeratePhysicalDeviceGroupsKHR (VK_KHR_device_group_creation)
-findCompatiblePhysicalDevice :: (device : *VulkanDevice) {
+findCompatiblePhysicalDevice :: (device : *VulkanDevice) -> u32 {
     physical_device_count : u32;
     result := vkEnumeratePhysicalDevices(device.instance, *physical_device_count, null);
     assert(result == .VK_SUCCESS);
@@ -671,6 +683,8 @@ END;
                 driver_properties.conformanceVersion.subminor,
                 driver_properties.conformanceVersion.patch,
                 new_line = false);
+
+    return physical_device_properties.apiVersion;
 }
 
 findQueueFamily :: ($condition : Code) #expand {
@@ -900,9 +914,38 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
     }
 
+    // @TODO: #Features
+    #if false {
+        available_features_1_3 := VkPhysicalDeviceVulkan13Features.{
+            sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+            pNext = null,
+        };
+
+        available_features_1_2 := VkPhysicalDeviceVulkan12Features.{
+            sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+            pNext = ifx  device.api_version >= VK_API_VERSION_1_3
+                    then *available_features_1_3
+                    else null,
+        };
+
+        available_features_1_1 := VkPhysicalDeviceVulkan11Features.{
+            sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+            pNext = *available_features_1_2,
+        };
+
+        available_features_1_0 := VkPhysicalDeviceFeatures2.{
+            sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+            pNext = *available_features_1_1,
+        };
+
+        vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features_1_0);
+
+        // @TODO: #Features. define optional and required features and validate it.
+    }
+
     device_create_info := VkDeviceCreateInfo.{
         sType                   = .VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        pNext                   = null,
+        pNext                   = null, // @TODO: #Features
         flags                   = 0,
         queueCreateInfoCount    = queue_create_infos_count,
         pQueueCreateInfos       = queue_create_infos.data,
@@ -910,12 +953,12 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         ppEnabledLayerNames     = null, // Deprecated and ignored.
         enabledExtensionCount   = cast(u32)  extensions_to_apply.count,
         ppEnabledExtensionNames = cast(**s8) extensions_to_apply.data,
-        pEnabledFeatures        = null, // @TODO
+        pEnabledFeatures        = null, // We are using pNext for VkPhysicalDeviceFeatures2
     };
 
     // @TODO: VkAllocationCallbacks
     result := vkCreateDevice(device.physical_device, *device_create_info, null, *device.device);
-    assert(result == .VK_SUCCESS && device.device != VK_NULL_HANDLE);
+    assert(result == .VK_SUCCESS);
 }
 
 getQueues :: (device : *VulkanDevice) {
