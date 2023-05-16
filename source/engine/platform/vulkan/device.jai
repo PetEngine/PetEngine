@@ -30,8 +30,7 @@ VulkanDevice :: struct {
 }
 
 createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
-    device := *g_device;
-
+    device := pushToArena(*context.pet_engine_state.persistent_arena, VulkanDevice);
     device.jai_context = *context;
 
     // @TODO: #PerFrameArena
@@ -61,8 +60,6 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
 }
 
 destroyVulkanDevice :: (device : *VulkanDevice) {
-    assert(device == *g_device);
-
     // @Important: Should be the first call
     result := vkDeviceWaitIdle(device.device);
     assert(result == .VK_SUCCESS);
@@ -286,9 +283,6 @@ SemaphoreKind :: enum u8 {
     SUBMIT_COMPUTE;
     SUBMIT_COPY;
 }
-
-// @TODO: #PersistentArena
-g_device : VulkanDevice;
 
 createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] string) {
     defer Basic.reset_temporary_storage();
