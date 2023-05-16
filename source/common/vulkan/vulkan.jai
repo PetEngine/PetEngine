@@ -165,6 +165,8 @@ VkStructureType :: enum VkEnum {
     // Provided by VK_VERSION_1_2
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES       :: 1000196000;
     // Provided by VK_VERSION_1_2
+    VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO              :: 1000207002;
+    // Provided by VK_VERSION_1_2
     VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO                     :: 1000207004;
 
     // Provided by VK_EXT_debug_utils
