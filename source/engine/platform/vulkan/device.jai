@@ -234,7 +234,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
 
 setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *void, name : string) {
     #if DEBUG_BUILD {
-        if device.instance_extensions.optional.vkSetDebugUtilsObjectNameEXT {
+        if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
             object_name := pushToArena(*context.pet_engine_state.per_frame_arena, s8, name.count + 1);
             memcpy(object_name, name.data, name.count);
 
@@ -246,7 +246,7 @@ setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *
                 pObjectName  = object_name
             };
 
-            device.instance_extensions.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info);
+            result := device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info);
             assert(result == .VK_SUCCESS);
         }
     }
