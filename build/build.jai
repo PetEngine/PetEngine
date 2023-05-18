@@ -11,17 +11,27 @@ Configuration :: enum u8 {
 }
 
 BuildArguments :: struct {
-    configuration := Configuration.DEBUG;
+    configuration_name : string;
+    configuration      : Configuration;
 }
 
 gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
-    arguments : BuildArguments;
+    arguments : BuildArguments = ---;
 
     for build_options.compile_time_command_line {
         if it == {
-            case "debug";                   arguments.configuration = .DEBUG;
-            case "release";                 arguments.configuration = .RELEASE;
-            case "release_with_debug_info"; arguments.configuration = .RELEASE_WITH_DEBUG_INFO;
+            case "debug";
+                arguments.configuration_name = it;
+                arguments.configuration      = .DEBUG;
+
+            case "release";
+                arguments.configuration_name = it;
+                arguments.configuration      = .RELEASE;
+
+            case "release_with_debug_info";
+                arguments.configuration_name = it;
+                arguments.configuration      = .RELEASE_WITH_DEBUG_INFO;
+
             case;
                 compiler_report(join("Unknown command line argument: ", it, allocator = temporary_allocator));
         }
@@ -47,11 +57,9 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
 
     builder : String_Builder;
 
-    configuration_name := to_lower_copy((cast(*Type_Info_Enum) Configuration).names[build_arguments.configuration]);
-
     workspace_name : string = ---;
     {
-        print_to_builder(*builder, "%/%", OS, configuration_name);
+        print_to_builder(*builder, "%/%", OS, build_arguments.configuration_name);
         workspace_name = builder_to_string(*builder);
         to_lower_in_place(workspace_name);
     }
