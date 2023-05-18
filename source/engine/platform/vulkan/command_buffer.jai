@@ -23,7 +23,3 @@ getVulkanCommandBuffer :: inline (
 
     return device.command_buffers[global_index];
 }
-
-getVulkanCommandBuffersUsedCount :: inline (device : *VulkanDevice, swapchain_buffer_index : u32, queue_type : QueueType) -> u32 {
-    return device.command_buffers_used[swapchain_buffer_index * VulkanDevice.queues.count + cast(u32) queue_type];
-}

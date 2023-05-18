@@ -143,6 +143,7 @@ VkStructureType :: enum VkEnum {
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO                :: 2;
     VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO                      :: 3;
     VK_STRUCTURE_TYPE_SUBMIT_INFO                             :: 4;
+    VK_STRUCTURE_TYPE_FENCE_CREATE_INFO                       :: 8;
     VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO                   :: 9;
     VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO                :: 39;
     VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO            :: 40;
@@ -293,7 +294,6 @@ VK_MAX_MEMORY_TYPES               : u32 : 32;
 VK_MAX_MEMORY_HEAPS               : u32 : 16;
 
 // @Cleanup: Move to their own files
-VkFence       :: VK_NON_DISPATCHABLE_HANDLE;
 VkImage       :: VK_NON_DISPATCHABLE_HANDLE;
 VkRenderPass  :: VK_NON_DISPATCHABLE_HANDLE;
 VkFramebuffer :: VK_NON_DISPATCHABLE_HANDLE;
@@ -340,6 +340,7 @@ VkFormat :: enum VkEnum { // @Cleanup: move to image file
 #load "device.jai";
 #load "queue.jai";
 #load "semaphore.jai";
+#load "fence.jai";
 #load "command_pool.jai";
 #load "command_buffer.jai";
 
