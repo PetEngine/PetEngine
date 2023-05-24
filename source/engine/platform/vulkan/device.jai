@@ -334,13 +334,13 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         result = vkEnumerateInstanceLayerProperties(*layers_count, layers);
         assert(result == .VK_SUCCESS);
 
-        Basic.print_to_builder(*builder, "Available instance layers (%):\n", layers_count);
         layers_it := layers;
+
+        Basic.print_to_builder(*builder, "Available instance layers (%):\n", layers_count);
         for 0 .. layers_count - 1 {
             Basic.print_to_builder(*builder, "            %\n", to_string(cast(*u8) layers_it.layerName.data));
             layers_it += 1;
         }
-
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
 
         REQUIRED_LAYERS, OPTIONAL_LAYERS :: #run gatherVulkanLayers();
@@ -366,12 +366,20 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
         for optional_layers_it : OPTIONAL_LAYERS {
             layers_it = layers;
+
+            layer_found := false;
             for 0 .. layers_count - 1 {
                 if String.equal(to_string(cast(*u8) layers_it.layerName.data), optional_layers_it) {
-                    Basic.array_add(*layers_to_apply, cast(*s8) optional_layers_it.data);
+                    layer_found = true;
                     break;
                 }
                 layers_it += 1;
+            }
+
+            if layer_found {
+                Basic.array_add(*layers_to_apply, cast(*s8) optional_layers_it.data);
+            } else {
+                warningMessage("Optional instance layer \"%\" has not been found in available instance layers", optional_layers_it);
             }
         }
 
@@ -379,7 +387,6 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         for layers_to_apply {
             Basic.print_to_builder(*builder, "            %\n", to_string(cast(*u8) it));
         }
-
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
     }
 
@@ -395,13 +402,13 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         result = vkEnumerateInstanceExtensionProperties(null, *extensions_count, extensions);
         assert(result == .VK_SUCCESS);
 
-        Basic.print_to_builder(*builder, "Available instance extensions (%):\n", extensions_count);
         extensions_it := extensions;
+
+        Basic.print_to_builder(*builder, "Available instance extensions (%):\n", extensions_count);
         for 0 .. extensions_count - 1 {
             Basic.print_to_builder(*builder, "            %\n", to_string(cast(*u8) extensions_it.extensionName.data));
             extensions_it += 1;
         }
-
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanInstanceExtensions();
@@ -427,12 +434,20 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
         for optional_extensions_it : OPTIONAL_EXTENSIONS {
             extensions_it = extensions;
+
+            extension_found := false;
             for 0 .. extensions_count - 1 {
                 if String.equal(to_string(cast(*u8) extensions_it.extensionName.data), optional_extensions_it) {
-                    Basic.array_add(enabled_instance_extensions, optional_extensions_it);
+                    extension_found = true;
                     break;
                 }
                 extensions_it += 1;
+            }
+
+            if extension_found {
+                Basic.array_add(enabled_instance_extensions, optional_extensions_it);
+            } else {
+                warningMessage("Optional extension \"%\" has not been found in available extensions", optional_extensions_it);
             }
         }
 
@@ -883,13 +898,13 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         result = vkEnumerateDeviceExtensionProperties(device.physical_device, null, *extensions_count, extensions);
         assert(result == .VK_SUCCESS);
 
-        Basic.print_to_builder(*builder, "Available device extensions (%):\n", extensions_count);
         extensions_it := extensions;
+
+        Basic.print_to_builder(*builder, "Available device extensions (%):\n", extensions_count);
         for 0 .. extensions_count - 1 {
             Basic.print_to_builder(*builder, "            %\n", to_string(cast(*u8) extensions_it.extensionName.data));
             extensions_it += 1;
         }
-
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanDeviceExtensions();
@@ -915,12 +930,20 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 
         for optional_extensions_it : OPTIONAL_EXTENSIONS {
             extensions_it = extensions;
+
+            extension_found := false;
             for 0 .. extensions_count - 1 {
                 if String.equal(to_string(cast(*u8) extensions_it.extensionName.data), optional_extensions_it) {
-                    Basic.array_add(enabled_device_extensions, optional_extensions_it);
+                    extension_found = true;
                     break;
                 }
                 extensions_it += 1;
+            }
+
+            if extension_found {
+                Basic.array_add(enabled_device_extensions, optional_extensions_it);
+            } else {
+                warningMessage("Optional device extension \"%\" has not been found in available device extensions", optional_extensions_it);
             }
         }
 
