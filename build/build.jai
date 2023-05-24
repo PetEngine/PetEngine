@@ -110,8 +110,8 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     build_options.output_path                         = output_path;
     build_options.intermediate_path                   = intermediate_path;
     build_options.entry_point_name                    = "main";
-    build_options.import_path                         = .[ "D:/jai/modules", "../source" ];
-    build_options.additional_linker_arguments         = .[ "/LIBPATH:../third_party/vulkan_1.3.243.0" ];
+    build_options.import_path                         = .[ "C:/jai/modules", "../source" ];
+    build_options.additional_linker_arguments         = .[ "/LIBPATH:../third_party/vulkan" ];
 
     //
     // Configuration specific options
