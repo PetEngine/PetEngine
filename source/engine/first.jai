@@ -17,7 +17,7 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 
 #scope_module
 
-#add_context pet_engine_state : struct {
+#add_context pet : struct {
     persistent_arena : Arena;
     per_frame_arena  : Arena;
 };
@@ -25,12 +25,12 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 main :: ()
 {
     // @TODO: #Settings. Get persistent arena capacity from settings.
-    createArena(*context.pet_engine_state.persistent_arena, gigaByte(1), "Persistent");
-    defer destroyArena(*context.pet_engine_state.persistent_arena);
+    createArena(*context.pet.persistent_arena, gigaByte(1), "Persistent");
+    defer destroyArena(*context.pet.persistent_arena);
 
     // @TODO: #Settings. Get per frame arena capacity from settings.
-    createArena(*context.pet_engine_state.per_frame_arena, megaByte(512), "Per frame");
-    defer destroyArena(*context.pet_engine_state.per_frame_arena);
+    createArena(*context.pet.per_frame_arena, megaByte(512), "Per frame");
+    defer destroyArena(*context.pet.per_frame_arena);
 
     window_manager := createWindowManager();
     defer destroyWindowManager(window_manager);
@@ -52,7 +52,7 @@ main :: ()
         beginFrame(device);
         endFrame(device);
 
-        resetArena(*context.pet_engine_state.per_frame_arena);
+        resetArena(*context.pet.per_frame_arena);
         Basic.reset_temporary_storage();
     }
 }

@@ -33,7 +33,7 @@ VulkanDevice :: struct {
 }
 
 createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
-    device := pushToArena(*context.pet_engine_state.persistent_arena, VulkanDevice);
+    device := pushToArena(*context.pet.persistent_arena, VulkanDevice);
     device.jai_context = *context;
 
     // @TODO: #PerFrameArena
@@ -234,7 +234,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
 setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *void, name : string) {
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
-            object_name := pushToArena(*context.pet_engine_state.per_frame_arena, s8, name.count + 1);
+            object_name := pushToArena(*context.pet.per_frame_arena, s8, name.count + 1);
             memcpy(object_name, name.data, name.count);
 
             name_info := VkDebugUtilsObjectNameInfoEXT.{
@@ -330,7 +330,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         result := vkEnumerateInstanceLayerProperties(*layers_count, null);
         assert(result == .VK_SUCCESS);
 
-        layers := pushToArena(*context.pet_engine_state.per_frame_arena, VkLayerProperties, layers_count);
+        layers := pushToArena(*context.pet.per_frame_arena, VkLayerProperties, layers_count);
         result = vkEnumerateInstanceLayerProperties(*layers_count, layers);
         assert(result == .VK_SUCCESS);
 
@@ -391,7 +391,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         result := vkEnumerateInstanceExtensionProperties(null, *extensions_count, null);
         assert(result == .VK_SUCCESS);
 
-        extensions := pushToArena(*context.pet_engine_state.per_frame_arena, VkExtensionProperties, extensions_count);
+        extensions := pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, extensions_count);
         result = vkEnumerateInstanceExtensionProperties(null, *extensions_count, extensions);
         assert(result == .VK_SUCCESS);
 
@@ -596,7 +596,7 @@ findCompatiblePhysicalDevice :: (device : *VulkanDevice) -> u32 {
     result := vkEnumeratePhysicalDevices(device.instance, *physical_device_count, null);
     assert(result == .VK_SUCCESS);
 
-    physical_devices := pushToArena(*context.pet_engine_state.per_frame_arena, VkPhysicalDevice, physical_device_count);
+    physical_devices := pushToArena(*context.pet.per_frame_arena, VkPhysicalDevice, physical_device_count);
     result = vkEnumeratePhysicalDevices(device.instance, *physical_device_count, physical_devices);
     assert(result == .VK_SUCCESS);
 
@@ -725,7 +725,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
     vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, *queue_family_properties_count, null);
     assert(queue_family_properties_count > 0);
 
-    queue_family_properties := pushToArena(*context.pet_engine_state.per_frame_arena, VkQueueFamilyProperties2, queue_family_properties_count);
+    queue_family_properties := pushToArena(*context.pet.per_frame_arena, VkQueueFamilyProperties2, queue_family_properties_count);
 
     queue_family_properties_it := queue_family_properties;
     for 0 .. queue_family_properties_count - 1 {
@@ -879,7 +879,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         result := vkEnumerateDeviceExtensionProperties(device.physical_device, null, *extensions_count, null);
         assert(result == .VK_SUCCESS);
 
-        extensions := pushToArena(*context.pet_engine_state.per_frame_arena, VkExtensionProperties, extensions_count);
+        extensions := pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, extensions_count);
         result = vkEnumerateDeviceExtensionProperties(device.physical_device, null, *extensions_count, extensions);
         assert(result == .VK_SUCCESS);
 
@@ -1030,7 +1030,7 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
                                                                                              null);
     assert(result == .VK_SUCCESS);
 
-    surface_formats := pushToArena(*context.pet_engine_state.per_frame_arena, VkSurfaceFormatKHR, surface_formats_count);
+    surface_formats := pushToArena(*context.pet.per_frame_arena, VkSurfaceFormatKHR, surface_formats_count);
     result = device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
                                                                                              device.surface,
                                                                                              *surface_formats_count,
@@ -1151,7 +1151,7 @@ getSwapchainImages :: (device : *VulkanDevice) {
 
     infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
 
-    device.swapchain_images.data  = pushToArena(*context.pet_engine_state.persistent_arena, VkImage, device.swapchain_buffers_count);
+    device.swapchain_images.data  = pushToArena(*context.pet.persistent_arena, VkImage, device.swapchain_buffers_count);
     device.swapchain_images.count = device.swapchain_buffers_count;
 
     device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
@@ -1183,7 +1183,7 @@ createSemaphores :: (device : *VulkanDevice) {
 
 createFences :: (device : *VulkanDevice) {
     device.fences.count = device.swapchain_buffers_count * VulkanDevice.queues.count;
-    device.fences.data  = pushToArena(*context.pet_engine_state.persistent_arena, VkFence, device.fences.count);
+    device.fences.data  = pushToArena(*context.pet.persistent_arena, VkFence, device.fences.count);
 
     create_info := VkFenceCreateInfo.{
         sType = .VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -1214,7 +1214,7 @@ createCommandPools :: (device : *VulkanDevice) {
     // May be greater than we need, but never mind, extra ones will just never be used then.
     // It's just chipper to have slightly bigger amount of them.
     device.command_pools.count = device.swapchain_buffers_count * VulkanDevice.queues.count;
-    device.command_pools.data  = pushToArena(*context.pet_engine_state.persistent_arena, VkCommandPool, device.command_pools.count);
+    device.command_pools.data  = pushToArena(*context.pet.persistent_arena, VkCommandPool, device.command_pools.count);
 
     create_info := VkCommandPoolCreateInfo.{
         sType            = .VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -1246,10 +1246,10 @@ createCommandPools :: (device : *VulkanDevice) {
 
 allocateCommandBuffers :: (device : *VulkanDevice) {
     device.command_buffers.count = device.swapchain_buffers_count * VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME;
-    device.command_buffers.data  = pushToArena(*context.pet_engine_state.persistent_arena, VkCommandBuffer, device.command_buffers.count);
+    device.command_buffers.data  = pushToArena(*context.pet.persistent_arena, VkCommandBuffer, device.command_buffers.count);
 
     device.command_buffers_used.count = device.swapchain_buffers_count * VulkanDevice.queues.count;
-    device.command_buffers_used.data  = pushToArena(*context.pet_engine_state.persistent_arena, u32, device.command_buffers_used.count);
+    device.command_buffers_used.data  = pushToArena(*context.pet.persistent_arena, u32, device.command_buffers_used.count);
 
     allocation_info := VkCommandBufferAllocateInfo.{
         sType              = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,

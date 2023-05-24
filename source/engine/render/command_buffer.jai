@@ -9,7 +9,7 @@ createCommandBuffer :: (device : *Device) -> CommandBuffer #must {
     QUEUES_COUNT :: #run Basic.enum_highest_value(QueueType) + 1;
 
     command_buffer.handles.count = device.swapchain_buffers_count * QUEUES_COUNT;
-    command_buffer.handles.data  = pushToArena(*context.pet_engine_state.persistent_arena, *void, command_buffer.handles.count);
+    command_buffer.handles.data  = pushToArena(*context.pet.persistent_arena, *void, command_buffer.handles.count);
 
     handles_it := command_buffer.handles.data;
 

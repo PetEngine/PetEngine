@@ -147,7 +147,7 @@ createWin32Window :: (
         }
     }
 
-    unicode_title := pushToArena(*context.pet_engine_state.per_frame_arena, s16, title.count + 1);
+    unicode_title := pushToArena(*context.pet.per_frame_arena, s16, title.count + 1);
     for 0..title.count-1 { // @TODO: #utf8_to_wide
         unicode_title[it] = title[it];
     }
