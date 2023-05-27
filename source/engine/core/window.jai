@@ -56,6 +56,8 @@ Window :: struct {
         height : u16;
     };
 
+    dpi_scale : f32;
+
     flags : Flags;
 }
 

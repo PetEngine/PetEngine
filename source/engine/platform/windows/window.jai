@@ -169,8 +169,9 @@ createWin32Window :: (
     SetWindowLongPtrW(window.handle, GWLP_USERDATA, cast,no_check(LONG_PTR) window);
 
     if window_rect_width != CW_USEDEFAULT && window_rect_height != CW_USEDEFAULT {
-        applyInitialDPIScalingToWindow(window.handle, cast(u16) window_rect_width, cast(u16) window_rect_height);
+        window.dpi_scale = applyInitialDPIScalingToWindow(window.handle, cast(u16) window_rect_width, cast(u16) window_rect_height);
     } else {
+        window.dpi_scale       = 1.0;
         window.platform_flags |= .APPLY_DPI_SCALING_ON_SHOW;
     }
 
@@ -250,7 +251,7 @@ windowEventsCallback :: (
 
             if window.platform_flags & .APPLY_DPI_SCALING_ON_SHOW {
                 push_context window.manager.jai_context {
-                    applyInitialDPIScalingToWindow(window_handle, window.rect.width, window.rect.height);
+                    window.dpi_scale = applyInitialDPIScalingToWindow(window_handle, window.rect.width, window.rect.height);
                 }
                 window.platform_flags &= ~.APPLY_DPI_SCALING_ON_SHOW;
             }
@@ -264,6 +265,10 @@ windowEventsCallback :: (
             }
 
         case WM_DPICHANGED;
+            new_dpi          := cast(f32) (wparam & 0xFFFF);
+            DEFAULT_DPI      :: 96.0;
+            window.dpi_scale  = new_dpi / DEFAULT_DPI;
+
             new_window_rect := cast,no_check(*RECT) lparam;
 
             SET_WINDOW_POS_FLAGS :: SWP_NOZORDER
@@ -336,7 +341,7 @@ deallocateWindow :: (window : *Win32Window) {
     window.handle = null;
 }
 
-applyInitialDPIScalingToWindow :: (window_handle : HWND, width : u16, height : u16) {
+applyInitialDPIScalingToWindow :: (window_handle : HWND, width : u16, height : u16) -> f32 {
     assert(width && width != Window.OS_DEFAULT_SIZE && height && height != Window.OS_DEFAULT_SIZE);
 
     monitor_dpi := cast(f32) GetDpiForWindow(window_handle);
@@ -358,6 +363,8 @@ applyInitialDPIScalingToWindow :: (window_handle : HWND, width : u16, height : u
 
     result := SetWindowPos(window_handle, HWND_TOP, 0, 0, scaled_width, scaled_height, SET_WINDOW_POS_FLAGS);
     assert(result != FALSE);
+
+    return dpi_scale;
 }
 
 Math  :: #import "Math";
