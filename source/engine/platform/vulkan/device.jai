@@ -538,20 +538,38 @@ messengerCallback :: (
             should_be_printed :: true;
         }
 
-        PRINT_SHORTEN_MESSAGES :: false;
-
         if should_be_printed {
-            #if PRINT_SHORTEN_MESSAGES {
-                index := String.find_index_from_left(message, "MessageID");
+            SHORTEN_MESSAGE :: true;
+            #if SHORTEN_MESSAGE {
+                index := String.find_index_from_left(message, "Object");
                 if index != -1 {
+                    builder : Basic.String_Builder;
+                    builder.allocator = Basic.temporary_allocator;
+
+                    severity_and_vuid : string = ---;
+                    severity_and_vuid.data  = message.data;
+                    severity_and_vuid.count = index;
+
+                    Basic.append(*builder, severity_and_vuid);
+
                     message.data  += index;
                     message.count -= index;
 
-                    index = String.find_index_from_left(message, "| ");
+                    index = String.find_index_from_left(message, "MessageID");
                     if index != -1 {
-                        message.data  += index + 2;
-                        message.count -= index + 2;
+                        message.data  += index;
+                        message.count -= index;
+
+                        index = String.find_index_from_left(message, "| ");
+                        if index != -1 {
+                            message.data  += index + 2;
+                            message.count -= index + 2;
+                        }
                     }
+
+                    Basic.append(*builder, message);
+
+                    message = Basic.builder_to_string(*builder);
                 }
             }
 
