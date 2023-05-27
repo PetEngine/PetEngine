@@ -149,6 +149,9 @@ VkStructureType :: enum VkEnum {
     VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO            :: 40;
     VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO         :: 41;
     VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO               :: 42;
+    VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER                   :: 44;
+    VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER                    :: 45;
+    VK_STRUCTURE_TYPE_MEMORY_BARRIER                          :: 46;
     // Provided by VK_VERSION_1_2
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES     :: 49;
     // Provided by VK_VERSION_1_2
@@ -284,54 +287,17 @@ VkExtent3D :: struct {
 }
 
 // @Cleanup: Move to their own files
-VK_ATTACHMENT_UNUSED              : u32 : 0xFFFF_FFFF;
-VK_LOD_CLAMP_NONE                 : f32 : 1000.0;
-VK_REMAINING_ARRAY_LAYERS         : u32 : 0xFFFF_FFFF;
-VK_REMAINING_MIP_LEVELS           : u32 : 0xFFFF_FFFF;
-VK_SUBPASS_EXTERNAL               : u32 : 0xFFFF_FFFF;
-VK_WHOLE_SIZE                     : u64 : 0xFFFF_FFFF_FFFF_FFFF;
-VK_MAX_MEMORY_TYPES               : u32 : 32;
-VK_MAX_MEMORY_HEAPS               : u32 : 16;
+VK_ATTACHMENT_UNUSED : u32 : 0xFFFF_FFFF;
+VK_LOD_CLAMP_NONE    : f32 : 1000.0;
+VK_SUBPASS_EXTERNAL  : u32 : 0xFFFF_FFFF;
+VK_WHOLE_SIZE        : u64 : 0xFFFF_FFFF_FFFF_FFFF;
+VK_MAX_MEMORY_TYPES  : u32 : 32;
+VK_MAX_MEMORY_HEAPS  : u32 : 16;
 
 // @Cleanup: Move to their own files
-VkImage       :: VK_NON_DISPATCHABLE_HANDLE;
 VkRenderPass  :: VK_NON_DISPATCHABLE_HANDLE;
 VkFramebuffer :: VK_NON_DISPATCHABLE_HANDLE;
-
-// Provided by VK_VERSION_1_0
-VkImageUsageFlags :: enum_flags VkFlags { // @Cleanup: move to image file
-    VK_IMAGE_USAGE_TRANSFER_SRC_BIT                         :: 0x00000001;
-    VK_IMAGE_USAGE_TRANSFER_DST_BIT                         :: 0x00000002;
-    VK_IMAGE_USAGE_SAMPLED_BIT                              :: 0x00000004;
-    VK_IMAGE_USAGE_STORAGE_BIT                              :: 0x00000008;
-    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT                     :: 0x00000010;
-    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT             :: 0x00000020;
-    VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT                 :: 0x00000040;
-    VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT                     :: 0x00000080;
-    // Provided by VK_EXT_fragment_density_map
-    VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT             :: 0x00000200;
-    // Provided by VK_KHR_fragment_shading_rate
-    VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR :: 0x00000100;
-    // Provided by VK_EXT_attachment_feedback_loop_layout
-    VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT         :: 0x00080000;
-    // Provided by VK_HUAWEI_invocation_mask
-    VK_IMAGE_USAGE_INVOCATION_MASK_BIT_HUAWEI               :: 0x00040000;
-    // Provided by VK_QCOM_image_processing
-    VK_IMAGE_USAGE_SAMPLE_WEIGHT_BIT_QCOM                   :: 0x00100000;
-    // Provided by VK_QCOM_image_processing
-    VK_IMAGE_USAGE_SAMPLE_BLOCK_MATCH_BIT_QCOM              :: 0x00200000;
-    // Provided by VK_NV_shading_rate_image
-    VK_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV                :: VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
-}
-
-// Provided by VK_VERSION_1_0
-VkFormat :: enum VkEnum { // @Cleanup: move to image file
-    VK_FORMAT_UNDEFINED                :: 0;
-    VK_FORMAT_R8G8B8A8_UNORM           :: 37;
-    VK_FORMAT_B8G8R8A8_UNORM           :: 44;
-    VK_FORMAT_B8G8R8A8_SRGB            :: 50;
-    VK_FORMAT_A2B10G10R10_UNORM_PACK32 :: 64;
-}
+VkBuffer      :: VK_NON_DISPATCHABLE_HANDLE;
 
 #scope_module
 
@@ -343,6 +309,8 @@ VkFormat :: enum VkEnum { // @Cleanup: move to image file
 #load "fence.jai";
 #load "command_pool.jai";
 #load "command_buffer.jai";
+#load "image.jai";
+#load "barriers.jai";
 
 #if OS == .WINDOWS {
     vulkan :: #system_library "vulkan-1";

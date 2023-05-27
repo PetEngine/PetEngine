@@ -10,18 +10,19 @@ VulkanDevice :: struct {
     physical_device : VkPhysicalDevice;
     device          : VkDevice;
 
-    queues : [#run Basic.enum_highest_value(QueueType) + 1] VulkanQueue;
+    queues : [#run Basic.enum_highest_value(QueueType) + 1] Queue;
 
     surface          : VkSurfaceKHR;
     swapchain        : VkSwapchainKHR;
-    swapchain_images : [] VkImage;     // count = swapchain buffers count
+    swapchain_images : [] Image; // count = swapchain buffers count
 
     semaphores : [#run Basic.enum_highest_value(SemaphoreKind) + 1] VkSemaphore;
     fences     : [] VkFence;
 
-    command_pools        : [] VkCommandPool;   // count = swapchain buffers count * queues count
-    command_buffers      : [] VkCommandBuffer; // count = swapchain buffers count * queues count * MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME
-    command_buffers_used : [] u32;             // count = swapchain buffers count * queues count
+    command_pools          : [] VkCommandPool;   // count = swapchain buffers count * queues count
+    command_buffers        : [] VkCommandBuffer; // count = swapchain buffers count * queues count * MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME
+    system_command_buffers : [] VkCommandBuffer; // count = swapchain buffers count * SystemCommandBufferKind count
+    command_buffers_used   : [] u32;             // count = swapchain buffers count * queues count
 
     messenger      : VkDebugUtilsMessengerEXT;
     message_hashes : [..] u32;
@@ -62,11 +63,12 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     getQueues(device);
     createSurface(device, window);
     createSwapchain(device, window);
-    getSwapchainImages(device);
+    initSwapchainImages(device);
     createSemaphores(device);
     createFences(device);
     createCommandPools(device);
-    allocateCommandBuffers(device);
+    createCommandBuffers(device);
+    createSystemCommandBuffers(device);
 
     return device;
 }
@@ -130,9 +132,6 @@ beginVulkanFrame :: (device : *VulkanDevice) {
 
         result := vkWaitForFences(device.device, VulkanDevice.queues.count, fences_for_current_back_buffer, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF);
         assert(result == .VK_SUCCESS);
-
-        result = vkResetFences(device.device, VulkanDevice.queues.count, fences_for_current_back_buffer);
-        assert(result == .VK_SUCCESS);
     }
 
     // @Speed: It seems like it's not very efficient to reset all MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME buffers in a pool.
@@ -171,6 +170,20 @@ endVulkanFrame :: (device : *VulkanDevice) {
         });
     }
 
+    back_buffer_image := *device.swapchain_images[device.back_buffer_index];
+    do_post_frame_job := back_buffer_image.layout != .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    present_wait_semaphore : VkSemaphore = ---;
+    graphics_done_fence    : VkFence     = ---;
+
+    if do_post_frame_job {
+        present_wait_semaphore = device.semaphores[SemaphoreKind.POST_FRAME];
+        graphics_done_fence    = VK_NULL_HANDLE;
+    } else {
+        present_wait_semaphore = device.semaphores[SemaphoreKind.GRAPHICS_DONE];
+        graphics_done_fence    = device.fences[device.back_buffer_index * VulkanDevice.queues.count + cast(u32) QueueType.GRAPHICS];
+    }
+
     {
         submit_info := VkSubmitInfo.{
             sType = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -187,26 +200,33 @@ endVulkanFrame :: (device : *VulkanDevice) {
         command_buffers_it      := *device.command_buffers[device.back_buffer_index * VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME];
         command_buffers_used_it := *device.command_buffers_used[device.back_buffer_index * VulkanDevice.queues.count];
 
+        result := vkResetFences(device.device, VulkanDevice.queues.count, *device.fences[device.back_buffer_index * VulkanDevice.queues.count]);
+        assert(result == .VK_SUCCESS);
+
         for device.queues {
+            fence_to_signal : VkFence = ---;
+
             if it_index == cast(s64) QueueType.GRAPHICS {
                 submit_info.waitSemaphoreCount   = 1;
                 submit_info.pWaitSemaphores      = *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE];
                 submit_info.signalSemaphoreCount = 1;
                 submit_info.pSignalSemaphores    = *device.semaphores[SemaphoreKind.GRAPHICS_DONE];
+
+                fence_to_signal = graphics_done_fence;
             } else {
                 submit_info.waitSemaphoreCount   = 0;
                 submit_info.pWaitSemaphores      = VK_NULL_HANDLE;
                 submit_info.signalSemaphoreCount = 0;
                 submit_info.pSignalSemaphores    = VK_NULL_HANDLE;
+
+                fence_to_signal = device.fences[device.back_buffer_index * VulkanDevice.queues.count + cast(u32) it_index];
             }
 
             submit_info.pWaitDstStageMask  = *WHICH_STAGE_WILL_WAIT_FOR_THE_SEMAPHORE[it_index];
             submit_info.commandBufferCount = <<command_buffers_used_it;
             submit_info.pCommandBuffers    = command_buffers_it;
 
-            fence_to_signal := device.fences[device.back_buffer_index * VulkanDevice.queues.count + cast(u32) it_index];
-
-            result := vkQueueSubmit(it.handle, 1, *submit_info, fence_to_signal);
+            result = vkQueueSubmit(it.handle, 1, *submit_info, fence_to_signal);
             assert(result == .VK_SUCCESS);
 
             command_buffers_it      += Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME;
@@ -214,12 +234,48 @@ endVulkanFrame :: (device : *VulkanDevice) {
         }
     }
 
+    if do_post_frame_job {
+        post_frame_command_buffer := getSystemCommandBuffer(device, device.back_buffer_index, .POST_FRAME);
+
+        begin_info := VkCommandBufferBeginInfo.{
+            sType            = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            pNext            = null,
+            flags            = 0,
+            pInheritanceInfo = null // Ignored for primary command buffers
+        };
+
+        result := vkBeginCommandBuffer(post_frame_command_buffer, *begin_info);
+        assert(result == .VK_SUCCESS);
+
+        imageBarrier(device, post_frame_command_buffer, back_buffer_image, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .GRAPHICS);
+
+        result = vkEndCommandBuffer(post_frame_command_buffer);
+        assert(result == .VK_SUCCESS);
+
+        submit_info := VkSubmitInfo.{
+            sType                = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            pNext                = null,
+            waitSemaphoreCount   = 1,
+            pWaitSemaphores      = *device.semaphores[SemaphoreKind.GRAPHICS_DONE],
+            pWaitDstStageMask    = VkPipelineStageFlags.[ .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT ].data,
+            commandBufferCount   = 1,
+            pCommandBuffers      = *post_frame_command_buffer,
+            signalSemaphoreCount = 1,
+            pSignalSemaphores    = *present_wait_semaphore
+        };
+
+        fence_to_signal := device.fences[device.back_buffer_index * VulkanDevice.queues.count + cast(u32) QueueType.GRAPHICS];
+
+        result = vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, fence_to_signal);
+        assert(result == .VK_SUCCESS);
+    }
+
     {
         present_info := VkPresentInfoKHR.{
             sType              = .VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             pNext              = null,
             waitSemaphoreCount = 1,
-            pWaitSemaphores    = *device.semaphores[SemaphoreKind.GRAPHICS_DONE],
+            pWaitSemaphores    = *present_wait_semaphore,
             swapchainCount     = 1,
             pSwapchains        = *device.swapchain,
             pImageIndices      = *device.back_buffer_index,
@@ -280,7 +336,7 @@ setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *
 
 Hash :: #import "Hash";
 
-VulkanQueue :: struct {
+Queue :: struct {
     handle          : VkQueue;
     family_index    : u32 = 0xFFFF_FFFF;
     index_in_family : u32;
@@ -289,6 +345,19 @@ VulkanQueue :: struct {
 SemaphoreKind :: enum u8 {
     ACQUIRE_IMAGE;
     GRAPHICS_DONE;
+    POST_FRAME;
+}
+
+// @TODO: PRE_FRAME
+SystemCommandBufferKind :: enum u8 {
+    POST_FRAME;
+}
+
+// @TODO, @Cleanup: #VulkanTexture. Adapt to future Vulkan back end texture
+Image :: struct {
+    image  : VkImage;
+    layout : VkImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
+    owner  : QueueType;
 }
 
 createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] string) -> u32 {
@@ -1183,7 +1252,7 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
     assert(result == .VK_SUCCESS);
 }
 
-getSwapchainImages :: (device : *VulkanDevice) {
+initSwapchainImages :: (device : *VulkanDevice) {
     device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
                                                                      device.swapchain,
                                                                      *device.swapchain_buffers_count,
@@ -1192,17 +1261,23 @@ getSwapchainImages :: (device : *VulkanDevice) {
 
     infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
 
-    device.swapchain_images.data  = pushToArena(*context.pet.persistent_arena, VkImage, device.swapchain_buffers_count);
-    device.swapchain_images.count = device.swapchain_buffers_count;
+    swapchain_images := pushToArena(*context.pet.per_frame_arena, VkImage, device.swapchain_buffers_count);
 
     device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
                                                                      device.swapchain,
                                                                      *device.swapchain_buffers_count,
-                                                                     device.swapchain_images.data);
+                                                                     swapchain_images);
 
 
-    for device.swapchain_images {
-        setObjectName(device, .VK_OBJECT_TYPE_IMAGE, it, "Swapchain image #%", it_index);
+    device.swapchain_images.count = device.swapchain_buffers_count;
+    device.swapchain_images.data  = pushToArena(*context.pet.persistent_arena, Image, device.swapchain_images.count);
+
+    for * device.swapchain_images {
+        it.image  = swapchain_images[it_index];
+        it.layout = .VK_IMAGE_LAYOUT_UNDEFINED;
+        it.owner  = .GRAPHICS;
+
+        setObjectName(device, .VK_OBJECT_TYPE_IMAGE, it.image, "Swapchain image #%", it_index);
     }
 }
 
@@ -1285,7 +1360,7 @@ createCommandPools :: (device : *VulkanDevice) {
     assert(command_pools_it == device.command_pools.data + device.command_pools.count);
 }
 
-allocateCommandBuffers :: (device : *VulkanDevice) {
+createCommandBuffers :: (device : *VulkanDevice) {
     device.command_buffers.count = device.swapchain_buffers_count * VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME;
     device.command_buffers.data  = pushToArena(*context.pet.persistent_arena, VkCommandBuffer, device.command_buffers.count);
 
@@ -1336,6 +1411,68 @@ allocateCommandBuffers :: (device : *VulkanDevice) {
     }
 }
 
+createSystemCommandBuffers :: (device : *VulkanDevice) {
+    SYSTEM_COMMAND_BUFFER_KINDS_COUNT :: #run Basic.enum_highest_value(SystemCommandBufferKind) + 1;
+
+    device.system_command_buffers.count = device.swapchain_buffers_count * SYSTEM_COMMAND_BUFFER_KINDS_COUNT;
+    device.system_command_buffers.data  = pushToArena(*context.pet.persistent_arena, VkCommandBuffer, device.system_command_buffers.count);
+
+    allocation_info := VkCommandBufferAllocateInfo.{
+        sType              = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        pNext              = null,
+        commandPool        = null, // Will be set in a loop
+        level              = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        commandBufferCount = SYSTEM_COMMAND_BUFFER_KINDS_COUNT
+    };
+
+    command_pools_it   := *device.command_pools[0 * VulkanDevice.queues.count + cast(u32) QueueType.GRAPHICS];
+    command_buffers_it := device.system_command_buffers.data;
+
+    for 0 .. device.swapchain_buffers_count - 1 {
+        allocation_info.commandPool = <<command_pools_it;
+
+        result := vkAllocateCommandBuffers(device.device, *allocation_info, command_buffers_it);
+        assert(result == .VK_SUCCESS);
+
+        command_pools_it   += VulkanDevice.queues.count;
+        command_buffers_it += SYSTEM_COMMAND_BUFFER_KINDS_COUNT;
+    }
+
+    assert(command_pools_it == device.command_pools.data + device.command_pools.count);
+    assert(command_buffers_it == device.system_command_buffers.data + device.system_command_buffers.count);
+
+    #if DEBUG_BUILD {
+        command_buffers_it = device.system_command_buffers.data;
+
+        for swapchain_buffer_index : 0 .. device.swapchain_buffers_count - 1 {
+            for command_buffer_kind : 0 .. SYSTEM_COMMAND_BUFFER_KINDS_COUNT - 1 {
+                setObjectName(device,
+                              .VK_OBJECT_TYPE_COMMAND_BUFFER,
+                              <<command_buffers_it,
+                              "% system command buffer for swapchain buffer #%",
+                              cast(SystemCommandBufferKind) command_buffer_kind,
+                              swapchain_buffer_index);
+
+                command_buffers_it += 1;
+            }
+        }
+
+        assert(command_buffers_it == device.system_command_buffers.data + device.system_command_buffers.count);
+    }
+}
+
+vendorIdToString :: inline (vendor_id : u32) -> string {
+    info := type_info(PCIVendorID);
+
+    for info.values {
+        if it == vendor_id {
+            return info.names[it_index];
+        }
+    }
+
+    return "Unknown";
+}
+
 iterateThroughUsedCommandBuffersInThisFrame :: (device : *VulkanDevice, $code : Code) #expand {
     command_buffers_start_index := device.back_buffer_index
                                  * VulkanDevice.queues.count
@@ -1372,14 +1509,45 @@ iterateThroughUsedCommandBuffersInThisFrame :: (device : *VulkanDevice, $code : 
                                    + VulkanDevice.queues.count);
 }
 
-vendorIdToString :: inline (vendor_id : u32) -> string {
-    info := type_info(PCIVendorID);
+getSystemCommandBuffer :: inline (device : *VulkanDevice, swapchain_buffer_index : u32, kind : SystemCommandBufferKind) -> VkCommandBuffer {
+    return device.system_command_buffers[swapchain_buffer_index * (#run Basic.enum_highest_value(SystemCommandBufferKind) + 1) + cast(u32) kind];
+}
 
-    for info.values {
-        if it == vendor_id {
-            return info.names[it_index];
-        }
-    }
+// @TODO, @Cleanup: #VulkanTexture.
+imageBarrier :: (
+    device         : *VulkanDevice,
+    command_buffer : VkCommandBuffer,
+    image          : *Image,
+    new_layout     : VkImageLayout,
+    new_owner      : QueueType
+) {
+    image_barrier := VkImageMemoryBarrier.{
+            sType               = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            pNext               = null,
+            srcAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT, // @TODO
+            dstAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT, // @TODO
+            oldLayout           = image.layout,
+            newLayout           = new_layout,
+            srcQueueFamilyIndex = device.queues[image.owner].family_index,
+            dstQueueFamilyIndex = device.queues[new_owner].family_index,
+            image               = image.image,
+            subresourceRange    = .{
+                aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
+                baseMipLevel   = 0,
+                levelCount     = 1,
+                baseArrayLayer = 0,
+                layerCount     = 1
+            },
+        };
 
-    return "Unknown";
+        vkCmdPipelineBarrier(command_buffer,
+                             .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // @TODO
+                             .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // @TODO
+                             0,
+                             0, null,
+                             0, null,
+                             1, *image_barrier);
+
+        image.layout = new_layout;
+        image.owner  = new_owner;
 }
