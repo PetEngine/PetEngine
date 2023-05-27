@@ -282,7 +282,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
     }
 }
 
-setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *void, name : string) {
+setVulkanObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *void, name : string) {
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
             object_name := pushToArena(*context.pet.per_frame_arena, s8, name.count + 1);
@@ -302,7 +302,7 @@ setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *
     }
 }
 
-setObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *void, $format : string, args : ..Any) {
+setVulkanObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *void, $format : string, args : ..Any) {
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
             builder : Basic.String_Builder;
@@ -1111,7 +1111,7 @@ getQueues :: (device : *VulkanDevice) {
         vkGetDeviceQueue2(device.device, *queue_info, *it.handle);
         assert(it.handle != VK_NULL_HANDLE);
 
-        setObjectName(device, .VK_OBJECT_TYPE_QUEUE, it.handle, "% queue", cast(QueueType) it_index);
+        setVulkanObjectName(device, .VK_OBJECT_TYPE_QUEUE, it.handle, "% queue", cast(QueueType) it_index);
     }
 }
 
@@ -1289,7 +1289,7 @@ initSwapchainImages :: (device : *VulkanDevice) {
         frame_data_it.swapchain_image.layout = .VK_IMAGE_LAYOUT_UNDEFINED;
         frame_data_it.swapchain_image.owner  = .GRAPHICS;
 
-        setObjectName(device, .VK_OBJECT_TYPE_IMAGE, frame_data_it.swapchain_image.image, "Swapchain image #%", it);
+        setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, frame_data_it.swapchain_image.image, "Swapchain image #%", it);
 
         frame_data_it       += 1;
         swapchain_images_it += 1;
@@ -1308,7 +1308,7 @@ createSemaphores :: (device : *VulkanDevice) {
         result := vkCreateSemaphore(device.device, *create_info, null, it);
         assert(result == .VK_SUCCESS);
 
-        setObjectName(device, .VK_OBJECT_TYPE_SEMAPHORE, <<it, "% semaphore", cast(SemaphoreKind) it_index);
+        setVulkanObjectName(device, .VK_OBJECT_TYPE_SEMAPHORE, <<it, "% semaphore", cast(SemaphoreKind) it_index);
     }
 }
 
@@ -1327,9 +1327,9 @@ createFences :: (device : *VulkanDevice) {
             result := vkCreateFence(device.device, *create_info, null, it);
             assert(result == .VK_SUCCESS);
 
-            setObjectName(device, .VK_OBJECT_TYPE_FENCE, <<it, "% fence for swapchain buffer #%",
-                          cast(QueueType) it_index,
-                          swapchain_buffer_index);
+            setVulkanObjectName(device, .VK_OBJECT_TYPE_FENCE, <<it, "% fence for swapchain buffer #%",
+                                cast(QueueType) it_index,
+                                swapchain_buffer_index);
         }
 
         frame_data_it += 1;
@@ -1360,9 +1360,9 @@ createCommandPools :: (device : *VulkanDevice) {
             result := vkCreateCommandPool(device.device, *create_info, null, it);
             assert(result == .VK_SUCCESS);
 
-            setObjectName(device, .VK_OBJECT_TYPE_COMMAND_POOL, <<it, "% command pool for swapchain buffer #%",
-                          cast(QueueType) it_index,
-                          buffer_index);
+            setVulkanObjectName(device, .VK_OBJECT_TYPE_COMMAND_POOL, <<it, "% command pool for swapchain buffer #%",
+                                cast(QueueType) it_index,
+                                buffer_index);
 
             queues_it += 1;
         }
@@ -1395,13 +1395,13 @@ createCommandBuffers :: (device : *VulkanDevice) {
                 local_command_buffers_it := command_buffers_it;
 
                 for 0 .. Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME - 1 {
-                    setObjectName(device,
-                                  .VK_OBJECT_TYPE_COMMAND_BUFFER,
-                                  <<local_command_buffers_it,
-                                  "% command buffer #% for swapchain buffer #%",
-                                  cast(QueueType) command_pool_index,
-                                  it,
-                                  swapchain_buffer_index);
+                    setVulkanObjectName(device,
+                                        .VK_OBJECT_TYPE_COMMAND_BUFFER,
+                                        <<local_command_buffers_it,
+                                        "% command buffer #% for swapchain buffer #%",
+                                        cast(QueueType) command_pool_index,
+                                        it,
+                                        swapchain_buffer_index);
 
                     local_command_buffers_it += 1;
                 }
@@ -1433,12 +1433,9 @@ createSystemCommandBuffers :: (device : *VulkanDevice) {
 
         #if DEBUG_BUILD {
             for frame_data_it.system_command_buffers {
-                setObjectName(device,
-                              .VK_OBJECT_TYPE_COMMAND_BUFFER,
-                              it,
-                              "% system command buffer for swapchain buffer #%",
-                              cast(SystemCommandBufferKind) it_index,
-                              swapchain_buffer_index);
+                setVulkanObjectName(device, .VK_OBJECT_TYPE_COMMAND_BUFFER, it, "% system command buffer for swapchain buffer #%",
+                                    cast(SystemCommandBufferKind) it_index,
+                                    swapchain_buffer_index);
             }
         }
 
