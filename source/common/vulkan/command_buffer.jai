@@ -76,6 +76,12 @@ VkCommandBufferBeginInfo :: struct {
     pInheritanceInfo : *VkCommandBufferInheritanceInfo;
 }
 
+VkClearColorValue :: union {
+    float32_ : [4] f32;
+    int32    : [4] s32;
+    uint32   : [4] u32;
+}
+
 // Provided by VK_VERSION_1_0
 vkAllocateCommandBuffers :: (
     device          : VkDevice,
@@ -107,3 +113,13 @@ vkBeginCommandBuffer :: (
 vkEndCommandBuffer :: (
     commandBuffer : VkCommandBuffer
 ) -> VkResult #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkCmdClearColorImage :: (
+    commandBuffer : VkCommandBuffer,
+    image         : VkImage,
+    imageLayout   : VkImageLayout,
+    pColor        : *VkClearColorValue,
+    rangeCount    : u32,
+    pRanges       : *VkImageSubresourceRange
+) #foreign vulkan;

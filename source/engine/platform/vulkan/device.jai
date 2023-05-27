@@ -155,6 +155,41 @@ beginVulkanFrame :: (device : *VulkanDevice) {
             assert(result == .VK_SUCCESS);
         });
     }
+
+    // @TODO: Move this clear to high level code
+    {
+        pre_frame_command_buffer := frame_data.system_command_buffers[SystemCommandBufferKind.PRE_FRAME];
+
+        begin_info := VkCommandBufferBeginInfo.{
+            sType            = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            pNext            = null,
+            flags            = 0,
+            pInheritanceInfo = null // Ignored for primary command buffers
+        };
+
+        result := vkBeginCommandBuffer(pre_frame_command_buffer, *begin_info);
+        assert(result == .VK_SUCCESS);
+
+        clearImage(device, pre_frame_command_buffer, *frame_data.swapchain_image, *VkClearColorValue.{ float32_ = .[ 0.3, 0.3, 0.3, 1.0 ] });
+
+        result = vkEndCommandBuffer(pre_frame_command_buffer);
+        assert(result == .VK_SUCCESS);
+
+        submit_info := VkSubmitInfo.{
+            sType                = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            pNext                = null,
+            waitSemaphoreCount   = 1,
+            pWaitSemaphores      = *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
+            pWaitDstStageMask    = VkPipelineStageFlags.[ .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT ].data, // @Speed
+            commandBufferCount   = 1,
+            pCommandBuffers      = *pre_frame_command_buffer,
+            signalSemaphoreCount = 1,
+            pSignalSemaphores    = *device.semaphores[SemaphoreKind.PRE_FRAME]
+        };
+
+        result = vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, VK_NULL_HANDLE);
+        assert(result == .VK_SUCCESS);
+    }
 }
 
 endVulkanFrame :: (device : *VulkanDevice) {
@@ -205,7 +240,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
 
             if it_index == cast(s64) QueueType.GRAPHICS {
                 submit_info.waitSemaphoreCount   = 1;
-                submit_info.pWaitSemaphores      = *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE];
+                submit_info.pWaitSemaphores      = *device.semaphores[SemaphoreKind.PRE_FRAME];
                 submit_info.signalSemaphoreCount = 1;
                 submit_info.pSignalSemaphores    = *device.semaphores[SemaphoreKind.GRAPHICS_DONE];
 
@@ -339,7 +374,6 @@ FrameData :: struct {
     command_buffers      : [VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME] VkCommandBuffer;
     command_buffers_used : [VulkanDevice.queues.count]                                                     u32;
 
-    // @Cleanup: Get rid of this and just pushComandBuffer in endVulkanFrame?
     system_command_buffers : [#run Basic.enum_highest_value(SystemCommandBufferKind) + 1] VkCommandBuffer;
 }
 
@@ -352,11 +386,12 @@ Queue :: struct {
 SemaphoreKind :: enum u8 {
     ACQUIRE_IMAGE;
     GRAPHICS_DONE;
+    PRE_FRAME;
     POST_FRAME;
 }
 
-// @TODO: PRE_FRAME
 SystemCommandBufferKind :: enum u8 {
+    PRE_FRAME;
     POST_FRAME;
 }
 
@@ -1209,7 +1244,9 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
         surface_extent = surface_capabilities.minImageExtent;
     }
 
-    REQUESTED_USAGE_FLAGS :: VkImageUsageFlags.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | .VK_IMAGE_USAGE_SAMPLED_BIT;
+    REQUESTED_USAGE_FLAGS :: VkImageUsageFlags.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                           | .VK_IMAGE_USAGE_SAMPLED_BIT
+                           | .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     allowed_usage_flags   := REQUESTED_USAGE_FLAGS & surface_capabilities.supportedUsageFlags;
 
     if allowed_usage_flags != REQUESTED_USAGE_FLAGS {
@@ -1484,8 +1521,8 @@ imageBarrier :: (
     image_barrier := VkImageMemoryBarrier.{
         sType               = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         pNext               = null,
-        srcAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT, // @TODO
-        dstAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT, // @TODO
+        srcAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT, // @TODO, @Speed
+        dstAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT, // @TODO, @Speed
         oldLayout           = image.layout,
         newLayout           = new_layout,
         srcQueueFamilyIndex = device.queues[image.owner].family_index,
@@ -1501,8 +1538,8 @@ imageBarrier :: (
     };
 
     vkCmdPipelineBarrier(command_buffer,
-                         .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // @TODO
-                         .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // @TODO
+                         .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // @TODO, @Speed
+                         .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // @TODO, @Speed
                          0,
                          0, null,
                          0, null,
@@ -1510,4 +1547,21 @@ imageBarrier :: (
 
     image.layout = new_layout;
     image.owner  = new_owner;
+}
+
+// @TODO, @Cleanup: #VulkanTexture.
+clearImage :: (device : *VulkanDevice, command_buffer : VkCommandBuffer, image : *Image, clear_value : *VkClearColorValue) {
+    if image.layout != .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL {
+        imageBarrier(device, command_buffer, image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .GRAPHICS);
+    }
+
+    RANGE :: VkImageSubresourceRange.{
+        aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
+        baseMipLevel   = 0,
+        levelCount     = 1,
+        baseArrayLayer = 0,
+        layerCount     = 1
+    };
+
+    vkCmdClearColorImage(command_buffer, image.image, image.layout, clear_value, 1, *RANGE);
 }
