@@ -466,14 +466,17 @@ LoadLibraryA :: (
     lpLibFileName : *s8
 ) -> HMODULE #foreign kernel32;
 
-FARPROC  :: #type() -> INT_PTR #c_call;
-NEARPROC :: #type() -> INT_PTR #c_call;
-PROC     :: #type() -> INT_PTR #c_call;
+FARPROC  :: #type () -> INT_PTR #c_call;
+NEARPROC :: #type () -> INT_PTR #c_call;
+PROC     :: #type () -> INT_PTR #c_call;
 
 GetProcAddress :: (
     hModule    : HMODULE,
     lpProcName : *s8
 ) -> FARPROC #foreign kernel32;
+
+IsDebuggerPresent :: (
+) -> BOOL #foreign kernel32;
 
 #scope_file
 

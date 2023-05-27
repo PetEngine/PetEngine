@@ -174,7 +174,7 @@ message :: (
     // @TODO: Unlock mutex
 
     #if priority == .ASSERT {
-        #if DEBUG_BUILD {
+        if IsDebuggerPresent() {
             debug_break();
         }
         Basic.exit(1);
