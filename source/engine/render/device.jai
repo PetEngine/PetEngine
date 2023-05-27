@@ -79,6 +79,13 @@ endFrame :: (device : *Device) {
     }
 }
 
+recreateSwapchain :: (device : *Device, window : *Window) {
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            recreateVulkanSwapchain(cast(*VulkanDevice) device, window);
+    }
+}
+
 #scope_file
 
 #load "../platform/vulkan/loader.jai";

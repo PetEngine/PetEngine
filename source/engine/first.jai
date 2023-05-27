@@ -49,6 +49,10 @@ main :: ()
     showWindow(window);
 
     while processWindowEvents(window) {
+        if window.flags & .RESIZED {
+            recreateSwapchain(device, window);
+        }
+
         beginFrame(device);
         endFrame(device);
 

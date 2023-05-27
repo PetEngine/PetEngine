@@ -57,7 +57,7 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     loadVulkanDeviceExtensionsFunctions(*device.loader, device.device, *enabled_device_extensions);
     getQueues(device);
     createSurface(device, window);
-    createSwapchain(device, window);
+    createSwapchain(device, window, VK_NULL_HANDLE);
     initSwapchainImages(device);
     createSemaphores(device);
     createFences(device);
@@ -360,6 +360,16 @@ setVulkanObjectName :: (device : *VulkanDevice, object_type : VkObjectType, obje
             assert(result == .VK_SUCCESS);
         }
     }
+}
+
+recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
+    old_swapchain := device.swapchain;
+
+    createSwapchain(device, window, old_swapchain);
+    initSwapchainImages(device);
+
+    // @TODO: VkAllocationCallbacks
+    device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, old_swapchain, null);
 }
 
 #scope_file
@@ -1170,7 +1180,7 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
     }
 }
 
-createSwapchain :: (device : *VulkanDevice, window : *Window) {
+createSwapchain :: (device : *VulkanDevice, window : *Window, old_swapchain : VkSwapchainKHR) {
     surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
     result := device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
                                                                                                    device.surface,
@@ -1296,7 +1306,7 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
         compositeAlpha        = .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
         presentMode           = .VK_PRESENT_MODE_MAILBOX_KHR, // @TODO: #Settings. Vsync (fifo), allow tearing (immediate), vsync + allow tearing (fifo_relaxed)
         clipped               = VK_TRUE,
-        oldSwapchain          = VK_NULL_HANDLE
+        oldSwapchain          = old_swapchain
     };
 
     // @TODO: VkAllocationCallbacks
