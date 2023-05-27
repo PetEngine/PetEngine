@@ -1194,19 +1194,22 @@ createSwapchain :: (device : *VulkanDevice, window : *Window) {
     // @TODO: #Settings. Get the number of swapchain buffers from settings
     requested_swapchain_buffers_count : u32 = 2;
     if requested_swapchain_buffers_count < surface_capabilities.minImageCount {
-        warningMessage("Requested number of swapchain buffers is %, but surface supports at least % of them. % will be created",
+        warningMessage("Requested number of swapchain buffers is %, but surface supports at least % of them. % will be used",
                        requested_swapchain_buffers_count,
                        surface_capabilities.minImageCount,
                        surface_capabilities.minImageCount);
         requested_swapchain_buffers_count = surface_capabilities.minImageCount;
     } else if requested_swapchain_buffers_count > surface_capabilities.maxImageCount && surface_capabilities.maxImageCount > 0 {
-        warningMessage("Requested number of swapchain buffers is %, but surface supports maximum % of them. % will be created",
+        warningMessage("Requested number of swapchain buffers is %, but surface supports maximum % of them. % will be used",
                        requested_swapchain_buffers_count,
                        surface_capabilities.maxImageCount,
                        surface_capabilities.maxImageCount);
         requested_swapchain_buffers_count = surface_capabilities.maxImageCount;
     }
-    assert(requested_swapchain_buffers_count <= Device.MAX_SWAPCHAIN_BUFFERS);
+    assert(requested_swapchain_buffers_count <= Device.MAX_SWAPCHAIN_BUFFERS,
+           "You want too many swapchain buffers: %. If you really need that much you can increase Device.MAX_SWAPCHAIN_BUFFERS",
+           requested_swapchain_buffers_count,
+           print_sys_error = false);
 
     infoMessage("Requested swapchain buffers count: %", requested_swapchain_buffers_count);
 
@@ -1307,7 +1310,9 @@ initSwapchainImages :: (device : *VulkanDevice) {
                                                                      *device.swapchain_buffers_count,
                                                                      null);
     assert(device.swapchain_buffers_count > 0);
-    assert(device.swapchain_buffers_count <= Device.MAX_SWAPCHAIN_BUFFERS);
+    assert(device.swapchain_buffers_count <= Device.MAX_SWAPCHAIN_BUFFERS,
+           "Number of swapchain buffers is too high: %. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
+           device.swapchain_buffers_count);
 
     infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
 
