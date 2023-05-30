@@ -170,7 +170,10 @@ beginVulkanFrame :: (device : *VulkanDevice) {
         result := vkBeginCommandBuffer(pre_frame_command_buffer, *begin_info);
         assert(result == .VK_SUCCESS);
 
-        clearImage(device, pre_frame_command_buffer, *frame_data.swapchain_image, *VkClearColorValue.{ float32_ = .[ 0.3, 0.3, 0.3, 1.0 ] });
+        clearVulkanTexture(device,
+                           pre_frame_command_buffer,
+                           *frame_data.swapchain_image,
+                           Texture.ClearValue.{ f32_ = .[ 0.3, 0.3, 0.3, 0.0 ] });
 
         result = vkEndCommandBuffer(pre_frame_command_buffer);
         assert(result == .VK_SUCCESS);
@@ -279,7 +282,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
         result := vkBeginCommandBuffer(post_frame_command_buffer, *begin_info);
         assert(result == .VK_SUCCESS);
 
-        imageBarrier(device, post_frame_command_buffer, *frame_data.swapchain_image, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .GRAPHICS);
+        vulkanTextureBarrier(device, post_frame_command_buffer, *frame_data.swapchain_image, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .GRAPHICS);
 
         result = vkEndCommandBuffer(post_frame_command_buffer);
         assert(result == .VK_SUCCESS);
@@ -377,7 +380,8 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 Hash :: #import "Hash";
 
 FrameData :: struct {
-    swapchain_image : Image;
+    // @TODO: #VulkanTexture. It should be *VulkanTexture, since it will be stored in VulkanTextureManager.
+    swapchain_image : VulkanTexture;
 
     fences               : [VulkanDevice.queues.count]                                                     VkFence;
     command_pools        : [VulkanDevice.queues.count]                                                     VkCommandPool;
@@ -1336,10 +1340,11 @@ initSwapchainImages :: (device : *VulkanDevice) {
     frame_data_it       := device.frame_data.data;
     swapchain_images_it := swapchain_images.data;
 
+    // @TODO: #VulkanTexture. Add these images to texture manager
     for 0 .. device.swapchain_buffers_count - 1 {
-        frame_data_it.swapchain_image.image  = <<swapchain_images_it;
-        frame_data_it.swapchain_image.layout = .VK_IMAGE_LAYOUT_UNDEFINED;
-        frame_data_it.swapchain_image.owner  = .GRAPHICS;
+        frame_data_it.swapchain_image.image          = <<swapchain_images_it;
+        frame_data_it.swapchain_image.current_layout = .VK_IMAGE_LAYOUT_UNDEFINED;
+        frame_data_it.swapchain_image.current_owner  = .GRAPHICS;
 
         setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, frame_data_it.swapchain_image.image, "Swapchain image #%", it);
 
@@ -1523,60 +1528,4 @@ iterateThroughUsedCommandBuffers :: (frame_data : *FrameData, $code : Code) #exp
         command_buffers_used_it += 1;
         command_buffers_it      += Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME;
     }
-}
-
-// @TODO, @Cleanup: #VulkanTexture.
-imageBarrier :: (
-    device         : *VulkanDevice,
-    command_buffer : VkCommandBuffer,
-    image          : *Image,
-    new_layout     : VkImageLayout,
-    new_owner      : QueueType
-) {
-    image_barrier := VkImageMemoryBarrier.{
-        sType               = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        pNext               = null,
-        srcAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT, // @TODO, @Speed
-        dstAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT, // @TODO, @Speed
-        oldLayout           = image.layout,
-        newLayout           = new_layout,
-        srcQueueFamilyIndex = device.queues[image.owner].family_index,
-        dstQueueFamilyIndex = device.queues[new_owner].family_index,
-        image               = image.image,
-        subresourceRange    = .{
-            aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
-            baseMipLevel   = 0,
-            levelCount     = 1,
-            baseArrayLayer = 0,
-            layerCount     = 1
-        },
-    };
-
-    vkCmdPipelineBarrier(command_buffer,
-                         .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // @TODO, @Speed
-                         .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // @TODO, @Speed
-                         0,
-                         0, null,
-                         0, null,
-                         1, *image_barrier);
-
-    image.layout = new_layout;
-    image.owner  = new_owner;
-}
-
-// @TODO, @Cleanup: #VulkanTexture.
-clearImage :: (device : *VulkanDevice, command_buffer : VkCommandBuffer, image : *Image, clear_value : *VkClearColorValue) {
-    if image.layout != .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL {
-        imageBarrier(device, command_buffer, image, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .GRAPHICS);
-    }
-
-    RANGE :: VkImageSubresourceRange.{
-        aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
-        baseMipLevel   = 0,
-        levelCount     = 1,
-        baseArrayLayer = 0,
-        layerCount     = 1
-    };
-
-    vkCmdClearColorImage(command_buffer, image.image, image.layout, clear_value, 1, *RANGE);
 }

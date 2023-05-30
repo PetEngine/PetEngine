@@ -73,6 +73,7 @@ DEBUG_BUILD :: #run -> bool {
 #load "core/window.jai";
 #load "render/device.jai";
 #load "render/command_buffer.jai";
+#load "render/texture.jai";
 
 String :: #import "String";
 
