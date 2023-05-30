@@ -1,34 +1,34 @@
-CommandBuffer :: struct {
-    handles : [] *void;
+CommandBuffer :: struct (usage : QueueType) {
+    handles : [Device.MAX_SWAPCHAIN_BUFFERS] *void;
 }
 
 // @TODO: Per-frame command buffers
-createCommandBuffer :: (device : *Device) -> CommandBuffer #must {
-    command_buffer : CommandBuffer;
-
-    QUEUES_COUNT :: #run Basic.enum_highest_value(QueueType) + 1;
-
-    command_buffer.handles.count = device.swapchain_buffers_count * QUEUES_COUNT;
-    command_buffer.handles.data  = pushToArena(*context.pet.persistent_arena, *void, command_buffer.handles.count);
+createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(usage) #must {
+    command_buffer : CommandBuffer(usage);
 
     handles_it := command_buffer.handles.data;
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            for swapchain_buffer_index : 0 .. device.swapchain_buffers_count - 1 {
-                for queue_type : 0 .. QUEUES_COUNT - 1 {
-                    <<handles_it = pushVulkanCommandBuffer(cast(*VulkanDevice) device, swapchain_buffer_index, cast(QueueType) queue_type);
-                    handles_it += 1;
-                }
+            for 0 .. device.swapchain_buffers_count - 1 {
+                <<handles_it = pushVulkanCommandBuffer(cast(*VulkanDevice) device, it, usage);
+                handles_it += 1;
             }
     }
-
-    assert(handles_it == command_buffer.handles.data + command_buffer.handles.count);
 
     return command_buffer;
 }
 
-destroyCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer) {
+clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *Texture, clear_value : Texture.ClearValue) {
+    #assert command_buffer.usage == .GRPAHICS "Only graphics command buffers can clear textures";
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            clearVulkanTexture(cast(*VulkanDevice) device,
+                               command_buffer[device.back_buffer_index],
+                               texture,
+                               clear_value);
+    }
 }
 
 #scope_file

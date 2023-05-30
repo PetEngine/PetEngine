@@ -22,8 +22,7 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
     per_frame_arena  : Arena;
 };
 
-main :: ()
-{
+main :: () {
     // @TODO: #Settings. Get persistent arena capacity from settings.
     createArena(*context.pet.persistent_arena, gigaByte(1), "Persistent");
     defer destroyArena(*context.pet.persistent_arena);
@@ -43,8 +42,7 @@ main :: ()
     device := createDevice(.VULKAN, window);
     defer destroyDevice(device);
 
-    command_buffer := createCommandBuffer(device);
-    defer destroyCommandBuffer(device, *command_buffer);
+    command_buffer := createCommandBuffer(device, .GRAPHICS);
 
     showWindow(window);
 
