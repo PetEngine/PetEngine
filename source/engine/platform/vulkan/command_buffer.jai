@@ -1,11 +1,10 @@
 pushVulkanCommandBuffer :: (device : *VulkanDevice, swapchain_buffer_index : u32, queue_type : QueueType) -> *VkCommandBuffer #must {
     frame_data := *device.frame_data[swapchain_buffer_index];
 
-    command_buffers_used := cast(*u32) *frame_data.command_buffers_used[queue_type];
-    assert(<<command_buffers_used < Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME, "Command buffers overflow");
+    command_buffers_used := *frame_data.command_buffers_used[queue_type];
+    assert(<<command_buffers_used < Device.MAX_COMMAND_BUFFERS, "Command buffers overflow");
 
-    command_buffer := frame_data.command_buffers[  cast(u32) queue_type * Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME
-                                                 + <<command_buffers_used];
+    command_buffer := frame_data.command_buffers[cast(s32) queue_type * Device.MAX_COMMAND_BUFFERS + <<command_buffers_used];
 
     <<command_buffers_used += 1;
 

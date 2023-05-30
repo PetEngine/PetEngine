@@ -135,13 +135,13 @@ beginVulkanFrame :: (device : *VulkanDevice) {
         assert(result == .VK_SUCCESS);
     }
 
-    // @Speed: Is this (Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME >> 2) threshold value optimal enough?
+    // @Speed: Is this (Device.MAX_COMMAND_BUFFERS >> 2) threshold value optimal enough?
     //         Maybe we should always reset entire command pool no matter how many command buffers we actually have?
     {
         command_buffers_used_it := frame_data.command_buffers_used.data;
 
         for frame_data.command_pools {
-            if <<command_buffers_used_it > cast(s32) (Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME >> 2) {
+            if <<command_buffers_used_it > (Device.MAX_COMMAND_BUFFERS >> 2) {
                 result := vkResetCommandPool(device.device, it, 0);
                 assert(result == .VK_SUCCESS);
             } else {
@@ -177,7 +177,7 @@ beginVulkanFrame :: (device : *VulkanDevice) {
     {
         pre_frame_command_buffer := frame_data.system_command_buffers[SystemCommandBufferKind.PRE_FRAME];
 
-        if frame_data.command_buffers_used[QueueType.GRAPHICS] <= cast(s32) (Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME >> 2) {
+        if frame_data.command_buffers_used[QueueType.GRAPHICS] <= (Device.MAX_COMMAND_BUFFERS >> 2) {
             result := vkResetCommandBuffer(pre_frame_command_buffer, 0);
             assert(result == .VK_SUCCESS);
         }
@@ -274,7 +274,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
             }
 
             command_buffers_used_it += 1;
-            command_buffers_it      += Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME;
+            command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
         }
     }
 
@@ -283,7 +283,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
 
         graphics_command_buffers_used := frame_data.command_buffers_used[QueueType.GRAPHICS];
 
-        if graphics_command_buffers_used <= cast(s32) (Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME >> 2) {
+        if graphics_command_buffers_used <= (Device.MAX_COMMAND_BUFFERS >> 2) {
             result := vkResetCommandBuffer(post_frame_command_buffer, 0);
             assert(result == .VK_SUCCESS);
         }
@@ -406,10 +406,10 @@ FrameData :: struct {
     // @TODO: #VulkanTexture. It should be *VulkanTexture, since it will be stored in VulkanTextureManager.
     swapchain_image : VulkanTexture;
 
-    fences               : [VulkanDevice.queues.count]                                                     VkFence;
-    command_pools        : [VulkanDevice.queues.count]                                                     VkCommandPool;
-    command_buffers      : [VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME] VkCommandBuffer;
-    command_buffers_used : [VulkanDevice.queues.count]                                                     s32;
+    fences               : [VulkanDevice.queues.count]                              VkFence;
+    command_pools        : [VulkanDevice.queues.count]                              VkCommandPool;
+    command_buffers      : [VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS] VkCommandBuffer;
+    command_buffers_used : [VulkanDevice.queues.count]                              s32;
 
     system_command_buffers : [#run Basic.enum_highest_value(SystemCommandBufferKind) + 1] VkCommandBuffer;
 }
@@ -1457,7 +1457,7 @@ createCommandBuffers :: (device : *VulkanDevice) {
         pNext              = null,
         commandPool        = null, // Will be set in a loop
         level              = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        commandBufferCount = Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME
+        commandBufferCount = cast(u32) Device.MAX_COMMAND_BUFFERS
     };
 
     frame_data_it := device.frame_data.data;
@@ -1474,7 +1474,7 @@ createCommandBuffers :: (device : *VulkanDevice) {
             #if DEBUG_BUILD {
                 local_command_buffers_it := command_buffers_it;
 
-                for 0 .. Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME - 1 {
+                for 0 .. Device.MAX_COMMAND_BUFFERS - 1 {
                     setVulkanObjectName(device,
                                         .VK_OBJECT_TYPE_COMMAND_BUFFER,
                                         <<local_command_buffers_it,
@@ -1487,7 +1487,7 @@ createCommandBuffers :: (device : *VulkanDevice) {
                 }
             }
 
-            command_buffers_it += Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME;
+            command_buffers_it += Device.MAX_COMMAND_BUFFERS;
         }
 
         frame_data_it += 1;
@@ -1549,6 +1549,6 @@ iterateThroughUsedCommandBuffers :: (frame_data : *FrameData, $code : Code) #exp
         }
 
         command_buffers_used_it += 1;
-        command_buffers_it      += Device.MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME;
+        command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
     }
 }

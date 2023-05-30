@@ -5,8 +5,8 @@ Device :: struct {
         INTEGRATED;
     }
 
-    MAX_SWAPCHAIN_BUFFERS                      : u32 : 3;
-    MAX_COMMAND_BUFFERS_OF_EACH_TYPE_PER_FRAME : u32 : 16;
+    MAX_SWAPCHAIN_BUFFERS : u32 : 3;
+    MAX_COMMAND_BUFFERS   : s32 : 16;
 
     vendor_id               : PCIVendorID;
     type                    : Type;
