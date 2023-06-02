@@ -15,18 +15,18 @@ alignUpWithPowerOfTwo :: inline (value : $T, alignment : T) -> T #modify { retur
     return (value + mask) & ~mask;
 }
 
-kiloByte :: inline ($$value : $T) -> T #no_context #modify { return T != f32 && T != f64; } {
+kiloBytes :: inline ($$value : $T) -> T #no_context #modify { return T != f32 && T != f64; } {
     return value << 10;
 }
 
-megaByte :: inline ($$value : $T) -> T #no_context #modify { return T != f32 && T != f64; } {
+megaBytes :: inline ($$value : $T) -> T #no_context #modify { return T != f32 && T != f64; } {
     return value << 20;
 }
 
-gigaByte :: inline ($$value : $T) -> T #no_context #modify { return T != f32 && T != f64; } {
+gigaBytes :: inline ($$value : $T) -> T #no_context #modify { return T != f32 && T != f64; } {
     return value << 30;
 }
 
-teraByte :: inline ($$value : $T) -> T #no_context #modify { return T != f32 && T != f64; } {
+teraBytes :: inline ($$value : $T) -> T #no_context #modify { return T != f32 && T != f64; } {
     return value << 40;
 }

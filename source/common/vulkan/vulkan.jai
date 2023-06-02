@@ -143,8 +143,10 @@ VkStructureType :: enum VkEnum {
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO                :: 2;
     VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO                      :: 3;
     VK_STRUCTURE_TYPE_SUBMIT_INFO                             :: 4;
+    VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO                    :: 5;
     VK_STRUCTURE_TYPE_FENCE_CREATE_INFO                       :: 8;
     VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO                   :: 9;
+    VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO                       :: 14;
     VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO                :: 39;
     VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO            :: 40;
     VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO         :: 41;
@@ -163,9 +165,21 @@ VkStructureType :: enum VkEnum {
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2            :: 1000059001;
     // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2               :: 1000059003;
+    // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2     :: 1000059004;
+    // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2               :: 1000059005;
     // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2     :: 1000059006;
+    // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2                     :: 1000145003;
+    // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2        :: 1000146001;
+    // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2                   :: 1000146003;
+    // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO                  :: 1000157001;
     // Provided by VK_VERSION_1_2
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES       :: 1000196000;
     // Provided by VK_VERSION_1_2
@@ -180,10 +194,10 @@ VkStructureType :: enum VkEnum {
     VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CALLBACK_DATA_EXT :: 1000128003;
     VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT   :: 1000128004;
 
-#if OS == .WINDOWS {
-    // Provided by VK_KHR_win32_surface
-    VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR           :: 1000009000;
-}
+    #if OS == .WINDOWS {
+        // Provided by VK_KHR_win32_surface
+        VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR       :: 1000009000;
+    }
 
     // Provided by VK_KHR_swapchain
     VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR               :: 1000001000;
@@ -288,11 +302,8 @@ VkExtent3D :: struct {
 
 // @Cleanup: Move to their own files
 VK_ATTACHMENT_UNUSED : u32 : 0xFFFF_FFFF;
-VK_LOD_CLAMP_NONE    : f32 : 1000.0;
 VK_SUBPASS_EXTERNAL  : u32 : 0xFFFF_FFFF;
 VK_WHOLE_SIZE        : u64 : 0xFFFF_FFFF_FFFF_FFFF;
-VK_MAX_MEMORY_TYPES  : u32 : 32;
-VK_MAX_MEMORY_HEAPS  : u32 : 16;
 
 // @Cleanup: Move to their own files
 VkRenderPass  :: VK_NON_DISPATCHABLE_HANDLE;
@@ -309,6 +320,7 @@ VkBuffer      :: VK_NON_DISPATCHABLE_HANDLE;
 #load "fence.jai";
 #load "command_pool.jai";
 #load "command_buffer.jai";
+#load "device_memory.jai";
 #load "image.jai";
 #load "barriers.jai";
 

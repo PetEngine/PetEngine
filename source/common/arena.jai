@@ -22,7 +22,7 @@ createArena :: (arena : *Arena, capacity : s64, name : string) {
 
         page_size : s64 = system_info.dwPageSize;
     } else {
-        page_size : s64 = 4096;
+        page_size : s64 : 4096;
         notImplemented();
     }
 
@@ -30,7 +30,7 @@ createArena :: (arena : *Arena, capacity : s64, name : string) {
     if arena.capacity != capacity {
         warningMessage("\"%\" arena will be created with different capacity since given capacity does not match system page size alignment requirement. Given capacity: % bytes, aligned capacity: % byte, page size: % bytes",
                        arena.name,
-                       Basic.formatInt(capacity,           digits_per_comma = 3, comma_string = "'"),
+                       Basic.formatInt(capacity,       digits_per_comma = 3, comma_string = "'"),
                        Basic.formatInt(arena.capacity, digits_per_comma = 3, comma_string = "'"),
                        page_size);
     }
@@ -72,7 +72,7 @@ pushToArena :: (arena : *Arena, bytes : s64) -> *void #must {
     assert(bytes > 0, "There is no sense in allocating <= 0 bytes");
 
     assert(arena.occupied + bytes < arena.capacity,
-           "There is no enogh space in \"%\" arena for % bytes. Occupied: % bytes, capacity: % bytes",
+           "There is no enough space in \"%\" arena for % bytes. Occupied: % bytes, capacity: % bytes",
            arena.name, bytes, arena.occupied, arena.capacity);
 
     pointer := arena.memory + arena.occupied;

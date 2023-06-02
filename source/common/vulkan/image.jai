@@ -1,3 +1,5 @@
+#scope_export
+
 // Provided by VK_VERSION_1_0
 VkImage :: VK_NON_DISPATCHABLE_HANDLE;
 
@@ -8,12 +10,21 @@ VK_REMAINING_ARRAY_LAYERS : u32 : 0xFFFF_FFFF;
 VK_REMAINING_MIP_LEVELS : u32 : 0xFFFF_FFFF;
 
 // Provided by VK_VERSION_1_0
+VK_LOD_CLAMP_NONE : f32 : 1000.0;
+
+// Provided by VK_VERSION_1_0
 VkFormat :: enum VkEnum {
     VK_FORMAT_UNDEFINED                :: 0;
+    VK_FORMAT_R8G8B8_UNORM             :: 23;
+    VK_FORMAT_R8G8B8_SNORM             :: 24;
+    VK_FORMAT_B8G8R8_UNORM             :: 30;
+    VK_FORMAT_B8G8R8_SNORM             :: 31;
     VK_FORMAT_R8G8B8A8_UNORM           :: 37;
     VK_FORMAT_B8G8R8A8_UNORM           :: 44;
-    VK_FORMAT_B8G8R8A8_SRGB            :: 50;
     VK_FORMAT_A2B10G10R10_UNORM_PACK32 :: 64;
+    VK_FORMAT_D32_SFLOAT               :: 126;
+    VK_FORMAT_S8_UINT                  :: 127;
+    VK_FORMAT_BC7_UNORM_BLOCK          :: 145;
 }
 
 // Provided by VK_VERSION_1_0
@@ -80,6 +91,21 @@ VkImageLayout :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
+VkImageType :: enum VkEnum {
+    VK_IMAGE_TYPE_1D :: 0;
+    VK_IMAGE_TYPE_2D :: 1;
+    VK_IMAGE_TYPE_3D :: 2;
+}
+
+// Provided by VK_VERSION_1_0
+VkImageTiling :: enum VkEnum {
+    VK_IMAGE_TILING_OPTIMAL                 :: 0;
+    VK_IMAGE_TILING_LINEAR                  :: 1;
+    // Provided by VK_EXT_image_drm_format_modifier
+    VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT :: 1000158000;
+}
+
+// Provided by VK_VERSION_1_0
 VkImageUsageFlags :: enum_flags VkFlags {
     VK_IMAGE_USAGE_TRANSFER_SRC_BIT                         :: 0x00000001;
     VK_IMAGE_USAGE_TRANSFER_DST_BIT                         :: 0x00000002;
@@ -137,6 +163,55 @@ VkImageAspectFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
+VkImageCreateFlags :: enum_flags VkFlags {
+    VK_IMAGE_CREATE_SPARSE_BINDING_BIT                            :: 0x00000001;
+    VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT                          :: 0x00000002;
+    VK_IMAGE_CREATE_SPARSE_ALIASED_BIT                            :: 0x00000004;
+    VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT                            :: 0x00000008;
+    VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT                           :: 0x00000010;
+    // Provided by VK_VERSION_1_1
+    VK_IMAGE_CREATE_ALIAS_BIT                                     :: 0x00000400;
+    // Provided by VK_VERSION_1_1
+    VK_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT               :: 0x00000040;
+    // Provided by VK_VERSION_1_1
+    VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT                       :: 0x00000020;
+    // Provided by VK_VERSION_1_1
+    VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT               :: 0x00000080;
+    // Provided by VK_VERSION_1_1
+    VK_IMAGE_CREATE_EXTENDED_USAGE_BIT                            :: 0x00000100;
+    // Provided by VK_VERSION_1_1
+    VK_IMAGE_CREATE_PROTECTED_BIT                                 :: 0x00000800;
+    // Provided by VK_VERSION_1_1
+    VK_IMAGE_CREATE_DISJOINT_BIT                                  :: 0x00000200;
+    // Provided by VK_NV_corner_sampled_image
+    VK_IMAGE_CREATE_CORNER_SAMPLED_BIT_NV                         :: 0x00002000;
+    // Provided by VK_EXT_sample_locations
+    VK_IMAGE_CREATE_SAMPLE_LOCATIONS_COMPATIBLE_DEPTH_BIT_EXT     :: 0x00001000;
+    // Provided by VK_EXT_fragment_density_map
+    VK_IMAGE_CREATE_SUBSAMPLED_BIT_EXT                            :: 0x00004000;
+    // Provided by VK_EXT_descriptor_buffer
+    VK_IMAGE_CREATE_DESCRIPTOR_BUFFER_CAPTURE_REPLAY_BIT_EXT      :: 0x00010000;
+    // Provided by VK_EXT_multisampled_render_to_single_sampled
+    VK_IMAGE_CREATE_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_BIT_EXT :: 0x00040000;
+    // Provided by VK_EXT_image_2d_view_of_3d
+    VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT                    :: 0x00020000;
+    // Provided by VK_QCOM_fragment_density_map_offset
+    VK_IMAGE_CREATE_FRAGMENT_DENSITY_MAP_OFFSET_BIT_QCOM          :: 0x00008000;
+    // Provided by VK_KHR_bind_memory2 with VK_KHR_device_group
+    VK_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT_KHR           :: VK_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT;
+    // Provided by VK_KHR_maintenance1
+    VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT_KHR                   :: VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
+    // Provided by VK_KHR_maintenance2
+    VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT_KHR           :: VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT;
+    // Provided by VK_KHR_maintenance2
+    VK_IMAGE_CREATE_EXTENDED_USAGE_BIT_KHR                        :: VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
+    // Provided by VK_KHR_sampler_ycbcr_conversion
+    VK_IMAGE_CREATE_DISJOINT_BIT_KHR                              :: VK_IMAGE_CREATE_DISJOINT_BIT;
+    // Provided by VK_KHR_bind_memory2
+    VK_IMAGE_CREATE_ALIAS_BIT_KHR                                 :: VK_IMAGE_CREATE_ALIAS_BIT;
+}
+
+// Provided by VK_VERSION_1_0
 VkImageSubresourceRange :: struct {
     aspectMask     : VkImageAspectFlags;
     baseMipLevel   : u32;
@@ -144,3 +219,147 @@ VkImageSubresourceRange :: struct {
     baseArrayLayer : u32;
     layerCount     : u32;
 }
+
+// Provided by VK_VERSION_1_0
+VkImageCreateInfo :: struct {
+    sType                 : VkStructureType;
+    pNext                 : *void;
+    flags                 : VkImageCreateFlags;
+    imageType             : VkImageType;
+    format                : VkFormat;
+    extent                : VkExtent3D;
+    mipLevels             : u32;
+    arrayLayers           : u32;
+    samples               : VkSampleCountFlags;
+    tiling                : VkImageTiling;
+    usage                 : VkImageUsageFlags;
+    sharingMode           : VkSharingMode;
+    queueFamilyIndexCount : u32;
+    pQueueFamilyIndices   : *u32;
+    initialLayout         : VkImageLayout;
+}
+
+// Provided by VK_VERSION_1_0
+VkImageSubresource :: struct {
+    aspectMask : VkImageAspectFlags;
+    mipLevel   : u32;
+    arrayLayer : u32;
+}
+
+// Provided by VK_VERSION_1_0
+VkSubresourceLayout :: struct {
+    offset     : VkDeviceSize;
+    size       : VkDeviceSize;
+    rowPitch   : VkDeviceSize;
+    arrayPitch : VkDeviceSize;
+    depthPitch : VkDeviceSize;
+}
+
+// Provided by VK_VERSION_1_1
+VkBindImageMemoryInfo :: struct {
+    sType        : VkStructureType;
+    pNext        : *void;
+    image        : VkImage;
+    memory       : VkDeviceMemory;
+    memoryOffset : VkDeviceSize;
+}
+
+// Provided by VK_VERSION_1_1
+VkImageMemoryRequirementsInfo2 :: struct {
+    sType : VkStructureType;
+    pNext : *void;
+    image : VkImage;
+}
+
+// Provided by VK_VERSION_1_0
+VkMemoryRequirements :: struct {
+    size           : VkDeviceSize;
+    alignment      : VkDeviceSize;
+    memoryTypeBits : u32;
+}
+
+// Provided by VK_VERSION_1_1
+VkMemoryRequirements2 :: struct {
+    sType              : VkStructureType;
+    pNext              : *void;
+    memoryRequirements : VkMemoryRequirements;
+}
+
+// Provided by VK_VERSION_1_1
+VkPhysicalDeviceImageFormatInfo2 :: struct {
+    sType  : VkStructureType;
+    pNext  : *void;
+    format : VkFormat;
+    type   : VkImageType;
+    tiling : VkImageTiling;
+    usage  : VkImageUsageFlags;
+    flags  : VkImageCreateFlags;
+}
+
+// Provided by VK_VERSION_1_0
+VkImageFormatProperties :: struct {
+    maxExtent       : VkExtent3D;
+    maxMipLevels    : u32;
+    maxArrayLayers  : u32;
+    sampleCounts    : VkSampleCountFlags;
+    maxResourceSize : VkDeviceSize;
+}
+
+// Provided by VK_VERSION_1_1
+VkImageFormatProperties2 :: struct {
+    sType                 : VkStructureType;
+    pNext                 : *void;
+    imageFormatProperties : VkImageFormatProperties;
+}
+
+// Provided by VK_VERSION_1_0
+vkCreateImage :: (
+    device      : VkDevice,
+    pCreateInfo : *VkImageCreateInfo,
+    pAllocator  : *VkAllocationCallbacks,
+    pImage      : *VkImage
+) -> VkResult #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkDestroyImage :: (
+    device     : VkDevice,
+    image      : VkImage,
+    pAllocator : *VkAllocationCallbacks
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkGetImageSubresourceLayout :: (
+    device       : VkDevice,
+    image        : VkImage,
+    pSubresource : *VkImageSubresource,
+    pLayout      : *VkSubresourceLayout
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkBindImageMemory :: (
+    device       : VkDevice,
+    image        : VkImage,
+    memory       : VkDeviceMemory,
+    memoryOffset : VkDeviceSize
+) -> VkResult #foreign vulkan;
+
+// Provided by VK_VERSION_1_1
+vkBindImageMemory2 :: (
+    device        : VkDevice,
+    bindInfoCount : u32,
+    pBindInfos    : *VkBindImageMemoryInfo
+) -> VkResult #foreign vulkan;
+
+// Provided by VK_VERSION_1_1
+vkGetImageMemoryRequirements2 :: (
+    device              : VkDevice,
+    pInfo               : *VkImageMemoryRequirementsInfo2,
+    pMemoryRequirements : *VkMemoryRequirements2
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_1
+vkGetPhysicalDeviceImageFormatProperties2 :: (
+    physicalDevice         : VkPhysicalDevice,
+    pImageFormatInfo       : *VkPhysicalDeviceImageFormatInfo2,
+    pImageFormatProperties : *VkImageFormatProperties2
+) -> VkResult #foreign vulkan;

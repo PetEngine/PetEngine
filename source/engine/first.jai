@@ -24,11 +24,11 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 
 main :: () {
     // @TODO: #Settings. Get persistent arena capacity from settings.
-    createArena(*context.pet.persistent_arena, gigaByte(1), "Persistent");
+    createArena(*context.pet.persistent_arena, gigaBytes(1), "Persistent");
     defer destroyArena(*context.pet.persistent_arena);
 
     // @TODO: #Settings. Get per frame arena capacity from settings.
-    createArena(*context.pet.per_frame_arena, megaByte(512), "Per frame");
+    createArena(*context.pet.per_frame_arena, megaBytes(512), "Per frame");
     defer destroyArena(*context.pet.per_frame_arena);
 
     window_manager := createWindowManager();
@@ -41,6 +41,22 @@ main :: () {
     // @TODO: #Settings. Get graphics API from settings.
     device := createDevice(.VULKAN, window);
     defer destroyDevice(device);
+
+    texture_manager := createTextureManager(device);
+    defer destroyTextureManager(device, texture_manager);
+
+    texture := createTexture(device,
+                             texture_manager,
+                             .RGBA8_UNORM,
+                             512,
+                             256,
+                             mips_count = 4,
+                             flags = Texture.Flags.COLOR_TARGET | .COHERENT,
+                             name = "Test texture",
+                             .PERSISTENT);
+
+    commitTextures(device, texture_manager, .PERSISTENT);
+    defer resetTextures(device, texture_manager, .PERSISTENT);
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 

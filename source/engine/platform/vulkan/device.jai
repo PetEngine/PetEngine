@@ -136,7 +136,7 @@ beginVulkanFrame :: (device : *VulkanDevice) {
     }
 
     // @Speed: Is this (Device.MAX_COMMAND_BUFFERS >> 2) threshold value optimal enough?
-    //         Maybe we should always reset entire command pool no matter how many command buffers we actually have?
+    //         Maybe we should always reset entire command pool no matter how many command buffers we use?
     {
         command_buffers_used_it := frame_data.command_buffers_used.data;
 
@@ -430,13 +430,6 @@ SemaphoreKind :: enum u8 {
 SystemCommandBufferKind :: enum u8 {
     PRE_FRAME;
     POST_FRAME;
-}
-
-// @TODO, @Cleanup: #VulkanTexture. Adapt to future Vulkan back end texture
-Image :: struct {
-    image  : VkImage;
-    layout : VkImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-    owner  : QueueType;
 }
 
 createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] string) -> u32 {
@@ -1523,7 +1516,7 @@ createSystemCommandBuffers :: (device : *VulkanDevice) {
     }
 }
 
-vendorIdToString :: inline (vendor_id : u32) -> string {
+vendorIdToString :: (vendor_id : u32) -> string {
     info := type_info(PCIVendorID);
 
     for info.values {
