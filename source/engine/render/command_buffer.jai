@@ -26,8 +26,7 @@ clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *T
            "You are trying to clear texture \"%\" in % command buffer, but texture's current owner is %. Change texture's owner first to do so.",
            texture.name,
            command_buffer.usage,
-           texture.current_owner,
-           print_sys_error = false);
+           texture.current_owner);
 
     if #complete device.graphics_api == {
         case .VULKAN;

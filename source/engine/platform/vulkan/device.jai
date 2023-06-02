@@ -376,7 +376,7 @@ getVulkanSwapchainTexture :: inline (device : *VulkanDevice, swapchain_buffer_in
 debugCheckVK :: ($code : Code) #expand {
     #if DEBUG_BUILD {{
         result := #insert code;
-        assert(result == .VK_SUCCESS, "% returned %", #run codeToString(code), result, print_sys_error = false);
+        assert(result == .VK_SUCCESS, "% returned %", #run codeToString(code), result);
     }} else {
         #insert code;
     }
@@ -1204,8 +1204,7 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
     }
     assert(requested_swapchain_buffers_count <= Device.MAX_SWAPCHAIN_BUFFERS,
            "You want too many swapchain buffers: %. If you really need that much you can increase Device.MAX_SWAPCHAIN_BUFFERS",
-           requested_swapchain_buffers_count,
-           print_sys_error = false);
+           requested_swapchain_buffers_count);
 
     infoMessage("Requested swapchain buffers count: %", requested_swapchain_buffers_count);
 

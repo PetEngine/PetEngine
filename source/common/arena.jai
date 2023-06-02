@@ -42,19 +42,17 @@ createArena :: (arena : *Arena, capacity : s64, name : string) {
         notImplemented();
     }
 
-    assert(arena.memory != null);
+    assert(arena.memory != null, print_sys_error = true);
 }
 
 destroyArena :: (arena : *Arena) {
     assert(arena.memory != null, "Initialize arena first");
 
     #if OS == .WINDOWS {
-        result := VirtualFree(arena.memory, 0, MEM_DECOMMIT);
+        debugCheck(VirtualFree(arena.memory, 0, MEM_DECOMMIT), print_sys_error = true);
     } else {
         notImplemented();
     }
-
-    assert(result != FALSE);
 
     #if DEBUG_BUILD {
         debugMessage("% arena: max occupied bytes: % / %", arena.name, arena.max_occupied, arena.capacity);

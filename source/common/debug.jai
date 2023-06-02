@@ -8,11 +8,11 @@ MessagePriority :: enum u8 {
     ASSERT;
 }
 
-debugMessage   :: #bake_arguments message(priority = .DEBUG,   print_sys_error = false);
-infoMessage    :: #bake_arguments message(priority = .INFO,    print_sys_error = false);
-warningMessage :: #bake_arguments message(priority = .WARNING, print_sys_error = false);
-errorMessage   :: #bake_arguments message(priority = .ERROR,   print_sys_error = false);
-assertMessage  :: #bake_arguments message(priority = .ASSERT,  print_sys_error = false);
+debugMessage   :: #bake_arguments message(priority = .DEBUG);
+infoMessage    :: #bake_arguments message(priority = .INFO);
+warningMessage :: #bake_arguments message(priority = .WARNING);
+errorMessage   :: #bake_arguments message(priority = .ERROR);
+assertMessage  :: #bake_arguments message(priority = .ASSERT);
 
 assert :: (
     $expression      : Code,
@@ -20,18 +20,18 @@ assert :: (
     args             : ..Any,
     $dot             := false,
     $new_line        := true,
-    $print_sys_error := true,
+    $print_sys_error := false,
     $location        := #caller_location
 ) #expand {
     #if DEBUG_BUILD {
         #if is_constant(#insert expression) {
             #if !(#insert expression) {
                 FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-                message(.ASSERT, FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+                assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
             }
         } else if !(#insert expression) {
             FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-            message(.ASSERT, FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+            assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
         }
     }
 }
@@ -42,7 +42,7 @@ debugCheck :: (
     args             : ..Any,
     $dot             := false,
     $new_line        := true,
-    $print_sys_error := true,
+    $print_sys_error := false,
     $location        := #caller_location
 ) #expand {
     #if DEBUG_BUILD {
@@ -74,7 +74,7 @@ message :: (
     args             : ..Any,
     $dot             := false,
     $new_line        := true,
-    $print_sys_error := true,
+    $print_sys_error := false,
     $location        := #caller_location
 ) {
     #if priority == .DEBUG && !DEBUG_BUILD {

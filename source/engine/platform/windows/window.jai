@@ -25,10 +25,8 @@ g_windowManager : Win32WindowManager;
 createWin32WindowManager :: () -> *Win32WindowManager #must {
     manager := *g_windowManager;
 
-    result := GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
-                                 cast,no_check(LPCWSTR) #this,
-                                 *manager.app_instance);
-    assert(result != FALSE);
+    debugCheck(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, cast,no_check(LPCWSTR) #this, *manager.app_instance),
+               print_sys_error = true);
 
     setMonitorDPIAwareness();
 
@@ -53,7 +51,7 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
     window_class.hIconSm       = window_class.hIcon;
 
     manager.window_class = RegisterClassExW(*window_class);
-    assert(manager.window_class != 0);
+    assert(manager.window_class != 0, print_sys_error = true);
 
     for 0 .. manager.MAX_WINDOWS - 2 {
         current_window := *manager.windows[it];
@@ -87,11 +85,11 @@ destroyWin32WindowManager :: (manager : *Win32WindowManager) {
 
     assert(manager.windows_count == 0);
 
-    result := UnregisterClassW(cast,no_check(LPCWSTR) manager.window_class, manager.app_instance);
-    assert(result != FALSE);
+    debugCheck(UnregisterClassW(cast,no_check(LPCWSTR) manager.window_class, manager.app_instance),
+               print_sys_error = true);
 
-    result = FreeLibrary(manager.app_instance);
-    assert(result != FALSE);
+    debugCheck(FreeLibrary(manager.app_instance),
+               print_sys_error = true);
 }
 
 //
@@ -164,7 +162,7 @@ createWin32Window :: (
                                     null,
                                     manager.app_instance,
                                     null);
-    assert(window.handle != null);
+    assert(window.handle != null, print_sys_error = true);
 
     SetWindowLongPtrW(window.handle, GWLP_USERDATA, cast,no_check(LONG_PTR) window);
 
@@ -301,16 +299,14 @@ windowEventsCallback :: (
 }
 
 setMonitorDPIAwareness :: () {
-    success := SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    assert(success != FALSE);
+    debugCheck(SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2), print_sys_error = true);
+    debugCheck(SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2), print_sys_error = true);
 
-    previous_thread_dpi_awareness_context := SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    assert(previous_thread_dpi_awareness_context != null);
-
-    assert(GetAwarenessFromDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == .DPI_AWARENESS_PER_MONITOR_AWARE);
+    assert(GetAwarenessFromDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == .DPI_AWARENESS_PER_MONITOR_AWARE,
+           print_sys_error = true);
 
     previous_dpi_hosting_behavior := SetThreadDpiHostingBehavior(.DPI_HOSTING_BEHAVIOR_MIXED);
-    assert(previous_dpi_hosting_behavior != .DPI_HOSTING_BEHAVIOR_INVALID);
+    assert(previous_dpi_hosting_behavior != .DPI_HOSTING_BEHAVIOR_INVALID, print_sys_error = true);
 }
 
 allocateWindow :: (manager : *Win32WindowManager) -> *Win32Window #must {
@@ -361,8 +357,7 @@ applyInitialDPIScalingToWindow :: (window_handle : HWND, width : u16, height : u
                           | SWP_DEFERERASE
                           | SWP_ASYNCWINDOWPOS;
 
-    result := SetWindowPos(window_handle, HWND_TOP, 0, 0, scaled_width, scaled_height, SET_WINDOW_POS_FLAGS);
-    assert(result != FALSE);
+    debugCheck(SetWindowPos(window_handle, HWND_TOP, 0, 0, scaled_width, scaled_height, SET_WINDOW_POS_FLAGS), print_sys_error = true);
 
     return dpi_scale;
 }
