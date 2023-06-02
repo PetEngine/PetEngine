@@ -76,6 +76,8 @@ main :: () {
         resetArena(*context.pet.per_frame_arena);
         Basic.reset_temporary_storage();
     }
+
+    waitDeviceIdle(device);
 }
 
 DEBUG_BUILD :: #run -> bool {

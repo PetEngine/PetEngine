@@ -70,7 +70,7 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
 
 destroyVulkanDevice :: (device : *VulkanDevice) {
     // @Important: Should be the first call
-    debugCheckVK(vkDeviceWaitIdle(device.device));
+    waitVulkanDeviceIdle(device);
 
     frame_data_it := device.frame_data.data;
 
@@ -400,6 +400,10 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
     // @TODO: VkAllocationCallbacks
     device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, old_swapchain, null);
+}
+
+waitVulkanDeviceIdle :: (device : *VulkanDevice) {
+    debugCheckVK(vkDeviceWaitIdle(device.device));
 }
 
 debugCheckVK :: ($code : Code) #expand {
