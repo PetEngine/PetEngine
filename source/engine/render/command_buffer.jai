@@ -20,13 +20,19 @@ createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(u
 }
 
 clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *Texture, clear_value : Texture.ClearValue) {
-    #assert command_buffer.usage == .GRPAHICS "Only graphics command buffers can clear textures";
+    #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can clear textures";
+
+    assert(texture.current_owner == command_buffer.usage,
+           "You are trying to clear texture \"%\" in % command buffer, but texture's current owner is %. Change texture's owner first to do so.",
+           texture.name,
+           command_buffer.usage,
+           texture.current_owner,
+           print_sys_error = false);
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            clearVulkanTexture(cast(*VulkanDevice) device,
-                               command_buffer[device.back_buffer_index],
-                               texture,
+            clearVulkanTexture(command_buffer.handles[device.back_buffer_index],
+                               cast(*VulkanTexture) texture,
                                clear_value);
     }
 }

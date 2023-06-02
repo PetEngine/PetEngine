@@ -87,18 +87,21 @@ Texture :: struct {
         u32_ : [4] u32;
     };
 
-    dimension      : Dimension;
-    flags          : Flags;
-    width          : u16;
-    height         : u16;
+    dimension             : Dimension;
+    flags                 : Flags;
+    width                 : u16;
+    height                : u16;
     union {
-        depth      : u16;
-        array_size : u16;
+        depth             : u16;
+        array_size        : u16;
     };
-    samples_count  : u8;
-    mips_count     : u8;
-    format         : Format;
-    name           : string;
+    samples_count         : u8;
+    mips_count            : u8;
+    format                : Format;
+    name                  : string;
+    possible_owners_count : u32;
+    possible_owners       : [#run Basic.enum_highest_value(QueueType) + 1] QueueType;
+    current_owner         : QueueType;
 }
 
 createTexture :: (
@@ -112,7 +115,8 @@ createTexture :: (
     mips_count          : u8            = 1,
     flags               : Texture.Flags,
     name                : string,
-    $memory_kind        : TextureManager.MemoryKind
+    $memory_kind        : TextureManager.MemoryKind,
+    possible_owners     : ..QueueType = .[ .GRAPHICS ]
 ) -> *Texture #must {
     assert(width > 0);
     assert(!(flags & .ARRAY) || depth_or_array_size > 0); // @TODO: Dynamic arrays?
@@ -128,6 +132,7 @@ createTexture :: (
            samples_count == 16 ||
            samples_count == 32 ||
            samples_count == 64);
+    assert(possible_owners.count > 0);
 
     max_mips_count := maxMipsCount(width, height, depth_or_array_size * cast,no_check(u16) (flags & .ARRAY));
     if mips_count == Texture.ALL_MIPS {
@@ -153,7 +158,8 @@ createTexture :: (
                                           mips_count,
                                           flags,
                                           name,
-                                          memory_kind);
+                                          memory_kind,
+                                          ..possible_owners);
     }
 
     assert(!(texture.flags & .ARRAY) || texture.dimension == ._1D || texture.dimension == ._2D,

@@ -12,14 +12,8 @@ pushVulkanCommandBuffer :: (device : *VulkanDevice, swapchain_buffer_index : u32
 }
 
 // @Speed: Figure out something more optimal with access masks and pipeline stages.
-vulkanTextureBarrier :: (
-    device         : *VulkanDevice,
-    command_buffer : VkCommandBuffer,
-    texture        : *VulkanTexture,
-    new_layout     : VkImageLayout,
-    new_owner      : QueueType
-) {
-    if texture.current_layout == new_layout && texture.current_owner == new_owner {
+vulkanTextureLayoutBarrier :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, new_layout : VkImageLayout) {
+    if texture.current_layout == new_layout {
         return;
     }
 
@@ -30,8 +24,8 @@ vulkanTextureBarrier :: (
         dstAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
         oldLayout           = texture.current_layout,
         newLayout           = new_layout,
-        srcQueueFamilyIndex = device.queues[texture.current_owner].family_index,
-        dstQueueFamilyIndex = device.queues[new_owner].family_index,
+        srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         image               = texture.image,
         subresourceRange    = .{
             aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
@@ -51,13 +45,12 @@ vulkanTextureBarrier :: (
                          1, *image_barrier);
 
     texture.current_layout = new_layout;
-    texture.current_owner  = new_owner;
 }
 
 // @TODO: #VulkanTexture. MIPs, layers, clear_value should not be VkClearColorValue.
-clearVulkanTexture :: (device : *VulkanDevice, command_buffer : VkCommandBuffer, texture : *VulkanTexture, clear_value : Texture.ClearValue) {
+clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, clear_value : Texture.ClearValue) {
     if texture.current_layout != .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL {
-        vulkanTextureBarrier(device, command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .GRAPHICS);
+        vulkanTextureLayoutBarrier(command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     }
 
     RANGE :: VkImageSubresourceRange.{

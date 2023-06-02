@@ -125,6 +125,8 @@ commitVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager
     // @TODO: VkAllocationCallbacks
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory.device_memory));
 
+    setVulkanObjectName(device, .VK_OBJECT_TYPE_DEVICE_MEMORY, memory.device_memory, "% device memory", memory_kind);
+
     bind_infos_it = bind_infos;
     for 0 .. memory.textures.count - 1 {
         bind_infos_it.memory = memory.device_memory;
@@ -156,7 +158,6 @@ VulkanTexture :: struct {
 
     image          : VkImage;
     current_layout : VkImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-    current_owner  : QueueType;
 }
 
 createVulkanTexture :: (
@@ -170,21 +171,30 @@ createVulkanTexture :: (
     mips_count          : u8,
     flags               : Texture.Flags,
     name                : string,
-    $memory_kind        : TextureManager.MemoryKind
+    $memory_kind        : TextureManager.MemoryKind,
+    possible_owners     : ..QueueType
 ) -> *VulkanTexture #must {
     memory := *manager.memories[memory_kind];
 
     texture := pushToArena(*memory.arena, VulkanTexture);
     memory.textures.count += 1;
 
-    texture.flags         = flags;
-    texture.width         = width;
-    texture.height        = height;
-    texture.depth         = depth_or_array_size;
-    texture.samples_count = samples_count;
-    texture.mips_count    = mips_count;
-    texture.format        = format;
-    texture.name          = name;
+    texture.flags                 = flags;
+    texture.width                 = width;
+    texture.height                = height;
+    texture.depth                 = depth_or_array_size;
+    texture.samples_count         = samples_count;
+    texture.mips_count            = mips_count;
+    texture.format                = format;
+    texture.name                  = name;
+    texture.possible_owners_count = cast(u32) possible_owners.count;
+    texture.current_owner         = possible_owners[0];
+
+    queue_family_indices : [Texture.possible_owners.count] u32;
+    for possible_owners {
+        queue_family_indices[it_index]    = device.queues[it].family_index;
+        texture.possible_owners[it_index] = it;
+    }
 
     create_info := VkImageCreateInfo.{
         sType                 = .VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -195,9 +205,8 @@ createVulkanTexture :: (
         arrayLayers           = 1,
         tiling                = .VK_IMAGE_TILING_OPTIMAL,
         usage                 = textureFlagsToVulkanUsageFlags(texture.flags),
-        sharingMode           = .VK_SHARING_MODE_EXCLUSIVE,
-        queueFamilyIndexCount = 0,                         // @TODO: Define possible owners
-        pQueueFamilyIndices   = null,                      // @TODO: Define possible owners
+        queueFamilyIndexCount = texture.possible_owners_count,
+        pQueueFamilyIndices   = queue_family_indices.data,
         initialLayout         = .VK_IMAGE_LAYOUT_UNDEFINED // initialLayout must be VK_IMAGE_LAYOUT_UNDEFINED or VK_IMAGE_LAYOUT_PREINITIALIZED
         // Everything else will be set later
     };
@@ -245,6 +254,12 @@ createVulkanTexture :: (
         case 16; create_info.samples = .VK_SAMPLE_COUNT_16_BIT;
         case 32; create_info.samples = .VK_SAMPLE_COUNT_32_BIT;
         case 64; create_info.samples = .VK_SAMPLE_COUNT_64_BIT;
+    }
+
+    if texture.possible_owners_count > 1 {
+        create_info.sharingMode = .VK_SHARING_MODE_CONCURRENT;
+    } else {
+        create_info.sharingMode = .VK_SHARING_MODE_EXCLUSIVE;
     }
 
     image_format_info := VkPhysicalDeviceImageFormatInfo2.{

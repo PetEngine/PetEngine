@@ -196,8 +196,8 @@ beginVulkanFrame :: (device : *VulkanDevice) {
 
         debugCheckVK(vkBeginCommandBuffer(pre_frame_command_buffer, *begin_info));
 
-        clearVulkanTexture(device,
-                           pre_frame_command_buffer,
+        assert(frame_data.swapchain_image.current_owner == .GRAPHICS);
+        clearVulkanTexture(pre_frame_command_buffer,
                            *frame_data.swapchain_image,
                            Texture.ClearValue.{ f32_ = .[ 0.3, 0.3, 0.3, 0.0 ] });
 
@@ -307,7 +307,8 @@ endVulkanFrame :: (device : *VulkanDevice) {
 
         debugCheckVK(vkBeginCommandBuffer(post_frame_command_buffer, *begin_info));
 
-        vulkanTextureBarrier(device, post_frame_command_buffer, *frame_data.swapchain_image, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .GRAPHICS);
+        assert(frame_data.swapchain_image.current_owner == .GRAPHICS);
+        vulkanTextureLayoutBarrier(post_frame_command_buffer, *frame_data.swapchain_image, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         debugCheckVK(vkEndCommandBuffer(post_frame_command_buffer));
 

@@ -45,15 +45,15 @@ main :: () {
     texture_manager := createTextureManager(device);
     defer destroyTextureManager(device, texture_manager);
 
-    texture := createTexture(device,
-                             texture_manager,
-                             .RGBA8_UNORM,
-                             512,
-                             256,
-                             mips_count = 4,
-                             flags = Texture.Flags.COLOR_TARGET | .COHERENT,
-                             name = "Test texture",
-                             .PERSISTENT);
+    test_texture := createTexture(device,
+                                  texture_manager,
+                                  .RGBA8_UNORM,
+                                  512,
+                                  256,
+                                  mips_count = 4,
+                                  Texture.Flags.COLOR_TARGET | .COHERENT,
+                                  "Test texture",
+                                  .PERSISTENT);
 
     commitTextures(device, texture_manager, .PERSISTENT);
     defer resetTextures(device, texture_manager, .PERSISTENT);
@@ -68,6 +68,9 @@ main :: () {
         }
 
         beginFrame(device);
+        {
+            clearTexture(device, *command_buffer, test_texture, Texture.ClearValue.{ f32_ = .[ 1.0, 0.0, 0.0, 1.0 ] });
+        }
         endFrame(device);
 
         resetArena(*context.pet.per_frame_arena);
