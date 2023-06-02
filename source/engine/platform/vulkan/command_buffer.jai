@@ -28,7 +28,7 @@ vulkanTextureLayoutBarrier :: (command_buffer : VkCommandBuffer, texture : *Vulk
         dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         image               = texture.image,
         subresourceRange    = .{
-            aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
+            aspectMask     = getVulkanImageAspectFlags(texture),
             baseMipLevel   = 0,
             levelCount     = 1,
             baseArrayLayer = 0,
@@ -53,17 +53,61 @@ clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTextur
         vulkanTextureLayoutBarrier(command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     }
 
-    RANGE :: VkImageSubresourceRange.{
-        aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
-        baseMipLevel   = 0,
-        levelCount     = 1,
-        baseArrayLayer = 0,
-        layerCount     = 1
-    };
+    if #complete texture.format == {
+        case .UNKNOWN;
+            // Just do nothing
 
-    vk_clear_value := VkClearColorValue.{
-        float32_ = clear_value.f32_
-    };
+        case .RGB8_UNORM;    #through;
+        case .RGB8_SNORM;    #through;
+        case .BGR8_UNORM;    #through;
+        case .BGR8_SNORM;    #through;
+        case .RGBA8_UNORM;   #through;
+        case .BGRA8_UNORM;   #through;
+        case .RGB10A2_UNORM; #through;
+        case .BC7_UNORM;
+            range :: VkImageSubresourceRange.{
+                aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
+                baseMipLevel   = 0,
+                levelCount     = 1,
+                baseArrayLayer = 0,
+                layerCount     = 1
+            };
 
-    vkCmdClearColorImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *RANGE);
+            vk_clear_value := VkClearColorValue.{
+                float32_ = clear_value.color_f32
+            };
+
+            vkCmdClearColorImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
+
+        case .D32;
+            range :: VkImageSubresourceRange.{
+                aspectMask     = .VK_IMAGE_ASPECT_DEPTH_BIT,
+                baseMipLevel   = 0,
+                levelCount     = 1,
+                baseArrayLayer = 0,
+                layerCount     = 1
+            };
+
+            vk_clear_value := VkClearDepthStencilValue.{
+                depth = clear_value.depth
+            };
+
+            vkCmdClearDepthStencilImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
+
+        case .S8;
+            range :: VkImageSubresourceRange.{
+                aspectMask     = .VK_IMAGE_ASPECT_STENCIL_BIT,
+                baseMipLevel   = 0,
+                levelCount     = 1,
+                baseArrayLayer = 0,
+                layerCount     = 1
+            };
+
+            vk_clear_value := VkClearDepthStencilValue.{
+                stencil = clear_value.stencil
+            };
+
+            vkCmdClearDepthStencilImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
+    }
+
 }

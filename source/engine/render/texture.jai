@@ -85,8 +85,13 @@ Texture :: struct {
 
     // @TODO: #Math. Make it vector
     ClearValue :: union {
-        f32_ : [4] f32;
-        u32_ : [4] u32;
+        color_f32 : [4] f32;
+        color_u32 : [4] u32;
+        color_s32 : [4] s32;
+        struct {
+            depth   : f32;
+            stencil : u32;
+        }
     };
 
     dimension             : Dimension;

@@ -76,10 +76,17 @@ VkCommandBufferBeginInfo :: struct {
     pInheritanceInfo : *VkCommandBufferInheritanceInfo;
 }
 
+// Provided by VK_VERSION_1_0
 VkClearColorValue :: union {
     float32_ : [4] f32;
     int32    : [4] s32;
     uint32   : [4] u32;
+}
+
+// Provided by VK_VERSION_1_0
+VkClearDepthStencilValue :: struct {
+    depth   : f32;
+    stencil : u32;
 }
 
 // Provided by VK_VERSION_1_0
@@ -120,6 +127,16 @@ vkCmdClearColorImage :: (
     image         : VkImage,
     imageLayout   : VkImageLayout,
     pColor        : *VkClearColorValue,
+    rangeCount    : u32,
+    pRanges       : *VkImageSubresourceRange
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkCmdClearDepthStencilImage :: (
+    commandBuffer : VkCommandBuffer,
+    image         : VkImage,
+    imageLayout   : VkImageLayout,
+    pDepthStencil : *VkClearDepthStencilValue,
     rangeCount    : u32,
     pRanges       : *VkImageSubresourceRange
 ) #foreign vulkan;

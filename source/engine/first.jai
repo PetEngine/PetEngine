@@ -45,14 +45,13 @@ main :: () {
     texture_manager := createTextureManager(device);
     defer destroyTextureManager(device, texture_manager);
 
-    test_texture := createTexture(device,
+    depth_buffer := createTexture(device,
                                   texture_manager,
-                                  .RGBA8_UNORM,
-                                  512,
-                                  256,
-                                  mips_count = 4,
-                                  Texture.Flags.COLOR_TARGET | .COHERENT,
-                                  "Test texture",
+                                  .D32,
+                                  window.surface.width,
+                                  window.surface.height,
+                                  flags = Texture.Flags.DEPTH_STENCIL | .COHERENT,
+                                  "Depth buffer",
                                   .PERSISTENT);
 
     commitTextures(device, texture_manager, .PERSISTENT);
@@ -72,9 +71,8 @@ main :: () {
             back_buffer := getBackBuffer(device);
 
             // @TODO: #Settings. Get back buffer clear color from settings.
-            clearTexture(device, *command_buffer, back_buffer, Texture.ClearValue.{ f32_ = .[ 0.3, 0.3, 0.3, 0.0 ] });
-
-            clearTexture(device, *command_buffer, test_texture, Texture.ClearValue.{ f32_ = .[ 1.0, 0.0, 0.0, 1.0 ] });
+            clearTexture(device, *command_buffer, back_buffer,  .{ color_f32 = .[ 0.3, 0.3, 0.3, 0.0 ] });
+            clearTexture(device, *command_buffer, depth_buffer, .{ depth = 1.0 });
         }
         endFrame(device);
 

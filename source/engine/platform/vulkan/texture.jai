@@ -22,7 +22,7 @@ createVulkanTextureManager :: (device : *VulkanDevice) -> *VulkanTextureManager 
     builder.allocator = Basic.temporary_allocator;
 
     for * manager.memories {
-        Basic.print_to_builder(*builder, "% textures arena", cast(VulkanTextureManager.MemoryKind) it_index);
+        Basic.print_to_builder(*builder, "% textures", cast(VulkanTextureManager.MemoryKind) it_index);
 
         // @TODO: #Settings. Get the size of the arena from settings.
         createArena(*it.arena, megaBytes(1), Basic.builder_to_string(*builder));
@@ -348,6 +348,27 @@ vulkanUsageFlagsToTextureFlags :: (usage_flags : VkImageUsageFlags) -> Texture.F
     if usage_flags & .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT then flags |= .DEPTH_STENCIL;
 
     return flags;
+}
+
+getVulkanImageAspectFlags :: (texture : *VulkanTexture) -> VkImageAspectFlags {
+    if #complete texture.format == {
+        case .UNKNOWN;
+            return .VK_IMAGE_ASPECT_NONE;
+        case .RGB8_UNORM;    #through;
+        case .RGB8_SNORM;    #through;
+        case .BGR8_UNORM;    #through;
+        case .BGR8_SNORM;    #through;
+        case .RGBA8_UNORM;   #through;
+        case .BGRA8_UNORM;   #through;
+        case .RGB10A2_UNORM; #through;
+        case .BC7_UNORM;
+            return .VK_IMAGE_ASPECT_COLOR_BIT;
+        case .D32;
+            return .VK_IMAGE_ASPECT_DEPTH_BIT;
+        case .S8;
+            return .VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+    return .VK_IMAGE_ASPECT_NONE;
 }
 
 #scope_file
