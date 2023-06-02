@@ -57,8 +57,7 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     loadVulkanDeviceExtensionsFunctions(*device.loader, device.device, *enabled_device_extensions);
     getQueues(device);
     createSurface(device, window);
-    createSwapchain(device, window, VK_NULL_HANDLE);
-    initSwapchainImages(device);
+    createSwapchainAndInitImages(device, window, VK_NULL_HANDLE);
     createSemaphores(device);
     createFences(device);
     createCommandPools(device);
@@ -75,6 +74,10 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
     frame_data_it := device.frame_data.data;
 
     for 0 .. device.swapchain_buffers_count - 1 {
+        if frame_data_it.swapchain_texture.name.data {
+            Basic.free(frame_data_it.swapchain_texture.name.data);
+        }
+
         for frame_data_it.command_pools {
             // @TODO: VkAllocationCallbacks
             vkDestroyCommandPool(device.device, it, null);
@@ -178,45 +181,6 @@ beginVulkanFrame :: (device : *VulkanDevice) {
             command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
         }
     }
-
-    // @TODO: Move this clear to high level code
-    {
-        pre_frame_command_buffer := frame_data.system_command_buffers[SystemCommandBufferKind.PRE_FRAME];
-
-        if frame_data.command_buffers_used[QueueType.GRAPHICS] <= (Device.MAX_COMMAND_BUFFERS >> 2) {
-            debugCheckVK(vkResetCommandBuffer(pre_frame_command_buffer, 0));
-        }
-
-        begin_info := VkCommandBufferBeginInfo.{
-            sType            = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            pNext            = null,
-            flags            = 0,
-            pInheritanceInfo = null // Ignored for primary command buffers
-        };
-
-        debugCheckVK(vkBeginCommandBuffer(pre_frame_command_buffer, *begin_info));
-
-        assert(frame_data.swapchain_image.current_owner == .GRAPHICS);
-        clearVulkanTexture(pre_frame_command_buffer,
-                           *frame_data.swapchain_image,
-                           Texture.ClearValue.{ f32_ = .[ 0.3, 0.3, 0.3, 0.0 ] });
-
-        debugCheckVK(vkEndCommandBuffer(pre_frame_command_buffer));
-
-        submit_info := VkSubmitInfo.{
-            sType                = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            pNext                = null,
-            waitSemaphoreCount   = 1,
-            pWaitSemaphores      = *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
-            pWaitDstStageMask    = VkPipelineStageFlags.[ .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT ].data, // @Speed
-            commandBufferCount   = 1,
-            pCommandBuffers      = *pre_frame_command_buffer,
-            signalSemaphoreCount = 1,
-            pSignalSemaphores    = *device.semaphores[SemaphoreKind.PRE_FRAME]
-        };
-
-        debugCheckVK(vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, VK_NULL_HANDLE));
-    }
 }
 
 endVulkanFrame :: (device : *VulkanDevice) {
@@ -261,7 +225,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
 
                 if it_index == cast(s64) QueueType.GRAPHICS {
                     submit_info.waitSemaphoreCount   = 1;
-                    submit_info.pWaitSemaphores      = *device.semaphores[SemaphoreKind.PRE_FRAME];
+                    submit_info.pWaitSemaphores      = *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE];
                     submit_info.signalSemaphoreCount = 1;
                     submit_info.pSignalSemaphores    = *device.semaphores[SemaphoreKind.GRAPHICS_DONE];
 
@@ -307,8 +271,8 @@ endVulkanFrame :: (device : *VulkanDevice) {
 
         debugCheckVK(vkBeginCommandBuffer(post_frame_command_buffer, *begin_info));
 
-        assert(frame_data.swapchain_image.current_owner == .GRAPHICS);
-        vulkanTextureLayoutBarrier(post_frame_command_buffer, *frame_data.swapchain_image, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        assert(frame_data.swapchain_texture.current_owner == .GRAPHICS);
+        vulkanTextureLayoutBarrier(post_frame_command_buffer, *frame_data.swapchain_texture, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         debugCheckVK(vkEndCommandBuffer(post_frame_command_buffer));
 
@@ -322,7 +286,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
             waitSemaphoreCount   = 1,
             pWaitSemaphores      = ifx  graphics_command_buffers_used > 0
                                    then *device.semaphores[SemaphoreKind.GRAPHICS_DONE]
-                                   else *device.semaphores[SemaphoreKind.PRE_FRAME],
+                                   else *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
             pWaitDstStageMask    = VkPipelineStageFlags.[ .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT ].data,
             commandBufferCount   = 1,
             pCommandBuffers      = *post_frame_command_buffer,
@@ -395,8 +359,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object_type : VkObjectType, obje
 recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     old_swapchain := device.swapchain;
 
-    createSwapchain(device, window, old_swapchain);
-    initSwapchainImages(device);
+    createSwapchainAndInitImages(device, window, old_swapchain);
 
     // @TODO: VkAllocationCallbacks
     device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, old_swapchain, null);
@@ -404,6 +367,10 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
 waitVulkanDeviceIdle :: (device : *VulkanDevice) {
     debugCheckVK(vkDeviceWaitIdle(device.device));
+}
+
+getVulkanSwapchainTexture :: inline (device : *VulkanDevice, swapchain_buffer_index : u32) -> *VulkanTexture {
+    return *device.frame_data[swapchain_buffer_index].swapchain_texture;
 }
 
 debugCheckVK :: ($code : Code) #expand {
@@ -420,8 +387,7 @@ debugCheckVK :: ($code : Code) #expand {
 Hash :: #import "Hash";
 
 FrameData :: struct {
-    // @TODO: #VulkanTexture. It should be *VulkanTexture, since it will be stored in VulkanTextureManager.
-    swapchain_image : VulkanTexture;
+    swapchain_texture : VulkanTexture;
 
     fences               : [VulkanDevice.queues.count]                              VkFence;
     command_pools        : [VulkanDevice.queues.count]                              VkCommandPool;
@@ -440,12 +406,10 @@ Queue :: struct {
 SemaphoreKind :: enum u8 {
     ACQUIRE_IMAGE;
     GRAPHICS_DONE;
-    PRE_FRAME;
     POST_FRAME;
 }
 
 SystemCommandBufferKind :: enum u8 {
-    PRE_FRAME;
     POST_FRAME;
 }
 
@@ -1205,7 +1169,7 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
     }
 }
 
-createSwapchain :: (device : *VulkanDevice, window : *Window, old_swapchain : VkSwapchainKHR) {
+createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_swapchain : VkSwapchainKHR) {
     surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
                                                                                                       device.surface,
@@ -1333,40 +1297,65 @@ createSwapchain :: (device : *VulkanDevice, window : *Window, old_swapchain : Vk
 
     // @TODO: VkAllocationCallbacks
     debugCheckVK(device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain));
-}
 
-initSwapchainImages :: (device : *VulkanDevice) {
-    device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
-                                                                     device.swapchain,
-                                                                     *device.swapchain_buffers_count,
-                                                                     null);
-    assert(device.swapchain_buffers_count > 0);
-    assert(device.swapchain_buffers_count <= Device.MAX_SWAPCHAIN_BUFFERS,
-           "Number of swapchain buffers is too high: %. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
-           device.swapchain_buffers_count);
+    // Initialize swapchain images
+    {
+        device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
+                                                                         device.swapchain,
+                                                                         *device.swapchain_buffers_count,
+                                                                         null);
+        assert(device.swapchain_buffers_count > 0);
+        assert(device.swapchain_buffers_count <= Device.MAX_SWAPCHAIN_BUFFERS,
+               "Number of swapchain buffers is too high: %. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
+               device.swapchain_buffers_count);
 
-    infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
+        infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
 
-    swapchain_images : [Device.MAX_SWAPCHAIN_BUFFERS] VkImage;
+        swapchain_images : [Device.MAX_SWAPCHAIN_BUFFERS] VkImage;
 
-    device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
-                                                                     device.swapchain,
-                                                                     *device.swapchain_buffers_count,
-                                                                     swapchain_images.data);
+        device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
+                                                                         device.swapchain,
+                                                                         *device.swapchain_buffers_count,
+                                                                         swapchain_images.data);
 
-    frame_data_it       := device.frame_data.data;
-    swapchain_images_it := swapchain_images.data;
+        frame_data_it       := device.frame_data.data;
+        swapchain_images_it := swapchain_images.data;
 
-    // @TODO: #VulkanTexture. Add these images to texture manager
-    for 0 .. device.swapchain_buffers_count - 1 {
-        frame_data_it.swapchain_image.image          = <<swapchain_images_it;
-        frame_data_it.swapchain_image.current_layout = .VK_IMAGE_LAYOUT_UNDEFINED;
-        frame_data_it.swapchain_image.current_owner  = .GRAPHICS;
+        // @Important: Should be with default allocator
+        builder : Basic.String_Builder;
 
-        setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, frame_data_it.swapchain_image.image, "Swapchain image #%", it);
+        // @TODO: #VulkanTexture. Add these images to texture manager
+        for 0 .. device.swapchain_buffers_count - 1 {
+            Basic.print_to_builder(*builder, "Swapchain image #%", it);
 
-        frame_data_it       += 1;
-        swapchain_images_it += 1;
+            if frame_data_it.swapchain_texture.name.data {
+                Basic.free(frame_data_it.swapchain_texture.name.data);
+            }
+
+            frame_data_it.swapchain_texture.dimension             = ._2D;
+            frame_data_it.swapchain_texture.flags                 = .SWAPCHAIN;
+            frame_data_it.swapchain_texture.width                 = cast(u16) surface_extent.width;
+            frame_data_it.swapchain_texture.height                = cast(u16) surface_extent.height;
+            frame_data_it.swapchain_texture.depth                 = 0;
+            frame_data_it.swapchain_texture.samples_count         = 1;
+            frame_data_it.swapchain_texture.mips_count            = 1;
+            frame_data_it.swapchain_texture.format                = vulkanFormatToTextureFormat(surface_format.format);
+            frame_data_it.swapchain_texture.name                  = Basic.builder_to_string(*builder);
+            frame_data_it.swapchain_texture.possible_owners_count = 1;
+            frame_data_it.swapchain_texture.possible_owners[0]    = .GRAPHICS;
+            frame_data_it.swapchain_texture.current_owner         = .GRAPHICS;
+            frame_data_it.swapchain_texture.image                 = <<swapchain_images_it;
+            frame_data_it.swapchain_texture.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
+
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then frame_data_it.swapchain_texture.flags |= .COHERENT;
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then frame_data_it.swapchain_texture.flags |= .NONCOHERENT;
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then frame_data_it.swapchain_texture.flags |= .COLOR_TARGET;
+
+            setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, frame_data_it.swapchain_texture.image, frame_data_it.swapchain_texture.name);
+
+            frame_data_it       += 1;
+            swapchain_images_it += 1;
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 VulkanTextureManager :: struct {
     #as using public_data : TextureManager;
 
-    // @Cleanup: Maybe get rid of arena or view to textures?
+    // @Cleanup: Maybe get rid of arena or textures array?
     Memory :: struct {
         device_memory : VkDeviceMemory;
         textures      : [] VulkanTexture;
@@ -157,7 +157,7 @@ VulkanTexture :: struct {
     #as using public_data : Texture;
 
     image          : VkImage;
-    current_layout : VkImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
+    current_layout : VkImageLayout;
 }
 
 createVulkanTexture :: (
@@ -189,6 +189,7 @@ createVulkanTexture :: (
     texture.name                  = name;
     texture.possible_owners_count = cast(u32) possible_owners.count;
     texture.current_owner         = possible_owners[0];
+    texture.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
 
     queue_family_indices : [Texture.possible_owners.count] u32;
     for possible_owners {

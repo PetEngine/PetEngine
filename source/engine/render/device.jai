@@ -93,6 +93,23 @@ waitDeviceIdle :: (device : *Device) {
     }
 }
 
+getSwapchainTexture :: (device : *Device, swapchain_buffer_index : u32) -> *Texture {
+    texture : *Texture;
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            texture = getVulkanSwapchainTexture(cast(*VulkanDevice) device, swapchain_buffer_index);
+    }
+
+    return texture;
+}
+
+getBackBuffer :: (device : *Device) -> *Texture {
+    return inline getSwapchainTexture(device, device.back_buffer_index);
+}
+
+
+
 #scope_file
 
 #load "../platform/vulkan/loader.jai";

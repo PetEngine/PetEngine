@@ -56,6 +56,8 @@ Texture :: struct {
         COLOR_TARGET;
         DEPTH_STENCIL;
         READ_ONLY;
+
+        SWAPCHAIN;
     }
 
     // Order: xyzw
@@ -119,6 +121,7 @@ createTexture :: (
     possible_owners     : ..QueueType = .[ .GRAPHICS ]
 ) -> *Texture #must {
     assert(width > 0);
+    assert(!(flags & .SWAPCHAIN), "You cannot explicitly set SWAPCHAIN flag");
     assert(!(flags & .ARRAY) || depth_or_array_size > 0); // @TODO: Dynamic arrays?
     assert(!(flags & .CUBE) || width == height, "Cube textures must have identical width and height");
     assert((flags & (Texture.Flags.COLOR_TARGET | .DEPTH_STENCIL)) != (Texture.Flags.COLOR_TARGET | .DEPTH_STENCIL),

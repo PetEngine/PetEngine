@@ -69,6 +69,11 @@ main :: () {
 
         beginFrame(device);
         {
+            back_buffer := getBackBuffer(device);
+
+            // @TODO: #Settings. Get back buffer clear color from settings.
+            clearTexture(device, *command_buffer, back_buffer, Texture.ClearValue.{ f32_ = .[ 0.3, 0.3, 0.3, 0.0 ] });
+
             clearTexture(device, *command_buffer, test_texture, Texture.ClearValue.{ f32_ = .[ 1.0, 0.0, 0.0, 1.0 ] });
         }
         endFrame(device);
