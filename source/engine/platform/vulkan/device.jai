@@ -70,8 +70,7 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
 
 destroyVulkanDevice :: (device : *VulkanDevice) {
     // @Important: Should be the first call
-    result := vkDeviceWaitIdle(device.device);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(vkDeviceWaitIdle(device.device));
 
     frame_data_it := device.frame_data.data;
 
@@ -124,15 +123,13 @@ beginVulkanFrame :: (device : *VulkanDevice) {
             deviceMask = 1
         };
 
-        result := device.loader.extensions.device.required.vkAcquireNextImage2KHR(device.device, *acquire_info, *device.back_buffer_index);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(device.loader.extensions.device.required.vkAcquireNextImage2KHR(device.device, *acquire_info, *device.back_buffer_index));
     }
 
     frame_data := *device.frame_data[device.back_buffer_index];
 
     {
-        result := vkWaitForFences(device.device, frame_data.fences.count, frame_data.fences.data, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkWaitForFences(device.device, frame_data.fences.count, frame_data.fences.data, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF));
     }
 
     // @Speed: Is this (Device.MAX_COMMAND_BUFFERS >> 2) threshold value optimal enough?
@@ -142,14 +139,12 @@ beginVulkanFrame :: (device : *VulkanDevice) {
 
         for frame_data.command_pools {
             if <<command_buffers_used_it > (Device.MAX_COMMAND_BUFFERS >> 2) {
-                result := vkResetCommandPool(device.device, it, 0);
-                assert(result == .VK_SUCCESS);
+                debugCheckVK(vkResetCommandPool(device.device, it, 0));
             } else {
                 command_buffers_it := frame_data.command_buffers.data;
 
                 for 0 .. <<command_buffers_used_it - 1 {
-                    result := vkResetCommandBuffer(<<command_buffers_it, 0);
-                    assert(result == .VK_SUCCESS);
+                    debugCheckVK(vkResetCommandBuffer(<<command_buffers_it, 0));
 
                     command_buffers_it += 1;
                 }
@@ -167,10 +162,21 @@ beginVulkanFrame :: (device : *VulkanDevice) {
             pInheritanceInfo = null // Ignored for primary command buffers
         };
 
-        iterateThroughUsedCommandBuffers(frame_data, #code {
-            result := vkBeginCommandBuffer(<<command_buffers_local_it, *`begin_info);
-            assert(result == .VK_SUCCESS);
-        });
+        command_buffers_used_it := frame_data.command_buffers_used.data;
+        command_buffers_it      := frame_data.command_buffers.data;
+
+        for 0 .. VulkanDevice.queues.count - 1 {
+            command_buffers_local_it := command_buffers_it;
+
+            for 0 .. <<command_buffers_used_it - 1 {
+                debugCheckVK(vkBeginCommandBuffer(<<command_buffers_local_it, *begin_info));
+
+                command_buffers_local_it += 1;
+            }
+
+            command_buffers_used_it += 1;
+            command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
+        }
     }
 
     // @TODO: Move this clear to high level code
@@ -178,8 +184,7 @@ beginVulkanFrame :: (device : *VulkanDevice) {
         pre_frame_command_buffer := frame_data.system_command_buffers[SystemCommandBufferKind.PRE_FRAME];
 
         if frame_data.command_buffers_used[QueueType.GRAPHICS] <= (Device.MAX_COMMAND_BUFFERS >> 2) {
-            result := vkResetCommandBuffer(pre_frame_command_buffer, 0);
-            assert(result == .VK_SUCCESS);
+            debugCheckVK(vkResetCommandBuffer(pre_frame_command_buffer, 0));
         }
 
         begin_info := VkCommandBufferBeginInfo.{
@@ -189,16 +194,14 @@ beginVulkanFrame :: (device : *VulkanDevice) {
             pInheritanceInfo = null // Ignored for primary command buffers
         };
 
-        result := vkBeginCommandBuffer(pre_frame_command_buffer, *begin_info);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkBeginCommandBuffer(pre_frame_command_buffer, *begin_info));
 
         clearVulkanTexture(device,
                            pre_frame_command_buffer,
                            *frame_data.swapchain_image,
                            Texture.ClearValue.{ f32_ = .[ 0.3, 0.3, 0.3, 0.0 ] });
 
-        result = vkEndCommandBuffer(pre_frame_command_buffer);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkEndCommandBuffer(pre_frame_command_buffer));
 
         submit_info := VkSubmitInfo.{
             sType                = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -212,8 +215,7 @@ beginVulkanFrame :: (device : *VulkanDevice) {
             pSignalSemaphores    = *device.semaphores[SemaphoreKind.PRE_FRAME]
         };
 
-        result = vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, VK_NULL_HANDLE);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, VK_NULL_HANDLE));
     }
 }
 
@@ -221,10 +223,21 @@ endVulkanFrame :: (device : *VulkanDevice) {
     frame_data := *device.frame_data[device.back_buffer_index];
 
     {
-        iterateThroughUsedCommandBuffers(frame_data, #code {
-            result := vkEndCommandBuffer(<<command_buffers_local_it);
-            assert(result == .VK_SUCCESS);
-        });
+        command_buffers_used_it := frame_data.command_buffers_used.data;
+        command_buffers_it      := frame_data.command_buffers.data;
+
+        for 0 .. VulkanDevice.queues.count - 1 {
+            command_buffers_local_it := command_buffers_it;
+
+            for 0 .. <<command_buffers_used_it - 1 {
+                debugCheckVK(vkEndCommandBuffer(<<command_buffers_local_it));
+
+                command_buffers_local_it += 1;
+            }
+
+            command_buffers_used_it += 1;
+            command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
+        }
     }
 
     {
@@ -261,16 +274,14 @@ endVulkanFrame :: (device : *VulkanDevice) {
 
                     fence_to_signal = frame_data.fences[it_index];
 
-                    result := vkResetFences(device.device, 1, *fence_to_signal);
-                    assert(result == .VK_SUCCESS);
+                    debugCheckVK(vkResetFences(device.device, 1, *fence_to_signal));
                 }
 
                 submit_info.pWaitDstStageMask  = *WHICH_STAGE_WILL_WAIT_FOR_THE_SEMAPHORE[it_index];
                 submit_info.commandBufferCount = cast(u32) <<command_buffers_used_it;
                 submit_info.pCommandBuffers    = command_buffers_it;
 
-                result := vkQueueSubmit(it.handle, 1, *submit_info, fence_to_signal);
-                assert(result == .VK_SUCCESS);
+                debugCheckVK(vkQueueSubmit(it.handle, 1, *submit_info, fence_to_signal));
             }
 
             command_buffers_used_it += 1;
@@ -284,8 +295,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
         graphics_command_buffers_used := frame_data.command_buffers_used[QueueType.GRAPHICS];
 
         if graphics_command_buffers_used <= (Device.MAX_COMMAND_BUFFERS >> 2) {
-            result := vkResetCommandBuffer(post_frame_command_buffer, 0);
-            assert(result == .VK_SUCCESS);
+            debugCheckVK(vkResetCommandBuffer(post_frame_command_buffer, 0));
         }
 
         begin_info := VkCommandBufferBeginInfo.{
@@ -295,18 +305,15 @@ endVulkanFrame :: (device : *VulkanDevice) {
             pInheritanceInfo = null // Ignored for primary command buffers
         };
 
-        result := vkBeginCommandBuffer(post_frame_command_buffer, *begin_info);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkBeginCommandBuffer(post_frame_command_buffer, *begin_info));
 
         vulkanTextureBarrier(device, post_frame_command_buffer, *frame_data.swapchain_image, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .GRAPHICS);
 
-        result = vkEndCommandBuffer(post_frame_command_buffer);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkEndCommandBuffer(post_frame_command_buffer));
 
         fence_to_signal := frame_data.fences[QueueType.GRAPHICS];
 
-        result = vkResetFences(device.device, 1, *fence_to_signal);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkResetFences(device.device, 1, *fence_to_signal));
 
         submit_info := VkSubmitInfo.{
             sType                = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -322,8 +329,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
             pSignalSemaphores    = *device.semaphores[SemaphoreKind.POST_FRAME]
         };
 
-        result = vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, fence_to_signal);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, fence_to_signal));
     }
 
     {
@@ -338,8 +344,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
             pResults           = null
         };
 
-        result := device.loader.extensions.device.required.vkQueuePresentKHR(device.queues[QueueType.GRAPHICS].handle, *present_info);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(device.loader.extensions.device.required.vkQueuePresentKHR(device.queues[QueueType.GRAPHICS].handle, *present_info));
     }
 }
 
@@ -357,8 +362,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object_type : VkObjectType, obje
                 pObjectName  = object_name
             };
 
-            result := device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info);
-            assert(result == .VK_SUCCESS);
+            debugCheckVK(device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info));
         }
     }
 }
@@ -382,8 +386,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object_type : VkObjectType, obje
                 pObjectName  = cast(*s8) object_name.data
             };
 
-            result := device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info);
-            assert(result == .VK_SUCCESS);
+            debugCheckVK(device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info));
         }
     }
 }
@@ -396,6 +399,15 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
     // @TODO: VkAllocationCallbacks
     device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, old_swapchain, null);
+}
+
+debugCheckVK :: ($code : Code) #expand {
+    #if DEBUG_BUILD {{
+        result := #insert code;
+        assert(result == .VK_SUCCESS, "% returned %", #run codeToString(code), result, print_sys_error = false);
+    }} else {
+        #insert code;
+    }
 }
 
 #scope_file
@@ -468,12 +480,10 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
     {
         layers_count : u32;
-        result := vkEnumerateInstanceLayerProperties(*layers_count, null);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkEnumerateInstanceLayerProperties(*layers_count, null));
 
         layers := pushToArena(*context.pet.per_frame_arena, VkLayerProperties, layers_count);
-        result = vkEnumerateInstanceLayerProperties(*layers_count, layers);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkEnumerateInstanceLayerProperties(*layers_count, layers));
 
         layers_it := layers;
 
@@ -536,12 +546,10 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
     {
         extensions_count : u32;
-        result := vkEnumerateInstanceExtensionProperties(null, *extensions_count, null);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkEnumerateInstanceExtensionProperties(null, *extensions_count, null));
 
         extensions := pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, extensions_count);
-        result = vkEnumerateInstanceExtensionProperties(null, *extensions_count, extensions);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkEnumerateInstanceExtensionProperties(null, *extensions_count, extensions));
 
         extensions_it := extensions;
 
@@ -625,8 +633,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     };
 
     // @TODO: VkAllocationCallbacks
-    result := vkCreateInstance(*instance_create_info, null, *device.instance);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(vkCreateInstance(*instance_create_info, null, *device.instance));
 
     return api_version;
 }
@@ -720,7 +727,7 @@ messengerCallback :: (
 END;
 
             if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT {
-                errorMessage(MESSAGE_FORMAT, message, new_line = false, print_sys_error = false);
+                errorMessage(MESSAGE_FORMAT, message, new_line = false);
             } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT {
                 warningMessage(MESSAGE_FORMAT, message, new_line = false);
             } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT {
@@ -756,23 +763,20 @@ initMessengerCallback :: (device : *VulkanDevice) {
         }
 
         // @TODO: VkAllocationCallbacks
-        result := device.loader.extensions.instance.optional.vkCreateDebugUtilsMessengerEXT(device.instance,
-                                                                                            *create_info,
-                                                                                            null,
-                                                                                            *device.messenger);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(device.loader.extensions.instance.optional.vkCreateDebugUtilsMessengerEXT(device.instance,
+                                                                                               *create_info,
+                                                                                               null,
+                                                                                               *device.messenger));
     }
 }
 
 // @TODO: Multiple GPU support: vkEnumeratePhysicalDeviceGroupsKHR (VK_KHR_device_group_creation)
 findCompatiblePhysicalDevice :: (device : *VulkanDevice) -> u32 {
     physical_device_count : u32;
-    result := vkEnumeratePhysicalDevices(device.instance, *physical_device_count, null);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(vkEnumeratePhysicalDevices(device.instance, *physical_device_count, null));
 
     physical_devices := pushToArena(*context.pet.per_frame_arena, VkPhysicalDevice, physical_device_count);
-    result = vkEnumeratePhysicalDevices(device.instance, *physical_device_count, physical_devices);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(vkEnumeratePhysicalDevices(device.instance, *physical_device_count, physical_devices));
 
     physical_device_properties : VkPhysicalDeviceProperties = ---;
 
@@ -1051,12 +1055,10 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 
     {
         extensions_count : u32;
-        result := vkEnumerateDeviceExtensionProperties(device.physical_device, null, *extensions_count, null);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkEnumerateDeviceExtensionProperties(device.physical_device, null, *extensions_count, null));
 
         extensions := pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, extensions_count);
-        result = vkEnumerateDeviceExtensionProperties(device.physical_device, null, *extensions_count, extensions);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkEnumerateDeviceExtensionProperties(device.physical_device, null, *extensions_count, extensions));
 
         extensions_it := extensions;
 
@@ -1158,8 +1160,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     };
 
     // @TODO: VkAllocationCallbacks
-    result := vkCreateDevice(device.physical_device, *device_create_info, null, *device.device);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(vkCreateDevice(device.physical_device, *device_create_info, null, *device.device));
 }
 
 // @TODO: #NotExistedQueues
@@ -1193,8 +1194,7 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
         };
 
         // @TODO: VkAllocationCallbacks
-        result := device.loader.extensions.instance.required.vkCreateWin32SurfaceKHR(device.instance, *create_info, null, *device.surface);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(device.loader.extensions.instance.required.vkCreateWin32SurfaceKHR(device.instance, *create_info, null, *device.surface));
     } else {
         notImplemented();
     }
@@ -1202,24 +1202,21 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
 
 createSwapchain :: (device : *VulkanDevice, window : *Window, old_swapchain : VkSwapchainKHR) {
     surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
-    result := device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
-                                                                                                   device.surface,
-                                                                                                   *surface_capabilities);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
+                                                                                                      device.surface,
+                                                                                                      *surface_capabilities));
 
     surface_formats_count : u32;
-    result = device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
-                                                                                             device.surface,
-                                                                                             *surface_formats_count,
-                                                                                             null);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
+                                                                                                 device.surface,
+                                                                                                 *surface_formats_count,
+                                                                                                 null));
 
     surface_formats := pushToArena(*context.pet.per_frame_arena, VkSurfaceFormatKHR, surface_formats_count);
-    result = device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
-                                                                                             device.surface,
-                                                                                             *surface_formats_count,
-                                                                                             surface_formats);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
+                                                                                                 device.surface,
+                                                                                                 *surface_formats_count,
+                                                                                                 surface_formats));
 
     // @TODO: #Settings. Get the number of swapchain buffers from settings
     requested_swapchain_buffers_count : u32 = 2;
@@ -1330,8 +1327,7 @@ createSwapchain :: (device : *VulkanDevice, window : *Window, old_swapchain : Vk
     };
 
     // @TODO: VkAllocationCallbacks
-    result = device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain));
 }
 
 initSwapchainImages :: (device : *VulkanDevice) {
@@ -1378,8 +1374,7 @@ createSemaphores :: (device : *VulkanDevice) {
 
     for * device.semaphores {
         // @TODO: VkAllocationCallbacks
-        result := vkCreateSemaphore(device.device, *create_info, null, it);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, it));
 
         setVulkanObjectName(device, .VK_OBJECT_TYPE_SEMAPHORE, <<it, "% semaphore", cast(SemaphoreKind) it_index);
     }
@@ -1397,8 +1392,7 @@ createFences :: (device : *VulkanDevice) {
     for swapchain_buffer_index : 0 .. device.swapchain_buffers_count - 1 {
         for * frame_data_it.fences {
             // @TODO: VkAllocationCallbacks
-            result := vkCreateFence(device.device, *create_info, null, it);
-            assert(result == .VK_SUCCESS);
+            debugCheckVK(vkCreateFence(device.device, *create_info, null, it));
 
             setVulkanObjectName(device, .VK_OBJECT_TYPE_FENCE, <<it, "% fence for swapchain buffer #%",
                                 cast(QueueType) it_index,
@@ -1430,8 +1424,7 @@ createCommandPools :: (device : *VulkanDevice) {
             create_info.queueFamilyIndex = queues_it.family_index;
 
             // @TODO: VkAllocationCallbacks
-            result := vkCreateCommandPool(device.device, *create_info, null, it);
-            assert(result == .VK_SUCCESS);
+            debugCheckVK(vkCreateCommandPool(device.device, *create_info, null, it));
 
             setVulkanObjectName(device, .VK_OBJECT_TYPE_COMMAND_POOL, <<it, "% command pool for swapchain buffer #%",
                                 cast(QueueType) it_index,
@@ -1461,8 +1454,7 @@ createCommandBuffers :: (device : *VulkanDevice) {
         for command_pool, command_pool_index : frame_data_it.command_pools {
             allocation_info.commandPool = command_pool;
 
-            result := vkAllocateCommandBuffers(device.device, *allocation_info, command_buffers_it);
-            assert(result == .VK_SUCCESS);
+            debugCheckVK(vkAllocateCommandBuffers(device.device, *allocation_info, command_buffers_it));
 
             #if DEBUG_BUILD {
                 local_command_buffers_it := command_buffers_it;
@@ -1501,8 +1493,7 @@ createSystemCommandBuffers :: (device : *VulkanDevice) {
     for swapchain_buffer_index : 0 .. device.swapchain_buffers_count - 1 {
         allocation_info.commandPool = frame_data_it.command_pools[QueueType.GRAPHICS];
 
-        result := vkAllocateCommandBuffers(device.device, *allocation_info, frame_data_it.system_command_buffers.data);
-        assert(result == .VK_SUCCESS);
+        debugCheckVK(vkAllocateCommandBuffers(device.device, *allocation_info, frame_data_it.system_command_buffers.data));
 
         #if DEBUG_BUILD {
             for frame_data_it.system_command_buffers {
@@ -1526,22 +1517,4 @@ vendorIdToString :: (vendor_id : u32) -> string {
     }
 
     return "Unknown";
-}
-
-iterateThroughUsedCommandBuffers :: (frame_data : *FrameData, $code : Code) #expand {
-    command_buffers_used_it := frame_data.command_buffers_used.data;
-    command_buffers_it      := frame_data.command_buffers.data;
-
-    for 0 .. VulkanDevice.queues.count - 1 {
-        command_buffers_local_it := command_buffers_it;
-
-        for 0 .. <<command_buffers_used_it - 1 {
-            #insert,scope() code;
-
-            command_buffers_local_it += 1;
-        }
-
-        command_buffers_used_it += 1;
-        command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
-    }
 }

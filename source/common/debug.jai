@@ -11,8 +11,8 @@ MessagePriority :: enum u8 {
 debugMessage   :: #bake_arguments message(priority = .DEBUG,   print_sys_error = false);
 infoMessage    :: #bake_arguments message(priority = .INFO,    print_sys_error = false);
 warningMessage :: #bake_arguments message(priority = .WARNING, print_sys_error = false);
-errorMessage   :: #bake_arguments message(priority = .ERROR);
-assertMessage  :: #bake_arguments message(priority = .ASSERT);
+errorMessage   :: #bake_arguments message(priority = .ERROR,   print_sys_error = false);
+assertMessage  :: #bake_arguments message(priority = .ASSERT,  print_sys_error = false);
 
 assert :: (
     $expression      : Code,
@@ -27,11 +27,11 @@ assert :: (
         #if is_constant(#insert expression) {
             #if !(#insert expression) {
                 FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-                assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+                message(.ASSERT, FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
             }
         } else if !(#insert expression) {
             FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-            assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+            message(.ASSERT, FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
         }
     }
 }
@@ -54,6 +54,16 @@ debugCheck :: (
 
 notImplemented :: () #expand {
     #assert false "Not implemented";
+}
+
+codeToString :: ($code : Code) -> string {
+    builder : Basic.String_Builder;
+    builder.allocator = Basic.temporary_allocator;
+
+    root := Compiler.compiler_get_nodes(code);
+    Program_Print.print_expression(*builder, root);
+
+    return Basic.builder_to_string(*builder);
 }
 
 #scope_file
@@ -187,13 +197,7 @@ formatOrExpression :: ($format : string, $expression : Code) -> string {
     #if format.count > 0 {
         return format;
     } else {
-        builder : Basic.String_Builder;
-        builder.allocator = Basic.temporary_allocator;
-
-        root := Compiler.compiler_get_nodes(expression);
-        Program_Print.print_expression(*builder, root);
-
-        return Basic.builder_to_string(*builder);
+        return codeToString(expression);
     }
 }
 

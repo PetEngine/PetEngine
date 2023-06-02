@@ -123,8 +123,7 @@ commitVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager
     }
 
     // @TODO: VkAllocationCallbacks
-    result := vkAllocateMemory(device.device, *allocate_info, null, *memory.device_memory);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory.device_memory));
 
     bind_infos_it = bind_infos;
     for 0 .. memory.textures.count - 1 {
@@ -132,8 +131,7 @@ commitVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager
         bind_infos_it += 1;
     }
 
-    result = vkBindImageMemory2(device.device, cast(u32) memory.textures.count, bind_infos);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(vkBindImageMemory2(device.device, cast(u32) memory.textures.count, bind_infos));
 }
 
 resetVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
@@ -268,12 +266,11 @@ createVulkanTexture :: (
     if result == .VK_ERROR_FORMAT_NOT_SUPPORTED {
         assertMessage("Texture format % (%) is not supported", texture.format, create_info.format);
     } else {
-        assert(result == .VK_SUCCESS);
+        assert(result == .VK_SUCCESS, "vkGetPhysicalDeviceImageFormatProperties2 returned %", result);
     }
 
     // @TODO: VkAllocationCallbacks
-    result = vkCreateImage(device.device, *create_info, null, *texture.image);
-    assert(result == .VK_SUCCESS);
+    debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
 
     setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, texture.image, name);
 
