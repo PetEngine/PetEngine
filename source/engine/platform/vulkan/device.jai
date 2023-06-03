@@ -313,7 +313,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
     }
 }
 
-setVulkanObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *void, name : string) {
+setVulkanObjectName :: (device : *VulkanDevice, $object_type : VkObjectType, object : *void, name : string) {
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
             object_name := pushToArena(*context.pet.per_frame_arena, s8, name.count + 1);
@@ -332,7 +332,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object_type : VkObjectType, obje
     }
 }
 
-setVulkanObjectName :: (device : *VulkanDevice, object_type : VkObjectType, object : *void, $format : string, args : ..Any) {
+setVulkanObjectName :: (device : *VulkanDevice, $object_type : VkObjectType, object : *void, $format : string, args : ..Any) {
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
             builder : Basic.String_Builder;
@@ -1332,13 +1332,13 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
             }
 
             frame_data_it.swapchain_texture.dimension             = ._2D;
-            frame_data_it.swapchain_texture.flags                 = .SWAPCHAIN;
+            frame_data_it.swapchain_texture.format                = vulkanFormatToTextureFormat(surface_format.format);
+            frame_data_it.swapchain_texture.flags                 = Texture.Flags.SWAPCHAIN | .RESOLUTION_DEPENDENT;
             frame_data_it.swapchain_texture.width                 = cast(u16) surface_extent.width;
             frame_data_it.swapchain_texture.height                = cast(u16) surface_extent.height;
             frame_data_it.swapchain_texture.depth                 = 0;
             frame_data_it.swapchain_texture.samples_count         = 1;
             frame_data_it.swapchain_texture.mips_count            = 1;
-            frame_data_it.swapchain_texture.format                = vulkanFormatToTextureFormat(surface_format.format);
             frame_data_it.swapchain_texture.name                  = Basic.builder_to_string(*builder);
             frame_data_it.swapchain_texture.possible_owners_count = 1;
             frame_data_it.swapchain_texture.possible_owners[0]    = .GRAPHICS;

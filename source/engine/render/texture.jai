@@ -1,7 +1,11 @@
 TextureManager :: struct {
     MemoryKind :: enum u8 {
         PERSISTENT;
+        PERSISTENT_RESOLUTION_DEPENDENT;
+
         PER_LEVEL;
+        PER_LEVEL_RESOLUTION_DEPENDENT;
+
         PER_FRAME;
     }
 }
@@ -24,17 +28,24 @@ destroyTextureManager :: (device : *Device, manager : *TextureManager) {
     }
 }
 
-commitTextures :: (device : *Device, manager : *TextureManager, $memory_kind : TextureManager.MemoryKind) {
+commitTextureMemory :: (device : *Device, manager : *TextureManager, $memory_kind : TextureManager.MemoryKind) {
     if #complete device.graphics_api == {
         case .VULKAN;
-            commitVulkanTextures(cast(*VulkanDevice) device, cast(*VulkanTextureManager) manager, memory_kind);
+            commitVulkanTextureMemory(cast(*VulkanDevice) device, cast(*VulkanTextureManager) manager, memory_kind);
     }
 }
 
-resetTextures :: (device : *Device, manager : *TextureManager, $memory_kind : TextureManager.MemoryKind) {
+resetTextureMemory :: (device : *Device, manager : *TextureManager, $memory_kind : TextureManager.MemoryKind) {
     if #complete device.graphics_api == {
         case .VULKAN;
-            resetVulkanTextures(cast(*VulkanDevice) device, cast(*VulkanTextureManager) manager, memory_kind);
+            resetVulkanTextureMemory(cast(*VulkanDevice) device, cast(*VulkanTextureManager) manager, memory_kind);
+    }
+}
+
+resizeResolutionDependentTextures :: (device : *Device, manager : *TextureManager) {
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            resizeResolutionDependentVulkanTextures(cast(*VulkanDevice) device, cast(*VulkanTextureManager) manager);
     }
 }
 
@@ -47,7 +58,7 @@ Texture :: struct {
         _3D;
     }
 
-    Flags :: enum_flags u8 {
+    Flags :: enum_flags u16 {
         ARRAY;
         CUBE;
 
@@ -57,7 +68,9 @@ Texture :: struct {
         DEPTH_STENCIL;
         READ_ONLY;
 
+        // Not explicitly settable
         SWAPCHAIN;
+        RESOLUTION_DEPENDENT;
     }
 
     // Order: xyzw
@@ -95,6 +108,7 @@ Texture :: struct {
     };
 
     dimension             : Dimension;
+    format                : Format;
     flags                 : Flags;
     width                 : u16;
     height                : u16;
@@ -104,7 +118,6 @@ Texture :: struct {
     };
     samples_count         : u8;
     mips_count            : u8;
-    format                : Format;
     name                  : string;
     possible_owners_count : u32;
     possible_owners       : [#run Basic.enum_highest_value(QueueType) + 1] QueueType;
@@ -126,9 +139,12 @@ createTexture :: (
     possible_owners     : ..QueueType = .[ .GRAPHICS ]
 ) -> *Texture #must {
     assert(width > 0);
-    assert(!(flags & .SWAPCHAIN), "You cannot explicitly set SWAPCHAIN flag");
-    assert(!(flags & .ARRAY) || depth_or_array_size > 0); // @TODO: Dynamic arrays?
-    assert(!(flags & .CUBE) || width == height, "Cube textures must have identical width and height");
+    assert(!(flags & .SWAPCHAIN),
+           "You cannot explicitly set SWAPCHAIN flag");
+    assert(!(flags & .RESOLUTION_DEPENDENT),
+           "You cannot explicitly set RESOLUTION_DEPENDENT flag. You can set it by passing appropriate memory kind");
+    assert(depth_or_array_size > 0 || !(flags & .ARRAY),
+           "Number of elements in array of textures cannot be 0"); // @TODO: Dynamic arrays?
     assert((flags & (Texture.Flags.COLOR_TARGET | .DEPTH_STENCIL)) != (Texture.Flags.COLOR_TARGET | .DEPTH_STENCIL),
            "COLOR_TARGET and DEPTH_STENCIL flags cannot be combined");
     assert((flags & (Texture.Flags.DEPTH_STENCIL | .READ_ONLY)) == (Texture.Flags.DEPTH_STENCIL | .READ_ONLY) || !(flags & .READ_ONLY),
@@ -142,14 +158,31 @@ createTexture :: (
            samples_count == 64);
     assert(possible_owners.count > 0);
 
-    max_mips_count := maxMipsCount(width, height, depth_or_array_size * cast,no_check(u16) (flags & .ARRAY));
-    if mips_count == Texture.ALL_MIPS {
-        mips_count = max_mips_count;
+    #if memory_kind == .PERSISTENT_RESOLUTION_DEPENDENT || memory_kind == .PER_LEVEL_RESOLUTION_DEPENDENT {
+        assert(!(flags & .CUBE),
+               "Cube textures cannot be resolution dependent");
+        assert(mips_count == 1,
+               "Resolution dependent textures can only have 1 mip level since there are some uncertainty in how we should handle mip levels count > 1 in some cases. e.g. on resize");
+
+        flags |= .RESOLUTION_DEPENDENT;
+
+        back_buffer := getBackBuffer(device);
+
+        width  = back_buffer.width;
+        height = back_buffer.height;
     } else {
-        assert(0 < mips_count && mips_count <= max_mips_count,
-               "Too many MIP levels requested: %, maximum allowed: %",
-               mips_count,
-               max_mips_count);
+        assert(width == height || !(flags & .CUBE),
+               "Cube textures must have identical width and height");
+
+        max_mips_count := maxMipsCount(width, height, depth_or_array_size * cast,no_check(u16) (flags & .ARRAY));
+        if mips_count == Texture.ALL_MIPS {
+            mips_count = max_mips_count;
+        } else {
+            assert(0 < mips_count && mips_count <= max_mips_count,
+                   "Too many MIP levels requested: %, maximum allowed: %",
+                   mips_count,
+                   max_mips_count);
+        }
     }
 
     texture : *Texture;
@@ -170,7 +203,7 @@ createTexture :: (
                                           ..possible_owners);
     }
 
-    assert(!(texture.flags & .ARRAY) || texture.dimension == ._1D || texture.dimension == ._2D,
+    assert((texture.dimension != ._3D) || !(texture.flags & .ARRAY),
            "Texture arrays cannot consist of 3D textures");
 
     return texture;

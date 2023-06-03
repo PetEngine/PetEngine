@@ -52,10 +52,13 @@ main :: () {
                                   window.surface.height,
                                   flags = Texture.Flags.DEPTH_STENCIL | .COHERENT,
                                   "Depth buffer",
-                                  .PERSISTENT);
+                                  .PERSISTENT_RESOLUTION_DEPENDENT);
 
-    commitTextures(device, texture_manager, .PERSISTENT);
-    defer resetTextures(device, texture_manager, .PERSISTENT);
+    commitTextureMemory(device, texture_manager, .PERSISTENT);
+    defer resetTextureMemory(device, texture_manager, .PERSISTENT);
+
+    commitTextureMemory(device, texture_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
+    defer resetTextureMemory(device, texture_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 
@@ -64,6 +67,7 @@ main :: () {
     while processWindowEvents(window) {
         if window.flags & .RESIZED {
             recreateSwapchain(device, window);
+            resizeResolutionDependentTextures(device, texture_manager);
         }
 
         beginFrame(device);

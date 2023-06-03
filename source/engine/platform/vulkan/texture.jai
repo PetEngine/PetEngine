@@ -37,26 +37,26 @@ createVulkanTextureManager :: (device : *VulkanDevice) -> *VulkanTextureManager 
 }
 
 destroyVulkanTextureManager :: (device : *VulkanDevice, manager : *VulkanTextureManager) {
-    for * memory_it : manager.memories {
-        for * memory_it.textures {
-            warningMessage("Texture \"%\" in % has not been freed", it.name, memory_it.arena.name);
+    for * memory : manager.memories {
+        for * memory.textures {
+            warningMessage("Texture \"%\" in % has not been freed", it.name, memory.arena.name);
             // @TODO: VkAllocationCallbacks
             vkDestroyImage(device.device, it.image, null);
         }
-        memory_it.textures.count = 0;
+        memory.textures.count = 0;
 
-        if memory_it.device_memory {
+        if memory.device_memory {
             warningMessage("% device memory has not been freed", cast(VulkanTextureManager.MemoryKind) it_index);
             // @TODO: VkAllocationCallbacks
-            vkFreeMemory(device.device, memory_it.device_memory, null);
-            memory_it.device_memory = VK_NULL_HANDLE;
+            vkFreeMemory(device.device, memory.device_memory, null);
+            memory.device_memory = VK_NULL_HANDLE;
         }
 
-        destroyArena(*memory_it.arena);
+        destroyArena(*memory.arena);
     }
 }
 
-commitVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
+commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
     memory := *manager.memories[memory_kind];
     assert(memory.device_memory == VK_NULL_HANDLE);
 
@@ -99,16 +99,16 @@ commitVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager
         pNext = null
     };
 
+    memory_offset : VkDeviceSize = 0;
+
     bind_infos_it := bind_infos;
     textures_it   := memory.textures.data;
-
-    memoryOffset : VkDeviceSize = 0;
 
     for 0 .. memory.textures.count - 1 {
         bind_infos_it.sType        = .VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
         bind_infos_it.pNext        = null;
         bind_infos_it.image        = textures_it.image;
-        bind_infos_it.memoryOffset = memoryOffset;
+        bind_infos_it.memoryOffset = memory_offset;
 
         memory_requirements_info.image = textures_it.image;
         vkGetImageMemoryRequirements2(device.device, *memory_requirements_info, *memory_requirements);
@@ -116,7 +116,7 @@ commitVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager
         requirements := *memory_requirements.memoryRequirements;
         allocate_info.allocationSize = alignUpWithPowerOfTwo(requirements.size, requirements.alignment);
 
-        memoryOffset += allocate_info.allocationSize;
+        memory_offset += allocate_info.allocationSize;
 
         bind_infos_it += 1;
         textures_it   += 1;
@@ -136,9 +136,16 @@ commitVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager
     debugCheckVK(vkBindImageMemory2(device.device, cast(u32) memory.textures.count, bind_infos));
 }
 
-resetVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
+resetVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
     memory := *manager.memories[memory_kind];
-    assert(memory.device_memory != VK_NULL_HANDLE);
+
+    if memory.device_memory == VK_NULL_HANDLE {
+        assert(memory.textures.count <= 0);
+        assert(memory.arena.occupied <= 0);
+        return;
+    }
+
+    assert(memory.textures.count > 0);
 
     for * memory.textures {
         // @TODO: VkAllocationCallbacks
@@ -151,6 +158,15 @@ resetVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager,
     memory.device_memory = VK_NULL_HANDLE;
 
     resetArena(*memory.arena);
+}
+
+resizeResolutionDependentVulkanTextures :: (device : *VulkanDevice, manager : *VulkanTextureManager) {
+    // We will not resize our window like every frame, so maybe fuck it and just wait for textures be not in use?
+    // @Speed: Anyway, if I will figure out some better solution it will be awesome.
+    waitDeviceIdle(device);
+
+    resizeResolutionDependentVulkanTextures(device, manager, .PERSISTENT_RESOLUTION_DEPENDENT);
+    resizeResolutionDependentVulkanTextures(device, manager, .PER_LEVEL_RESOLUTION_DEPENDENT);
 }
 
 VulkanTexture :: struct {
@@ -179,13 +195,13 @@ createVulkanTexture :: (
     texture := pushToArena(*memory.arena, VulkanTexture);
     memory.textures.count += 1;
 
+    texture.format                = format;
     texture.flags                 = flags;
     texture.width                 = width;
     texture.height                = height;
     texture.depth                 = depth_or_array_size;
     texture.samples_count         = samples_count;
     texture.mips_count            = mips_count;
-    texture.format                = format;
     texture.name                  = name;
     texture.possible_owners_count = cast(u32) possible_owners.count;
     texture.current_owner         = possible_owners[0];
@@ -200,10 +216,11 @@ createVulkanTexture :: (
     create_info := VkImageCreateInfo.{
         sType                 = .VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         pNext                 = null,
-        format                = textureFormatToVulkanFormat(format),
+        format                = textureFormatToVulkanFormat(texture.format),
         extent                = VkExtent3D.{ 1, 1, 1 },
         mipLevels             = texture.mips_count,
         arrayLayers           = 1,
+        samples               = samplesCountToVulkanSampleCountFlags(texture.samples_count),
         tiling                = .VK_IMAGE_TILING_OPTIMAL,
         usage                 = textureFlagsToVulkanUsageFlags(texture.flags),
         queueFamilyIndexCount = texture.possible_owners_count,
@@ -227,6 +244,8 @@ createVulkanTexture :: (
         texture.dimension = ._1D;
     }
 
+    assert((texture.dimension == ._2D) || !(texture.flags & .RESOLUTION_DEPENDENT), "Only 2D textures can be resolution dependent");
+
     if texture.flags & .CUBE {
         create_info.flags       |= .VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
         create_info.arrayLayers *= 6;
@@ -245,16 +264,6 @@ createVulkanTexture :: (
             create_info.extent.width  = texture.width;
             create_info.extent.height = texture.height;
             create_info.extent.depth  = texture.depth;
-    }
-
-    if texture.samples_count == {
-        case  1; create_info.samples = .VK_SAMPLE_COUNT_1_BIT;
-        case  2; create_info.samples = .VK_SAMPLE_COUNT_2_BIT;
-        case  4; create_info.samples = .VK_SAMPLE_COUNT_4_BIT;
-        case  8; create_info.samples = .VK_SAMPLE_COUNT_8_BIT;
-        case 16; create_info.samples = .VK_SAMPLE_COUNT_16_BIT;
-        case 32; create_info.samples = .VK_SAMPLE_COUNT_32_BIT;
-        case 64; create_info.samples = .VK_SAMPLE_COUNT_64_BIT;
     }
 
     if texture.possible_owners_count > 1 {
@@ -288,7 +297,7 @@ createVulkanTexture :: (
     // @TODO: VkAllocationCallbacks
     debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
 
-    setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, texture.image, name);
+    setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, texture.image, texture.name);
 
     return texture;
 }
@@ -350,6 +359,19 @@ vulkanUsageFlagsToTextureFlags :: (usage_flags : VkImageUsageFlags) -> Texture.F
     return flags;
 }
 
+samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleCountFlags {
+    if samples_count == {
+        case  1; return .VK_SAMPLE_COUNT_1_BIT;
+        case  2; return .VK_SAMPLE_COUNT_2_BIT;
+        case  4; return .VK_SAMPLE_COUNT_4_BIT;
+        case  8; return .VK_SAMPLE_COUNT_8_BIT;
+        case 16; return .VK_SAMPLE_COUNT_16_BIT;
+        case 32; return .VK_SAMPLE_COUNT_32_BIT;
+        case 64; return .VK_SAMPLE_COUNT_64_BIT;
+    }
+    return .VK_SAMPLE_COUNT_1_BIT;
+}
+
 getVulkanImageAspectFlags :: (texture : *VulkanTexture) -> VkImageAspectFlags {
     if #complete texture.format == {
         case .UNKNOWN;
@@ -372,3 +394,73 @@ getVulkanImageAspectFlags :: (texture : *VulkanTexture) -> VkImageAspectFlags {
 }
 
 #scope_file
+
+resizeResolutionDependentVulkanTextures :: (
+    device       : *VulkanDevice,
+    manager      : *VulkanTextureManager,
+    $memory_kind : TextureManager.MemoryKind
+) {
+    #assert memory_kind == .PERSISTENT_RESOLUTION_DEPENDENT || memory_kind == .PER_LEVEL_RESOLUTION_DEPENDENT;
+
+    memory := *manager.memories[memory_kind];
+
+    if memory.textures.count <= 0 {
+        return;
+    }
+
+    back_buffer := getBackBuffer(device);
+
+    queue_family_indices : [Texture.possible_owners.count] u32;
+
+    create_info := VkImageCreateInfo.{
+        sType               = .VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        pNext               = null,
+        flags               = 0,
+        imageType           = .VK_IMAGE_TYPE_2D,
+        extent              = VkExtent3D.{ back_buffer.width, back_buffer.height, 1 },
+        mipLevels           = 1,
+        arrayLayers         = 1,
+        tiling              = .VK_IMAGE_TILING_OPTIMAL,
+        pQueueFamilyIndices = queue_family_indices.data,
+        initialLayout       = .VK_IMAGE_LAYOUT_UNDEFINED // initialLayout must be VK_IMAGE_LAYOUT_UNDEFINED or VK_IMAGE_LAYOUT_PREINITIALIZED
+        // Everything else will be set in the loop
+    };
+
+    for * texture : memory.textures {
+        for 0 .. texture.possible_owners_count - 1 {
+            queue_family_indices[it] = device.queues[texture.possible_owners[it]].family_index;
+        }
+
+        create_info.format                = textureFormatToVulkanFormat(texture.format);
+        create_info.samples               = samplesCountToVulkanSampleCountFlags(texture.samples_count);
+        create_info.usage                 = textureFlagsToVulkanUsageFlags(texture.flags);
+        create_info.queueFamilyIndexCount = texture.possible_owners_count;
+
+        if texture.possible_owners_count > 1 {
+            create_info.sharingMode = .VK_SHARING_MODE_CONCURRENT;
+        } else {
+            create_info.sharingMode = .VK_SHARING_MODE_EXCLUSIVE;
+        }
+
+        texture.width          = back_buffer.width;
+        texture.height         = back_buffer.height;
+        texture.current_layout = .VK_IMAGE_LAYOUT_UNDEFINED;
+        texture.current_owner  = texture.possible_owners[0];
+
+        // @TODO: VkAllocationCallbacks
+        vkDestroyImage(device.device, texture.image, null);
+
+        // @TODO: VkAllocationCallbacks
+        debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
+
+        setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, texture.image, texture.name);
+    }
+
+    if memory.device_memory {
+        // @TODO: VkAllocationCallbacks
+        vkFreeMemory(device.device, memory.device_memory, null);
+        memory.device_memory = VK_NULL_HANDLE;
+    }
+
+    commitVulkanTextureMemory(device, manager, memory_kind);
+}
