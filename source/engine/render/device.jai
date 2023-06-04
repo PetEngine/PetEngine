@@ -1,29 +1,28 @@
 Device :: struct {
-    Type :: enum u16 {
+    Type :: enum u8 {
         INVALID;
         DISCRETE;
         INTEGRATED;
     }
 
-    MAX_SWAPCHAIN_BUFFERS : u32 : 3;
+    MAX_SWAPCHAIN_BUFFERS : u8  : 3;
     MAX_COMMAND_BUFFERS   : s32 : 16;
 
     vendor_id               : PCIVendorID;
     type                    : Type;
     graphics_api            : GraphicsAPI;
-    swapchain_buffers_count : u32;
-    back_buffer_index       : u32;
+    swapchain_buffers_count : u8;
+    back_buffer_index       : u8;
 }
 
-GraphicsAPI :: enum u32 {
+GraphicsAPI :: enum u8 {
     VULKAN;
 }
 
-// @TODO: Rename to DEFAULT, ASYNC_COMPUTE, ASYNC_COPY and, probably, PRESENT.
-QueueType :: enum u16 {
+QueueType :: enum u8 {
     GRAPHICS;
-    COMPUTE;
-    COPY;
+    ASYNC_COMPUTE;
+    ASYNC_TRANSFER;
 }
 
 PCIVendorID :: enum u32 {

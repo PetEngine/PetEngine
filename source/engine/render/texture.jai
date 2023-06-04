@@ -218,5 +218,5 @@ maxMipsCount :: (width : u16, height : u16, depth : u16) -> u8 {
     all_bits := width | height | depth;
     max_mips : u16 = 0;
     #asm { bsr.w max_mips, all_bits; }
-    return cast(u8) max_mips;
+    return cast,no_check(u8) max_mips;
 }

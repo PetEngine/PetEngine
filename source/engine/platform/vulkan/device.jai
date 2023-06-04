@@ -126,7 +126,10 @@ beginVulkanFrame :: (device : *VulkanDevice) {
             deviceMask = 1
         };
 
-        debugCheckVK(device.loader.extensions.device.required.vkAcquireNextImage2KHR(device.device, *acquire_info, *device.back_buffer_index));
+        back_buffer_index : u32 = ---;
+        debugCheckVK(device.loader.extensions.device.required.vkAcquireNextImage2KHR(device.device, *acquire_info, *back_buffer_index));
+
+        device.back_buffer_index = cast,no_check(u8) back_buffer_index;
     }
 
     frame_data := *device.frame_data[device.back_buffer_index];
@@ -223,7 +226,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
             if <<command_buffers_used_it > 0 {
                 fence_to_signal : VkFence = ---;
 
-                if it_index == cast(s64) QueueType.GRAPHICS {
+                if it_index == cast,no_check(s64) QueueType.GRAPHICS {
                     submit_info.waitSemaphoreCount   = 1;
                     submit_info.pWaitSemaphores      = *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE];
                     submit_info.signalSemaphoreCount = 1;
@@ -298,6 +301,9 @@ endVulkanFrame :: (device : *VulkanDevice) {
     }
 
     {
+        back_buffer_indices : [1] u32;
+        back_buffer_indices[0] = device.back_buffer_index;
+
         present_info := VkPresentInfoKHR.{
             sType              = .VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             pNext              = null,
@@ -305,7 +311,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
             pWaitSemaphores    = *device.semaphores[SemaphoreKind.POST_FRAME],
             swapchainCount     = 1,
             pSwapchains        = *device.swapchain,
-            pImageIndices      = *device.back_buffer_index,
+            pImageIndices      = back_buffer_indices.data,
             pResults           = null
         };
 
@@ -922,7 +928,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
         if queue_it.family_index == 0xFFFF_FFFF {
             findQueueFamily(#code queue_family_flags & `vk_queue_type);
 
-            if queue_it.family_index == 0xFFFF_FFFF && queue_type == .COPY {
+            if queue_it.family_index == 0xFFFF_FFFF && queue_type == .ASYNC_TRANSFER {
                 // According to vulkan spec, declaring transfer queue capability is optional.
                 FLAGS :: VkQueueFlags.VK_QUEUE_GRAPHICS_BIT | .VK_QUEUE_COMPUTE_BIT;
                 findQueueFamily(#code queue_family_flags & `FLAGS);
@@ -933,19 +939,19 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
     }
 
     graphics_queue := *device.queues[QueueType.GRAPHICS];
-    compute_queue  := *device.queues[QueueType.COMPUTE];
-    copy_queue     := *device.queues[QueueType.COPY];
+    compute_queue  := *device.queues[QueueType.ASYNC_COMPUTE];
+    transfer_queue := *device.queues[QueueType.ASYNC_TRANSFER];
 
     // Detect queue index in queue family
     {
         if compute_queue.family_index == graphics_queue.family_index {
             compute_queue.index_in_family = graphics_queue.index_in_family + 1;
-        } else if copy_queue.family_index == graphics_queue.family_index {
-            copy_queue.index_in_family = graphics_queue.index_in_family + 1;
+        } else if transfer_queue.family_index == graphics_queue.family_index {
+            transfer_queue.index_in_family = graphics_queue.index_in_family + 1;
         }
 
-        if copy_queue.family_index == compute_queue.family_index {
-            copy_queue.index_in_family = compute_queue.index_in_family + 1;
+        if transfer_queue.family_index == compute_queue.family_index {
+            transfer_queue.index_in_family = compute_queue.index_in_family + 1;
         }
     }
 
@@ -961,7 +967,7 @@ Queues info:
                 Family flags:    %
                 Family index:    %
                 Index in family: %
-            Copy:
+            Transfer:
                 Family flags:    %
                 Family index:    %
                 Index in family: %
@@ -974,9 +980,9 @@ END;
                     queue_family_properties[compute_queue.family_index].queueFamilyProperties.queueFlags,
                     compute_queue.family_index,
                     compute_queue.index_in_family,
-                    queue_family_properties[copy_queue.family_index].queueFamilyProperties.queueFlags,
-                    copy_queue.family_index,
-                    copy_queue.index_in_family,
+                    queue_family_properties[transfer_queue.family_index].queueFamilyProperties.queueFlags,
+                    transfer_queue.family_index,
+                    transfer_queue.index_in_family,
                     new_line = false);
     }
 }
@@ -1299,10 +1305,13 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
 
     // Initialize swapchain images
     {
+        swapchain_buffers_count : u32 = ---;
         device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
                                                                          device.swapchain,
-                                                                         *device.swapchain_buffers_count,
+                                                                         *swapchain_buffers_count,
                                                                          null);
+        device.swapchain_buffers_count = cast,no_check(u8) swapchain_buffers_count;
+
         assert(device.swapchain_buffers_count > 0);
         assert(device.swapchain_buffers_count <= Device.MAX_SWAPCHAIN_BUFFERS,
                "Number of swapchain buffers is too high: %. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
@@ -1311,11 +1320,11 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
         infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
 
         swapchain_images : [Device.MAX_SWAPCHAIN_BUFFERS] VkImage;
-
         device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
                                                                          device.swapchain,
-                                                                         *device.swapchain_buffers_count,
+                                                                         *swapchain_buffers_count,
                                                                          swapchain_images.data);
+        assert(swapchain_buffers_count == device.swapchain_buffers_count);
 
         frame_data_it       := device.frame_data.data;
         swapchain_images_it := swapchain_images.data;
