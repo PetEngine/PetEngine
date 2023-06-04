@@ -53,61 +53,35 @@ clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTextur
         vulkanTextureLayoutBarrier(command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     }
 
-    if #complete texture.format == {
-        case .UNKNOWN;
-            // Just do nothing
+    range := VkImageSubresourceRange.{
+        aspectMask     = .VK_IMAGE_ASPECT_NONE,
+        baseMipLevel   = 0,
+        levelCount     = VK_REMAINING_MIP_LEVELS,
+        baseArrayLayer = 0,
+        layerCount     = VK_REMAINING_ARRAY_LAYERS
+    };
 
-        case .RGB8_UNORM;    #through;
-        case .RGB8_SNORM;    #through;
-        case .BGR8_UNORM;    #through;
-        case .BGR8_SNORM;    #through;
-        case .RGBA8_UNORM;   #through;
-        case .BGRA8_UNORM;   #through;
-        case .RGB10A2_UNORM; #through;
-        case .BC7_UNORM;
-            range :: VkImageSubresourceRange.{
-                aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
-                baseMipLevel   = 0,
-                levelCount     = 1,
-                baseArrayLayer = 0,
-                layerCount     = 1
-            };
+    format_flags := textureFormatFlags(texture.format);
 
-            vk_clear_value := VkClearColorValue.{
-                float32_ = clear_value.color_f32
-            };
+    if format_flags & .COLOR {
+        range.aspectMask |= .VK_IMAGE_ASPECT_COLOR_BIT;
 
-            vkCmdClearColorImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
+        vk_clear_value := VkClearColorValue.{
+            float32_ = clear_value.color_f32
+        };
 
-        case .D32;
-            range :: VkImageSubresourceRange.{
-                aspectMask     = .VK_IMAGE_ASPECT_DEPTH_BIT,
-                baseMipLevel   = 0,
-                levelCount     = 1,
-                baseArrayLayer = 0,
-                layerCount     = 1
-            };
+        vkCmdClearColorImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
+    } else if format_flags & (Texture.FormatFlags.DEPTH | .STENCIL) {
+        if format_flags & .DEPTH   then range.aspectMask |= .VK_IMAGE_ASPECT_DEPTH_BIT;
+        if format_flags & .STENCIL then range.aspectMask |= .VK_IMAGE_ASPECT_STENCIL_BIT;
 
-            vk_clear_value := VkClearDepthStencilValue.{
-                depth = clear_value.depth
-            };
+        vk_clear_value := VkClearDepthStencilValue.{
+            depth   = clear_value.depth,
+            stencil = clear_value.stencil
+        };
 
-            vkCmdClearDepthStencilImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
-
-        case .S8;
-            range :: VkImageSubresourceRange.{
-                aspectMask     = .VK_IMAGE_ASPECT_STENCIL_BIT,
-                baseMipLevel   = 0,
-                levelCount     = 1,
-                baseArrayLayer = 0,
-                layerCount     = 1
-            };
-
-            vk_clear_value := VkClearDepthStencilValue.{
-                stencil = clear_value.stencil
-            };
-
-            vkCmdClearDepthStencilImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
+        vkCmdClearDepthStencilImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
+    } else {
+        assertMessage("Unsupported texture format for clearing: %", texture.format);
     }
-
 }

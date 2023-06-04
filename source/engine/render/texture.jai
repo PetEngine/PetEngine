@@ -96,6 +96,14 @@ Texture :: struct {
         // @TODO: Planar
     }
 
+    FormatFlags :: enum_flags u8 {
+        UNCOMPRESSED;
+        COMPRESSED;
+        COLOR;
+        DEPTH;
+        STENCIL;
+    }
+
     // @TODO: #Math. Make it vector
     ClearValue :: union {
         color_f32 : [4] f32;
@@ -207,6 +215,23 @@ createTexture :: (
            "Texture arrays cannot consist of 3D textures");
 
     return texture;
+}
+
+textureFormatFlags :: (format : Texture.Format) -> Texture.FormatFlags #no_context {
+    if #complete format == {
+        case .UNKNOWN;       return 0;
+        case .RGB8_UNORM;    return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
+        case .RGB8_SNORM;    return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
+        case .BGR8_UNORM;    return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
+        case .BGR8_SNORM;    return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
+        case .RGBA8_UNORM;   return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
+        case .BGRA8_UNORM;   return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
+        case .RGB10A2_UNORM; return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
+        case .D32;           return Texture.FormatFlags.UNCOMPRESSED | .DEPTH;
+        case .S8;            return Texture.FormatFlags.UNCOMPRESSED | .STENCIL;
+        case .BC7_UNORM;     return Texture.FormatFlags.COMPRESSED   | .COLOR;
+    }
+    return 0;
 }
 
 #scope_file
