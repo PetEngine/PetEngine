@@ -11,24 +11,27 @@ VulkanTextureManager :: struct {
     // @Cleanup: Maybe store it in device?
     memory_properties : VkPhysicalDeviceMemoryProperties2;
 
-    memories : [#run Basic.enum_highest_value(MemoryKind) + 1] Memory;
+    persistent_memory                      : Memory;
+    persistent_resolution_dependent_memory : Memory;
+
+    per_level_memory                      : Memory;
+    per_level_resolution_dependent_memory : Memory;
+
+    // @TODO: #PerFrameTextures. Should we have per_frame_memory_count to check for unreachable per frame memories
+    //        when we are changing number of swapchain buffers? Btw, currently we do not have such a mechanism
+    //        to change number of swapchain buffers in runtime, so idk.
+    per_frame_memory : [Device.MAX_SWAPCHAIN_BUFFERS] Memory;
 }
 
 // @TODO: https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap11.html#_device_group_memory_allocations
 createVulkanTextureManager :: (device : *VulkanDevice) -> *VulkanTextureManager #must {
     manager := pushToArena(*context.pet.persistent_arena, VulkanTextureManager);
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temporary_allocator;
-
-    for * manager.memories {
-        Basic.print_to_builder(*builder, "% textures", cast(VulkanTextureManager.MemoryKind) it_index);
-
-        // @TODO: #Settings. Get the size of the arena from settings.
-        createArena(*it.arena, megaBytes(1), Basic.builder_to_string(*builder));
-
-        it.textures.data = it.arena.memory;
-    }
+    createVulkanTextureMemory(device, manager, .PERSISTENT);
+    createVulkanTextureMemory(device, manager, .PERSISTENT_RESOLUTION_DEPENDENT);
+    createVulkanTextureMemory(device, manager, .PER_LEVEL);
+    createVulkanTextureMemory(device, manager, .PER_LEVEL_RESOLUTION_DEPENDENT);
+    createVulkanTextureMemory(device, manager, .PER_FRAME);
 
     manager.memory_properties.sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
     vkGetPhysicalDeviceMemoryProperties2(device.physical_device, *manager.memory_properties);
@@ -37,27 +40,15 @@ createVulkanTextureManager :: (device : *VulkanDevice) -> *VulkanTextureManager 
 }
 
 destroyVulkanTextureManager :: (device : *VulkanDevice, manager : *VulkanTextureManager) {
-    for * memory : manager.memories {
-        for * memory.textures {
-            warningMessage("Texture \"%\" in % has not been freed", it.name, memory.arena.name);
-            // @TODO: VkAllocationCallbacks
-            vkDestroyImage(device.device, it.image, null);
-        }
-        memory.textures.count = 0;
-
-        if memory.device_memory {
-            warningMessage("% device memory has not been freed", cast(VulkanTextureManager.MemoryKind) it_index);
-            // @TODO: VkAllocationCallbacks
-            vkFreeMemory(device.device, memory.device_memory, null);
-            memory.device_memory = VK_NULL_HANDLE;
-        }
-
-        destroyArena(*memory.arena);
-    }
+    destroyVulkanTextureMemory(device, manager, .PERSISTENT);
+    destroyVulkanTextureMemory(device, manager, .PERSISTENT_RESOLUTION_DEPENDENT);
+    destroyVulkanTextureMemory(device, manager, .PER_LEVEL);
+    destroyVulkanTextureMemory(device, manager, .PER_LEVEL_RESOLUTION_DEPENDENT);
+    destroyVulkanTextureMemory(device, manager, .PER_FRAME);
 }
 
 commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
-    memory := *manager.memories[memory_kind];
+    memory := getTextureMemory(device, manager, memory_kind);
     assert(memory.device_memory == VK_NULL_HANDLE);
 
     if memory.textures.count <= 0 {
@@ -137,7 +128,7 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
 }
 
 resetVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
-    memory := *manager.memories[memory_kind];
+    memory := getTextureMemory(device, manager, memory_kind);
 
     if memory.device_memory == VK_NULL_HANDLE {
         assert(memory.textures.count <= 0);
@@ -190,7 +181,7 @@ createVulkanTexture :: (
     $memory_kind        : TextureManager.MemoryKind,
     possible_owners     : ..QueueType
 ) -> *VulkanTexture #must {
-    memory := *manager.memories[memory_kind];
+    memory := getTextureMemory(device, manager, memory_kind);
 
     texture := pushToArena(*memory.arena, VulkanTexture);
     memory.textures.count += 1;
@@ -395,6 +386,100 @@ getVulkanImageAspectFlags :: (texture : *VulkanTexture) -> VkImageAspectFlags {
 
 #scope_file
 
+getTextureMemory :: inline (
+    device       : *VulkanDevice,
+    manager      : *VulkanTextureManager,
+    $memory_kind : TextureManager.MemoryKind
+) -> *VulkanTextureManager.Memory {
+    #if memory_kind == .PERSISTENT {
+        return *manager.persistent_memory;
+    } else #if memory_kind == .PERSISTENT_RESOLUTION_DEPENDENT {
+        return *manager.persistent_resolution_dependent_memory;
+    } else #if memory_kind == .PER_LEVEL {
+        return *manager.per_level_memory;
+    } else #if memory_kind == .PER_LEVEL_RESOLUTION_DEPENDENT {
+        return *manager.per_level_resolution_dependent_memory;
+    } else #if memory_kind == .PER_FRAME {
+        return *manager.per_frame_memory[device.back_buffer_index];
+    } else {
+        #assert false "Unhandled TextureManager.MemoryKind";
+        return null;
+    }
+}
+
+createVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
+    builder : Basic.String_Builder;
+    builder.allocator = Basic.temporary_allocator;
+
+    #if memory_kind == .PER_FRAME {
+        memory_it := manager.per_frame_memory.data;
+
+        for 0 .. device.swapchain_buffers_count - 1 {
+            Basic.print_to_builder(*builder, "% textures for swapchain buffer #%", memory_kind, it);
+
+            // @TODO: #Settings. Get the size of the arena from settings.
+            createArena(*memory_it.arena, megaBytes(1), Basic.builder_to_string(*builder));
+
+            memory_it.textures.data = memory_it.arena.memory;
+
+            memory_it += 1;
+        }
+    } else {
+        memory := getTextureMemory(device, manager, memory_kind);
+
+        Basic.print_to_builder(*builder, "% textures", memory_kind);
+
+        // @TODO: #Settings. Get the size of the arena from settings.
+        createArena(*memory.arena, megaBytes(1), Basic.builder_to_string(*builder));
+
+        memory.textures.data = memory.arena.memory;
+    }
+}
+
+destroyVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
+    #if memory_kind == .PER_FRAME {
+        memory_it := manager.per_frame_memory.data;
+
+        for 0 .. device.swapchain_buffers_count - 1 {
+            for * memory_it.textures {
+                warningMessage("Texture \"%\" in % has not been freed", it.name, memory_it.arena.name);
+                // @TODO: VkAllocationCallbacks
+                vkDestroyImage(device.device, it.image, null);
+            }
+            memory_it.textures.count = 0;
+
+            if memory_it.device_memory {
+                warningMessage("% device memory has not been freed", memory_kind);
+                // @TODO: VkAllocationCallbacks
+                vkFreeMemory(device.device, memory_it.device_memory, null);
+                memory_it.device_memory = VK_NULL_HANDLE;
+            }
+
+            destroyArena(*memory_it.arena);
+
+            memory_it += 1;
+        }
+    } else {
+        memory := getTextureMemory(device, manager, memory_kind);
+
+        for * memory.textures {
+            warningMessage("Texture \"%\" in % has not been freed", it.name, memory.arena.name);
+            // @TODO: VkAllocationCallbacks
+            vkDestroyImage(device.device, it.image, null);
+        }
+        memory.textures.count = 0;
+
+        if memory.device_memory {
+            warningMessage("% device memory has not been freed", memory_kind);
+            // @TODO: VkAllocationCallbacks
+            vkFreeMemory(device.device, memory.device_memory, null);
+            memory.device_memory = VK_NULL_HANDLE;
+        }
+
+        destroyArena(*memory.arena);
+    }
+}
+
 resizeResolutionDependentVulkanTextures :: (
     device       : *VulkanDevice,
     manager      : *VulkanTextureManager,
@@ -402,11 +487,8 @@ resizeResolutionDependentVulkanTextures :: (
 ) {
     #assert memory_kind == .PERSISTENT_RESOLUTION_DEPENDENT || memory_kind == .PER_LEVEL_RESOLUTION_DEPENDENT;
 
-    memory := *manager.memories[memory_kind];
-
-    if memory.textures.count <= 0 {
-        return;
-    }
+    memory := getTextureMemory(device, manager, memory_kind);
+    if memory.textures.count <= 0 return;
 
     back_buffer := getBackBuffer(device);
 

@@ -54,6 +54,8 @@ main :: () {
                                   "Depth buffer",
                                   .PERSISTENT_RESOLUTION_DEPENDENT);
 
+    // Create persistent textures here...
+
     commitTextureMemory(device, texture_manager, .PERSISTENT);
     defer resetTextureMemory(device, texture_manager, .PERSISTENT);
 
@@ -72,6 +74,18 @@ main :: () {
 
         beginFrame(device);
         {
+            // @TODO: #PerFrameTextures. Delete unused per frame texture memory when number of swapchain buffers decreased.
+
+            resetTextureMemory(device, texture_manager, .PER_FRAME);
+
+            // Create per frame textures here...
+
+            // @Cleanup: #PerFrameTextures. Should we can upload data to per frame textures?
+            //           Maybe we want to restrict to upload data to per frame textures?
+            //           Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame textures
+            //           since we do not want tot release memory which is in use by async queues.
+            commitTextureMemory(device, texture_manager, .PER_FRAME);
+
             back_buffer := getBackBuffer(device);
 
             // @TODO: #Settings. Get back buffer clear color from settings.
