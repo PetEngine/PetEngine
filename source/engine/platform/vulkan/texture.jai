@@ -350,7 +350,7 @@ vulkanUsageFlagsToTextureFlags :: (usage_flags : VkImageUsageFlags) -> Texture.F
     return flags;
 }
 
-samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleCountFlags {
+samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleCountFlags #no_context {
     if samples_count == {
         case  1; return .VK_SAMPLE_COUNT_1_BIT;
         case  2; return .VK_SAMPLE_COUNT_2_BIT;
@@ -363,7 +363,7 @@ samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleC
     return .VK_SAMPLE_COUNT_1_BIT;
 }
 
-getVulkanImageAspectFlags :: (texture : *VulkanTexture) -> VkImageAspectFlags {
+getVulkanImageAspectFlags :: (texture : *VulkanTexture) -> VkImageAspectFlags #no_context {
     if #complete texture.format == {
         case .UNKNOWN;
             return .VK_IMAGE_ASPECT_NONE;
@@ -390,7 +390,7 @@ getTextureMemory :: inline (
     device       : *VulkanDevice,
     manager      : *VulkanTextureManager,
     $memory_kind : TextureManager.MemoryKind
-) -> *VulkanTextureManager.Memory {
+) -> *VulkanTextureManager.Memory #no_context {
     #if memory_kind == .PERSISTENT {
         return *manager.persistent_memory;
     } else #if memory_kind == .PERSISTENT_RESOLUTION_DEPENDENT {

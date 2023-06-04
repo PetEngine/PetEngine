@@ -12,7 +12,7 @@ pushVulkanCommandBuffer :: (device : *VulkanDevice, swapchain_buffer_index : u32
 }
 
 // @Speed: Figure out something more optimal with access masks and pipeline stages.
-vulkanTextureLayoutBarrier :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, new_layout : VkImageLayout) {
+vulkanTextureLayoutBarrier :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, new_layout : VkImageLayout) #no_context {
     if texture.current_layout == new_layout {
         return;
     }

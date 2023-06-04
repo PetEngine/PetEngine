@@ -98,7 +98,7 @@ pushToArena :: inline (arena : *Arena, $type : Type, $$count := 1) -> *type #mus
     return memory;
 }
 
-resetArena :: inline (arena : *Arena, $zero_memory := true) {
+resetArena :: inline (arena : *Arena, $zero_memory := true) #no_context {
     #if zero_memory {
         memset(arena.memory, 0, arena.occupied);
     }
@@ -107,7 +107,7 @@ resetArena :: inline (arena : *Arena, $zero_memory := true) {
     arena.marker   = 0;
 }
 
-resetArenaToMarker :: inline (arena : *Arena, $zero_memory := true) {
+resetArenaToMarker :: inline (arena : *Arena, $zero_memory := true) #no_context {
     #if zero_memory {
         memset(arena.memory + arena.marker, 0, arena.occupied - arena.marker);
     }
@@ -115,6 +115,6 @@ resetArenaToMarker :: inline (arena : *Arena, $zero_memory := true) {
     arena.occupied = arena.marker;
 }
 
-setMarkerInArena :: inline (arena : *Arena) {
+setMarkerInArena :: inline (arena : *Arena) #no_context {
     arena.marker = arena.occupied;
 }

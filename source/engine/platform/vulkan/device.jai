@@ -1509,7 +1509,7 @@ createSystemCommandBuffers :: (device : *VulkanDevice) {
     }
 }
 
-vendorIdToString :: (vendor_id : u32) -> string {
+vendorIdToString :: (vendor_id : u32) -> string #no_context {
     info := type_info(PCIVendorID);
 
     for info.values {

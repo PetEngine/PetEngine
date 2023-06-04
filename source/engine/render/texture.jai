@@ -214,7 +214,7 @@ createTexture :: (
 #load "../platform/vulkan/texture.jai";
 
 // We may not to check for all_bits != 0 since we have assert for width > 0 in createTexture
-maxMipsCount :: (width : u16, height : u16, depth : u16) -> u8 {
+maxMipsCount :: (width : u16, height : u16, depth : u16) -> u8 #no_context {
     all_bits := width | height | depth;
     max_mips : u16 = 0;
     #asm { bsr.w max_mips, all_bits; }
