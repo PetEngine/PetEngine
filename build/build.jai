@@ -83,6 +83,27 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         assert(success);
     }
 
+    import_paths : [2] string = ---;
+    {
+        for build_options.import_path {
+            import_paths[it_index] = it;
+        }
+        import_paths[build_options.import_path.count + 0] = "../source";
+    }
+
+    additional_linker_arguments : [1] string = ---;
+    {
+        for build_options.additional_linker_arguments {
+            additional_linker_arguments[it_index] = it;
+        }
+
+        #if OS == .WINDOWS {
+            additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "/LIBPATH:../third_party/vulkan";
+        } else {
+            additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "--library-path=../third_party/vulkan";
+        }
+    }
+
     //
     // Create must have directories
     //
@@ -110,8 +131,8 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     build_options.output_path                         = output_path;
     build_options.intermediate_path                   = intermediate_path;
     build_options.entry_point_name                    = "main";
-    build_options.import_path                         = .[ "C:/jai/modules", "../source" ];
-    build_options.additional_linker_arguments         = .[ "/LIBPATH:../third_party/vulkan" ];
+    build_options.import_path                         = import_paths;
+    build_options.additional_linker_arguments         = additional_linker_arguments;
 
     //
     // Configuration specific options
