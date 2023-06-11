@@ -744,11 +744,11 @@ initMessengerCallback :: (device : *VulkanDevice) {
 
 // @TODO: Multiple GPU support: vkEnumeratePhysicalDeviceGroupsKHR (VK_KHR_device_group_creation)
 selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
-    physical_device_count : u32;
-    debugCheckVK(vkEnumeratePhysicalDevices(device.instance, *physical_device_count, null));
+    physical_devices : [] VkPhysicalDevice;
+    debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, null));
 
-    physical_devices := pushToArena(*context.pet.per_frame_arena, VkPhysicalDevice, physical_device_count);
-    debugCheckVK(vkEnumeratePhysicalDevices(device.instance, *physical_device_count, physical_devices));
+    physical_devices.data  = pushToArena(*context.pet.per_frame_arena, VkPhysicalDevice, physical_devices.count);
+    debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, physical_devices.data));
 
     physical_device_properties := VkPhysicalDeviceProperties2.{
         sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
@@ -771,12 +771,11 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
     for type : COMPATIBLE_PHYSICAL_DEVICE_TYPES {
         max_memory_size : VkDeviceSize;
 
-        physical_device_it := physical_devices;
-        for 0 .. physical_device_count - 1 {
-            vkGetPhysicalDeviceProperties2(physical_device_it.*, *physical_device_properties);
+        for physical_devices {
+            vkGetPhysicalDeviceProperties2(it, *physical_device_properties);
 
             if properties.deviceType == type {
-                vkGetPhysicalDeviceMemoryProperties2(physical_device_it.*, *memory_properties);
+                vkGetPhysicalDeviceMemoryProperties2(it, *memory_properties);
 
                 memory_heaps : [] VkMemoryHeap;
                 memory_heaps.data  = memory_properties.memoryProperties.memoryHeaps.data;
@@ -803,11 +802,9 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
 
                 if memory_size > max_memory_size {
                     max_memory_size        = memory_size;
-                    device.physical_device = physical_device_it.*;
+                    device.physical_device = it;
                 }
             }
-
-            physical_device_it += 1;
         }
 
         if device.physical_device {
@@ -889,17 +886,21 @@ END;
 }
 
 findQueueFamily :: ($condition : Code) #expand {
-    `queue_family_properties_it = `queue_family_properties;
+    `queue_family_properties_it  = `queue_family_properties;
+    queues_in_family_used_it    := `queues_in_family_used.data;
 
     for 0 .. `queue_family_properties_count - 1 {
         queue_family_flags := `queue_family_properties_it.queueFamilyProperties.queueFlags;
 
         if #insert,scope() condition {
-            `queue_it.family_index = it;
+            `queue_it.family_index      = it;
+            `queue_it.index_in_family   = queues_in_family_used_it.*;
+            queues_in_family_used_it.* += 1;
             break;
         }
 
         `queue_family_properties_it += 1;
+        queues_in_family_used_it    += 1;
     }
 }
 
@@ -937,21 +938,25 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
     }
 
+    QUEUE_TYPE_TO_VK_QUEUE_FLAGS :: VkQueueFlags.[
+        .VK_QUEUE_GRAPHICS_BIT,
+        .VK_QUEUE_COMPUTE_BIT,
+        .VK_QUEUE_TRANSFER_BIT,
+    ];
+
+    queues_in_family_used : [] u32;
+    queues_in_family_used.count = queue_family_properties_count;
+    queues_in_family_used.data  = pushToArena(*context.pet.per_frame_arena, u32, queues_in_family_used.count);
+
     // Find queue family indices
-    // @TODO: #NotExistedQueues
     for * queue_it : device.queues {
         queue_type := cast(QueueType) it_index;
 
-        QUEUE_TYPE_TO_VK_QUEUE_FLAGS :: VkQueueFlags.[
-            .VK_QUEUE_GRAPHICS_BIT,
-            .VK_QUEUE_COMPUTE_BIT,
-            .VK_QUEUE_TRANSFER_BIT,
-        ];
         vk_queue_type        := QUEUE_TYPE_TO_VK_QUEUE_FLAGS[queue_type];
         vk_queue_other_types := (VkQueueFlags.VK_QUEUE_GRAPHICS_BIT | .VK_QUEUE_COMPUTE_BIT) & ~vk_queue_type;
 
         // 1. We are trying to find a queue family that supports ONLY concrete queue type (ideal situation).
-        // 2. We are trying to find a queue family that supports needed queue type, but may support several queue type (ok situation).
+        // 2. We are trying to find a queue family that supports needed queue type, but may support several queue types (ok situation).
 
         findQueueFamily(#code (queue_family_flags & `vk_queue_type) && !(queue_family_flags & `vk_queue_other_types));
 
@@ -968,83 +973,51 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
         assert(queue_it.family_index != 0xFFFF_FFFF, "% queue family was not found", queue_type);
     }
 
-    graphics_queue := *device.queues[QueueType.GRAPHICS];
-    compute_queue  := *device.queues[QueueType.ASYNC_COMPUTE];
-    transfer_queue := *device.queues[QueueType.ASYNC_TRANSFER];
-
-    // Detect queue index in queue family
-    {
-        if compute_queue.family_index == graphics_queue.family_index {
-            compute_queue.index_in_family = graphics_queue.index_in_family + 1;
-        } else if transfer_queue.family_index == graphics_queue.family_index {
-            transfer_queue.index_in_family = graphics_queue.index_in_family + 1;
-        }
-
-        if transfer_queue.family_index == compute_queue.family_index {
-            transfer_queue.index_in_family = compute_queue.index_in_family + 1;
-        }
-    }
-
     // Print info about queues
     {
-        QUEUE_INFO_MESSAGE :: #string END
-Queues info:
-            Graphics:
-                Family flags:    %
-                Family index:    %
-                Index in family: %
-            Compute:
-                Family flags:    %
-                Family index:    %
-                Index in family: %
-            Transfer:
-                Family flags:    %
-                Family index:    %
-                Index in family: %
-END;
+        builder : Basic.String_Builder;
+        builder.allocator = Basic.temporary_allocator;
 
-        infoMessage(QUEUE_INFO_MESSAGE,
-                    queue_family_properties[graphics_queue.family_index].queueFamilyProperties.queueFlags,
-                    graphics_queue.family_index,
-                    graphics_queue.index_in_family,
-                    queue_family_properties[compute_queue.family_index].queueFamilyProperties.queueFlags,
-                    compute_queue.family_index,
-                    compute_queue.index_in_family,
-                    queue_family_properties[transfer_queue.family_index].queueFamilyProperties.queueFlags,
-                    transfer_queue.family_index,
-                    transfer_queue.index_in_family,
-                    new_line = false);
+        Basic.append(*builder, "Queues info:\n");
+
+        for * device.queues {
+            Basic.print_to_builder(*builder, "            %:\n", cast(QueueType) it_index);
+            Basic.print_to_builder(*builder, "                Family flags: %\n", queue_family_properties[it.family_index].queueFamilyProperties.queueFlags);
+            Basic.print_to_builder(*builder, "                Family index: %\n", it.family_index);
+            Basic.print_to_builder(*builder, "                Index in family: %\n", it.index_in_family);
+        }
+
+        infoMessage("%", Basic.builder_to_string(*builder));
+        Basic.reset_temporary_storage();
     }
 }
 
-// @TODO:
-//    VkQueueFamilyGlobalPriorityPropertiesKHR (VK_KHR_global_priority).
-//    vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR (VK_KHR_performance_query) Is it actully useful?
-//    VkDeviceMemoryOverallocationCreateInfoAMD (VK_AMD_memory_overallocation_behavior) sounds useful.
+// @TODO: VkDeviceMemoryOverallocationCreateInfoAMD (VK_AMD_memory_overallocation_behavior) sounds useful.
 createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] string) {
-    queues_per_family : [VulkanDevice.queues.count] u32;
-
-    for * device.queues {
-        queues_per_family[it.family_index] += 1;
-    }
+    queues_count_per_family : [VulkanDevice.queues.count] u32;
+    for * device.queues  queues_count_per_family[it.family_index] += 1;
 
     // @TODO: For now queues have equal priority. Should be tweaked later.
-    QUEUE_PRIORITIES :: f32.[ 1.0, 1.0, 1.0 ];
+    queues_priorities : [VulkanDevice.queues.count] f32;
+    for * queues_priorities  it.* = 1.0;
 
     queue_create_infos       : [VulkanDevice.queues.count] VkDeviceQueueCreateInfo = ---;
     queue_create_infos_count : u32 = 0;
 
     for * device.queues {
-        queues_in_family := queues_per_family[it.family_index];
-        if queues_in_family {
+        // queue_create_infos must be unique
+        if it.index_in_family > 0 continue;
+
+        queues_count_in_family := queues_count_per_family[it.family_index];
+        if queues_count_in_family {
             queue_create_info := *queue_create_infos[queue_create_infos_count];
 
             queue_create_info.sType            = .VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             queue_create_info.pNext            = null;
             queue_create_info.flags            = 0;
             queue_create_info.queueFamilyIndex = it.family_index;
-            queue_create_info.queueCount       = queues_in_family;
-            queue_create_info.pQueuePriorities = QUEUE_PRIORITIES.data;
+            queue_create_info.queueCount       = queues_count_in_family;
+            queue_create_info.pQueuePriorities = queues_priorities.data;
 
             queue_create_infos_count += 1;
         }
