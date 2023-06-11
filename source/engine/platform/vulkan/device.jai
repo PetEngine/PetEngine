@@ -379,7 +379,7 @@ getVulkanSwapchainTexture :: inline (device : *VulkanDevice, swapchain_buffer_in
     return *device.frame_data[swapchain_buffer_index].swapchain_texture;
 }
 
-debugCheckVK :: ($code : Code) #expand {
+debugCheckVK :: ($code : Code) #expand #no_debug {
     #if DEBUG_BUILD {{
         result := #insert code;
         assert(result == .VK_SUCCESS, "% returned %", #run codeToString(code), result);

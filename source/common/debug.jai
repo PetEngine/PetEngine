@@ -22,7 +22,7 @@ assert :: (
     $new_line        := true,
     $print_sys_error := false,
     $location        := #caller_location
-) #expand {
+) #expand #no_debug {
     #if DEBUG_BUILD {
         #if is_constant(#insert expression) {
             #if !(#insert expression) {
@@ -44,7 +44,7 @@ debugCheck :: (
     $new_line        := true,
     $print_sys_error := false,
     $location        := #caller_location
-) #expand {
+) #expand #no_debug {
     #if DEBUG_BUILD {
         assert(expression, format, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
     } else {
@@ -52,7 +52,7 @@ debugCheck :: (
     }
 }
 
-notImplemented :: () #expand {
+notImplemented :: () #expand #no_debug {
     #assert false "Not implemented";
 }
 
