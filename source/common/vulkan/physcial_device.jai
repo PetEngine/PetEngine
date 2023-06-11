@@ -451,12 +451,6 @@ vkEnumeratePhysicalDevices :: (
     pPhysicalDevices     : *VkPhysicalDevice
 ) -> VkResult #foreign vulkan;
 
-// Provided by VK_VERSION_1_0
-vkGetPhysicalDeviceProperties :: (
-    physicalDevice : VkPhysicalDevice,
-    pProperties    : *VkPhysicalDeviceProperties
-) #foreign vulkan;
-
 // Provided by VK_VERSION_1_1
 vkGetPhysicalDeviceProperties2 :: (
     physicalDevice : VkPhysicalDevice,

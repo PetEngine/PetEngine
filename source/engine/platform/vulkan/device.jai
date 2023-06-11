@@ -750,7 +750,11 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
     physical_devices := pushToArena(*context.pet.per_frame_arena, VkPhysicalDevice, physical_device_count);
     debugCheckVK(vkEnumeratePhysicalDevices(device.instance, *physical_device_count, physical_devices));
 
-    physical_device_properties : VkPhysicalDeviceProperties = ---;
+    physical_device_properties := VkPhysicalDeviceProperties2.{
+        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        pNext = null
+    };
+    properties := *physical_device_properties.properties;
 
     COMPATIBLE_PHYSICAL_DEVICE_TYPES :: VkPhysicalDeviceType.[
         .VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
@@ -769,9 +773,9 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
 
         physical_device_it := physical_devices;
         for 0 .. physical_device_count - 1 {
-            vkGetPhysicalDeviceProperties(physical_device_it.*, *physical_device_properties);
+            vkGetPhysicalDeviceProperties2(physical_device_it.*, *physical_device_properties);
 
-            if physical_device_properties.deviceType == type {
+            if properties.deviceType == type {
                 vkGetPhysicalDeviceMemoryProperties2(physical_device_it.*, *memory_properties);
 
                 memory_heaps : [] VkMemoryHeap;
@@ -822,7 +826,7 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
 
     infoMessage("Using % device with % GB of memory", device.type, available_device_memory / 1_073_741_824.0);
 
-    if physical_device_properties.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
+    if properties.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
         assertMessage("Physical device API version is less than minimal requied API version: %.%.%.%",
                       VK_API_VERSION_VARIANT(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
                       VK_API_VERSION_MAJOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
@@ -830,7 +834,7 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
                       VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION));
     }
 
-    device.vendor_id = cast(PCIVendorID) physical_device_properties.vendorID;
+    device.vendor_id = cast(PCIVendorID) properties.vendorID;
 
     PHYSICAL_DEVICE_INFO_MESSAGE :: #string END
 Physical device info:
@@ -843,16 +847,16 @@ Physical device info:
 END;
 
     infoMessage(PHYSICAL_DEVICE_INFO_MESSAGE,
-                VK_API_VERSION_VARIANT(physical_device_properties.apiVersion),
-                VK_API_VERSION_MAJOR(physical_device_properties.apiVersion),
-                VK_API_VERSION_MINOR(physical_device_properties.apiVersion),
-                VK_API_VERSION_PATCH(physical_device_properties.apiVersion),
-                Basic.formatInt(physical_device_properties.driverVersion, base = 16),
-                vendorIdToString(physical_device_properties.vendorID),
-                Basic.formatInt(physical_device_properties.vendorID, base = 16),
-                Basic.formatInt(physical_device_properties.deviceID, base = 16),
-                physical_device_properties.deviceType,
-                s8_array_to_string(physical_device_properties.deviceName),
+                VK_API_VERSION_VARIANT(properties.apiVersion),
+                VK_API_VERSION_MAJOR(properties.apiVersion),
+                VK_API_VERSION_MINOR(properties.apiVersion),
+                VK_API_VERSION_PATCH(properties.apiVersion),
+                Basic.formatInt(properties.driverVersion, base = 16),
+                vendorIdToString(properties.vendorID),
+                Basic.formatInt(properties.vendorID, base = 16),
+                Basic.formatInt(properties.deviceID, base = 16),
+                properties.deviceType,
+                s8_array_to_string(properties.deviceName),
                 new_line = false);
 
     driver_properties := VkPhysicalDeviceDriverProperties.{
@@ -860,12 +864,8 @@ END;
         pNext = null,
     };
 
-    properties2 := VkPhysicalDeviceProperties2.{
-        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
-        pNext = *driver_properties,
-    };
-
-    vkGetPhysicalDeviceProperties2(device.physical_device, *properties2);
+    physical_device_properties.pNext = *driver_properties;
+    vkGetPhysicalDeviceProperties2(device.physical_device, *physical_device_properties);
 
     DRIVER_INFO_MESSAGE :: #string END
 Driver info:
@@ -885,7 +885,7 @@ END;
                 driver_properties.conformanceVersion.patch,
                 new_line = false);
 
-    return physical_device_properties.apiVersion;
+    return properties.apiVersion;
 }
 
 findQueueFamily :: ($condition : Code) #expand {
