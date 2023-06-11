@@ -11,8 +11,8 @@ createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(u
     if #complete device.graphics_api == {
         case .VULKAN;
             for 0 .. device.swapchain_buffers_count - 1 {
-                <<handles_it = pushVulkanCommandBuffer(cast(*VulkanDevice) device, it, usage);
-                handles_it += 1;
+                handles_it.*  = pushVulkanCommandBuffer(cast(*VulkanDevice) device, it, usage);
+                handles_it   += 1;
             }
     }
 

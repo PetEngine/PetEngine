@@ -144,13 +144,13 @@ beginVulkanFrame :: (device : *VulkanDevice) {
         command_buffers_used_it := frame_data.command_buffers_used.data;
 
         for frame_data.command_pools {
-            if <<command_buffers_used_it > (Device.MAX_COMMAND_BUFFERS >> 2) {
+            if command_buffers_used_it.* > (Device.MAX_COMMAND_BUFFERS >> 2) {
                 debugCheckVK(vkResetCommandPool(device.device, it, 0));
             } else {
                 command_buffers_it := frame_data.command_buffers.data;
 
-                for 0 .. <<command_buffers_used_it - 1 {
-                    debugCheckVK(vkResetCommandBuffer(<<command_buffers_it, 0));
+                for 0 .. command_buffers_used_it.* - 1 {
+                    debugCheckVK(vkResetCommandBuffer(command_buffers_it.*, 0));
 
                     command_buffers_it += 1;
                 }
@@ -174,8 +174,8 @@ beginVulkanFrame :: (device : *VulkanDevice) {
         for 0 .. VulkanDevice.queues.count - 1 {
             command_buffers_local_it := command_buffers_it;
 
-            for 0 .. <<command_buffers_used_it - 1 {
-                debugCheckVK(vkBeginCommandBuffer(<<command_buffers_local_it, *begin_info));
+            for 0 .. command_buffers_used_it.* - 1 {
+                debugCheckVK(vkBeginCommandBuffer(command_buffers_local_it.*, *begin_info));
 
                 command_buffers_local_it += 1;
             }
@@ -196,8 +196,8 @@ endVulkanFrame :: (device : *VulkanDevice) {
         for 0 .. VulkanDevice.queues.count - 1 {
             command_buffers_local_it := command_buffers_it;
 
-            for 0 .. <<command_buffers_used_it - 1 {
-                debugCheckVK(vkEndCommandBuffer(<<command_buffers_local_it));
+            for 0 .. command_buffers_used_it.* - 1 {
+                debugCheckVK(vkEndCommandBuffer(command_buffers_local_it.*));
 
                 command_buffers_local_it += 1;
             }
@@ -223,7 +223,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
         command_buffers_it      := frame_data.command_buffers.data;
 
         for device.queues {
-            if <<command_buffers_used_it > 0 {
+            if command_buffers_used_it.* > 0 {
                 fence_to_signal : VkFence = ---;
 
                 if it_index == cast,no_check(s64) QueueType.GRAPHICS {
@@ -245,7 +245,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
                 }
 
                 submit_info.pWaitDstStageMask  = *WHICH_STAGE_WILL_WAIT_FOR_THE_SEMAPHORE[it_index];
-                submit_info.commandBufferCount = cast(u32) <<command_buffers_used_it;
+                submit_info.commandBufferCount = cast(u32) command_buffers_used_it.*;
                 submit_info.pCommandBuffers    = command_buffers_it;
 
                 debugCheckVK(vkQueueSubmit(it.handle, 1, *submit_info, fence_to_signal));
@@ -576,7 +576,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         }
 
         Basic.print_to_builder(*builder, "Applying instance extensions (%):\n", enabled_instance_extensions.count);
-        for <<enabled_instance_extensions {
+        for enabled_instance_extensions.* {
             Basic.array_add(*extensions_to_apply, cast(*s8) it.data);
             Basic.print_to_builder(*builder, "            %\n", it);
         }
@@ -636,12 +636,12 @@ messengerCallback :: (
             message_end := message.data + message.count;
 
             vuid_start := message.data;
-            while vuid_start < message_end && <<vuid_start != #char "[" {
+            while vuid_start < message_end && vuid_start.* != #char "[" {
                 vuid_start += 1;
             }
 
             vuid_end := vuid_start;
-            while vuid_end < message_end && <<vuid_end != #char "]" {
+            while vuid_end < message_end && vuid_end.* != #char "]" {
                 vuid_end += 1;
             }
             vuid_end += 1;
@@ -763,12 +763,12 @@ findCompatiblePhysicalDevice :: (device : *VulkanDevice) -> u32 {
     for type : COMPATIBLE_PHYSICAL_DEVICE_TYPES {
         physical_device_it := physical_devices;
         for 0 .. physical_device_count - 1 {
-            vkGetPhysicalDeviceProperties(<<physical_device_it, *physical_device_properties);
+            vkGetPhysicalDeviceProperties(physical_device_it.*, *physical_device_properties);
 
             // @TODO: for VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   Choose one with the biggest amount of VRAM.
             //        for VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: Choose one with the biggest amount of SRAM.
             if physical_device_properties.deviceType == type {
-                device.physical_device = <<physical_device_it;
+                device.physical_device = physical_device_it.*;
 
                 if type == {
                     case .VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;   device.type = .DISCRETE;
@@ -1085,7 +1085,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         }
 
         Basic.print_to_builder(*builder, "Applying device extensions (%):\n", enabled_device_extensions.count);
-        for <<enabled_device_extensions {
+        for enabled_device_extensions.* {
             Basic.array_add(*extensions_to_apply, cast(*s8) it.data);
             Basic.print_to_builder(*builder, "            %\n", it);
         }
@@ -1352,7 +1352,7 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
             frame_data_it.swapchain_texture.possible_owners_count = 1;
             frame_data_it.swapchain_texture.possible_owners[0]    = .GRAPHICS;
             frame_data_it.swapchain_texture.current_owner         = .GRAPHICS;
-            frame_data_it.swapchain_texture.image                 = <<swapchain_images_it;
+            frame_data_it.swapchain_texture.image                 = swapchain_images_it.*;
             frame_data_it.swapchain_texture.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
 
             #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then frame_data_it.swapchain_texture.flags |= .COHERENT;
@@ -1378,7 +1378,7 @@ createSemaphores :: (device : *VulkanDevice) {
         // @TODO: VkAllocationCallbacks
         debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, it));
 
-        setVulkanObjectName(device, .VK_OBJECT_TYPE_SEMAPHORE, <<it, "% semaphore", cast(SemaphoreKind) it_index);
+        setVulkanObjectName(device, .VK_OBJECT_TYPE_SEMAPHORE, it.*, "% semaphore", cast(SemaphoreKind) it_index);
     }
 }
 
@@ -1396,7 +1396,7 @@ createFences :: (device : *VulkanDevice) {
             // @TODO: VkAllocationCallbacks
             debugCheckVK(vkCreateFence(device.device, *create_info, null, it));
 
-            setVulkanObjectName(device, .VK_OBJECT_TYPE_FENCE, <<it, "% fence for swapchain buffer #%",
+            setVulkanObjectName(device, .VK_OBJECT_TYPE_FENCE, it.*, "% fence for swapchain buffer #%",
                                 cast(QueueType) it_index,
                                 swapchain_buffer_index);
         }
@@ -1428,7 +1428,7 @@ createCommandPools :: (device : *VulkanDevice) {
             // @TODO: VkAllocationCallbacks
             debugCheckVK(vkCreateCommandPool(device.device, *create_info, null, it));
 
-            setVulkanObjectName(device, .VK_OBJECT_TYPE_COMMAND_POOL, <<it, "% command pool for swapchain buffer #%",
+            setVulkanObjectName(device, .VK_OBJECT_TYPE_COMMAND_POOL, it.*, "% command pool for swapchain buffer #%",
                                 cast(QueueType) it_index,
                                 buffer_index);
 
@@ -1464,7 +1464,7 @@ createCommandBuffers :: (device : *VulkanDevice) {
                 for 0 .. Device.MAX_COMMAND_BUFFERS - 1 {
                     setVulkanObjectName(device,
                                         .VK_OBJECT_TYPE_COMMAND_BUFFER,
-                                        <<local_command_buffers_it,
+                                        local_command_buffers_it.*,
                                         "% command buffer #% for swapchain buffer #%",
                                         cast(QueueType) command_pool_index,
                                         it,

@@ -234,7 +234,7 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
         }
 
         member_address   := cast(**void) (base_address + it.offset_in_bytes);
-        <<member_address  = cast(*void) function;
+        member_address.*  = cast(*void) function;
     }
 
     base_address = cast(*void) *loader.extensions.instance.optional;
@@ -243,7 +243,7 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
         memeber_extension_name := members_it.notes[0];
         function               := vkGetInstanceProcAddr(instance, cast(*s8) members_it.name.data);
 
-        for <<enabled_instance_extensions {
+        for enabled_instance_extensions.* {
             if String.equal(it, memeber_extension_name) {
                 if function == null {
                     assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled",
@@ -255,7 +255,7 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
         }
 
         member_address   := cast(**void) (base_address + members_it.offset_in_bytes);
-        <<member_address  = cast(*void) function;
+        member_address.*  = cast(*void) function;
     }
 }
 
@@ -269,7 +269,7 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
         }
 
         member_address   := cast(**void) (base_address + it.offset_in_bytes);
-        <<member_address  = cast(*void) function;
+        member_address.*  = cast(*void) function;
     }
 
     base_address = cast(*void) *loader.extensions.device.optional;
@@ -278,7 +278,7 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
         memeber_extension_name := members_it.notes[0];
         function               := vkGetDeviceProcAddr(device, cast(*s8) members_it.name.data);
 
-        for <<enabled_device_extensions {
+        for enabled_device_extensions.* {
             if String.equal(it, memeber_extension_name) {
                 if function == null {
                     assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled",
@@ -289,6 +289,6 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
         }
 
         member_address   := cast(**void) (base_address + members_it.offset_in_bytes);
-        <<member_address  = cast(*void) function;
+        member_address.*  = cast(*void) function;
     }
 }
