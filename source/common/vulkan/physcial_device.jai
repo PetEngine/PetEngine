@@ -110,6 +110,12 @@ VkQueueFlags :: enum_flags VkFlags {
     VK_QUEUE_SPARSE_BINDING_BIT   :: 0x00000008;
     // Provided by VK_VERSION_1_1
     VK_QUEUE_PROTECTED_BIT        :: 0x00000010;
+    // Provided by VK_KHR_video_decode_queue
+    VK_QUEUE_VIDEO_DECODE_BIT_KHR :: 0x00000020;
+#if VK_ENABLE_BETA_EXTENSIONS {
+    // Provided by VK_KHR_video_encode_queue
+    VK_QUEUE_VIDEO_ENCODE_BIT_KHR :: 0x00000040;
+}
     // Provided by VK_NV_optical_flow
     VK_QUEUE_OPTICAL_FLOW_BIT_NV  :: 0x00000100;
 }

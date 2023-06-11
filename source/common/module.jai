@@ -1,4 +1,4 @@
-#module_parameters()(DEBUG_BUILD : bool);
+#module_parameters(VK_ENABLE_BETA_EXTENSIONS := false)(DEBUG_BUILD : bool);
 
 f32 :: float32;
 f64 :: float64;

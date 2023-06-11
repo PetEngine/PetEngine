@@ -454,64 +454,59 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     layers_to_apply.allocator = Basic.temporary_allocator;
 
     {
-        layers_count : u32;
-        debugCheckVK(vkEnumerateInstanceLayerProperties(*layers_count, null));
+        available_layers : [] VkLayerProperties;
+        debugCheckVK(vkEnumerateInstanceLayerProperties(cast(*u32) *available_layers.count, null));
 
-        layers := pushToArena(*context.pet.per_frame_arena, VkLayerProperties, layers_count);
-        debugCheckVK(vkEnumerateInstanceLayerProperties(*layers_count, layers));
+        available_layers.data = pushToArena(*context.pet.per_frame_arena, VkLayerProperties, available_layers.count);
+        debugCheckVK(vkEnumerateInstanceLayerProperties(cast(*u32) *available_layers.count, available_layers.data));
 
-        layers_it := layers;
-
-        Basic.print_to_builder(*builder, "Available instance layers (%):\n", layers_count);
-        for 0 .. layers_count - 1 {
-            Basic.print_to_builder(*builder, "            %\n", to_string(cast(*u8) layers_it.layerName.data));
-            layers_it += 1;
+        #if DEBUG_BUILD {
+            Basic.print_to_builder(*builder, "Available instance layers (%):\n", available_layers.count);
+            for * available_layers {
+                Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.layerName.data));
+            }
+            debugMessage("%", Basic.builder_to_string(*builder), new_line = false);
         }
-        infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
 
         REQUIRED_LAYERS, OPTIONAL_LAYERS :: #run gatherVulkanLayers();
 
-        for required_layers_it : REQUIRED_LAYERS {
-            layers_it = layers;
-
+        for required_layer : REQUIRED_LAYERS {
             layer_found := false;
-            for 0 .. layers_count - 1 {
-                if String.equal(to_string(cast(*u8) layers_it.layerName.data), required_layers_it) {
+
+            for * available_layers {
+                if String.equal(to_string(cast(*u8) it.layerName.data), required_layer) {
                     layer_found = true;
                     break;
                 }
-                layers_it += 1;
             }
 
             if layer_found {
-                Basic.array_add(*layers_to_apply, cast(*s8) required_layers_it.data);
+                Basic.array_add(*layers_to_apply, cast(*s8) required_layer.data);
             } else {
-                assertMessage("Required instance layer \"%\" has not been found in available instance layers", required_layers_it);
+                assertMessage("Required instance layer \"%\" has not been found in available instance layers", required_layer);
             }
         }
 
-        for optional_layers_it : OPTIONAL_LAYERS {
-            layers_it = layers;
-
+        for optional_layer : OPTIONAL_LAYERS {
             layer_found := false;
-            for 0 .. layers_count - 1 {
-                if String.equal(to_string(cast(*u8) layers_it.layerName.data), optional_layers_it) {
+
+            for * available_layers {
+                if String.equal(to_string(cast(*u8) it.layerName.data), optional_layer) {
                     layer_found = true;
                     break;
                 }
-                layers_it += 1;
             }
 
             if layer_found {
-                Basic.array_add(*layers_to_apply, cast(*s8) optional_layers_it.data);
+                Basic.array_add(*layers_to_apply, cast(*s8) optional_layer.data);
             } else {
-                warningMessage("Optional instance layer \"%\" has not been found in available instance layers", optional_layers_it);
+                warningMessage("Optional instance layer \"%\" has not been found in available instance layers", optional_layer);
             }
         }
 
         Basic.print_to_builder(*builder, "Applying instance layers (%):\n", layers_to_apply.count);
         for layers_to_apply {
-            Basic.print_to_builder(*builder, "            %\n", to_string(cast(*u8) it));
+            Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it));
         }
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
     }
@@ -520,65 +515,60 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     extensions_to_apply.allocator = Basic.temporary_allocator;
 
     {
-        extensions_count : u32;
-        debugCheckVK(vkEnumerateInstanceExtensionProperties(null, *extensions_count, null));
+        available_extensions : [] VkExtensionProperties;
+        debugCheckVK(vkEnumerateInstanceExtensionProperties(null, cast(*u32) *available_extensions.count, null));
 
-        extensions := pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, extensions_count);
-        debugCheckVK(vkEnumerateInstanceExtensionProperties(null, *extensions_count, extensions));
+        available_extensions.data = pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, available_extensions.count);
+        debugCheckVK(vkEnumerateInstanceExtensionProperties(null, cast(*u32) *available_extensions.count, available_extensions.data));
 
-        extensions_it := extensions;
-
-        Basic.print_to_builder(*builder, "Available instance extensions (%):\n", extensions_count);
-        for 0 .. extensions_count - 1 {
-            Basic.print_to_builder(*builder, "            %\n", to_string(cast(*u8) extensions_it.extensionName.data));
-            extensions_it += 1;
+        #if DEBUG_BUILD {
+            Basic.print_to_builder(*builder, "Available instance extensions (%):\n", available_extensions.count);
+            for * available_extensions {
+                Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
+            }
+            debugMessage("%", Basic.builder_to_string(*builder), new_line = false);
         }
-        infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanInstanceExtensions();
 
-        for required_extensions_it : REQUIRED_EXTENSIONS {
-            extensions_it = extensions;
-
+        for required_extension : REQUIRED_EXTENSIONS {
             extension_found := false;
-            for 0 .. extensions_count - 1 {
-                if String.equal(to_string(cast(*u8) extensions_it.extensionName.data), required_extensions_it) {
+
+            for * available_extensions {
+                if String.equal(to_string(cast(*u8) it.extensionName.data), required_extension) {
                     extension_found = true;
                     break;
                 }
-                extensions_it += 1;
             }
 
             if extension_found {
-                Basic.array_add(enabled_instance_extensions, required_extensions_it);
+                Basic.array_add(enabled_instance_extensions, required_extension);
             } else {
-                assertMessage("Required extension \"%\" has not been found in available extensions", required_extensions_it);
+                assertMessage("Required extension \"%\" has not been found in available extensions", required_extension);
             }
         }
 
-        for optional_extensions_it : OPTIONAL_EXTENSIONS {
-            extensions_it = extensions;
-
+        for optional_extension : OPTIONAL_EXTENSIONS {
             extension_found := false;
-            for 0 .. extensions_count - 1 {
-                if String.equal(to_string(cast(*u8) extensions_it.extensionName.data), optional_extensions_it) {
+
+            for * available_extensions {
+                if String.equal(to_string(cast(*u8) it.extensionName.data), optional_extension) {
                     extension_found = true;
                     break;
                 }
-                extensions_it += 1;
             }
 
             if extension_found {
-                Basic.array_add(enabled_instance_extensions, optional_extensions_it);
+                Basic.array_add(enabled_instance_extensions, optional_extension);
             } else {
-                warningMessage("Optional extension \"%\" has not been found in available extensions", optional_extensions_it);
+                warningMessage("Optional extension \"%\" has not been found in available extensions", optional_extension);
             }
         }
 
         Basic.print_to_builder(*builder, "Applying instance extensions (%):\n", enabled_instance_extensions.count);
         for enabled_instance_extensions.* {
             Basic.array_add(*extensions_to_apply, cast(*s8) it.data);
-            Basic.print_to_builder(*builder, "            %\n", it);
+            Basic.print_to_builder(*builder, "    %\n", it);
         }
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
     }
@@ -601,10 +591,10 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         pNext                   = null,
         flags                   = 0,
         pApplicationInfo        = *application_info,
-        enabledLayerCount       = cast(u32)  layers_to_apply.count,
-        ppEnabledLayerNames     = cast(**s8) layers_to_apply.data,
-        enabledExtensionCount   = cast(u32)  extensions_to_apply.count,
-        ppEnabledExtensionNames = cast(**s8) extensions_to_apply.data
+        enabledLayerCount       = cast(u32) layers_to_apply.count,
+        ppEnabledLayerNames     = layers_to_apply.data,
+        enabledExtensionCount   = cast(u32) extensions_to_apply.count,
+        ppEnabledExtensionNames = extensions_to_apply.data
     };
 
     // @TODO: VkAllocationCallbacks
@@ -747,7 +737,7 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
     physical_devices : [] VkPhysicalDevice;
     debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, null));
 
-    physical_devices.data  = pushToArena(*context.pet.per_frame_arena, VkPhysicalDevice, physical_devices.count);
+    physical_devices.data = pushToArena(*context.pet.per_frame_arena, VkPhysicalDevice, physical_devices.count);
     debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, physical_devices.data));
 
     physical_device_properties := VkPhysicalDeviceProperties2.{
@@ -821,7 +811,7 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
                       COMPATIBLE_PHYSICAL_DEVICE_TYPES[1]);
     }
 
-    infoMessage("Using % device with % GB of memory", device.type, available_device_memory / 1_073_741_824.0);
+    infoMessage("Using % physical device with % GB of memory", device.type, available_device_memory / 1_073_741_824.0);
 
     if properties.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
         assertMessage("Physical device API version is less than minimal requied API version: %.%.%.%",
@@ -835,12 +825,12 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
 
     PHYSICAL_DEVICE_INFO_MESSAGE :: #string END
 Physical device info:
-            API version:    %.%.%.%
-            Driver version: 0x%
-            Vendor ID:      % (0x%)
-            Device ID:      0x%
-            Device type:    %
-            Device name:    %
+    API version:    %.%.%.%
+    Driver version: 0x%
+    Vendor ID:      % (0x%)
+    Device ID:      0x%
+    Device type:    %
+    Device name:    %
 END;
 
     infoMessage(PHYSICAL_DEVICE_INFO_MESSAGE,
@@ -866,10 +856,10 @@ END;
 
     DRIVER_INFO_MESSAGE :: #string END
 Driver info:
-            Driver ID:           %
-            Driver name:         %
-            Driver info:         %
-            Conformance version: %.%.%.%
+    Driver ID:           %
+    Driver name:         %
+    Driver info:         %
+    Conformance version: %.%.%.%
 END;
 
     infoMessage(DRIVER_INFO_MESSAGE,
@@ -886,53 +876,50 @@ END;
 }
 
 findQueueFamily :: ($condition : Code) #expand {
-    `queue_family_properties_it  = `queue_family_properties;
-    queues_in_family_used_it    := `queues_in_family_used.data;
+    queues_in_family_used_it := `queues_in_family_used.data;
 
-    for 0 .. `queue_family_properties_count - 1 {
-        queue_family_flags := `queue_family_properties_it.queueFamilyProperties.queueFlags;
+    for * `queue_family_properties {
+        queue_family_flags := it.queueFamilyProperties.queueFlags;
 
         if #insert,scope() condition {
-            `queue_it.family_index      = it;
+            `queue_it.family_index      = cast(u32) it_index;
             `queue_it.index_in_family   = queues_in_family_used_it.*;
             queues_in_family_used_it.* += 1;
             break;
         }
 
-        `queue_family_properties_it += 1;
-        queues_in_family_used_it    += 1;
+        queues_in_family_used_it += 1;
     }
 }
 
 gatherQueuesInfo :: (device : *VulkanDevice) {
-    queue_family_properties_count : u32;
-    vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, *queue_family_properties_count, null);
-    assert(queue_family_properties_count > 0);
+    queue_family_properties : [] VkQueueFamilyProperties2;
+    vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, cast(*u32) *queue_family_properties.count, null);
 
-    queue_family_properties := pushToArena(*context.pet.per_frame_arena, VkQueueFamilyProperties2, queue_family_properties_count);
+    queue_family_properties.data = pushToArena(*context.pet.per_frame_arena, VkQueueFamilyProperties2, queue_family_properties.count);
+    for * queue_family_properties  it.sType = .VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
+    vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, cast(*u32) *queue_family_properties.count, queue_family_properties.data);
 
-    queue_family_properties_it := queue_family_properties;
-    for 0 .. queue_family_properties_count - 1 {
-        queue_family_properties_it.sType = .VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
-        queue_family_properties_it += 1;
-    }
-
-    vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, *queue_family_properties_count, queue_family_properties);
+    defer Basic.reset_temporary_storage();
 
     // Print info about available queue families
     {
         builder : Basic.String_Builder;
+        builder.allocator = Basic.temporary_allocator;
 
-        Basic.append(*builder, "Available queue families:\n");
+        Basic.print_to_builder(*builder, "Available queue families (%):\n", queue_family_properties.count);
 
-        queue_family_properties_it = queue_family_properties;
-        for 0 .. queue_family_properties_count - 1 {
-            properties := *queue_family_properties_it.queueFamilyProperties;
+QUEUE_FAMILY_INFO_FORMAT_STRING :: #string END
+    [%]: Flags:        %
+         Queues count: %
+END;
 
-            Basic.print_to_builder(*builder, "            [%]: Flags:        %\n", it, properties.queueFlags);
-            Basic.print_to_builder(*builder, "                 Queues count: %\n", properties.queueCount);
-
-            queue_family_properties_it += 1;
+        for * queue_family_properties {
+            Basic.print_to_builder(*builder,
+                                   QUEUE_FAMILY_INFO_FORMAT_STRING,
+                                   it_index,
+                                   it.queueFamilyProperties.queueFlags,
+                                   it.queueFamilyProperties.queueCount);
         }
 
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
@@ -945,7 +932,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
     ];
 
     queues_in_family_used : [] u32;
-    queues_in_family_used.count = queue_family_properties_count;
+    queues_in_family_used.count = queue_family_properties.count;
     queues_in_family_used.data  = pushToArena(*context.pet.per_frame_arena, u32, queues_in_family_used.count);
 
     // Find queue family indices
@@ -980,15 +967,23 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
 
         Basic.append(*builder, "Queues info:\n");
 
+QUEUE_INFO_FORMAT_STRING :: #string END
+    % queue:
+        Family flags: %
+        Family index: %
+        Index in family: %
+END;
+
         for * device.queues {
-            Basic.print_to_builder(*builder, "            %:\n", cast(QueueType) it_index);
-            Basic.print_to_builder(*builder, "                Family flags: %\n", queue_family_properties[it.family_index].queueFamilyProperties.queueFlags);
-            Basic.print_to_builder(*builder, "                Family index: %\n", it.family_index);
-            Basic.print_to_builder(*builder, "                Index in family: %\n", it.index_in_family);
+            Basic.print_to_builder(*builder,
+                                   QUEUE_INFO_FORMAT_STRING,
+                                   cast(QueueType) it_index,
+                                   queue_family_properties[it.family_index].queueFamilyProperties.queueFlags,
+                                   it.family_index,
+                                   it.index_in_family);
         }
 
-        infoMessage("%", Basic.builder_to_string(*builder));
-        Basic.reset_temporary_storage();
+        infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
     }
 }
 
@@ -1032,65 +1027,60 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     extensions_to_apply.allocator = Basic.temporary_allocator;
 
     {
-        extensions_count : u32;
-        debugCheckVK(vkEnumerateDeviceExtensionProperties(device.physical_device, null, *extensions_count, null));
+        available_extensions : [] VkExtensionProperties;
+        debugCheckVK(vkEnumerateDeviceExtensionProperties(device.physical_device, null, cast(*u32) *available_extensions.count, null));
 
-        extensions := pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, extensions_count);
-        debugCheckVK(vkEnumerateDeviceExtensionProperties(device.physical_device, null, *extensions_count, extensions));
+        available_extensions.data = pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, available_extensions.count);
+        debugCheckVK(vkEnumerateDeviceExtensionProperties(device.physical_device, null, cast(*u32) *available_extensions.count, available_extensions.data));
 
-        extensions_it := extensions;
-
-        Basic.print_to_builder(*builder, "Available device extensions (%):\n", extensions_count);
-        for 0 .. extensions_count - 1 {
-            Basic.print_to_builder(*builder, "            %\n", to_string(cast(*u8) extensions_it.extensionName.data));
-            extensions_it += 1;
+        #if DEBUG_BUILD {
+            Basic.print_to_builder(*builder, "Available device extensions (%):\n", available_extensions.count);
+            for * available_extensions {
+                Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
+            }
+            debugMessage("%", Basic.builder_to_string(*builder), new_line = false);
         }
-        infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanDeviceExtensions();
 
-        for required_extensions_it : REQUIRED_EXTENSIONS {
-            extensions_it = extensions;
-
+        for required_extension : REQUIRED_EXTENSIONS {
             extension_found := false;
-            for 0 .. extensions_count - 1 {
-                if String.equal(to_string(cast(*u8) extensions_it.extensionName.data), required_extensions_it) {
+
+            for * available_extensions {
+                if String.equal(to_string(cast(*u8) it.extensionName.data), required_extension) {
                     extension_found = true;
                     break;
                 }
-                extensions_it += 1;
             }
 
             if extension_found {
-                Basic.array_add(enabled_device_extensions, required_extensions_it);
+                Basic.array_add(enabled_device_extensions, required_extension);
             } else {
-                assertMessage("Required device extension \"%\" has not been found in available device extensions", required_extensions_it);
+                assertMessage("Required device extension \"%\" has not been found in available device extensions", required_extension);
             }
         }
 
-        for optional_extensions_it : OPTIONAL_EXTENSIONS {
-            extensions_it = extensions;
-
+        for optional_extension : OPTIONAL_EXTENSIONS {
             extension_found := false;
-            for 0 .. extensions_count - 1 {
-                if String.equal(to_string(cast(*u8) extensions_it.extensionName.data), optional_extensions_it) {
+
+            for available_extensions {
+                if String.equal(to_string(cast(*u8) it.extensionName.data), optional_extension) {
                     extension_found = true;
                     break;
                 }
-                extensions_it += 1;
             }
 
             if extension_found {
-                Basic.array_add(enabled_device_extensions, optional_extensions_it);
+                Basic.array_add(enabled_device_extensions, optional_extension);
             } else {
-                warningMessage("Optional device extension \"%\" has not been found in available device extensions", optional_extensions_it);
+                warningMessage("Optional device extension \"%\" has not been found in available device extensions", optional_extension);
             }
         }
 
         Basic.print_to_builder(*builder, "Applying device extensions (%):\n", enabled_device_extensions.count);
         for enabled_device_extensions.* {
             Basic.array_add(*extensions_to_apply, cast(*s8) it.data);
-            Basic.print_to_builder(*builder, "            %\n", it);
+            Basic.print_to_builder(*builder, "    %\n", it);
         }
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
     }
@@ -1132,8 +1122,8 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         pQueueCreateInfos       = queue_create_infos.data,
         enabledLayerCount       = 0,    // Deprecated and ignored.
         ppEnabledLayerNames     = null, // Deprecated and ignored.
-        enabledExtensionCount   = cast(u32)  extensions_to_apply.count,
-        ppEnabledExtensionNames = cast(**s8) extensions_to_apply.data,
+        enabledExtensionCount   = cast(u32) extensions_to_apply.count,
+        ppEnabledExtensionNames = extensions_to_apply.data,
         pEnabledFeatures        = null, // We are using pNext for VkPhysicalDeviceFeatures2
     };
 
@@ -1184,17 +1174,17 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
                                                                                                       device.surface,
                                                                                                       *surface_capabilities));
 
-    surface_formats_count : u32;
+    surface_formats : [] VkSurfaceFormatKHR;
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
                                                                                                  device.surface,
-                                                                                                 *surface_formats_count,
+                                                                                                 cast(*u32) *surface_formats.count,
                                                                                                  null));
 
-    surface_formats := pushToArena(*context.pet.per_frame_arena, VkSurfaceFormatKHR, surface_formats_count);
+    surface_formats.data = pushToArena(*context.pet.per_frame_arena, VkSurfaceFormatKHR, surface_formats.count);
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
                                                                                                  device.surface,
-                                                                                                 *surface_formats_count,
-                                                                                                 surface_formats));
+                                                                                                 cast(*u32) *surface_formats.count,
+                                                                                                 surface_formats.data));
 
     // @TODO: #Settings. Get the number of swapchain buffers from settings
     requested_swapchain_buffers_count : u32 = 2;
@@ -1217,21 +1207,25 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
 
     infoMessage("Requested swapchain buffers count: %", requested_swapchain_buffers_count);
 
-    surface_format := surface_formats;
-    for 0 .. surface_formats_count - 1 {
-        if surface_format.format == .VK_FORMAT_B8G8R8A8_UNORM {
+    // @TODO: #HDR. Hardware HDR support
+    REQUESTED_SURFACE_FORMAT :: VkFormat.VK_FORMAT_B8G8R8A8_UNORM;
+    allowed_surface_format : *VkSurfaceFormatKHR;
+
+    for * surface_formats {
+        if it.format == REQUESTED_SURFACE_FORMAT {
+            allowed_surface_format = it;
             break;
         }
-        surface_format += 1;
     }
 
-    if surface_format >= surface_formats + surface_formats_count {
-        assertMessage("Chosen image format (VK_FORMAT_B8G8R8A8_UNORM) for swapchain images is not supported on this device");
+    if !allowed_surface_format {
+        assertMessage("Chosen surface format (%) is not supported on this device", REQUESTED_SURFACE_FORMAT);
     }
 
-    surface_extent : VkExtent2D = ---;
-    surface_extent.width  = window.surface.width;
-    surface_extent.height = window.surface.height;
+    surface_extent := VkExtent2D.{
+        width  = window.surface.width,
+        height = window.surface.height
+    };
 
     if !memcmp(*surface_capabilities.maxImageExtent, *VkExtent2D.{0, 0}, size_of(VkExtent2D)) {
         assertMessage("There is no way to create swapchain while window is minimized");
@@ -1263,11 +1257,9 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
                       ~allowed_usage_flags & REQUESTED_USAGE_FLAGS);
     }
 
-    // @TODO: #NotExistedQueues
     queue_families_having_access_to_swapchain_images : [1] u32;
     queue_families_having_access_to_swapchain_images[0] = device.queues[QueueType.GRAPHICS].family_index;
 
-    // @TODO: What if the monitor is located vertically?
     if !(surface_capabilities.supportedTransforms & .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
         assertMessage("For some reason monitor does not support landscape mode");
     }
@@ -1288,8 +1280,8 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
         flags                 = 0,
         surface               = device.surface,
         minImageCount         = requested_swapchain_buffers_count,
-        imageFormat           = surface_format.format,
-        imageColorSpace       = surface_format.colorSpace,
+        imageFormat           = allowed_surface_format.format,
+        imageColorSpace       = allowed_surface_format.colorSpace,
         imageExtent           = surface_extent,
         imageArrayLayers      = 1,
         imageUsage            = REQUESTED_USAGE_FLAGS,
@@ -1344,7 +1336,7 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
             }
 
             frame_data_it.swapchain_texture.dimension             = ._2D;
-            frame_data_it.swapchain_texture.format                = vulkanFormatToTextureFormat(surface_format.format);
+            frame_data_it.swapchain_texture.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
             frame_data_it.swapchain_texture.flags                 = Texture.Flags.SWAPCHAIN | .RESOLUTION_DEPENDENT;
             frame_data_it.swapchain_texture.width                 = cast(u16) surface_extent.width;
             frame_data_it.swapchain_texture.height                = cast(u16) surface_extent.height;
