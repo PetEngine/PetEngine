@@ -43,7 +43,7 @@ createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
     instance_api_version := createInstance(device, *enabled_instance_extensions);
     loadVulkanInstanceExtensionsFunctions(*device.loader, device.instance, *enabled_instance_extensions);
     initMessengerCallback(device);
-    physical_device_api_version := findCompatiblePhysicalDevice(device);
+    physical_device_api_version := selectPhysicalDevice(device);
 
     device.api_version = Basic.min(instance_api_version, physical_device_api_version);
     infoMessage("Using Vulkan API version: %.%.%.%",
@@ -722,8 +722,9 @@ initMessengerCallback :: (device : *VulkanDevice) {
             sType           = .VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
             pNext           = null,
             flags           = 0,
-            messageSeverity = VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+            messageSeverity = VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
 //                          | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+                            | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
                             | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
             messageType     = VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
                             | .VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
@@ -732,10 +733,6 @@ initMessengerCallback :: (device : *VulkanDevice) {
             pfnUserCallback = messengerCallback,
             pUserData       = device,
         };
-
-        #if DEBUG_BUILD {
-            create_info.messageSeverity |= .VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
-        }
 
         // @TODO: VkAllocationCallbacks
         debugCheckVK(device.loader.extensions.instance.optional.vkCreateDebugUtilsMessengerEXT(device.instance,
@@ -746,7 +743,7 @@ initMessengerCallback :: (device : *VulkanDevice) {
 }
 
 // @TODO: Multiple GPU support: vkEnumeratePhysicalDeviceGroupsKHR (VK_KHR_device_group_creation)
-findCompatiblePhysicalDevice :: (device : *VulkanDevice) -> u32 {
+selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
     physical_device_count : u32;
     debugCheckVK(vkEnumeratePhysicalDevices(device.instance, *physical_device_count, null));
 
@@ -760,25 +757,58 @@ findCompatiblePhysicalDevice :: (device : *VulkanDevice) -> u32 {
         .VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU
     ];
 
+    memory_properties := VkPhysicalDeviceMemoryProperties2.{
+        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
+        pNext = null
+    };
+
+    available_device_memory : VkDeviceSize;
+
     for type : COMPATIBLE_PHYSICAL_DEVICE_TYPES {
+        max_memory_size : VkDeviceSize;
+
         physical_device_it := physical_devices;
         for 0 .. physical_device_count - 1 {
             vkGetPhysicalDeviceProperties(physical_device_it.*, *physical_device_properties);
 
-            // @TODO: for VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   Choose one with the biggest amount of VRAM.
-            //        for VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: Choose one with the biggest amount of SRAM.
             if physical_device_properties.deviceType == type {
-                device.physical_device = physical_device_it.*;
+                vkGetPhysicalDeviceMemoryProperties2(physical_device_it.*, *memory_properties);
 
+                memory_heaps : [] VkMemoryHeap;
+                memory_heaps.data  = memory_properties.memoryProperties.memoryHeaps.data;
+                memory_heaps.count = memory_properties.memoryProperties.memoryHeapCount;
+
+                memory_size : VkDeviceSize;
                 if type == {
-                    case .VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;   device.type = .DISCRETE;
-                    case .VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU; device.type = .INTEGRATED;
+                    case .VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+                        device.type = .DISCRETE;
+
+                        for memory_heaps {
+                            if it.flags & .VK_MEMORY_HEAP_DEVICE_LOCAL_BIT {
+                                memory_size += it.size;
+                            }
+                        }
+
+                    case .VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
+                        device.type = .INTEGRATED;
+
+                        for memory_heaps {
+                            memory_size += it.size;
+                        }
                 }
 
-                break type;
+                if memory_size > max_memory_size {
+                    max_memory_size        = memory_size;
+                    device.physical_device = physical_device_it.*;
+                }
             }
 
             physical_device_it += 1;
+        }
+
+        if device.physical_device {
+            available_device_memory = max_memory_size;
+            break;
         }
     }
 
@@ -790,7 +820,7 @@ findCompatiblePhysicalDevice :: (device : *VulkanDevice) -> u32 {
                       COMPATIBLE_PHYSICAL_DEVICE_TYPES[1]);
     }
 
-    infoMessage("Using device type: %", device.type);
+    infoMessage("Using % device with % GB of memory", device.type, available_device_memory / 1_073_741_824.0);
 
     if physical_device_properties.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
         assertMessage("Physical device API version is less than minimal requied API version: %.%.%.%",
