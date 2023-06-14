@@ -1,11 +1,13 @@
 CommandBuffer :: struct (usage : QueueType) {
     handles : [Device.MAX_SWAPCHAIN_BUFFERS] *void;
 
-    shader       : *Shader;
-    viewport     : Viewport;
-    scissor_rect : ScissorRect;
+    shader : *Shader;
 
-    inside_rendering : bool; // @Cleanup: Rename
+#if usage == .GRAPHICS {
+    viewport         : Viewport;
+    scissor_rect     : ScissorRect;
+    inside_rendering : bool;
+}
 }
 
 Viewport :: struct {
@@ -39,6 +41,16 @@ createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(u
     }
 
     return command_buffer;
+}
+
+resetCommandBuffer :: (command_buffer : *CommandBuffer) {
+    command_buffer.shader = null;
+
+    #if command_buffer.usage == .GRAPHICS {
+        command_buffer.viewport         = .{};
+        command_buffer.scissor_rect     = .{};
+        command_buffer.inside_rendering = false;
+    }
 }
 
 clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *Texture, clear_value : Texture.ClearValue) {

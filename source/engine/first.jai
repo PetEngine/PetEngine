@@ -108,8 +108,13 @@ main :: () {
         }
         endFrame(device);
 
-        resetArena(*context.pet.per_frame_arena);
-        Basic.reset_temporary_storage();
+        // Reset
+        {
+            resetCommandBuffer(*command_buffer);
+
+            resetArena(*context.pet.per_frame_arena);
+            Basic.reset_temporary_storage();
+        }
     }
 
     waitDeviceIdle(device);
