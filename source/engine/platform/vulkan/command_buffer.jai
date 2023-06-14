@@ -12,7 +12,7 @@ pushVulkanCommandBuffer :: (device : *VulkanDevice, swapchain_buffer_index : u32
 }
 
 // @Speed: Figure out something more optimal with access masks and pipeline stages.
-vulkanTextureLayoutBarrier :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, new_layout : VkImageLayout) #no_context {
+changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, new_layout : VkImageLayout) #no_context {
     if texture.current_layout == new_layout {
         return;
     }
@@ -20,8 +20,8 @@ vulkanTextureLayoutBarrier :: (command_buffer : VkCommandBuffer, texture : *Vulk
     image_barrier := VkImageMemoryBarrier.{
         sType               = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         pNext               = null,
-        srcAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
-        dstAccessMask       = VkAccessFlags.VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
+        srcAccessMask       = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
+        dstAccessMask       = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
         oldLayout           = texture.current_layout,
         newLayout           = new_layout,
         srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -47,10 +47,10 @@ vulkanTextureLayoutBarrier :: (command_buffer : VkCommandBuffer, texture : *Vulk
     texture.current_layout = new_layout;
 }
 
-// @TODO: #VulkanTexture. MIPs, layers, clear_value should not be VkClearColorValue.
+// @TODO: #VulkanTexture. MIPs, layers.
 clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, clear_value : Texture.ClearValue) {
     if texture.current_layout != .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL {
-        vulkanTextureLayoutBarrier(command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        changeVulkanTextureLayout(command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     }
 
     range := VkImageSubresourceRange.{
@@ -71,7 +71,7 @@ clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTextur
         };
 
         vkCmdClearColorImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
-    } else if format_flags & (Texture.FormatFlags.DEPTH | .STENCIL) {
+    } else if format_flags & (.DEPTH | .STENCIL) {
         if format_flags & .DEPTH   then range.aspectMask |= .VK_IMAGE_ASPECT_DEPTH_BIT;
         if format_flags & .STENCIL then range.aspectMask |= .VK_IMAGE_ASPECT_STENCIL_BIT;
 
@@ -84,4 +84,208 @@ clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTextur
     } else {
         assertMessage("Unsupported texture format for clearing: %", texture.format);
     }
+}
+
+setVulkanViewport :: inline (command_buffer : VkCommandBuffer, viewport : *Viewport, render_target_height : u16) #no_context {
+    vk_viewport := VkViewport.{
+        x        = viewport.x,
+        y        = cast(f32) render_target_height - viewport.y,
+        width    = viewport.width,
+        height   = -viewport.height,
+        minDepth = 0.0,
+        maxDepth = 1.0,
+    };
+
+    vkCmdSetViewport(command_buffer, 0, 1, *vk_viewport);
+}
+
+setVulkanScissorRect :: inline (command_buffer : VkCommandBuffer, scissor_rect : *ScissorRect) #no_context {
+    vk_scissor_rect := VkRect2D.{
+        offset = .{ scissor_rect.x,     scissor_rect.y      },
+        extent = .{ scissor_rect.width, scissor_rect.height },
+    };
+
+    vkCmdSetScissor(command_buffer, 0, 1, *vk_scissor_rect);
+}
+
+// TODO: Compute shaders
+setVulkanShader :: inline (command_buffer : VkCommandBuffer, shader : *VulkanShader) #no_context {
+    vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
+}
+
+// @TODO: #MSAA. Resolve attachments
+// @Speed: Load/store actions
+// @TODO: Mip selection
+beginVulkanRendering :: (
+    command_buffer : VkCommandBuffer,
+    color_targets  : .. *VulkanTexture,
+    depth_target   : *VulkanTexture
+) {
+    barriers    := pushToArena(*context.pet.per_frame_arena, VkImageMemoryBarrier, color_targets.count + cast,no_check(s64) (depth_target != null));
+    barriers_it := barriers;
+
+    color_attachments    := pushToArena(*context.pet.per_frame_arena, VkRenderingAttachmentInfo, color_targets.count);
+    color_attachments_it := color_attachments;
+
+    for color_targets {
+        if it.current_layout != .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL {
+            barriers_it.sType                           = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barriers_it.pNext                           = null;
+            barriers_it.srcAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
+            barriers_it.dstAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
+            barriers_it.oldLayout                       = it.current_layout;
+            barriers_it.newLayout                       = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            barriers_it.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+            barriers_it.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+            barriers_it.image                           = it.image;
+            barriers_it.subresourceRange.aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT;
+            barriers_it.subresourceRange.baseMipLevel   = 0;
+            barriers_it.subresourceRange.levelCount     = 1;
+            barriers_it.subresourceRange.baseArrayLayer = 0;
+            barriers_it.subresourceRange.layerCount     = 1;
+
+            it.current_layout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+            barriers_it += 1;
+        }
+
+        color_attachments_it.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        color_attachments_it.pNext              = null;
+        color_attachments_it.imageView          = it.view;
+        color_attachments_it.imageLayout        = it.current_layout;
+        color_attachments_it.resolveMode        = .VK_RESOLVE_MODE_NONE;
+        color_attachments_it.resolveImageView   = VK_NULL_HANDLE;
+        color_attachments_it.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
+        color_attachments_it.loadOp             = .VK_ATTACHMENT_LOAD_OP_LOAD;
+        color_attachments_it.storeOp            = .VK_ATTACHMENT_STORE_OP_STORE;
+        color_attachments_it.clearValue         = .{};
+
+        color_attachments_it += 1;
+    }
+
+    depth_attachment   : VkRenderingAttachmentInfo = ---;
+    stencil_attachment : VkRenderingAttachmentInfo = ---;
+
+    rendering_info := VkRenderingInfo.{
+        sType                = .VK_STRUCTURE_TYPE_RENDERING_INFO,
+        pNext                = null,
+        flags                = 0,
+        renderArea           = .{
+            offset = .{ 0, 0 },
+            extent = .{ color_targets[0].width, color_targets[0].height }
+        },
+        layerCount           = 1,
+        viewMask             = 0,
+        colorAttachmentCount = cast(u32) color_targets.count,
+        pColorAttachments    = color_attachments,
+        pDepthAttachment     = null,
+        pStencilAttachment   = null,
+    };
+
+    if depth_target {
+        format_flags := textureFormatFlags(depth_target.format);
+
+        if format_flags & .DEPTH {
+            depth_attachment.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+            depth_attachment.pNext              = null;
+            depth_attachment.imageView          = depth_target.view;
+            depth_attachment.imageLayout        = depth_target.current_layout;
+            depth_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
+            depth_attachment.resolveImageView   = VK_NULL_HANDLE;
+            depth_attachment.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
+            depth_attachment.loadOp             = .VK_ATTACHMENT_LOAD_OP_LOAD;
+            depth_attachment.storeOp            = .VK_ATTACHMENT_STORE_OP_STORE;
+            depth_attachment.clearValue         = .{};
+
+            rendering_info.pDepthAttachment = *depth_attachment;
+        }
+
+        if format_flags & .STENCIL {
+            stencil_attachment.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+            stencil_attachment.pNext              = null;
+            stencil_attachment.imageView          = depth_target.view;
+            stencil_attachment.imageLayout        = depth_target.current_layout;
+            stencil_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
+            stencil_attachment.resolveImageView   = VK_NULL_HANDLE;
+            stencil_attachment.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
+            stencil_attachment.loadOp             = .VK_ATTACHMENT_LOAD_OP_LOAD;
+            stencil_attachment.storeOp            = .VK_ATTACHMENT_STORE_OP_STORE;
+            stencil_attachment.clearValue         = .{};
+
+            rendering_info.pStencilAttachment = *stencil_attachment;
+        }
+
+        new_layout : VkImageLayout      = ---;
+        aspectMask : VkImageAspectFlags = ---;
+
+        if format_flags & (.DEPTH | .STENCIL) == (.DEPTH | .STENCIL) {
+            new_layout = ifx  depth_target.flags & .READ_ONLY
+                         then .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                         else .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+            aspectMask = .VK_IMAGE_ASPECT_DEPTH_BIT | .VK_IMAGE_ASPECT_STENCIL_BIT;
+        } else if format_flags & .DEPTH {
+            new_layout = ifx  depth_target.flags & .READ_ONLY
+                         then .VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL
+                         else .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+
+            aspectMask = .VK_IMAGE_ASPECT_DEPTH_BIT;
+        } else {
+            assert(format_flags & .STENCIL);
+
+            new_layout = ifx  depth_target.flags & .READ_ONLY
+                         then .VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL
+                         else .VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL;
+
+            aspectMask = .VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+
+        {
+            barriers_it.sType                           = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barriers_it.pNext                           = null;
+            barriers_it.srcAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
+            barriers_it.dstAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
+            barriers_it.oldLayout                       = depth_target.current_layout;
+            barriers_it.newLayout                       = new_layout;
+            barriers_it.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+            barriers_it.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+            barriers_it.image                           = depth_target.image;
+            barriers_it.subresourceRange.aspectMask     = aspectMask;
+            barriers_it.subresourceRange.baseMipLevel   = 0;
+            barriers_it.subresourceRange.levelCount     = 1;
+            barriers_it.subresourceRange.baseArrayLayer = 0;
+            barriers_it.subresourceRange.layerCount     = 1;
+
+            depth_target.current_layout = new_layout;
+
+            barriers_it += 1;
+        }
+    }
+
+    barriers_count := cast(u32) (barriers_it - barriers);
+    if barriers_count {
+        vkCmdPipelineBarrier(command_buffer,
+                             .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             0,
+                             0, null,
+                             0, null,
+                             barriers_count, barriers);
+    }
+
+    vkCmdBeginRendering(command_buffer, *rendering_info);
+}
+
+endVulkanRendering :: (command_buffer : VkCommandBuffer) #no_context {
+    vkCmdEndRendering(command_buffer);
+}
+
+drawVulkanPrimitives :: inline (
+    command_buffer : VkCommandBuffer,
+    vertex_count   : u32,
+    instance_count : u32,
+    first_vertex   : u32,
+    first_instance : u32
+) #no_context {
+    vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
 }

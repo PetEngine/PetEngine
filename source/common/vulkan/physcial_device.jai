@@ -450,6 +450,13 @@ VkPhysicalDeviceVulkan13Features :: struct {
     maintenance4                                       : VkBool32;
 }
 
+// Provided by VK_VERSION_1_3
+VkPhysicalDeviceDynamicRenderingFeatures :: struct {
+    sType            : VkStructureType;
+    pNext            : *void;
+    dynamicRendering : VkBool32;
+}
+
 // Provided by VK_VERSION_1_0
 vkEnumeratePhysicalDevices :: (
     instance             : VkInstance,

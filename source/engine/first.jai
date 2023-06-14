@@ -45,12 +45,15 @@ main :: () {
     texture_manager := createTextureManager(device);
     defer destroyTextureManager(device, texture_manager);
 
+    shader_manager := createShaderManager(device);
+    defer destroyShaderManager(device, shader_manager);
+
     depth_buffer := createTexture(device,
                                   texture_manager,
                                   .D32,
                                   window.surface.width,
                                   window.surface.height,
-                                  flags = Texture.Flags.DEPTH_STENCIL | .COHERENT,
+                                  flags = .DEPTH_STENCIL | .COHERENT,
                                   "Depth buffer",
                                   .PERSISTENT_RESOLUTION_DEPENDENT);
 
@@ -61,6 +64,8 @@ main :: () {
 
     commitTextureMemory(device, texture_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
     defer resetTextureMemory(device, texture_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
+
+    triangle_shader := createShader(device, shader_manager, "triangle");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 
@@ -80,7 +85,7 @@ main :: () {
 
             // Create per frame textures here...
 
-            // @Cleanup: #PerFrameTextures. Should we can upload data to per frame textures?
+            // @Cleanup: #PerFrameTextures. Should we be able to upload data to per frame textures?
             //           Maybe we want to restrict to upload data to per frame textures?
             //           Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame textures
             //           since we do not want tot release memory which is in use by async queues.
@@ -91,6 +96,15 @@ main :: () {
             // @TODO: #Settings. Get back buffer clear color from settings.
             clearTexture(device, *command_buffer, back_buffer,  .{ color_f32 = .[ 0.3, 0.3, 0.3, 0.0 ] });
             clearTexture(device, *command_buffer, depth_buffer, .{ depth = 1.0 });
+
+            beginRendering(device, *command_buffer, back_buffer);
+            {
+                setViewport(device, *command_buffer, *Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }, back_buffer.height);
+                setScissorRect(device, *command_buffer, *ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height });
+                setShader(device, *command_buffer, triangle_shader);
+                drawPrimitives(device, *command_buffer, 3);
+            }
+            endRendering(device, *command_buffer);
         }
         endFrame(device);
 
@@ -114,8 +128,10 @@ DEBUG_BUILD :: #run -> bool {
 #load "render/device.jai";
 #load "render/command_buffer.jai";
 #load "render/texture.jai";
+#load "render/shader.jai";
 
 String :: #import "String";
+File   :: #import "File";
 
 #scope_file
 

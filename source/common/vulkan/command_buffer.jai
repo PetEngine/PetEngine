@@ -10,6 +10,29 @@ VkCommandBufferLevel :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
+VkAttachmentLoadOp :: enum VkEnum {
+    VK_ATTACHMENT_LOAD_OP_LOAD      :: 0;
+    VK_ATTACHMENT_LOAD_OP_CLEAR     :: 1;
+    VK_ATTACHMENT_LOAD_OP_DONT_CARE :: 2;
+    // Provided by VK_EXT_load_store_op_none
+    VK_ATTACHMENT_LOAD_OP_NONE_EXT  :: 1000400000;
+}
+
+// Provided by VK_VERSION_1_0
+VkAttachmentStoreOp :: enum VkEnum {
+    VK_ATTACHMENT_STORE_OP_STORE     :: 0;
+    VK_ATTACHMENT_STORE_OP_DONT_CARE :: 1;
+    // Provided by VK_VERSION_1_3
+    VK_ATTACHMENT_STORE_OP_NONE      :: 1000301000;
+    // Provided by VK_KHR_dynamic_rendering
+    VK_ATTACHMENT_STORE_OP_NONE_KHR  :: VK_ATTACHMENT_STORE_OP_NONE;
+    // Provided by VK_QCOM_render_pass_store_ops
+    VK_ATTACHMENT_STORE_OP_NONE_QCOM :: VK_ATTACHMENT_STORE_OP_NONE;
+    // Provided by VK_EXT_load_store_op_none
+    VK_ATTACHMENT_STORE_OP_NONE_EXT  :: VK_ATTACHMENT_STORE_OP_NONE;
+}
+
+// Provided by VK_VERSION_1_0
 VkCommandBufferResetFlags :: enum_flags VkFlags {
     VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT :: 0x00000001;
 }
@@ -45,6 +68,37 @@ VkQueryPipelineStatisticFlags :: enum_flags VkFlags {
 // Provided by VK_VERSION_1_0
 VkQueryControlFlags :: enum_flags VkFlags {
     VK_QUERY_CONTROL_PRECISE_BIT :: 0x00000001;
+}
+
+// Provided by VK_VERSION_1_3
+VkRenderingFlags :: enum_flags VkFlags {
+    VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT     :: 0x00000001;
+    VK_RENDERING_SUSPENDING_BIT                             :: 0x00000002;
+    VK_RENDERING_RESUMING_BIT                               :: 0x00000004;
+    // Provided by VK_VERSION_1_3 with VK_EXT_legacy_dithering, VK_KHR_dynamic_rendering with VK_EXT_legacy_dithering
+    VK_RENDERING_ENABLE_LEGACY_DITHERING_BIT_EXT            :: 0x00000008;
+    VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT_KHR :: VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT;
+    VK_RENDERING_SUSPENDING_BIT_KHR                         :: VK_RENDERING_SUSPENDING_BIT;
+    VK_RENDERING_RESUMING_BIT_KHR                           :: VK_RENDERING_RESUMING_BIT;
+}
+
+// Provided by VK_VERSION_1_2
+VkResolveModeFlags :: enum_flags VkFlags {
+    VK_RESOLVE_MODE_NONE                :: 0;
+    VK_RESOLVE_MODE_SAMPLE_ZERO_BIT     :: 0x00000001;
+    VK_RESOLVE_MODE_AVERAGE_BIT         :: 0x00000002;
+    VK_RESOLVE_MODE_MIN_BIT             :: 0x00000004;
+    VK_RESOLVE_MODE_MAX_BIT             :: 0x00000008;
+    // Provided by VK_KHR_depth_stencil_resolve
+    VK_RESOLVE_MODE_NONE_KHR            :: VK_RESOLVE_MODE_NONE;
+    // Provided by VK_KHR_depth_stencil_resolve
+    VK_RESOLVE_MODE_SAMPLE_ZERO_BIT_KHR :: VK_RESOLVE_MODE_SAMPLE_ZERO_BIT;
+    // Provided by VK_KHR_depth_stencil_resolve
+    VK_RESOLVE_MODE_AVERAGE_BIT_KHR     :: VK_RESOLVE_MODE_AVERAGE_BIT;
+    // Provided by VK_KHR_depth_stencil_resolve
+    VK_RESOLVE_MODE_MIN_BIT_KHR         :: VK_RESOLVE_MODE_MIN_BIT;
+    // Provided by VK_KHR_depth_stencil_resolve
+    VK_RESOLVE_MODE_MAX_BIT_KHR         :: VK_RESOLVE_MODE_MAX_BIT;
 }
 
 // Provided by VK_VERSION_1_0
@@ -87,6 +141,40 @@ VkClearColorValue :: union {
 VkClearDepthStencilValue :: struct {
     depth   : f32;
     stencil : u32;
+}
+
+// Provided by VK_VERSION_1_0
+VkClearValue :: union {
+    color        : VkClearColorValue;
+    depthStencil : VkClearDepthStencilValue;
+}
+
+// Provided by VK_VERSION_1_3
+VkRenderingAttachmentInfo :: struct {
+    sType              : VkStructureType;
+    pNext              : *void;
+    imageView          : VkImageView;
+    imageLayout        : VkImageLayout;
+    resolveMode        : VkResolveModeFlags;
+    resolveImageView   : VkImageView;
+    resolveImageLayout : VkImageLayout;
+    loadOp             : VkAttachmentLoadOp;
+    storeOp            : VkAttachmentStoreOp;
+    clearValue         : VkClearValue;
+}
+
+// Provided by VK_VERSION_1_3
+VkRenderingInfo :: struct {
+    sType                : VkStructureType;
+    pNext                : *void;
+    flags                : VkRenderingFlags;
+    renderArea           : VkRect2D;
+    layerCount           : u32;
+    viewMask             : u32;
+    colorAttachmentCount : u32;
+    pColorAttachments    : *VkRenderingAttachmentInfo;
+    pDepthAttachment     : *VkRenderingAttachmentInfo;
+    pStencilAttachment   : *VkRenderingAttachmentInfo;
 }
 
 // Provided by VK_VERSION_1_0
@@ -139,4 +227,47 @@ vkCmdClearDepthStencilImage :: (
     pDepthStencil : *VkClearDepthStencilValue,
     rangeCount    : u32,
     pRanges       : *VkImageSubresourceRange
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkCmdSetViewport :: (
+    commandBuffer : VkCommandBuffer,
+    firstViewport : u32,
+    viewportCount : u32,
+    pViewports    : *VkViewport
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkCmdSetScissor :: (
+    commandBuffer : VkCommandBuffer,
+    firstScissor  : u32,
+    scissorCount  : u32,
+    pScissors     : *VkRect2D
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkCmdBindPipeline :: (
+    commandBuffer     : VkCommandBuffer,
+    pipelineBindPoint : VkPipelineBindPoint,
+    pipeline          : VkPipeline
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_3
+vkCmdBeginRendering :: (
+    commandBuffer  : VkCommandBuffer,
+    pRenderingInfo : *VkRenderingInfo
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_3
+vkCmdEndRendering :: (
+    commandBuffer : VkCommandBuffer
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkCmdDraw :: (
+    commandBuffer : VkCommandBuffer,
+    vertexCount   : u32,
+    instanceCount : u32,
+    firstVertex   : u32,
+    firstInstance : u32
 ) #foreign vulkan;

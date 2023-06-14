@@ -76,6 +76,12 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         output_path = builder_to_string(*builder);
     }
 
+    shaders_output_path : string = ---;
+    {
+        print_to_builder(*builder, "%/shaders", output_path);
+        shaders_output_path = builder_to_string(*builder);
+    }
+
     normalized_build_filename : string = ---;
     {
         success : bool = ---;
@@ -112,6 +118,9 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     assert(success);
 
     success = make_directory_if_it_does_not_exist(output_path, true);
+    assert(success);
+
+    success = make_directory_if_it_does_not_exist(shaders_output_path, true);
     assert(success);
 
     //

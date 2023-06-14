@@ -153,9 +153,9 @@ createTexture :: (
            "You cannot explicitly set RESOLUTION_DEPENDENT flag. You can set it by passing appropriate memory kind");
     assert(depth_or_array_size > 0 || !(flags & .ARRAY),
            "Number of elements in array of textures cannot be 0"); // @TODO: Dynamic arrays?
-    assert((flags & (Texture.Flags.COLOR_TARGET | .DEPTH_STENCIL)) != (Texture.Flags.COLOR_TARGET | .DEPTH_STENCIL),
+    assert((flags & (.COLOR_TARGET | .DEPTH_STENCIL)) != (.COLOR_TARGET | .DEPTH_STENCIL),
            "COLOR_TARGET and DEPTH_STENCIL flags cannot be combined");
-    assert((flags & (Texture.Flags.DEPTH_STENCIL | .READ_ONLY)) == (Texture.Flags.DEPTH_STENCIL | .READ_ONLY) || !(flags & .READ_ONLY),
+    assert((flags & (.DEPTH_STENCIL | .READ_ONLY)) == (.DEPTH_STENCIL | .READ_ONLY) || !(flags & .READ_ONLY),
            "READ_ONLY flags can be combined only with DEPTH_STENCIL flag");
     assert(samples_count ==  1 ||
            samples_count ==  2 ||
@@ -220,16 +220,16 @@ createTexture :: (
 textureFormatFlags :: (format : Texture.Format) -> Texture.FormatFlags #no_context {
     if #complete format == {
         case .UNKNOWN;       return 0;
-        case .RGB8_UNORM;    return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
-        case .RGB8_SNORM;    return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
-        case .BGR8_UNORM;    return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
-        case .BGR8_SNORM;    return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
-        case .RGBA8_UNORM;   return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
-        case .BGRA8_UNORM;   return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
-        case .RGB10A2_UNORM; return Texture.FormatFlags.UNCOMPRESSED | .COLOR;
-        case .D32;           return Texture.FormatFlags.UNCOMPRESSED | .DEPTH;
-        case .S8;            return Texture.FormatFlags.UNCOMPRESSED | .STENCIL;
-        case .BC7_UNORM;     return Texture.FormatFlags.COMPRESSED   | .COLOR;
+        case .RGB8_UNORM;    return .UNCOMPRESSED | .COLOR;
+        case .RGB8_SNORM;    return .UNCOMPRESSED | .COLOR;
+        case .BGR8_UNORM;    return .UNCOMPRESSED | .COLOR;
+        case .BGR8_SNORM;    return .UNCOMPRESSED | .COLOR;
+        case .RGBA8_UNORM;   return .UNCOMPRESSED | .COLOR;
+        case .BGRA8_UNORM;   return .UNCOMPRESSED | .COLOR;
+        case .RGB10A2_UNORM; return .UNCOMPRESSED | .COLOR;
+        case .D32;           return .UNCOMPRESSED | .DEPTH;
+        case .S8;            return .UNCOMPRESSED | .STENCIL;
+        case .BC7_UNORM;     return .COMPRESSED   | .COLOR;
     }
     return 0;
 }

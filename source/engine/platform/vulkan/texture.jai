@@ -1,3 +1,10 @@
+// @TODO: #VulkanTexture
+//      1. Abstract image and view(s) creation to not to write it several times
+//         in createVulkanTexture and in resizeResolutionDependentVulkanTextures.
+//      2. #Views. Image view(s) creation, maybe with usages to be more consistent with other graphics APIs.
+//      3. #SwapchainBuffers. Make a function for swapchain buffers initialization.
+//      4. #Resizable.
+
 VulkanTextureManager :: struct {
     #as using public_data : TextureManager;
 
@@ -93,15 +100,14 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
     memory_offset : VkDeviceSize = 0;
 
     bind_infos_it := bind_infos;
-    textures_it   := memory.textures.data;
 
-    for 0 .. memory.textures.count - 1 {
+    for * memory.textures {
         bind_infos_it.sType        = .VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
         bind_infos_it.pNext        = null;
-        bind_infos_it.image        = textures_it.image;
+        bind_infos_it.image        = it.image;
         bind_infos_it.memoryOffset = memory_offset;
 
-        memory_requirements_info.image = textures_it.image;
+        memory_requirements_info.image = it.image;
         vkGetImageMemoryRequirements2(device.device, *memory_requirements_info, *memory_requirements);
 
         requirements := *memory_requirements.memoryRequirements;
@@ -110,7 +116,6 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
         memory_offset += allocate_info.allocationSize;
 
         bind_infos_it += 1;
-        textures_it   += 1;
     }
 
     // @TODO: VkAllocationCallbacks
@@ -125,6 +130,57 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
     }
 
     debugCheckVK(vkBindImageMemory2(device.device, cast(u32) memory.textures.count, bind_infos));
+
+    // @Hardcoded: #Views.
+    for * memory.textures {
+        view_create_info := VkImageViewCreateInfo.{
+            sType            = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            pNext            = null,
+            flags            = 0,
+            image            = it.image,
+            format           = textureFormatToVulkanFormat(it.format),
+            components       = .{
+                r = .VK_COMPONENT_SWIZZLE_R,
+                g = .VK_COMPONENT_SWIZZLE_G,
+                b = .VK_COMPONENT_SWIZZLE_B,
+                a = .VK_COMPONENT_SWIZZLE_A,
+            },
+            subresourceRange = .{
+                aspectMask     = getVulkanImageAspectFlags(it),
+                baseMipLevel   = 0,
+                levelCount     = VK_REMAINING_MIP_LEVELS,
+                baseArrayLayer = 0,
+                layerCount     = VK_REMAINING_ARRAY_LAYERS,
+            },
+        };
+
+        if it.flags & .ARRAY {
+            if it.dimension == {
+                case ._1D;
+                    view_create_info.viewType = .VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+                case ._2D;
+                    view_create_info.viewType = ifx  it.flags & .CUBE
+                                                then .VK_IMAGE_VIEW_TYPE_CUBE_ARRAY
+                                                else .VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+            }
+        } else {
+            if #complete it.dimension == {
+                case ._1D;
+                    view_create_info.viewType = .VK_IMAGE_VIEW_TYPE_1D;
+                case ._2D;
+                    view_create_info.viewType = ifx  it.flags & .CUBE
+                                                then .VK_IMAGE_VIEW_TYPE_CUBE
+                                                else .VK_IMAGE_VIEW_TYPE_2D;
+                case ._3D;
+                    view_create_info.viewType = .VK_IMAGE_VIEW_TYPE_3D;
+            }
+        }
+
+        // @TODO: VkAllocationCallbacks
+        debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
+
+        setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE_VIEW, it.view, it.name);
+    }
 }
 
 resetVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
@@ -139,6 +195,8 @@ resetVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMan
     assert(memory.textures.count > 0);
 
     for * memory.textures {
+        // @TODO: VkAllocationCallbacks
+        vkDestroyImageView(device.device, it.view, null);
         // @TODO: VkAllocationCallbacks
         vkDestroyImage(device.device, it.image, null);
     }
@@ -164,7 +222,8 @@ VulkanTexture :: struct {
     #as using public_data : Texture;
 
     image          : VkImage;
-    current_layout : VkImageLayout;
+    view           : VkImageView;   // @TODO: #Views.
+    current_layout : VkImageLayout; // @TODO: Rename to just layout
 }
 
 createVulkanTexture :: (
@@ -444,6 +503,8 @@ destroyVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureM
             for * memory_it.textures {
                 warningMessage("Texture \"%\" in % has not been freed", it.name, memory_it.arena.name);
                 // @TODO: VkAllocationCallbacks
+                vkDestroyImageView(device.device, it.view, null);
+                // @TODO: VkAllocationCallbacks
                 vkDestroyImage(device.device, it.image, null);
             }
             memory_it.textures.count = 0;
@@ -464,6 +525,8 @@ destroyVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureM
 
         for * memory.textures {
             warningMessage("Texture \"%\" in % has not been freed", it.name, memory.arena.name);
+            // @TODO: VkAllocationCallbacks
+            vkDestroyImageView(device.device, it.view, null);
             // @TODO: VkAllocationCallbacks
             vkDestroyImage(device.device, it.image, null);
         }
@@ -528,6 +591,9 @@ resizeResolutionDependentVulkanTextures :: (
         texture.height         = back_buffer.height;
         texture.current_layout = .VK_IMAGE_LAYOUT_UNDEFINED;
         texture.current_owner  = texture.possible_owners[0];
+
+        // @TODO: VkAllocationCallbacks
+        vkDestroyImageView(device.device, texture.view, null);
 
         // @TODO: VkAllocationCallbacks
         vkDestroyImage(device.device, texture.image, null);

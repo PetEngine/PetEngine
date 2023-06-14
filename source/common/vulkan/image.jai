@@ -106,6 +106,28 @@ VkImageTiling :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
+VkImageViewType :: enum VkEnum {
+    VK_IMAGE_VIEW_TYPE_1D         :: 0;
+    VK_IMAGE_VIEW_TYPE_2D         :: 1;
+    VK_IMAGE_VIEW_TYPE_3D         :: 2;
+    VK_IMAGE_VIEW_TYPE_CUBE       :: 3;
+    VK_IMAGE_VIEW_TYPE_1D_ARRAY   :: 4;
+    VK_IMAGE_VIEW_TYPE_2D_ARRAY   :: 5;
+    VK_IMAGE_VIEW_TYPE_CUBE_ARRAY :: 6;
+}
+
+// Provided by VK_VERSION_1_0
+VkComponentSwizzle :: enum VkEnum {
+    VK_COMPONENT_SWIZZLE_IDENTITY :: 0;
+    VK_COMPONENT_SWIZZLE_ZERO     :: 1;
+    VK_COMPONENT_SWIZZLE_ONE      :: 2;
+    VK_COMPONENT_SWIZZLE_R        :: 3;
+    VK_COMPONENT_SWIZZLE_G        :: 4;
+    VK_COMPONENT_SWIZZLE_B        :: 5;
+    VK_COMPONENT_SWIZZLE_A        :: 6;
+}
+
+// Provided by VK_VERSION_1_0
 VkImageUsageFlags :: enum_flags VkFlags {
     VK_IMAGE_USAGE_TRANSFER_SRC_BIT                         :: 0x00000001;
     VK_IMAGE_USAGE_TRANSFER_DST_BIT                         :: 0x00000002;
@@ -212,6 +234,16 @@ VkImageCreateFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
+VkImageViewCreateFlags :: enum_flags VkFlags {
+    // Provided by VK_EXT_fragment_density_map
+    VK_IMAGE_VIEW_CREATE_FRAGMENT_DENSITY_MAP_DYNAMIC_BIT_EXT     :: 0x00000001;
+    // Provided by VK_EXT_descriptor_buffer
+    VK_IMAGE_VIEW_CREATE_DESCRIPTOR_BUFFER_CAPTURE_REPLAY_BIT_EXT :: 0x00000004;
+    // Provided by VK_EXT_fragment_density_map2
+    VK_IMAGE_VIEW_CREATE_FRAGMENT_DENSITY_MAP_DEFERRED_BIT_EXT    :: 0x00000002;
+}
+
+// Provided by VK_VERSION_1_0
 VkImageSubresourceRange :: struct {
     aspectMask     : VkImageAspectFlags;
     baseMipLevel   : u32;
@@ -313,6 +345,26 @@ VkImageFormatProperties2 :: struct {
 }
 
 // Provided by VK_VERSION_1_0
+VkComponentMapping :: struct {
+    r : VkComponentSwizzle;
+    g : VkComponentSwizzle;
+    b : VkComponentSwizzle;
+    a : VkComponentSwizzle;
+}
+
+// Provided by VK_VERSION_1_0
+VkImageViewCreateInfo :: struct {
+    sType            : VkStructureType;
+    pNext            : *void;
+    flags            : VkImageViewCreateFlags;
+    image            : VkImage;
+    viewType         : VkImageViewType;
+    format           : VkFormat;
+    components       : VkComponentMapping;
+    subresourceRange : VkImageSubresourceRange;
+}
+
+// Provided by VK_VERSION_1_0
 vkCreateImage :: (
     device      : VkDevice,
     pCreateInfo : *VkImageCreateInfo,
@@ -363,3 +415,18 @@ vkGetPhysicalDeviceImageFormatProperties2 :: (
     pImageFormatInfo       : *VkPhysicalDeviceImageFormatInfo2,
     pImageFormatProperties : *VkImageFormatProperties2
 ) -> VkResult #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkCreateImageView :: (
+    device      : VkDevice,
+    pCreateInfo : *VkImageViewCreateInfo,
+    pAllocator  : *VkAllocationCallbacks,
+    pView       : *VkImageView
+) -> VkResult #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkDestroyImageView :: (
+    device     : VkDevice,
+    imageView  : VkImageView,
+    pAllocator : *VkAllocationCallbacks
+) #foreign vulkan;

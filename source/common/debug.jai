@@ -68,6 +68,8 @@ codeToString :: ($code : Code) -> string {
 
 #scope_file
 
+File :: #import "File";
+
 message :: (
     $priority        : MessagePriority,
     $format          : string,
@@ -200,5 +202,3 @@ formatOrExpression :: ($format : string, $expression : Code) -> string {
         return codeToString(expression);
     }
 }
-
-File :: #import "File";

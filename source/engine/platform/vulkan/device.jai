@@ -74,9 +74,11 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
     frame_data_it := device.frame_data.data;
 
     for 0 .. device.swapchain_buffers_count - 1 {
-        if frame_data_it.swapchain_texture.name.data {
-            Basic.free(frame_data_it.swapchain_texture.name.data);
-        }
+        // @TODO: #Views.
+        // @TODO: VkAllocationCallbacks
+        vkDestroyImageView(device.device, frame_data_it.swapchain_texture.view, null);
+
+        Basic.free(frame_data_it.swapchain_texture.name.data);
 
         for frame_data_it.command_pools {
             // @TODO: VkAllocationCallbacks
@@ -214,7 +216,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
         };
 
         WHICH_STAGE_WILL_WAIT_FOR_THE_SEMAPHORE :: VkPipelineStageFlags.[
-            VkPipelineStageFlags.VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | .VK_PIPELINE_STAGE_TRANSFER_BIT,
+            .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | .VK_PIPELINE_STAGE_TRANSFER_BIT,
             .VK_PIPELINE_STAGE_NONE,
             .VK_PIPELINE_STAGE_NONE
         ];
@@ -275,7 +277,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
         debugCheckVK(vkBeginCommandBuffer(post_frame_command_buffer, *begin_info));
 
         assert(frame_data.swapchain_texture.current_owner == .GRAPHICS);
-        vulkanTextureLayoutBarrier(post_frame_command_buffer, *frame_data.swapchain_texture, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        changeVulkanTextureLayout(post_frame_command_buffer, *frame_data.swapchain_texture, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         debugCheckVK(vkEndCommandBuffer(post_frame_command_buffer));
 
@@ -940,7 +942,7 @@ END;
         queue_type := cast(QueueType) it_index;
 
         vk_queue_type        := QUEUE_TYPE_TO_VK_QUEUE_FLAGS[queue_type];
-        vk_queue_other_types := (VkQueueFlags.VK_QUEUE_GRAPHICS_BIT | .VK_QUEUE_COMPUTE_BIT) & ~vk_queue_type;
+        vk_queue_other_types := (.VK_QUEUE_GRAPHICS_BIT | .VK_QUEUE_COMPUTE_BIT) & ~vk_queue_type;
 
         // 1. We are trying to find a queue family that supports ONLY concrete queue type (ideal situation).
         // 2. We are trying to find a queue family that supports needed queue type, but may support several queue types (ok situation).
@@ -1085,38 +1087,28 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
     }
 
-    // @TODO: #Features
-    #if false {
-        available_features_1_3 := VkPhysicalDeviceVulkan13Features.{
-            sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-            pNext = null,
-        };
+    dynamic_rendering_features := VkPhysicalDeviceDynamicRenderingFeatures.{
+        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES
+    };
 
-        available_features_1_2 := VkPhysicalDeviceVulkan12Features.{
-            sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-            pNext = ifx  device.api_version >= VK_API_VERSION_1_3
-                    then *available_features_1_3
-                    else null,
-        };
+    features_to_enable := VkPhysicalDeviceFeatures2.{
+        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        pNext = *dynamic_rendering_features,
+    };
 
-        available_features_1_1 := VkPhysicalDeviceVulkan11Features.{
-            sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-            pNext = *available_features_1_2,
-        };
+    available_features := VkPhysicalDeviceFeatures2.{
+        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        pNext = *dynamic_rendering_features,
+    };
 
-        available_features_1_0 := VkPhysicalDeviceFeatures2.{
-            sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-            pNext = *available_features_1_1,
-        };
+    vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
+    assert(dynamic_rendering_features.dynamicRendering == VK_TRUE);
 
-        vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features_1_0);
-
-        // @TODO: #Features. define optional and required features and validate it.
-    }
+    // @TODO: #Features. define optional and required features and validate it.
 
     device_create_info := VkDeviceCreateInfo.{
         sType                   = .VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        pNext                   = null, // @TODO: #Features
+        pNext                   = *features_to_enable,
         flags                   = 0,
         queueCreateInfoCount    = queue_create_infos_count,
         pQueueCreateInfos       = queue_create_infos.data,
@@ -1327,7 +1319,7 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
         // @Important: Should be with default allocator
         builder : Basic.String_Builder;
 
-        // @TODO: #VulkanTexture. Add these images to texture manager
+        // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to texture manager
         for 0 .. device.swapchain_buffers_count - 1 {
             Basic.print_to_builder(*builder, "Swapchain image #%", it);
 
@@ -1337,7 +1329,7 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
 
             frame_data_it.swapchain_texture.dimension             = ._2D;
             frame_data_it.swapchain_texture.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
-            frame_data_it.swapchain_texture.flags                 = Texture.Flags.SWAPCHAIN | .RESOLUTION_DEPENDENT;
+            frame_data_it.swapchain_texture.flags                 = .SWAPCHAIN | .RESOLUTION_DEPENDENT;
             frame_data_it.swapchain_texture.width                 = cast(u16) surface_extent.width;
             frame_data_it.swapchain_texture.height                = cast(u16) surface_extent.height;
             frame_data_it.swapchain_texture.depth                 = 0;
@@ -1355,6 +1347,44 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
             #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then frame_data_it.swapchain_texture.flags |= .COLOR_TARGET;
 
             setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, frame_data_it.swapchain_texture.image, frame_data_it.swapchain_texture.name);
+
+            // @TODO: #Views.
+            {
+                if frame_data_it.swapchain_texture.view {
+                    // @TODO: VkAllocationCallbacks
+                    vkDestroyImageView(device.device, frame_data_it.swapchain_texture.view, null);
+                }
+
+                view_create_info := VkImageViewCreateInfo.{
+                    sType            = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                    pNext            = null,
+                    flags            = 0,
+                    image            = frame_data_it.swapchain_texture.image,
+                    viewType         = .VK_IMAGE_VIEW_TYPE_2D,
+                    format           = allowed_surface_format.format,
+                    components       = .{
+                        r = .VK_COMPONENT_SWIZZLE_R,
+                        g = .VK_COMPONENT_SWIZZLE_G,
+                        b = .VK_COMPONENT_SWIZZLE_B,
+                        a = .VK_COMPONENT_SWIZZLE_A,
+                    },
+                    subresourceRange = .{
+                        aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
+                        baseMipLevel   = 0,
+                        levelCount     = 1,
+                        baseArrayLayer = 0,
+                        layerCount     = 1,
+                    },
+                };
+
+                // @TODO: VkAllocationCallbacks
+                debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *frame_data_it.swapchain_texture.view));
+
+                setVulkanObjectName(device,
+                                    .VK_OBJECT_TYPE_IMAGE_VIEW,
+                                    frame_data_it.swapchain_texture.view,
+                                    frame_data_it.swapchain_texture.name);
+            }
 
             frame_data_it       += 1;
             swapchain_images_it += 1;
