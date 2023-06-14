@@ -24,7 +24,42 @@ ScissorRect :: struct {
     y      : s32;
     width  : u32;
     height : u32;
-};
+}
+
+TargetLoadAction :: enum u8 {
+    NONE;
+    CLEAR;
+    LOAD;
+}
+
+TargetStoreAction :: enum u8 {
+    NONE;
+    STORE;
+}
+
+ColorTargetDesc :: struct {
+    texture : *Texture;
+
+    load_action  : TargetLoadAction;
+    store_action : TargetStoreAction;
+    clear_value  : union {
+        as_f32 : [4] f32;
+        as_u32 : [4] u32;
+        as_s32 : [4] s32;
+    };
+}
+
+DepthTargetDesc :: struct {
+    texture : *Texture;
+
+    depth_load_action  : TargetLoadAction;
+    depth_store_action : TargetStoreAction;
+    depth_clear_value  : f32;
+
+    stencil_load_action  : TargetLoadAction;
+    stencil_store_action : TargetStoreAction;
+    stencil_clear_value  : u32;
+}
 
 // @TODO: Per-frame command buffers
 createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(usage) #must {
@@ -119,8 +154,8 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader : *Shade
 beginRendering :: (
     device         : *Device,
     command_buffer : *CommandBuffer,
-    color_targets  : .. *Texture,    // @TODO: Exchange with array view when Jai will support non-constant array literals.
-    depth_target   : *Texture = null
+    color_targets  : [] ColorTargetDesc,
+    depth_target   : *DepthTargetDesc = null
 ) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can begin rendering";
 
@@ -128,34 +163,41 @@ beginRendering :: (
     assert(color_targets.count > 0 || depth_target, "You must specify at least one color target or/and depth target");
 
     #if DEBUG_BUILD {
-        reference_target := color_targets[0];
+        reference_texture : *Texture = ---;
+        if color_targets.count > 0 {
+            reference_texture = color_targets[0].texture;
+        } else {
+            reference_texture = depth_target.texture;
+        }
 
         for color_targets {
-            assert(it.flags & .COLOR_TARGET,
+            assert(it.texture);
+
+            assert(it.texture.flags & .COLOR_TARGET,
                    "If you want to use \"%\" texture as color target add % flag on its creation",
-                   it.name,
+                   it.texture.name,
                    Texture.Flags.COLOR_TARGET);
 
-            assert(it.width == reference_target.width && it.height == reference_target.height,
+            assert(it.texture.width == reference_texture.width && it.texture.height == reference_texture.height,
                    "All color targets should have the same width and height");
         }
 
         if depth_target {
-            assert(depth_target.flags & .COLOR_TARGET,
+            assert(depth_target.texture);
+
+            assert(depth_target.texture.flags & .COLOR_TARGET,
                    "If you want to use \"%\" texture as depth target add % flag on its creation",
-                   depth_target.name,
+                   depth_target.texture.name,
                    Texture.Flags.DEPTH_STENCIL);
 
-            assert(depth_target.width == reference_target.width && depth_target.height == reference_target.height,
+            assert(depth_target.texture.width == reference_texture.width && depth_target.texture.height == reference_texture.height,
                    "Depth target should have the same width and height as color targets have");
         }
     }
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            beginVulkanRendering(command_buffer.handles[device.back_buffer_index],
-                                 .. cast([] *VulkanTexture) color_targets,
-                                 depth_target = cast(*VulkanTexture) depth_target);
+            beginVulkanRendering(command_buffer.handles[device.back_buffer_index], color_targets, depth_target);
     }
 
     command_buffer.inside_rendering = true;

@@ -116,11 +116,7 @@ setVulkanShader :: inline (command_buffer : VkCommandBuffer, shader : *VulkanSha
 // @TODO: #MSAA. Resolve attachments
 // @Speed: Load/store actions
 // @TODO: Mip selection
-beginVulkanRendering :: (
-    command_buffer : VkCommandBuffer,
-    color_targets  : .. *VulkanTexture,
-    depth_target   : *VulkanTexture
-) {
+beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] ColorTargetDesc, depth_target : *DepthTargetDesc) {
     barriers    := pushToArena(*context.pet.per_frame_arena, VkImageMemoryBarrier, color_targets.count + cast,no_check(s64) (depth_target != null));
     barriers_it := barriers;
 
@@ -128,43 +124,51 @@ beginVulkanRendering :: (
     color_attachments_it := color_attachments;
 
     for color_targets {
-        if it.current_layout != .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL {
+        texture := cast(*VulkanTexture) it.texture;
+
+        if texture.current_layout != .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL {
             barriers_it.sType                           = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
             barriers_it.pNext                           = null;
             barriers_it.srcAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
             barriers_it.dstAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
-            barriers_it.oldLayout                       = it.current_layout;
+            barriers_it.oldLayout                       = texture.current_layout;
             barriers_it.newLayout                       = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             barriers_it.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
             barriers_it.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-            barriers_it.image                           = it.image;
+            barriers_it.image                           = texture.image;
             barriers_it.subresourceRange.aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT;
             barriers_it.subresourceRange.baseMipLevel   = 0;
             barriers_it.subresourceRange.levelCount     = 1;
             barriers_it.subresourceRange.baseArrayLayer = 0;
             barriers_it.subresourceRange.layerCount     = 1;
 
-            it.current_layout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            texture.current_layout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
             barriers_it += 1;
         }
 
         color_attachments_it.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
         color_attachments_it.pNext              = null;
-        color_attachments_it.imageView          = it.view;
-        color_attachments_it.imageLayout        = it.current_layout;
+        color_attachments_it.imageView          = texture.view;
+        color_attachments_it.imageLayout        = texture.current_layout;
         color_attachments_it.resolveMode        = .VK_RESOLVE_MODE_NONE;
         color_attachments_it.resolveImageView   = VK_NULL_HANDLE;
         color_attachments_it.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-        color_attachments_it.loadOp             = .VK_ATTACHMENT_LOAD_OP_LOAD;
-        color_attachments_it.storeOp            = .VK_ATTACHMENT_STORE_OP_STORE;
-        color_attachments_it.clearValue         = .{};
+        color_attachments_it.loadOp             = loadActionToVulkanLoadOp(it.load_action);
+        color_attachments_it.storeOp            = storeActionToVulkanStoreOp(it.store_action);
+        color_attachments_it.clearValue         = .{
+            color = .{ float32_ = it.clear_value.as_f32 }
+        };
 
         color_attachments_it += 1;
     }
 
-    depth_attachment   : VkRenderingAttachmentInfo = ---;
-    stencil_attachment : VkRenderingAttachmentInfo = ---;
+    rendering_extent : VkExtent2D = ---;
+    if color_targets.count > 0 {
+        rendering_extent = .{ color_targets[0].texture.width, color_targets[0].texture.height };
+    } else {
+        rendering_extent = .{ depth_target.texture.width, depth_target.texture.height };
+    }
 
     rendering_info := VkRenderingInfo.{
         sType                = .VK_STRUCTURE_TYPE_RENDERING_INFO,
@@ -172,7 +176,7 @@ beginVulkanRendering :: (
         flags                = 0,
         renderArea           = .{
             offset = .{ 0, 0 },
-            extent = .{ color_targets[0].width, color_targets[0].height }
+            extent = rendering_extent
         },
         layerCount           = 1,
         viewMask             = 0,
@@ -182,20 +186,27 @@ beginVulkanRendering :: (
         pStencilAttachment   = null,
     };
 
+    depth_attachment   : VkRenderingAttachmentInfo = ---;
+    stencil_attachment : VkRenderingAttachmentInfo = ---;
+
     if depth_target {
-        format_flags := textureFormatFlags(depth_target.format);
+        texture := cast(*VulkanTexture) depth_target.texture;
+
+        format_flags := textureFormatFlags(texture.format);
 
         if format_flags & .DEPTH {
             depth_attachment.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
             depth_attachment.pNext              = null;
-            depth_attachment.imageView          = depth_target.view;
-            depth_attachment.imageLayout        = depth_target.current_layout;
+            depth_attachment.imageView          = texture.view;
+            depth_attachment.imageLayout        = texture.current_layout;
             depth_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
             depth_attachment.resolveImageView   = VK_NULL_HANDLE;
             depth_attachment.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-            depth_attachment.loadOp             = .VK_ATTACHMENT_LOAD_OP_LOAD;
-            depth_attachment.storeOp            = .VK_ATTACHMENT_STORE_OP_STORE;
-            depth_attachment.clearValue         = .{};
+            depth_attachment.loadOp             = loadActionToVulkanLoadOp(depth_target.depth_load_action);
+            depth_attachment.storeOp            = storeActionToVulkanStoreOp(depth_target.depth_store_action);
+            depth_attachment.clearValue         = .{
+                depthStencil = .{ depth = depth_target.depth_clear_value }
+            };
 
             rendering_info.pDepthAttachment = *depth_attachment;
         }
@@ -203,14 +214,16 @@ beginVulkanRendering :: (
         if format_flags & .STENCIL {
             stencil_attachment.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
             stencil_attachment.pNext              = null;
-            stencil_attachment.imageView          = depth_target.view;
-            stencil_attachment.imageLayout        = depth_target.current_layout;
+            stencil_attachment.imageView          = texture.view;
+            stencil_attachment.imageLayout        = texture.current_layout;
             stencil_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
             stencil_attachment.resolveImageView   = VK_NULL_HANDLE;
             stencil_attachment.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-            stencil_attachment.loadOp             = .VK_ATTACHMENT_LOAD_OP_LOAD;
-            stencil_attachment.storeOp            = .VK_ATTACHMENT_STORE_OP_STORE;
-            stencil_attachment.clearValue         = .{};
+            stencil_attachment.loadOp             = loadActionToVulkanLoadOp(depth_target.stencil_load_action);
+            stencil_attachment.storeOp            = storeActionToVulkanStoreOp(depth_target.stencil_store_action);
+            stencil_attachment.clearValue         = .{
+                depthStencil = .{ stencil = depth_target.stencil_clear_value }
+            };
 
             rendering_info.pStencilAttachment = *stencil_attachment;
         }
@@ -219,13 +232,13 @@ beginVulkanRendering :: (
         aspectMask : VkImageAspectFlags = ---;
 
         if format_flags & (.DEPTH | .STENCIL) == (.DEPTH | .STENCIL) {
-            new_layout = ifx  depth_target.flags & .READ_ONLY
+            new_layout = ifx  texture.flags & .READ_ONLY
                          then .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
                          else .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
             aspectMask = .VK_IMAGE_ASPECT_DEPTH_BIT | .VK_IMAGE_ASPECT_STENCIL_BIT;
         } else if format_flags & .DEPTH {
-            new_layout = ifx  depth_target.flags & .READ_ONLY
+            new_layout = ifx  texture.flags & .READ_ONLY
                          then .VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL
                          else .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 
@@ -233,7 +246,7 @@ beginVulkanRendering :: (
         } else {
             assert(format_flags & .STENCIL);
 
-            new_layout = ifx  depth_target.flags & .READ_ONLY
+            new_layout = ifx  texture.flags & .READ_ONLY
                          then .VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL
                          else .VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL;
 
@@ -245,18 +258,18 @@ beginVulkanRendering :: (
             barriers_it.pNext                           = null;
             barriers_it.srcAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
             barriers_it.dstAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
-            barriers_it.oldLayout                       = depth_target.current_layout;
+            barriers_it.oldLayout                       = texture.current_layout;
             barriers_it.newLayout                       = new_layout;
             barriers_it.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
             barriers_it.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-            barriers_it.image                           = depth_target.image;
+            barriers_it.image                           = texture.image;
             barriers_it.subresourceRange.aspectMask     = aspectMask;
             barriers_it.subresourceRange.baseMipLevel   = 0;
             barriers_it.subresourceRange.levelCount     = 1;
             barriers_it.subresourceRange.baseArrayLayer = 0;
             barriers_it.subresourceRange.layerCount     = 1;
 
-            depth_target.current_layout = new_layout;
+            texture.current_layout = new_layout;
 
             barriers_it += 1;
         }
@@ -288,4 +301,21 @@ drawVulkanPrimitives :: inline (
     first_instance : u32
 ) #no_context {
     vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
+}
+
+#scope_file
+
+loadActionToVulkanLoadOp :: (action : TargetLoadAction) -> VkAttachmentLoadOp #no_context {
+    if #complete action == {
+        case .NONE;  return .VK_ATTACHMENT_LOAD_OP_DONT_CARE; // @TODO: VK_ATTACHMENT_LOAD_OP_NONE_EXT
+        case .CLEAR; return .VK_ATTACHMENT_LOAD_OP_CLEAR;
+        case .LOAD;  return .VK_ATTACHMENT_LOAD_OP_LOAD;
+    }
+}
+
+storeActionToVulkanStoreOp :: (action : TargetStoreAction) -> VkAttachmentStoreOp #no_context {
+    if #complete action == {
+        case .NONE;  return .VK_ATTACHMENT_STORE_OP_DONT_CARE; // @TODO: VK_ATTACHMENT_STORE_OP_NONE
+        case .STORE; return .VK_ATTACHMENT_STORE_OP_STORE;
+    }
 }

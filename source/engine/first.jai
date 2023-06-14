@@ -93,11 +93,17 @@ main :: () {
 
             back_buffer := getBackBuffer(device);
 
-            // @TODO: #Settings. Get back buffer clear color from settings.
-            clearTexture(device, *command_buffer, back_buffer,  .{ color_f32 = .[ 0.3, 0.3, 0.3, 0.0 ] });
             clearTexture(device, *command_buffer, depth_buffer, .{ depth = 1.0 });
 
-            beginRendering(device, *command_buffer, back_buffer);
+            color_targets : [1] ColorTargetDesc = ---;
+            color_targets[0] = .{
+                texture      = back_buffer,
+                load_action  = .CLEAR,
+                store_action = .STORE,
+                clear_value  = .{ as_f32 = .[ 0.3, 0.3, 0.3, 0.0 ] } // @TODO: #Settings. Get back buffer clear color from settings.
+            };
+
+            beginRendering(device, *command_buffer, color_targets);
             {
                 setViewport(device, *command_buffer, *Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }, back_buffer.height);
                 setScissorRect(device, *command_buffer, *ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height });
