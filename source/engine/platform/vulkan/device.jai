@@ -1,3 +1,4 @@
+// @Cleanup: Reorder fields
 VulkanDevice :: struct {
     #as using public_data : Device;
 
@@ -26,6 +27,9 @@ VulkanDevice :: struct {
     jai_context : *Context;
 
     loader : VulkanLoader;
+
+    properties12 : VkPhysicalDeviceVulkan12Properties;
+    limits       : VkPhysicalDeviceLimits;
 }
 
 createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
@@ -848,12 +852,10 @@ END;
                 s8_array_to_string(properties.deviceName),
                 new_line = false);
 
-    driver_properties := VkPhysicalDeviceDriverProperties.{
-        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES,
-        pNext = null,
-    };
+    device.properties12.sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES;
 
-    physical_device_properties.pNext = *driver_properties;
+    physical_device_properties.pNext = *device.properties12;
+
     vkGetPhysicalDeviceProperties2(device.physical_device, *physical_device_properties);
 
     DRIVER_INFO_MESSAGE :: #string END
@@ -865,14 +867,16 @@ Driver info:
 END;
 
     infoMessage(DRIVER_INFO_MESSAGE,
-                driver_properties.driverID,
-                s8_array_to_string(driver_properties.driverName),
-                s8_array_to_string(driver_properties.driverInfo),
-                driver_properties.conformanceVersion.major,
-                driver_properties.conformanceVersion.minor,
-                driver_properties.conformanceVersion.subminor,
-                driver_properties.conformanceVersion.patch,
+                device.properties12.driverID,
+                s8_array_to_string(device.properties12.driverName),
+                s8_array_to_string(device.properties12.driverInfo),
+                device.properties12.conformanceVersion.major,
+                device.properties12.conformanceVersion.minor,
+                device.properties12.conformanceVersion.subminor,
+                device.properties12.conformanceVersion.patch,
                 new_line = false);
+
+    device.limits = properties.limits;
 
     return properties.apiVersion;
 }

@@ -91,6 +91,19 @@ VkDriverId :: enum VkEnum {
     VK_DRIVER_ID_BROADCOM_PROPRIETARY_KHR      :: VK_DRIVER_ID_BROADCOM_PROPRIETARY;
 }
 
+// Provided by VK_VERSION_1_2
+VkShaderFloatControlsIndependence :: enum VkEnum {
+    VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_32_BIT_ONLY     :: 0;
+    VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_ALL             :: 1;
+    VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_NONE            :: 2;
+    // Provided by VK_KHR_shader_float_controls
+    VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_32_BIT_ONLY_KHR :: VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_32_BIT_ONLY;
+    // Provided by VK_KHR_shader_float_controls
+    VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_ALL_KHR         :: VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_ALL;
+    // Provided by VK_KHR_shader_float_controls
+    VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_NONE_KHR        :: VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_NONE;
+}
+
 // Provided by VK_VERSION_1_0
 VkSampleCountFlags :: enum_flags VkFlags {
     VK_SAMPLE_COUNT_1_BIT  :: 0x00000001;
@@ -283,6 +296,64 @@ VkQueueFamilyProperties :: struct {
     queueCount                  : u32;
     timestampValidBits          : u32;
     minImageTransferGranularity : VkExtent3D;
+}
+
+// Provided by VK_VERSION_1_2
+VkPhysicalDeviceVulkan12Properties :: struct {
+    sType                                                : VkStructureType;
+    pNext                                                : *void;
+    driverID                                             : VkDriverId;
+    driverName                                           : [VK_MAX_DRIVER_NAME_SIZE] s8;
+    driverInfo                                           : [VK_MAX_DRIVER_INFO_SIZE] s8;
+    conformanceVersion                                   : VkConformanceVersion;
+    denormBehaviorIndependence                           : VkShaderFloatControlsIndependence;
+    roundingModeIndependence                             : VkShaderFloatControlsIndependence;
+    shaderSignedZeroInfNanPreserveFloat16                : VkBool32;
+    shaderSignedZeroInfNanPreserveFloat32                : VkBool32;
+    shaderSignedZeroInfNanPreserveFloat64                : VkBool32;
+    shaderDenormPreserveFloat16                          : VkBool32;
+    shaderDenormPreserveFloat32                          : VkBool32;
+    shaderDenormPreserveFloat64                          : VkBool32;
+    shaderDenormFlushToZeroFloat16                       : VkBool32;
+    shaderDenormFlushToZeroFloat32                       : VkBool32;
+    shaderDenormFlushToZeroFloat64                       : VkBool32;
+    shaderRoundingModeRTEFloat16                         : VkBool32;
+    shaderRoundingModeRTEFloat32                         : VkBool32;
+    shaderRoundingModeRTEFloat64                         : VkBool32;
+    shaderRoundingModeRTZFloat16                         : VkBool32;
+    shaderRoundingModeRTZFloat32                         : VkBool32;
+    shaderRoundingModeRTZFloat64                         : VkBool32;
+    maxUpdateAfterBindDescriptorsInAllPools              : u32;
+    shaderUniformBufferArrayNonUniformIndexingNative     : VkBool32;
+    shaderSampledImageArrayNonUniformIndexingNative      : VkBool32;
+    shaderStorageBufferArrayNonUniformIndexingNative     : VkBool32;
+    shaderStorageImageArrayNonUniformIndexingNative      : VkBool32;
+    shaderInputAttachmentArrayNonUniformIndexingNative   : VkBool32;
+    robustBufferAccessUpdateAfterBind                    : VkBool32;
+    quadDivergentImplicitLod                             : VkBool32;
+    maxPerStageDescriptorUpdateAfterBindSamplers         : u32;
+    maxPerStageDescriptorUpdateAfterBindUniformBuffers   : u32;
+    maxPerStageDescriptorUpdateAfterBindStorageBuffers   : u32;
+    maxPerStageDescriptorUpdateAfterBindSampledImages    : u32;
+    maxPerStageDescriptorUpdateAfterBindStorageImages    : u32;
+    maxPerStageDescriptorUpdateAfterBindInputAttachments : u32;
+    maxPerStageUpdateAfterBindResources                  : u32;
+    maxDescriptorSetUpdateAfterBindSamplers              : u32;
+    maxDescriptorSetUpdateAfterBindUniformBuffers        : u32;
+    maxDescriptorSetUpdateAfterBindUniformBuffersDynamic : u32;
+    maxDescriptorSetUpdateAfterBindStorageBuffers        : u32;
+    maxDescriptorSetUpdateAfterBindStorageBuffersDynamic : u32;
+    maxDescriptorSetUpdateAfterBindSampledImages         : u32;
+    maxDescriptorSetUpdateAfterBindStorageImages         : u32;
+    maxDescriptorSetUpdateAfterBindInputAttachments      : u32;
+    supportedDepthResolveModes                           : VkResolveModeFlags;
+    supportedStencilResolveModes                         : VkResolveModeFlags;
+    independentResolveNone                               : VkBool32;
+    independentResolve                                   : VkBool32;
+    filterMinmaxSingleComponentFormats                   : VkBool32;
+    filterMinmaxImageComponentMapping                    : VkBool32;
+    maxTimelineSemaphoreValueDifference                  : u64;
+    framebufferIntegerColorSampleCounts                  : VkSampleCountFlags;
 }
 
 // Provided by VK_VERSION_1_1

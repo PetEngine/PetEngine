@@ -104,6 +104,7 @@ Texture :: struct {
         COLOR;
         DEPTH;
         STENCIL;
+        INTEGER;
     }
 
     // @TODO: #Math. Make it vector
@@ -235,7 +236,7 @@ textureFormatFlags :: (format : Texture.Format) -> Texture.FormatFlags #no_conte
         case .BGRA8_UNORM;   return .UNCOMPRESSED | .COLOR;
         case .RGB10A2_UNORM; return .UNCOMPRESSED | .COLOR;
         case .D32;           return .UNCOMPRESSED | .DEPTH;
-        case .S8;            return .UNCOMPRESSED | .STENCIL;
+        case .S8;            return .UNCOMPRESSED | .STENCIL | .INTEGER;
         case .BC7_UNORM;     return .COMPRESSED   | .COLOR;
     }
     return 0;
