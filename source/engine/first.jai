@@ -53,7 +53,7 @@ main :: () {
                                   .D32,
                                   window.surface.width,
                                   window.surface.height,
-                                  flags = .DEPTH_STENCIL | .COHERENT,
+                                  usage = .DEPTH_TARGET | .SHADER_READ,
                                   "Depth buffer",
                                   .PERSISTENT_RESOLUTION_DEPENDENT);
 

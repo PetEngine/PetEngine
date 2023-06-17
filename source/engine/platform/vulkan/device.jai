@@ -1342,9 +1342,9 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
             frame_data_it.swapchain_texture.image                 = swapchain_images_it.*;
             frame_data_it.swapchain_texture.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
 
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then frame_data_it.swapchain_texture.flags |= .COHERENT;
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then frame_data_it.swapchain_texture.flags |= .NONCOHERENT;
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then frame_data_it.swapchain_texture.flags |= .COLOR_TARGET;
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then frame_data_it.swapchain_texture.usage |= .SHADER_READ;
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then frame_data_it.swapchain_texture.usage |= .SHADER_WRITE;
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then frame_data_it.swapchain_texture.usage |= .COLOR_TARGET;
 
             setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, frame_data_it.swapchain_texture.image, frame_data_it.swapchain_texture.name);
 

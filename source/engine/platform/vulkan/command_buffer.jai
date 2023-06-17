@@ -113,9 +113,12 @@ setVulkanShader :: inline (command_buffer : VkCommandBuffer, shader : *VulkanSha
     vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
 }
 
-// @TODO: #MSAA. Resolve attachments
 // @Speed: Load/store actions
-// @TODO: Mip selection
+// @TODO: #MSAA. Resolve attachments
+//        Mip selection
+//        VkPhysicalDeviceLimits::maxColorAttachments
+//        VkPhysicalDeviceLimits::maxFramebufferWidth
+//        VkPhysicalDeviceLimits::maxFramebufferHeight
 beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] ColorTargetDesc, depth_target : *DepthTargetDesc) {
     barriers    := pushToArena(*context.pet.per_frame_arena, VkImageMemoryBarrier, color_targets.count + cast,no_check(s64) (depth_target != null));
     barriers_it := barriers;
@@ -232,13 +235,13 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         aspectMask : VkImageAspectFlags = ---;
 
         if format_flags & (.DEPTH | .STENCIL) == (.DEPTH | .STENCIL) {
-            new_layout = ifx  texture.flags & .READ_ONLY
+            new_layout = ifx  texture.usage & .READ_ONLY
                          then .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
                          else .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
             aspectMask = .VK_IMAGE_ASPECT_DEPTH_BIT | .VK_IMAGE_ASPECT_STENCIL_BIT;
         } else if format_flags & .DEPTH {
-            new_layout = ifx  texture.flags & .READ_ONLY
+            new_layout = ifx  texture.usage & .READ_ONLY
                          then .VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL
                          else .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 
@@ -246,7 +249,7 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         } else {
             assert(format_flags & .STENCIL);
 
-            new_layout = ifx  texture.flags & .READ_ONLY
+            new_layout = ifx  texture.usage & .READ_ONLY
                          then .VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL
                          else .VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL;
 

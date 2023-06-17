@@ -173,10 +173,10 @@ beginRendering :: (
         for color_targets {
             assert(it.texture);
 
-            assert(it.texture.flags & .COLOR_TARGET,
-                   "If you want to use \"%\" texture as color target add % flag on its creation",
+            assert(it.texture.usage & .COLOR_TARGET,
+                   "If you want to use \"%\" texture as color target add % usage on its creation",
                    it.texture.name,
-                   Texture.Flags.COLOR_TARGET);
+                   Texture.Usage.COLOR_TARGET);
 
             assert(it.texture.width == reference_texture.width && it.texture.height == reference_texture.height,
                    "All color targets should have the same width and height");
@@ -185,10 +185,10 @@ beginRendering :: (
         if depth_target {
             assert(depth_target.texture);
 
-            assert(depth_target.texture.flags & .COLOR_TARGET,
-                   "If you want to use \"%\" texture as depth target add % flag on its creation",
+            assert(depth_target.texture.usage & .DEPTH_TARGET,
+                   "If you want to use \"%\" texture as depth target add % usage on its creation",
                    depth_target.texture.name,
-                   Texture.Flags.DEPTH_STENCIL);
+                   Texture.Usage.DEPTH_TARGET);
 
             assert(depth_target.texture.width == reference_texture.width && depth_target.texture.height == reference_texture.height,
                    "Depth target should have the same width and height as color targets have");

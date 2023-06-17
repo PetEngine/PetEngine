@@ -4,6 +4,8 @@
 //      2. #Views. Image view(s) creation, maybe with usages to be more consistent with other graphics APIs.
 //      3. #SwapchainBuffers. Make a function for swapchain buffers initialization.
 //      4. #Resizable.
+//      5. #ResourceLayout. Rework resource layout changing mechanism. If we gonna compile our command buffers concurrently,
+//         current tracking of current texture layout will not work.
 
 VulkanTextureManager :: struct {
     #as using public_data : TextureManager;
@@ -54,6 +56,7 @@ destroyVulkanTextureManager :: (device : *VulkanDevice, manager : *VulkanTexture
     destroyVulkanTextureMemory(device, manager, .PER_FRAME);
 }
 
+// @TODO: VkPhysicalDeviceVulkan11Properties::maxMemoryAllocationSize
 commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
     memory := getTextureMemory(device, manager, memory_kind);
     assert(memory.device_memory == VK_NULL_HANDLE);
@@ -236,6 +239,7 @@ createVulkanTexture :: (
     samples_count       : u8,
     mips_count          : u8,
     flags               : Texture.Flags,
+    usage               : Texture.Usage,
     name                : string,
     $memory_kind        : TextureManager.MemoryKind,
     possible_owners     : ..QueueType
@@ -247,6 +251,7 @@ createVulkanTexture :: (
 
     texture.format                = format;
     texture.flags                 = flags;
+    texture.usage                 = usage;
     texture.width                 = width;
     texture.height                = height;
     texture.depth                 = depth_or_array_size;
@@ -267,12 +272,11 @@ createVulkanTexture :: (
         sType                 = .VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         pNext                 = null,
         format                = textureFormatToVulkanFormat(texture.format),
-        extent                = VkExtent3D.{ 1, 1, 1 },
         mipLevels             = texture.mips_count,
         arrayLayers           = 1,
         samples               = samplesCountToVulkanSampleCountFlags(texture.samples_count),
         tiling                = .VK_IMAGE_TILING_OPTIMAL,
-        usage                 = textureFlagsToVulkanUsageFlags(texture.flags),
+        usage                 = textureUsageToVulkanUsageFlags(texture.usage),
         queueFamilyIndexCount = texture.possible_owners_count,
         pQueueFamilyIndices   = queue_family_indices.data,
         initialLayout         = .VK_IMAGE_LAYOUT_UNDEFINED // initialLayout must be VK_IMAGE_LAYOUT_UNDEFINED or VK_IMAGE_LAYOUT_PREINITIALIZED
@@ -280,12 +284,13 @@ createVulkanTexture :: (
     };
 
     if texture.flags & .ARRAY {
+        create_info.arrayLayers = texture.array_size;
+
         if height > 0 {
             texture.dimension = ._2D;
         } else {
             texture.dimension = ._1D;
         }
-        create_info.arrayLayers = texture.array_size;
     } else if texture.depth > 0 {
         texture.dimension = ._3D;
     } else if texture.height > 0 {
@@ -296,24 +301,29 @@ createVulkanTexture :: (
 
     assert((texture.dimension == ._2D) || !(texture.flags & .RESOLUTION_DEPENDENT), "Only 2D textures can be resolution dependent");
 
-    if texture.flags & .CUBE {
-        create_info.flags       |= .VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-        create_info.arrayLayers *= 6;
-    }
-
     if #complete texture.dimension == {
         case ._1D;
-            create_info.imageType     = .VK_IMAGE_TYPE_3D;
+            create_info.imageType     = .VK_IMAGE_TYPE_1D;
             create_info.extent.width  = texture.width;
+            create_info.extent.height = 1;
+            create_info.extent.depth  = 1;
+
         case ._2D;
             create_info.imageType     = .VK_IMAGE_TYPE_2D;
             create_info.extent.width  = texture.width;
             create_info.extent.height = texture.height;
+            create_info.extent.depth  = 1;
+
         case ._3D;
-            create_info.imageType     = .VK_IMAGE_TYPE_1D;
+            create_info.imageType     = .VK_IMAGE_TYPE_3D;
             create_info.extent.width  = texture.width;
             create_info.extent.height = texture.height;
             create_info.extent.depth  = texture.depth;
+    }
+
+    if texture.flags & .CUBE {
+        create_info.flags       |= .VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+        create_info.arrayLayers *= 6;
     }
 
     if texture.possible_owners_count > 1 {
@@ -352,7 +362,7 @@ createVulkanTexture :: (
     return texture;
 }
 
-textureFormatToVulkanFormat :: (format : Texture.Format) -> VkFormat #no_context {
+textureFormatToVulkanFormat :: inline (format : Texture.Format) -> VkFormat #no_context {
     if #complete format == {
         case .UNKNOWN;       return .VK_FORMAT_UNDEFINED;
         case .RGB8_UNORM;    return .VK_FORMAT_R8G8B8_UNORM;
@@ -369,7 +379,7 @@ textureFormatToVulkanFormat :: (format : Texture.Format) -> VkFormat #no_context
     return .VK_FORMAT_UNDEFINED;
 }
 
-vulkanFormatToTextureFormat :: (format : VkFormat) -> Texture.Format #no_context {
+vulkanFormatToTextureFormat :: inline (format : VkFormat) -> Texture.Format #no_context {
     if #complete format == {
         case .VK_FORMAT_UNDEFINED;                return .UNKNOWN;
         case .VK_FORMAT_R8G8B8_UNORM;             return .RGB8_UNORM;
@@ -386,27 +396,27 @@ vulkanFormatToTextureFormat :: (format : VkFormat) -> Texture.Format #no_context
     return .UNKNOWN;
 }
 
-textureFlagsToVulkanUsageFlags :: (flags : Texture.Flags) -> VkImageUsageFlags #no_context {
-    usage_flags := VkImageUsageFlags.VK_IMAGE_USAGE_TRANSFER_SRC_BIT
-                 | .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+textureUsageToVulkanUsageFlags :: inline (usage : Texture.Usage) -> VkImageUsageFlags #no_context {
+    usage_flags : VkImageUsageFlags = .VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                                    | .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-    if flags & .COHERENT      then usage_flags |= .VK_IMAGE_USAGE_SAMPLED_BIT;
-    if flags & .NONCOHERENT   then usage_flags |= .VK_IMAGE_USAGE_STORAGE_BIT;
-    if flags & .COLOR_TARGET  then usage_flags |= .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    if flags & .DEPTH_STENCIL then usage_flags |= .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    if usage & .SHADER_READ  then usage_flags |= .VK_IMAGE_USAGE_SAMPLED_BIT;
+    if usage & .SHADER_WRITE then usage_flags |= .VK_IMAGE_USAGE_STORAGE_BIT;
+    if usage & .COLOR_TARGET then usage_flags |= .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    if usage & .DEPTH_TARGET then usage_flags |= .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
     return usage_flags;
 }
 
-vulkanUsageFlagsToTextureFlags :: (usage_flags : VkImageUsageFlags) -> Texture.Flags #no_context {
-    flags : Texture.Flags;
+vulkanUsageFlagsToTextureUsage :: inline (usage_flags : VkImageUsageFlags) -> Texture.Usage #no_context {
+    usage : Texture.Usage;
 
-    if usage_flags & .VK_IMAGE_USAGE_SAMPLED_BIT                  then flags |= .COHERENT;
-    if usage_flags & .VK_IMAGE_USAGE_STORAGE_BIT                  then flags |= .NONCOHERENT;
-    if usage_flags & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT         then flags |= .COLOR_TARGET;
-    if usage_flags & .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT then flags |= .DEPTH_STENCIL;
+    if usage_flags & .VK_IMAGE_USAGE_SAMPLED_BIT                  then usage |= .SHADER_READ;
+    if usage_flags & .VK_IMAGE_USAGE_STORAGE_BIT                  then usage |= .SHADER_WRITE;
+    if usage_flags & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT         then usage |= .COLOR_TARGET;
+    if usage_flags & .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT then usage |= .DEPTH_TARGET;
 
-    return flags;
+    return usage;
 }
 
 samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleCountFlags #no_context {
@@ -422,7 +432,7 @@ samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleC
     return .VK_SAMPLE_COUNT_1_BIT;
 }
 
-getVulkanImageAspectFlags :: (texture : *VulkanTexture) -> VkImageAspectFlags #no_context {
+getVulkanImageAspectFlags :: inline (texture : *VulkanTexture) -> VkImageAspectFlags #no_context {
     if #complete texture.format == {
         case .UNKNOWN;
             return .VK_IMAGE_ASPECT_NONE;
@@ -562,7 +572,7 @@ resizeResolutionDependentVulkanTextures :: (
         pNext               = null,
         flags               = 0,
         imageType           = .VK_IMAGE_TYPE_2D,
-        extent              = VkExtent3D.{ back_buffer.width, back_buffer.height, 1 },
+        extent              = .{ back_buffer.width, back_buffer.height, 1 },
         mipLevels           = 1,
         arrayLayers         = 1,
         tiling              = .VK_IMAGE_TILING_OPTIMAL,
@@ -578,7 +588,7 @@ resizeResolutionDependentVulkanTextures :: (
 
         create_info.format                = textureFormatToVulkanFormat(texture.format);
         create_info.samples               = samplesCountToVulkanSampleCountFlags(texture.samples_count);
-        create_info.usage                 = textureFlagsToVulkanUsageFlags(texture.flags);
+        create_info.usage                 = textureUsageToVulkanUsageFlags(texture.usage);
         create_info.queueFamilyIndexCount = texture.possible_owners_count;
 
         if texture.possible_owners_count > 1 {

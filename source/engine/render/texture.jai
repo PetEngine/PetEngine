@@ -58,21 +58,6 @@ Texture :: struct {
         _3D;
     }
 
-    Flags :: enum_flags u16 {
-        ARRAY;
-        CUBE;
-
-        COHERENT;
-        NONCOHERENT;
-        COLOR_TARGET;
-        DEPTH_STENCIL;
-        READ_ONLY;
-
-        // Not explicitly settable
-        SWAPCHAIN;
-        RESOLUTION_DEPENDENT;
-    }
-
     // Order: xyzw
     Format :: enum u8 {
         UNKNOWN :: 0;
@@ -94,6 +79,23 @@ Texture :: struct {
         BC7_UNORM;
 
         // @TODO: Planar
+    }
+
+    Flags :: enum_flags u8 {
+        ARRAY;
+        CUBE;
+
+        // Not explicitly settable
+        SWAPCHAIN;
+        RESOLUTION_DEPENDENT;
+    }
+
+    Usage :: enum_flags u8 {
+        SHADER_READ;  // DirectX: SRV. Vulkan, OpenGL: Sampled image.
+        SHADER_WRITE; // DirectX: UAV. Vulkan, OpenGL: Storage image.
+        COLOR_TARGET; // DirectX: RTV. Vulkan, OpenGL: Color attachment.
+        DEPTH_TARGET; // DirectX: DSV. Vulkan, OpenGL: Depth stencil attachment.
+        READ_ONLY;    // Only depth test, no depth write.
     }
 
     FormatFlags :: enum_flags u8 {
@@ -118,6 +120,7 @@ Texture :: struct {
     dimension             : Dimension;
     format                : Format;
     flags                 : Flags;
+    usage                 : Usage;
     width                 : u16;
     height                : u16;
     union {
@@ -141,7 +144,8 @@ createTexture :: (
     depth_or_array_size : u16           = 0,
     samples_count       : u8            = 1,
     mips_count          : u8            = 1,
-    flags               : Texture.Flags,
+    flags               : Texture.Flags = 0,
+    usage               : Texture.Usage,
     name                : string,
     $memory_kind        : TextureManager.MemoryKind,
     possible_owners     : ..QueueType = .[ .GRAPHICS ]
@@ -153,10 +157,10 @@ createTexture :: (
            "You cannot explicitly set RESOLUTION_DEPENDENT flag. You can set it by passing appropriate memory kind");
     assert(depth_or_array_size > 0 || !(flags & .ARRAY),
            "Number of elements in array of textures cannot be 0"); // @TODO: Dynamic arrays?
-    assert((flags & (.COLOR_TARGET | .DEPTH_STENCIL)) != (.COLOR_TARGET | .DEPTH_STENCIL),
-           "COLOR_TARGET and DEPTH_STENCIL flags cannot be combined");
-    assert((flags & (.DEPTH_STENCIL | .READ_ONLY)) == (.DEPTH_STENCIL | .READ_ONLY) || !(flags & .READ_ONLY),
-           "READ_ONLY flags can be combined only with DEPTH_STENCIL flag");
+    assert((usage & (.COLOR_TARGET | .DEPTH_TARGET)) != (.COLOR_TARGET | .DEPTH_TARGET),
+           "COLOR_TARGET and DEPTH_TARGET usages cannot be combined");
+    assert((usage & (.DEPTH_TARGET | .READ_ONLY)) == (.DEPTH_TARGET | .READ_ONLY) || !(usage & .READ_ONLY),
+           "READ_ONLY usage should be used with DEPTH_TARGET usage");
     assert(samples_count ==  1 ||
            samples_count ==  2 ||
            samples_count ==  4 ||
@@ -165,6 +169,8 @@ createTexture :: (
            samples_count == 32 ||
            samples_count == 64);
     assert(possible_owners.count > 0);
+
+    // @TODO: Validate usage
 
     #if memory_kind == .PERSISTENT_RESOLUTION_DEPENDENT || memory_kind == .PER_LEVEL_RESOLUTION_DEPENDENT {
         assert(!(flags & .CUBE),
@@ -206,6 +212,7 @@ createTexture :: (
                                           samples_count,
                                           mips_count,
                                           flags,
+                                          usage,
                                           name,
                                           memory_kind,
                                           ..possible_owners);
