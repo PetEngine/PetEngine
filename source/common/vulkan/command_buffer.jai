@@ -4,13 +4,13 @@
 VkCommandBuffer :: VK_HANDLE;
 
 // Provided by VK_VERSION_1_0
-VkCommandBufferLevel :: enum VkEnum {
+VkCommandBufferLevel :: enum VkEnum #specified {
     VK_COMMAND_BUFFER_LEVEL_PRIMARY   :: 0;
     VK_COMMAND_BUFFER_LEVEL_SECONDARY :: 1;
 }
 
 // Provided by VK_VERSION_1_0
-VkAttachmentLoadOp :: enum VkEnum {
+VkAttachmentLoadOp :: enum VkEnum #specified {
     VK_ATTACHMENT_LOAD_OP_LOAD      :: 0;
     VK_ATTACHMENT_LOAD_OP_CLEAR     :: 1;
     VK_ATTACHMENT_LOAD_OP_DONT_CARE :: 2;
@@ -19,7 +19,7 @@ VkAttachmentLoadOp :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkAttachmentStoreOp :: enum VkEnum {
+VkAttachmentStoreOp :: enum VkEnum #specified {
     VK_ATTACHMENT_STORE_OP_STORE     :: 0;
     VK_ATTACHMENT_STORE_OP_DONT_CARE :: 1;
     // Provided by VK_VERSION_1_3
@@ -33,19 +33,19 @@ VkAttachmentStoreOp :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkCommandBufferResetFlags :: enum_flags VkFlags {
+VkCommandBufferResetFlags :: enum_flags VkFlags #specified {
     VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT :: 0x00000001;
 }
 
 // Provided by VK_VERSION_1_0
-VkCommandBufferUsageFlags :: enum_flags VkFlags {
+VkCommandBufferUsageFlags :: enum_flags VkFlags #specified {
     VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT      :: 0x00000001;
     VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT :: 0x00000002;
     VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT     :: 0x00000004;
 }
 
 // Provided by VK_VERSION_1_0
-VkQueryPipelineStatisticFlags :: enum_flags VkFlags {
+VkQueryPipelineStatisticFlags :: enum_flags VkFlags #specified {
     VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_VERTICES_BIT                    :: 0x00000001;
     VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_PRIMITIVES_BIT                  :: 0x00000002;
     VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT                  :: 0x00000004;
@@ -66,12 +66,12 @@ VkQueryPipelineStatisticFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkQueryControlFlags :: enum_flags VkFlags {
+VkQueryControlFlags :: enum_flags VkFlags #specified {
     VK_QUERY_CONTROL_PRECISE_BIT :: 0x00000001;
 }
 
 // Provided by VK_VERSION_1_3
-VkRenderingFlags :: enum_flags VkFlags {
+VkRenderingFlags :: enum_flags VkFlags #specified {
     VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT     :: 0x00000001;
     VK_RENDERING_SUSPENDING_BIT                             :: 0x00000002;
     VK_RENDERING_RESUMING_BIT                               :: 0x00000004;
@@ -83,7 +83,7 @@ VkRenderingFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_2
-VkResolveModeFlags :: enum_flags VkFlags {
+VkResolveModeFlags :: enum_flags VkFlags #specified {
     VK_RESOLVE_MODE_NONE                :: 0;
     VK_RESOLVE_MODE_SAMPLE_ZERO_BIT     :: 0x00000001;
     VK_RESOLVE_MODE_AVERAGE_BIT         :: 0x00000002;

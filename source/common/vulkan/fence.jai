@@ -4,7 +4,7 @@
 VkFence :: VK_NON_DISPATCHABLE_HANDLE;
 
 // Provided by VK_VERSION_1_0
-VkFenceCreateFlags :: enum_flags VkFlags {
+VkFenceCreateFlags :: enum_flags VkFlags #specified {
     VK_FENCE_CREATE_SIGNALED_BIT :: 0x00000001;
 }
 

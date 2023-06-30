@@ -16,13 +16,13 @@ VkShaderModule :: VK_NON_DISPATCHABLE_HANDLE;
 VkSampleMask :: u32;
 
 // Provided by VK_VERSION_1_0
-VkVertexInputRate :: enum VkEnum {
+VkVertexInputRate :: enum VkEnum #specified {
     VK_VERTEX_INPUT_RATE_VERTEX   :: 0;
     VK_VERTEX_INPUT_RATE_INSTANCE :: 1;
 }
 
 // Provided by VK_VERSION_1_0
-VkPrimitiveTopology :: enum VkEnum {
+VkPrimitiveTopology :: enum VkEnum #specified {
     VK_PRIMITIVE_TOPOLOGY_POINT_LIST                    :: 0;
     VK_PRIMITIVE_TOPOLOGY_LINE_LIST                     :: 1;
     VK_PRIMITIVE_TOPOLOGY_LINE_STRIP                    :: 2;
@@ -37,7 +37,7 @@ VkPrimitiveTopology :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkPolygonMode :: enum VkEnum {
+VkPolygonMode :: enum VkEnum #specified {
     VK_POLYGON_MODE_FILL              :: 0;
     VK_POLYGON_MODE_LINE              :: 1;
     VK_POLYGON_MODE_POINT             :: 2;
@@ -46,13 +46,13 @@ VkPolygonMode :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkFrontFace :: enum VkEnum {
+VkFrontFace :: enum VkEnum #specified {
     VK_FRONT_FACE_COUNTER_CLOCKWISE :: 0;
     VK_FRONT_FACE_CLOCKWISE         :: 1;
 }
 
 // Provided by VK_VERSION_1_0
-VkCompareOp :: enum VkEnum {
+VkCompareOp :: enum VkEnum #specified {
     VK_COMPARE_OP_NEVER            :: 0;
     VK_COMPARE_OP_LESS             :: 1;
     VK_COMPARE_OP_EQUAL            :: 2;
@@ -64,7 +64,7 @@ VkCompareOp :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkStencilOp :: enum VkEnum {
+VkStencilOp :: enum VkEnum #specified {
     VK_STENCIL_OP_KEEP                :: 0;
     VK_STENCIL_OP_ZERO                :: 1;
     VK_STENCIL_OP_REPLACE             :: 2;
@@ -76,7 +76,7 @@ VkStencilOp :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkLogicOp :: enum VkEnum {
+VkLogicOp :: enum VkEnum #specified {
     VK_LOGIC_OP_CLEAR         :: 0;
     VK_LOGIC_OP_AND           :: 1;
     VK_LOGIC_OP_AND_REVERSE   :: 2;
@@ -96,7 +96,7 @@ VkLogicOp :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkBlendFactor :: enum VkEnum {
+VkBlendFactor :: enum VkEnum #specified {
     VK_BLEND_FACTOR_ZERO                     :: 0;
     VK_BLEND_FACTOR_ONE                      :: 1;
     VK_BLEND_FACTOR_SRC_COLOR                :: 2;
@@ -119,7 +119,7 @@ VkBlendFactor :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkBlendOp :: enum VkEnum {
+VkBlendOp :: enum VkEnum #specified {
     VK_BLEND_OP_ADD                    :: 0;
     VK_BLEND_OP_SUBTRACT               :: 1;
     VK_BLEND_OP_REVERSE_SUBTRACT       :: 2;
@@ -220,7 +220,7 @@ VkBlendOp :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkDynamicState :: enum VkEnum {
+VkDynamicState :: enum VkEnum #specified {
     VK_DYNAMIC_STATE_VIEWPORT                                :: 0;
     VK_DYNAMIC_STATE_SCISSOR                                 :: 1;
     VK_DYNAMIC_STATE_LINE_WIDTH                              :: 2;
@@ -389,7 +389,7 @@ VkDynamicState :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineBindPoint :: enum VkEnum {
+VkPipelineBindPoint :: enum VkEnum #specified {
     VK_PIPELINE_BIND_POINT_GRAPHICS               :: 0;
     VK_PIPELINE_BIND_POINT_COMPUTE                :: 1;
     // Provided by VK_KHR_ray_tracing_pipeline
@@ -401,7 +401,7 @@ VkPipelineBindPoint :: enum VkEnum {
 }
 
 // Provided by VK_EXT_pipeline_creation_cache_control
-VkPipelineCacheCreateFlags :: enum_flags VkFlags {
+VkPipelineCacheCreateFlags :: enum_flags VkFlags #specified {
     // Provided by VK_VERSION_1_3
     VK_PIPELINE_CACHE_CREATE_EXTERNALLY_SYNCHRONIZED_BIT     :: 0x00000001;
     // Provided by VK_EXT_pipeline_creation_cache_control
@@ -409,13 +409,13 @@ VkPipelineCacheCreateFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_EXT_graphics_pipeline_library
-VkPipelineLayoutCreateFlags :: enum_flags VkFlags {
+VkPipelineLayoutCreateFlags :: enum_flags VkFlags #specified {
     // Provided by VK_EXT_graphics_pipeline_library
     VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT :: 0x00000002;
 }
 
 // Provided by VK_VERSION_1_0
-VkShaderStageFlags :: enum_flags VkFlags {
+VkShaderStageFlags :: enum_flags VkFlags #specified {
     VK_SHADER_STAGE_VERTEX_BIT                  :: 0x00000001;
     VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT    :: 0x00000002;
     VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT :: 0x00000004;
@@ -463,7 +463,7 @@ VkShaderStageFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineCreateFlags :: enum_flags VkFlags {
+VkPipelineCreateFlags :: enum_flags VkFlags #specified {
     VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT                                     :: 0x00000001;
     VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT                                        :: 0x00000002;
     VK_PIPELINE_CREATE_DERIVATIVE_BIT                                               :: 0x00000004;
@@ -542,7 +542,7 @@ VkPipelineCreateFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineShaderStageCreateFlags :: enum_flags VkFlags {
+VkPipelineShaderStageCreateFlags :: enum_flags VkFlags #specified {
     // Provided by VK_VERSION_1_3
     VK_PIPELINE_SHADER_STAGE_CREATE_ALLOW_VARYING_SUBGROUP_SIZE_BIT     :: 0x00000001;
     // Provided by VK_VERSION_1_3
@@ -554,27 +554,27 @@ VkPipelineShaderStageCreateFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineVertexInputStateCreateFlags :: enum_flags VkFlags {
+VkPipelineVertexInputStateCreateFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineInputAssemblyStateCreateFlags :: enum_flags VkFlags {
+VkPipelineInputAssemblyStateCreateFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineTessellationStateCreateFlags :: enum_flags VkFlags {
+VkPipelineTessellationStateCreateFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineViewportStateCreateFlags :: enum_flags VkFlags {
+VkPipelineViewportStateCreateFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineRasterizationStateCreateFlags :: enum_flags VkFlags {
+VkPipelineRasterizationStateCreateFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_VERSION_1_0
-VkCullModeFlags :: enum_flags VkFlags {
+VkCullModeFlags :: enum_flags VkFlags #specified {
     VK_CULL_MODE_NONE           :: 0;
     VK_CULL_MODE_FRONT_BIT      :: 0x00000001;
     VK_CULL_MODE_BACK_BIT       :: 0x00000002;
@@ -582,11 +582,11 @@ VkCullModeFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineMultisampleStateCreateFlags :: enum_flags VkFlags {
+VkPipelineMultisampleStateCreateFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_EXT_rasterization_order_attachment_access
-VkPipelineDepthStencilStateCreateFlags :: enum_flags VkFlags {
+VkPipelineDepthStencilStateCreateFlags :: enum_flags VkFlags #specified {
     // Provided by VK_EXT_rasterization_order_attachment_access
     VK_PIPELINE_DEPTH_STENCIL_STATE_CREATE_RASTERIZATION_ORDER_ATTACHMENT_DEPTH_ACCESS_BIT_EXT   :: 0x00000001;
     // Provided by VK_EXT_rasterization_order_attachment_access
@@ -598,7 +598,7 @@ VkPipelineDepthStencilStateCreateFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_EXT_rasterization_order_attachment_access
-VkPipelineColorBlendStateCreateFlags :: enum_flags VkFlags {
+VkPipelineColorBlendStateCreateFlags :: enum_flags VkFlags #specified {
     // Provided by VK_EXT_rasterization_order_attachment_access
     VK_PIPELINE_COLOR_BLEND_STATE_CREATE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_BIT_EXT :: 0x00000001;
     // Provided by VK_ARM_rasterization_order_attachment_access
@@ -606,7 +606,7 @@ VkPipelineColorBlendStateCreateFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkColorComponentFlags :: enum_flags VkFlags {
+VkColorComponentFlags :: enum_flags VkFlags #specified {
     VK_COLOR_COMPONENT_R_BIT :: 0x00000001;
     VK_COLOR_COMPONENT_G_BIT :: 0x00000002;
     VK_COLOR_COMPONENT_B_BIT :: 0x00000004;
@@ -614,11 +614,11 @@ VkColorComponentFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineDynamicStateCreateFlags :: enum_flags VkFlags {
+VkPipelineDynamicStateCreateFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_VERSION_1_0
-VkShaderModuleCreateFlags :: enum_flags VkFlags {
+VkShaderModuleCreateFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_VERSION_1_0

@@ -10,12 +10,12 @@ VK_MAX_EXTENSION_NAME_SIZE : u32 : 256;
 VK_MAX_DESCRIPTION_SIZE : u32 : 256;
 
 // Provided by VK_VERSION_1_0
-VkInternalAllocationType :: enum VkEnum {
+VkInternalAllocationType :: enum VkEnum #specified {
     VK_INTERNAL_ALLOCATION_TYPE_EXECUTABLE :: 0;
 }
 
 // Provided by VK_VERSION_1_0
-VkSystemAllocationScope :: enum VkEnum {
+VkSystemAllocationScope :: enum VkEnum #specified {
     VK_SYSTEM_ALLOCATION_SCOPE_COMMAND  :: 0;
     VK_SYSTEM_ALLOCATION_SCOPE_OBJECT   :: 1;
     VK_SYSTEM_ALLOCATION_SCOPE_CACHE    :: 2;
@@ -24,7 +24,7 @@ VkSystemAllocationScope :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkInstanceCreateFlags :: enum_flags VkFlags {
+VkInstanceCreateFlags :: enum_flags VkFlags #specified {
     // Provided by VK_KHR_portability_enumeration
     VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR :: 0x00000001;
 }

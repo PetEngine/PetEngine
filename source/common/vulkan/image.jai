@@ -13,7 +13,7 @@ VK_REMAINING_MIP_LEVELS : u32 : 0xFFFF_FFFF;
 VK_LOD_CLAMP_NONE : f32 : 1000.0;
 
 // Provided by VK_VERSION_1_0
-VkFormat :: enum VkEnum {
+VkFormat :: enum VkEnum #specified {
     VK_FORMAT_UNDEFINED                :: 0;
     VK_FORMAT_R8G8B8_UNORM             :: 23;
     VK_FORMAT_R8G8B8_SNORM             :: 24;
@@ -28,7 +28,7 @@ VkFormat :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkImageLayout :: enum VkEnum {
+VkImageLayout :: enum VkEnum #specified {
     VK_IMAGE_LAYOUT_UNDEFINED                                      :: 0;
     VK_IMAGE_LAYOUT_GENERAL                                        :: 1;
     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL                       :: 2;
@@ -91,14 +91,14 @@ VkImageLayout :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkImageType :: enum VkEnum {
+VkImageType :: enum VkEnum #specified {
     VK_IMAGE_TYPE_1D :: 0;
     VK_IMAGE_TYPE_2D :: 1;
     VK_IMAGE_TYPE_3D :: 2;
 }
 
 // Provided by VK_VERSION_1_0
-VkImageTiling :: enum VkEnum {
+VkImageTiling :: enum VkEnum #specified {
     VK_IMAGE_TILING_OPTIMAL                 :: 0;
     VK_IMAGE_TILING_LINEAR                  :: 1;
     // Provided by VK_EXT_image_drm_format_modifier
@@ -106,7 +106,7 @@ VkImageTiling :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkImageViewType :: enum VkEnum {
+VkImageViewType :: enum VkEnum #specified {
     VK_IMAGE_VIEW_TYPE_1D         :: 0;
     VK_IMAGE_VIEW_TYPE_2D         :: 1;
     VK_IMAGE_VIEW_TYPE_3D         :: 2;
@@ -117,7 +117,7 @@ VkImageViewType :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkComponentSwizzle :: enum VkEnum {
+VkComponentSwizzle :: enum VkEnum #specified {
     VK_COMPONENT_SWIZZLE_IDENTITY :: 0;
     VK_COMPONENT_SWIZZLE_ZERO     :: 1;
     VK_COMPONENT_SWIZZLE_ONE      :: 2;
@@ -128,7 +128,7 @@ VkComponentSwizzle :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkImageUsageFlags :: enum_flags VkFlags {
+VkImageUsageFlags :: enum_flags VkFlags #specified {
     VK_IMAGE_USAGE_TRANSFER_SRC_BIT                         :: 0x00000001;
     VK_IMAGE_USAGE_TRANSFER_DST_BIT                         :: 0x00000002;
     VK_IMAGE_USAGE_SAMPLED_BIT                              :: 0x00000004;
@@ -153,7 +153,7 @@ VkImageUsageFlags :: enum_flags VkFlags {
     VK_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV                :: VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
 }
 
-VkImageAspectFlags :: enum_flags VkFlags {
+VkImageAspectFlags :: enum_flags VkFlags #specified {
     VK_IMAGE_ASPECT_COLOR_BIT              :: 0x00000001;
     VK_IMAGE_ASPECT_DEPTH_BIT              :: 0x00000002;
     VK_IMAGE_ASPECT_STENCIL_BIT            :: 0x00000004;
@@ -185,7 +185,7 @@ VkImageAspectFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkImageCreateFlags :: enum_flags VkFlags {
+VkImageCreateFlags :: enum_flags VkFlags #specified {
     VK_IMAGE_CREATE_SPARSE_BINDING_BIT                            :: 0x00000001;
     VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT                          :: 0x00000002;
     VK_IMAGE_CREATE_SPARSE_ALIASED_BIT                            :: 0x00000004;
@@ -234,7 +234,7 @@ VkImageCreateFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkImageViewCreateFlags :: enum_flags VkFlags {
+VkImageViewCreateFlags :: enum_flags VkFlags #specified {
     // Provided by VK_EXT_fragment_density_map
     VK_IMAGE_VIEW_CREATE_FRAGMENT_DENSITY_MAP_DYNAMIC_BIT_EXT     :: 0x00000001;
     // Provided by VK_EXT_descriptor_buffer

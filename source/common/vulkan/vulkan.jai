@@ -56,7 +56,7 @@ VK_API_VERSION_1_2 :: #run VK_MAKE_API_VERSION(0, 1, 2, 0); // Patch version sho
 VK_API_VERSION_1_3 :: #run VK_MAKE_API_VERSION(0, 1, 3, 0); // Patch version should always be set to 0
 
 // Provided by VK_VERSION_1_0
-VkResult :: enum VkEnum {
+VkResult :: enum VkEnum #specified {
     VK_SUCCESS                                            :: 0;
     VK_NOT_READY                                          :: 1;
     VK_TIMEOUT                                            :: 2;
@@ -137,7 +137,7 @@ VkResult :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkStructureType :: enum VkEnum {
+VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_APPLICATION_INFO                           :: 0;
     VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO                       :: 1;
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO                   :: 2;
@@ -231,7 +231,7 @@ VkStructureType :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkObjectType :: enum VkEnum {
+VkObjectType :: enum VkEnum #specified {
     VK_OBJECT_TYPE_UNKNOWN                         :: 0;
     VK_OBJECT_TYPE_INSTANCE                        :: 1;
     VK_OBJECT_TYPE_PHYSICAL_DEVICE                 :: 2;

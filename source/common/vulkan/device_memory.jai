@@ -10,7 +10,7 @@ VK_MAX_MEMORY_TYPES : u32 : 32;
 VK_MAX_MEMORY_HEAPS : u32 : 16;
 
 // Provided by VK_VERSION_1_0
-VkMemoryPropertyFlags :: enum_flags VkFlags {
+VkMemoryPropertyFlags :: enum_flags VkFlags #specified {
     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT        :: 0x00000001;
     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT        :: 0x00000002;
     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT       :: 0x00000004;
@@ -27,7 +27,7 @@ VkMemoryPropertyFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkMemoryHeapFlags :: enum_flags VkFlags {
+VkMemoryHeapFlags :: enum_flags VkFlags #specified {
     VK_MEMORY_HEAP_DEVICE_LOCAL_BIT       :: 0x00000001;
     // Provided by VK_VERSION_1_1
     VK_MEMORY_HEAP_MULTI_INSTANCE_BIT     :: 0x00000002;
@@ -35,7 +35,7 @@ VkMemoryHeapFlags :: enum_flags VkFlags {
     VK_MEMORY_HEAP_MULTI_INSTANCE_BIT_KHR :: VK_MEMORY_HEAP_MULTI_INSTANCE_BIT;
 }
 
-VkMemoryMapFlags :: enum_flags VkFlags {
+VkMemoryMapFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_VERSION_1_0

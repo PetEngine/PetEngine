@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkDependencyFlags :: enum_flags VkFlags {
+VkDependencyFlags :: enum_flags VkFlags #specified {
     VK_DEPENDENCY_BY_REGION_BIT        :: 0x00000001;
     // Provided by VK_VERSION_1_1
     VK_DEPENDENCY_DEVICE_GROUP_BIT     :: 0x00000004;
@@ -16,7 +16,7 @@ VkDependencyFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkPipelineStageFlags :: enum_flags VkFlags {
+VkPipelineStageFlags :: enum_flags VkFlags #specified {
     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT                          :: 0x00000001;
     VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT                        :: 0x00000002;
     VK_PIPELINE_STAGE_VERTEX_INPUT_BIT                         :: 0x00000004;
@@ -69,7 +69,7 @@ VkPipelineStageFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkAccessFlags :: enum_flags VkFlags {
+VkAccessFlags :: enum_flags VkFlags #specified {
     VK_ACCESS_INDIRECT_COMMAND_READ_BIT                     :: 0x00000001;
     VK_ACCESS_INDEX_READ_BIT                                :: 0x00000002;
     VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT                     :: 0x00000004;

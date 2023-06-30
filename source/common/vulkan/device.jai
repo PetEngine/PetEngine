@@ -4,17 +4,17 @@
 VkDevice :: VK_HANDLE;
 
 // Provided by VK_VERSION_1_0
-VkSharingMode :: enum VkEnum {
+VkSharingMode :: enum VkEnum #specified {
     VK_SHARING_MODE_EXCLUSIVE  :: 0;
     VK_SHARING_MODE_CONCURRENT :: 1;
 }
 
 // Provided by VK_VERSION_1_0
-VkDeviceCreateFlags :: enum_flags VkFlags {
+VkDeviceCreateFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_VERSION_1_1
-VkDeviceQueueCreateFlags :: enum_flags VkFlags {
+VkDeviceQueueCreateFlags :: enum_flags VkFlags #specified {
     // Provided by VK_VERSION_1_1
     VK_DEVICE_QUEUE_CREATE_PROTECTED_BIT :: 0x00000001;
 }

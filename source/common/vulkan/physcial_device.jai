@@ -19,7 +19,7 @@ VK_MAX_DRIVER_NAME_SIZE : u32 : 256;
 VK_MAX_DRIVER_INFO_SIZE : u32 : 256;
 
 // Provided by VK_VERSION_1_0
-VkPhysicalDeviceType :: enum VkEnum {
+VkPhysicalDeviceType :: enum VkEnum #specified {
     VK_PHYSICAL_DEVICE_TYPE_OTHER          :: 0;
     VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU :: 1;
     VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU   :: 2;
@@ -28,7 +28,7 @@ VkPhysicalDeviceType :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkVendorId :: enum VkEnum {
+VkVendorId :: enum VkEnum #specified {
     VK_VENDOR_ID_VIV      :: 0x10001;
     VK_VENDOR_ID_VSI      :: 0x10002;
     VK_VENDOR_ID_KAZAN    :: 0x10003;
@@ -39,7 +39,7 @@ VkVendorId :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_2
-VkDriverId :: enum VkEnum {
+VkDriverId :: enum VkEnum #specified {
     VK_DRIVER_ID_AMD_PROPRIETARY               :: 1;
     VK_DRIVER_ID_AMD_OPEN_SOURCE               :: 2;
     VK_DRIVER_ID_MESA_RADV                     :: 3;
@@ -92,7 +92,7 @@ VkDriverId :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_2
-VkShaderFloatControlsIndependence :: enum VkEnum {
+VkShaderFloatControlsIndependence :: enum VkEnum #specified {
     VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_32_BIT_ONLY     :: 0;
     VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_ALL             :: 1;
     VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_NONE            :: 2;
@@ -105,7 +105,7 @@ VkShaderFloatControlsIndependence :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkSampleCountFlags :: enum_flags VkFlags {
+VkSampleCountFlags :: enum_flags VkFlags #specified {
     VK_SAMPLE_COUNT_1_BIT  :: 0x00000001;
     VK_SAMPLE_COUNT_2_BIT  :: 0x00000002;
     VK_SAMPLE_COUNT_4_BIT  :: 0x00000004;
@@ -116,7 +116,7 @@ VkSampleCountFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkQueueFlags :: enum_flags VkFlags {
+VkQueueFlags :: enum_flags VkFlags #specified {
     VK_QUEUE_GRAPHICS_BIT         :: 0x00000001;
     VK_QUEUE_COMPUTE_BIT          :: 0x00000002;
     VK_QUEUE_TRANSFER_BIT         :: 0x00000004;

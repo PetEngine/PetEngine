@@ -4,12 +4,12 @@
 VkSemaphore :: VK_NON_DISPATCHABLE_HANDLE;
 
 // Provided by VK_VERSION_1_2
-VkSemaphoreWaitFlags :: enum VkEnum {
+VkSemaphoreWaitFlags :: enum VkEnum #specified {
     VK_SEMAPHORE_WAIT_ANY_BIT :: 0x00000001;
 }
 
 // Provided by VK_VERSION_1_2
-VkSemaphoreType :: enum VkEnum {
+VkSemaphoreType :: enum VkEnum #specified {
     VK_SEMAPHORE_TYPE_BINARY       :: 0;
     VK_SEMAPHORE_TYPE_TIMELINE     :: 1;
     // Provided by VK_KHR_timeline_semaphore
@@ -19,7 +19,7 @@ VkSemaphoreType :: enum VkEnum {
 }
 
 // Provided by VK_VERSION_1_0
-VkSemaphoreCreateFlags :: enum_flags VkFlags {
+VkSemaphoreCreateFlags :: enum_flags VkFlags #specified {
 }
 
 // Provided by VK_VERSION_1_0

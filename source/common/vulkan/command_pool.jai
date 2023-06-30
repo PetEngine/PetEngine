@@ -4,7 +4,7 @@
 VkCommandPool :: VK_NON_DISPATCHABLE_HANDLE;
 
 // Provided by VK_VERSION_1_0
-VkCommandPoolCreateFlags :: enum_flags VkFlags {
+VkCommandPoolCreateFlags :: enum_flags VkFlags #specified {
     VK_COMMAND_POOL_CREATE_TRANSIENT_BIT            :: 0x00000001;
     VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT :: 0x00000002;
     // Provided by VK_VERSION_1_1
@@ -12,7 +12,7 @@ VkCommandPoolCreateFlags :: enum_flags VkFlags {
 }
 
 // Provided by VK_VERSION_1_0
-VkCommandPoolResetFlags :: enum_flags VkFlags {
+VkCommandPoolResetFlags :: enum_flags VkFlags #specified {
     VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT :: 0x00000001;
 }
 
