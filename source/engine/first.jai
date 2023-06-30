@@ -1,5 +1,4 @@
 // @TODO:
-//    - Rewrite recreateVulkanSwapchain which frees oldSwapchain which != null?
 //    - #DeviceChecks. vkGetPhysicalDeviceSurfaceSupportKHR, vkGetPhysicalDeviceSurfacePresentModesKHR.
 //    - @Cleanup: VkAllocationCallbacks -> #VkAllocationCallbacks.
 

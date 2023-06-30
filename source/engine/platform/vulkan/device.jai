@@ -65,7 +65,7 @@ createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *V
     loadVulkanDeviceExtensionsFunctions(*device.loader, device.device, *enabled_device_extensions);
     getQueues(device);
     createSurface(device, window);
-    createSwapchainAndInitImages(device, window, VK_NULL_HANDLE);
+    recreateVulkanSwapchain(device, window);
     createSemaphores(device);
     createFences(device);
     createCommandPools(device);
@@ -337,6 +337,249 @@ endVulkanFrame :: (device : *VulkanDevice) {
     }
 }
 
+recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
+    surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
+                                                                                                      device.surface,
+                                                                                                      *surface_capabilities));
+
+    surface_formats : [] VkSurfaceFormatKHR;
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
+                                                                                                 device.surface,
+                                                                                                 cast(*u32) *surface_formats.count,
+                                                                                                 null));
+
+    surface_formats.data = pushToArena(*context.pet.per_frame_arena, VkSurfaceFormatKHR, surface_formats.count);
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
+                                                                                                 device.surface,
+                                                                                                 cast(*u32) *surface_formats.count,
+                                                                                                 surface_formats.data));
+
+    requested_swapchain_buffers_count : u32 = cast,no_check(u32) device.frame_buffering;
+    if requested_swapchain_buffers_count < surface_capabilities.minImageCount {
+        warningMessage("Requested number of swapchain buffers is %, but surface supports at least % of them. % will be used",
+                       requested_swapchain_buffers_count,
+                       surface_capabilities.minImageCount,
+                       surface_capabilities.minImageCount);
+        requested_swapchain_buffers_count = surface_capabilities.minImageCount;
+    } else if requested_swapchain_buffers_count > surface_capabilities.maxImageCount && surface_capabilities.maxImageCount > 0 {
+        warningMessage("Requested number of swapchain buffers is %, but surface supports maximum % of them. % will be used",
+                       requested_swapchain_buffers_count,
+                       surface_capabilities.maxImageCount,
+                       surface_capabilities.maxImageCount);
+        requested_swapchain_buffers_count = surface_capabilities.maxImageCount;
+    }
+    if requested_swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
+        assertMessage("You want too many swapchain buffers: %. If you really need that much you can increase Device.MAX_SWAPCHAIN_BUFFERS",
+                      requested_swapchain_buffers_count);
+    }
+
+    infoMessage("Requested swapchain buffers count: %", requested_swapchain_buffers_count);
+
+    // @TODO: #HDR. Hardware HDR support
+    REQUESTED_SURFACE_FORMAT :: VkFormat.VK_FORMAT_B8G8R8A8_UNORM;
+    allowed_surface_format : *VkSurfaceFormatKHR;
+
+    for * surface_formats {
+        if it.format == REQUESTED_SURFACE_FORMAT {
+            allowed_surface_format = it;
+            break;
+        }
+    }
+
+    if !allowed_surface_format {
+        assertMessage("Chosen surface format (%) is not supported on this device", REQUESTED_SURFACE_FORMAT);
+    }
+
+    surface_extent := VkExtent2D.{
+        width  = window.surface.width,
+        height = window.surface.height
+    };
+
+    if !memcmp(*surface_capabilities.maxImageExtent, *VkExtent2D.{0, 0}, size_of(VkExtent2D)) {
+        assertMessage("There is no way to create swapchain while window is minimized");
+    } else if memcmp(*surface_extent, *surface_capabilities.maxImageExtent, size_of(VkExtent2D)) > 0 {
+        warningMessage("Requested surface extent for swapchain (% x %) is too big. Will be adjusted to % x %",
+                       surface_extent.width,
+                       surface_extent.height,
+                       surface_capabilities.maxImageExtent.width,
+                       surface_capabilities.maxImageExtent.height);
+        surface_extent = surface_capabilities.maxImageExtent;
+    } else if memcmp(*surface_extent, *surface_capabilities.minImageExtent, size_of(VkExtent2D)) < 0 {
+        warningMessage("Requested surface extent for swapchain (% x %) is too small. Will be adjusted to % x %",
+                       surface_extent.width,
+                       surface_extent.height,
+                       surface_capabilities.minImageExtent.width,
+                       surface_capabilities.minImageExtent.height);
+        surface_extent = surface_capabilities.minImageExtent;
+    }
+
+    REQUESTED_USAGE_FLAGS :: VkImageUsageFlags.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                           | .VK_IMAGE_USAGE_SAMPLED_BIT
+                           | .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    allowed_usage_flags   := REQUESTED_USAGE_FLAGS & surface_capabilities.supportedUsageFlags;
+
+    if allowed_usage_flags != REQUESTED_USAGE_FLAGS {
+        assertMessage("Requested surface image usage flags are %, but surface supports only % flags. % flags can not be used",
+                      REQUESTED_USAGE_FLAGS,
+                      surface_capabilities.supportedUsageFlags,
+                      ~allowed_usage_flags & REQUESTED_USAGE_FLAGS);
+    }
+
+    queue_families_having_access_to_swapchain_images := u32.[
+        device.queues[QueueType.GRAPHICS].family_index
+    ];
+
+    if !(surface_capabilities.supportedTransforms & .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+        assertMessage("For some reason monitor does not support landscape mode");
+    }
+
+    if surface_capabilities.currentTransform != .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR {
+        warningMessage("Requested surface transform is %, but current surface transform is %. The fact they differ may perform in worse performance",
+                       VkSurfaceTransformFlagsKHR.VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+                       surface_capabilities.currentTransform);
+    }
+
+    if !(surface_capabilities.supportedCompositeAlpha & .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
+        assertMessage("Surface does not support opaque alpha mode");
+    }
+
+    create_info := VkSwapchainCreateInfoKHR.{
+        sType                 = .VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        pNext                 = null,
+        flags                 = 0,
+        surface               = device.surface,
+        minImageCount         = requested_swapchain_buffers_count,
+        imageFormat           = allowed_surface_format.format,
+        imageColorSpace       = allowed_surface_format.colorSpace,
+        imageExtent           = surface_extent,
+        imageArrayLayers      = 1,
+        imageUsage            = REQUESTED_USAGE_FLAGS,
+        imageSharingMode      = .VK_SHARING_MODE_EXCLUSIVE,
+        queueFamilyIndexCount = cast(u32) queue_families_having_access_to_swapchain_images.count,
+        pQueueFamilyIndices   = queue_families_having_access_to_swapchain_images.data,
+        preTransform          = .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+        compositeAlpha        = .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        presentMode           = .VK_PRESENT_MODE_MAILBOX_KHR, // @TODO: #Settings. Vsync (fifo), allow tearing (immediate), vsync + allow tearing (fifo_relaxed)
+        clipped               = VK_TRUE,
+        oldSwapchain          = device.swapchain
+    };
+
+    // @TODO: VkAllocationCallbacks
+    debugCheckVK(device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain));
+
+    if create_info.oldSwapchain != VK_NULL_HANDLE {
+        // @TODO: VkAllocationCallbacks
+        device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, create_info.oldSwapchain, null);
+    }
+
+    // Initialize swapchain images
+    {
+        swapchain_buffers_count : u32 = ---;
+        device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
+                                                                         device.swapchain,
+                                                                         *swapchain_buffers_count,
+                                                                         null);
+        device.swapchain_buffers_count = cast,no_check(u8) swapchain_buffers_count;
+        assert(device.swapchain_buffers_count > 0);
+
+        if device.swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
+            assertMessage("Swapchain buffers overflow: %/%. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
+                          device.swapchain_buffers_count,
+                          VulkanDevice.swapchain_textures.capacity);
+        }
+
+        infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
+
+        swapchain_images : [VulkanDevice.swapchain_textures.capacity] VkImage;
+        device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
+                                                                         device.swapchain,
+                                                                         *swapchain_buffers_count,
+                                                                         swapchain_images.data);
+        assert(swapchain_buffers_count == device.swapchain_buffers_count);
+
+        device.swapchain_textures.count = device.swapchain_buffers_count;
+
+        swapchain_images_it := swapchain_images.data;
+
+        // @Important: Should be with default allocator
+        builder : Basic.String_Builder;
+
+        // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to texture manager
+        for * device.swapchain_textures {
+            it.dimension             = ._2D;
+            it.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
+            it.flags                 = .SWAPCHAIN | .RESOLUTION_DEPENDENT;
+            it.width                 = cast(u16) surface_extent.width;
+            it.height                = cast(u16) surface_extent.height;
+            it.depth                 = 0;
+            it.samples_count         = 1;
+            it.mips_count            = 1;
+            it.possible_owners_count = 1;
+            it.possible_owners[0]    = .GRAPHICS;
+            it.current_owner         = .GRAPHICS;
+            it.image                 = swapchain_images_it.*;
+            it.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
+
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then it.usage |= .SHADER_READ;
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then it.usage |= .SHADER_WRITE;
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then it.usage |= .COLOR_TARGET;
+
+            if !it.name {
+                Basic.print_to_builder(*builder, "Swapchain image #%", it_index);
+                it.name = Basic.builder_to_string(*builder);
+            }
+
+            setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, it.image, it.name);
+
+            // @TODO: #Views.
+            {
+                if it.view {
+                    // @TODO: VkAllocationCallbacks
+                    vkDestroyImageView(device.device, it.view, null);
+                }
+
+                view_create_info := VkImageViewCreateInfo.{
+                    sType            = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                    pNext            = null,
+                    flags            = 0,
+                    image            = it.image,
+                    viewType         = .VK_IMAGE_VIEW_TYPE_2D,
+                    format           = allowed_surface_format.format,
+                    components       = .{
+                        r = .VK_COMPONENT_SWIZZLE_R,
+                        g = .VK_COMPONENT_SWIZZLE_G,
+                        b = .VK_COMPONENT_SWIZZLE_B,
+                        a = .VK_COMPONENT_SWIZZLE_A,
+                    },
+                    subresourceRange = .{
+                        aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
+                        baseMipLevel   = 0,
+                        levelCount     = 1,
+                        baseArrayLayer = 0,
+                        layerCount     = 1,
+                    },
+                };
+
+                // @TODO: VkAllocationCallbacks
+                debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
+
+                setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE_VIEW, it.view, it.name);
+            }
+
+            swapchain_images_it += 1;
+        }
+    }
+}
+
+waitVulkanDeviceIdle :: (device : *VulkanDevice) {
+    debugCheckVK(vkDeviceWaitIdle(device.device));
+}
+
+getVulkanSwapchainTexture :: inline (device : *VulkanDevice, swapchain_buffer_index : u32) -> *VulkanTexture {
+    return *device.swapchain_textures[swapchain_buffer_index];
+}
+
 setVulkanObjectName :: (device : *VulkanDevice, $object_type : VkObjectType, object : *void, name : string) {
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
@@ -378,23 +621,6 @@ setVulkanObjectName :: (device : *VulkanDevice, $object_type : VkObjectType, obj
             debugCheckVK(device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info));
         }
     }
-}
-
-recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
-    old_swapchain := device.swapchain;
-
-    createSwapchainAndInitImages(device, window, old_swapchain);
-
-    // @TODO: VkAllocationCallbacks
-    device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, old_swapchain, null);
-}
-
-waitVulkanDeviceIdle :: (device : *VulkanDevice) {
-    debugCheckVK(vkDeviceWaitIdle(device.device));
-}
-
-getVulkanSwapchainTexture :: inline (device : *VulkanDevice, swapchain_buffer_index : u32) -> *VulkanTexture {
-    return *device.swapchain_textures[swapchain_buffer_index];
 }
 
 debugCheckVK :: ($code : Code) #expand #no_debug {
@@ -1171,236 +1397,6 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
         debugCheckVK(device.loader.extensions.instance.required.vkCreateWin32SurfaceKHR(device.instance, *create_info, null, *device.surface));
     } else {
         notImplemented();
-    }
-}
-
-createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_swapchain : VkSwapchainKHR) {
-    surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
-    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
-                                                                                                      device.surface,
-                                                                                                      *surface_capabilities));
-
-    surface_formats : [] VkSurfaceFormatKHR;
-    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
-                                                                                                 device.surface,
-                                                                                                 cast(*u32) *surface_formats.count,
-                                                                                                 null));
-
-    surface_formats.data = pushToArena(*context.pet.per_frame_arena, VkSurfaceFormatKHR, surface_formats.count);
-    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
-                                                                                                 device.surface,
-                                                                                                 cast(*u32) *surface_formats.count,
-                                                                                                 surface_formats.data));
-
-    requested_swapchain_buffers_count : u32 = cast,no_check(u32) device.frame_buffering;
-    if requested_swapchain_buffers_count < surface_capabilities.minImageCount {
-        warningMessage("Requested number of swapchain buffers is %, but surface supports at least % of them. % will be used",
-                       requested_swapchain_buffers_count,
-                       surface_capabilities.minImageCount,
-                       surface_capabilities.minImageCount);
-        requested_swapchain_buffers_count = surface_capabilities.minImageCount;
-    } else if requested_swapchain_buffers_count > surface_capabilities.maxImageCount && surface_capabilities.maxImageCount > 0 {
-        warningMessage("Requested number of swapchain buffers is %, but surface supports maximum % of them. % will be used",
-                       requested_swapchain_buffers_count,
-                       surface_capabilities.maxImageCount,
-                       surface_capabilities.maxImageCount);
-        requested_swapchain_buffers_count = surface_capabilities.maxImageCount;
-    }
-    if requested_swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
-        assertMessage("You want too many swapchain buffers: %. If you really need that much you can increase Device.MAX_SWAPCHAIN_BUFFERS",
-                      requested_swapchain_buffers_count);
-    }
-
-    infoMessage("Requested swapchain buffers count: %", requested_swapchain_buffers_count);
-
-    // @TODO: #HDR. Hardware HDR support
-    REQUESTED_SURFACE_FORMAT :: VkFormat.VK_FORMAT_B8G8R8A8_UNORM;
-    allowed_surface_format : *VkSurfaceFormatKHR;
-
-    for * surface_formats {
-        if it.format == REQUESTED_SURFACE_FORMAT {
-            allowed_surface_format = it;
-            break;
-        }
-    }
-
-    if !allowed_surface_format {
-        assertMessage("Chosen surface format (%) is not supported on this device", REQUESTED_SURFACE_FORMAT);
-    }
-
-    surface_extent := VkExtent2D.{
-        width  = window.surface.width,
-        height = window.surface.height
-    };
-
-    if !memcmp(*surface_capabilities.maxImageExtent, *VkExtent2D.{0, 0}, size_of(VkExtent2D)) {
-        assertMessage("There is no way to create swapchain while window is minimized");
-    } else if memcmp(*surface_extent, *surface_capabilities.maxImageExtent, size_of(VkExtent2D)) > 0 {
-        warningMessage("Requested surface extent for swapchain (% x %) is too big. Will be adjusted to % x %",
-                       surface_extent.width,
-                       surface_extent.height,
-                       surface_capabilities.maxImageExtent.width,
-                       surface_capabilities.maxImageExtent.height);
-        surface_extent = surface_capabilities.maxImageExtent;
-    } else if memcmp(*surface_extent, *surface_capabilities.minImageExtent, size_of(VkExtent2D)) < 0 {
-        warningMessage("Requested surface extent for swapchain (% x %) is too small. Will be adjusted to % x %",
-                       surface_extent.width,
-                       surface_extent.height,
-                       surface_capabilities.minImageExtent.width,
-                       surface_capabilities.minImageExtent.height);
-        surface_extent = surface_capabilities.minImageExtent;
-    }
-
-    REQUESTED_USAGE_FLAGS :: VkImageUsageFlags.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-                           | .VK_IMAGE_USAGE_SAMPLED_BIT
-                           | .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    allowed_usage_flags   := REQUESTED_USAGE_FLAGS & surface_capabilities.supportedUsageFlags;
-
-    if allowed_usage_flags != REQUESTED_USAGE_FLAGS {
-        assertMessage("Requested surface image usage flags are %, but surface supports only % flags. % flags can not be used",
-                      REQUESTED_USAGE_FLAGS,
-                      surface_capabilities.supportedUsageFlags,
-                      ~allowed_usage_flags & REQUESTED_USAGE_FLAGS);
-    }
-
-    queue_families_having_access_to_swapchain_images := u32.[
-        device.queues[QueueType.GRAPHICS].family_index
-    ];
-
-    if !(surface_capabilities.supportedTransforms & .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
-        assertMessage("For some reason monitor does not support landscape mode");
-    }
-
-    if surface_capabilities.currentTransform != .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR {
-        warningMessage("Requested surface transform is %, but current surface transform is %. The fact they differ may perform in worse performance",
-                       VkSurfaceTransformFlagsKHR.VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-                       surface_capabilities.currentTransform);
-    }
-
-    if !(surface_capabilities.supportedCompositeAlpha & .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
-        assertMessage("Surface does not support opaque alpha mode");
-    }
-
-    create_info := VkSwapchainCreateInfoKHR.{
-        sType                 = .VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        pNext                 = null,
-        flags                 = 0,
-        surface               = device.surface,
-        minImageCount         = requested_swapchain_buffers_count,
-        imageFormat           = allowed_surface_format.format,
-        imageColorSpace       = allowed_surface_format.colorSpace,
-        imageExtent           = surface_extent,
-        imageArrayLayers      = 1,
-        imageUsage            = REQUESTED_USAGE_FLAGS,
-        imageSharingMode      = .VK_SHARING_MODE_EXCLUSIVE,
-        queueFamilyIndexCount = cast(u32) queue_families_having_access_to_swapchain_images.count,
-        pQueueFamilyIndices   = queue_families_having_access_to_swapchain_images.data,
-        preTransform          = .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-        compositeAlpha        = .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        presentMode           = .VK_PRESENT_MODE_MAILBOX_KHR, // @TODO: #Settings. Vsync (fifo), allow tearing (immediate), vsync + allow tearing (fifo_relaxed)
-        clipped               = VK_TRUE,
-        oldSwapchain          = old_swapchain
-    };
-
-    // @TODO: VkAllocationCallbacks
-    debugCheckVK(device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain));
-
-    // Initialize swapchain images
-    {
-        swapchain_buffers_count : u32 = ---;
-        device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
-                                                                         device.swapchain,
-                                                                         *swapchain_buffers_count,
-                                                                         null);
-        device.swapchain_buffers_count = cast,no_check(u8) swapchain_buffers_count;
-        assert(device.swapchain_buffers_count > 0);
-
-        if device.swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
-            assertMessage("Swapchain buffers overflow: %/%. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
-                          device.swapchain_buffers_count,
-                          VulkanDevice.swapchain_textures.capacity);
-        }
-
-        infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
-
-        swapchain_images : [VulkanDevice.swapchain_textures.capacity] VkImage;
-        device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
-                                                                         device.swapchain,
-                                                                         *swapchain_buffers_count,
-                                                                         swapchain_images.data);
-        assert(swapchain_buffers_count == device.swapchain_buffers_count);
-
-        device.swapchain_textures.count = device.swapchain_buffers_count;
-
-        swapchain_images_it := swapchain_images.data;
-
-        // @Important: Should be with default allocator
-        builder : Basic.String_Builder;
-
-        // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to texture manager
-        for * device.swapchain_textures {
-            it.dimension             = ._2D;
-            it.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
-            it.flags                 = .SWAPCHAIN | .RESOLUTION_DEPENDENT;
-            it.width                 = cast(u16) surface_extent.width;
-            it.height                = cast(u16) surface_extent.height;
-            it.depth                 = 0;
-            it.samples_count         = 1;
-            it.mips_count            = 1;
-            it.possible_owners_count = 1;
-            it.possible_owners[0]    = .GRAPHICS;
-            it.current_owner         = .GRAPHICS;
-            it.image                 = swapchain_images_it.*;
-            it.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
-
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then it.usage |= .SHADER_READ;
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then it.usage |= .SHADER_WRITE;
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then it.usage |= .COLOR_TARGET;
-
-            if !it.name {
-                Basic.print_to_builder(*builder, "Swapchain image #%", it_index);
-                it.name = Basic.builder_to_string(*builder);
-            }
-
-            setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, it.image, it.name);
-
-            // @TODO: #Views.
-            {
-                if it.view {
-                    // @TODO: VkAllocationCallbacks
-                    vkDestroyImageView(device.device, it.view, null);
-                }
-
-                view_create_info := VkImageViewCreateInfo.{
-                    sType            = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                    pNext            = null,
-                    flags            = 0,
-                    image            = it.image,
-                    viewType         = .VK_IMAGE_VIEW_TYPE_2D,
-                    format           = allowed_surface_format.format,
-                    components       = .{
-                        r = .VK_COMPONENT_SWIZZLE_R,
-                        g = .VK_COMPONENT_SWIZZLE_G,
-                        b = .VK_COMPONENT_SWIZZLE_B,
-                        a = .VK_COMPONENT_SWIZZLE_A,
-                    },
-                    subresourceRange = .{
-                        aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
-                        baseMipLevel   = 0,
-                        levelCount     = 1,
-                        baseArrayLayer = 0,
-                        layerCount     = 1,
-                    },
-                };
-
-                // @TODO: VkAllocationCallbacks
-                debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
-
-                setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE_VIEW, it.view, it.name);
-            }
-
-            swapchain_images_it += 1;
-        }
     }
 }
 
