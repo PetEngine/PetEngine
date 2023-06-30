@@ -1,6 +1,4 @@
 // @TODO:
-//    - @Continue: #StaticStorage.
-//    - @Cleanup: Replace 'for *' with just 'for' where we do not modify iterator.
 //    - @Cleanup: #specified where it's needed.
 //    - Rewrite recreateVulkanSwapchain which frees oldSwapchain which != null?
 //    - #DeviceChecks. vkGetPhysicalDeviceSurfaceSupportKHR, vkGetPhysicalDeviceSurfacePresentModesKHR.

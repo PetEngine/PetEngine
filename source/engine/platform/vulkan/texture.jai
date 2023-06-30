@@ -106,7 +106,7 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
 
     bind_infos_it := bind_infos;
 
-    for * memory.textures {
+    for memory.textures {
         bind_infos_it.sType        = .VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
         bind_infos_it.pNext        = null;
         bind_infos_it.image        = it.image;
@@ -137,7 +137,7 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
     debugCheckVK(vkBindImageMemory2(device.device, cast(u32) memory.textures.count, bind_infos));
 
     // @Hardcoded: #Views.
-    for * memory.textures {
+    for memory.textures {
         view_create_info := VkImageViewCreateInfo.{
             sType            = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             pNext            = null,
@@ -151,7 +151,7 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
                 a = .VK_COMPONENT_SWIZZLE_A,
             },
             subresourceRange = .{
-                aspectMask     = getVulkanImageAspectFlags(it),
+                aspectMask     = getVulkanImageAspectFlags(*it),
                 baseMipLevel   = 0,
                 levelCount     = VK_REMAINING_MIP_LEVELS,
                 baseArrayLayer = 0,
@@ -209,7 +209,7 @@ resetVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMan
 
     assert(memory.textures.count > 0);
 
-    for * memory.textures {
+    for memory.textures {
         // @TODO: VkAllocationCallbacks
         vkDestroyImageView(device.device, it.view, null);
         // @TODO: VkAllocationCallbacks
@@ -520,7 +520,7 @@ createVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
 destroyVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureManager, $memory_kind : TextureManager.MemoryKind) {
     #if memory_kind == .PER_FRAME {
         for * memory : manager.per_frame_memory {
-            for * memory.textures {
+            for memory.textures {
                 warningMessage("Texture \"%\" in % has not been freed", it.name, memory.arena.name);
                 // @TODO: VkAllocationCallbacks
                 vkDestroyImageView(device.device, it.view, null);
@@ -541,7 +541,7 @@ destroyVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureM
     } else {
         memory := getTextureMemory(device, manager, memory_kind);
 
-        for * memory.textures {
+        for memory.textures {
             warningMessage("Texture \"%\" in % has not been freed", it.name, memory.arena.name);
             // @TODO: VkAllocationCallbacks
             vkDestroyImageView(device.device, it.view, null);

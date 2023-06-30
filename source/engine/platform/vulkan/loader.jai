@@ -62,7 +62,7 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
     if struct_info.members.count > 0 {
         Basic.array_reserve(*required_layers, struct_info.members.count);
 
-        for * struct_info.members {
+        for struct_info.members {
             layer_name := it.notes[0];
 
             already_added := false;
@@ -88,7 +88,7 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
     if struct_info.members.count > 0 {
         Basic.array_reserve(*optional_layers, struct_info.members.count);
 
-        for * struct_info.members {
+        for struct_info.members {
             layer_name := it.notes[0];
 
             already_added := false;
@@ -119,7 +119,7 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
     if struct_info.members.count > 0 {
         Basic.array_reserve(*required_extensions, struct_info.members.count);
 
-        for * struct_info.members {
+        for struct_info.members {
             extension_name := it.notes[0];
 
             already_added := false;
@@ -145,7 +145,7 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
     if struct_info.members.count > 0 {
         Basic.array_reserve(*optional_extensions, struct_info.members.count);
 
-        for * struct_info.members {
+        for struct_info.members {
             extension_name := it.notes[0];
 
             already_added := false;
@@ -176,7 +176,7 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
     if struct_info.members.count > 0 {
         Basic.array_reserve(*required_extensions, struct_info.members.count);
 
-        for * struct_info.members {
+        for struct_info.members {
             extension_name := it.notes[0];
 
             already_added := false;
@@ -203,7 +203,7 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
     if struct_info.members.count > 0 {
         Basic.array_reserve(*optional_extensions, struct_info.members.count);
 
-        for * struct_info.members {
+        for struct_info.members {
             extension_name := it.notes[0];
 
             already_added := false;
@@ -227,7 +227,7 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
 loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkInstance, enabled_instance_extensions : *[..] string) {
     base_address := cast(*void) *loader.extensions.instance.required;
 
-    for * type_info(type_of(loader.extensions.instance.required)).members {
+    for type_info(type_of(loader.extensions.instance.required)).members {
         function := vkGetInstanceProcAddr(instance, cast(*s8) it.name.data);
         if function == null {
             assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled", it.name, it.notes[0]);
@@ -239,7 +239,7 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
 
     base_address = cast(*void) *loader.extensions.instance.optional;
 
-    for *members_it : type_info(type_of(loader.extensions.instance.optional)).members {
+    for members_it : type_info(type_of(loader.extensions.instance.optional)).members {
         memeber_extension_name := members_it.notes[0];
         function               := vkGetInstanceProcAddr(instance, cast(*s8) members_it.name.data);
 
@@ -262,7 +262,7 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
 loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevice, enabled_device_extensions : *[..] string) {
     base_address := cast(*void) *loader.extensions.device.required;
 
-    for * type_info(type_of(loader.extensions.device.required)).members {
+    for type_info(type_of(loader.extensions.device.required)).members {
         function := vkGetDeviceProcAddr(device, cast(*s8) it.name.data);
         if function == null {
             assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled", it.name, it.notes[0]);
@@ -274,7 +274,7 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
 
     base_address = cast(*void) *loader.extensions.device.optional;
 
-    for *members_it : type_info(type_of(loader.extensions.device.optional)).members {
+    for members_it : type_info(type_of(loader.extensions.device.optional)).members {
         memeber_extension_name := members_it.notes[0];
         function               := vkGetDeviceProcAddr(device, cast(*s8) members_it.name.data);
 

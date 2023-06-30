@@ -79,16 +79,16 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
     // @Important: Should be the first call
     waitVulkanDeviceIdle(device);
 
-    for * device.frame_data {
+    for device.frame_data {
         for it.command_pools {
-            if it {
+            if it != VK_NULL_HANDLE {
                 // @TODO: VkAllocationCallbacks
                 vkDestroyCommandPool(device.device, it, null);
             }
         }
 
         for it.fences {
-            if it {
+            if it != VK_NULL_HANDLE {
                 // @TODO: VkAllocationCallbacks
                 vkDestroyFence(device.device, it, null);
             }
@@ -100,8 +100,8 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
         vkDestroySemaphore(device.device, it, null);
     }
 
-    for * device.swapchain_textures {
-        if it.view {
+    for device.swapchain_textures {
+        if it.view != VK_NULL_HANDLE {
             // @TODO: #Views.
             // @TODO: VkAllocationCallbacks
             vkDestroyImageView(device.device, it.view, null);
@@ -478,7 +478,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
         #if DEBUG_BUILD {
             Basic.print_to_builder(*builder, "Available instance layers (%):\n", available_layers.count);
-            for * available_layers {
+            for available_layers {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.layerName.data));
             }
             debugMessage("%", Basic.builder_to_string(*builder), new_line = false);
@@ -489,7 +489,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         for required_layer : REQUIRED_LAYERS {
             layer_found := false;
 
-            for * available_layers {
+            for available_layers {
                 if String.equal(to_string(cast(*u8) it.layerName.data), required_layer) {
                     layer_found = true;
                     break;
@@ -506,7 +506,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         for optional_layer : OPTIONAL_LAYERS {
             layer_found := false;
 
-            for * available_layers {
+            for available_layers {
                 if String.equal(to_string(cast(*u8) it.layerName.data), optional_layer) {
                     layer_found = true;
                     break;
@@ -539,7 +539,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
         #if DEBUG_BUILD {
             Basic.print_to_builder(*builder, "Available instance extensions (%):\n", available_extensions.count);
-            for * available_extensions {
+            for available_extensions {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
             debugMessage("%", Basic.builder_to_string(*builder), new_line = false);
@@ -550,7 +550,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         for required_extension : REQUIRED_EXTENSIONS {
             extension_found := false;
 
-            for * available_extensions {
+            for available_extensions {
                 if String.equal(to_string(cast(*u8) it.extensionName.data), required_extension) {
                     extension_found = true;
                     break;
@@ -567,7 +567,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         for optional_extension : OPTIONAL_EXTENSIONS {
             extension_found := false;
 
-            for * available_extensions {
+            for available_extensions {
                 if String.equal(to_string(cast(*u8) it.extensionName.data), optional_extension) {
                     extension_found = true;
                     break;
@@ -894,7 +894,7 @@ END;
 findQueueFamily :: ($condition : Code) #expand {
     queues_in_family_used_it := `queues_in_family_used.data;
 
-    for * `queue_family_properties {
+    for `queue_family_properties {
         queue_family_flags := it.queueFamilyProperties.queueFlags;
 
         if #insert,scope() condition {
@@ -930,7 +930,7 @@ QUEUE_FAMILY_INFO_FORMAT_STRING :: #string END
          Queues count: %
 END;
 
-        for * queue_family_properties {
+        for queue_family_properties {
             Basic.print_to_builder(*builder,
                                    QUEUE_FAMILY_INFO_FORMAT_STRING,
                                    it_index,
@@ -990,7 +990,7 @@ QUEUE_INFO_FORMAT_STRING :: #string END
         Index in family: %
 END;
 
-        for * device.queues {
+        for device.queues {
             Basic.print_to_builder(*builder,
                                    QUEUE_INFO_FORMAT_STRING,
                                    cast(QueueType) it_index,
@@ -1006,7 +1006,7 @@ END;
 // @TODO: VkDeviceMemoryOverallocationCreateInfoAMD (VK_AMD_memory_overallocation_behavior) sounds useful.
 createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] string) {
     queues_count_per_family : [VulkanDevice.queues.count] u32;
-    for * device.queues  queues_count_per_family[it.family_index] += 1;
+    for device.queues  queues_count_per_family[it.family_index] += 1;
 
     // @TODO: For now queues have equal priority. Should be tweaked later.
     queues_priorities : [VulkanDevice.queues.count] f32;
@@ -1015,7 +1015,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     queue_create_infos       : [VulkanDevice.queues.count] VkDeviceQueueCreateInfo = ---;
     queue_create_infos_count : u32 = 0;
 
-    for * device.queues {
+    for device.queues {
         // queue_create_infos must be unique
         if it.index_in_family > 0 continue;
 
@@ -1051,7 +1051,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 
         #if DEBUG_BUILD {
             Basic.print_to_builder(*builder, "Available device extensions (%):\n", available_extensions.count);
-            for * available_extensions {
+            for available_extensions {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
             debugMessage("%", Basic.builder_to_string(*builder), new_line = false);
@@ -1062,7 +1062,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         for required_extension : REQUIRED_EXTENSIONS {
             extension_found := false;
 
-            for * available_extensions {
+            for available_extensions {
                 if String.equal(to_string(cast(*u8) it.extensionName.data), required_extension) {
                     extension_found = true;
                     break;

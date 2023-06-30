@@ -33,7 +33,7 @@ destroyVulkanShaderManager :: (device : *VulkanDevice, manager : *VulkanShaderMa
     shaders.data  = manager.shaders_storage.data;
     shaders.count = manager.shaders_count;
 
-    for * shaders {
+    for shaders {
         // @TODO: #VkAllocationCallbacks
         vkDestroyPipeline(device.device, it.pipeline, null);
 
