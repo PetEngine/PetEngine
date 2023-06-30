@@ -5,14 +5,19 @@ Device :: struct {
         INTEGRATED;
     }
 
-    MAX_SWAPCHAIN_BUFFERS : u8  : 3;
+    MAX_SWAPCHAIN_BUFFERS : u8  : 8;
     MAX_COMMAND_BUFFERS   : s32 : 16;
+    MAX_FRAME_BUFFERING   : u8  : #run Basic.enum_highest_value(FrameBuffering);
 
-    vendor_id               : PCIVendorID;
-    type                    : Type;
-    graphics_api            : GraphicsAPI;
+    vendor_id    : PCIVendorID;
+    type         : Type;
+    graphics_api : GraphicsAPI;
+
     swapchain_buffers_count : u8;
     back_buffer_index       : u8;
+
+    frame_buffering : FrameBuffering;
+    frame_index     : u8;
 }
 
 GraphicsAPI :: enum u8 {
@@ -25,7 +30,7 @@ QueueType :: enum u8 {
     ASYNC_TRANSFER;
 }
 
-PCIVendorID :: enum u32 {
+PCIVendorID :: enum u32 #specified {
     NVIDIA   :: 0x10DE;
     AMD      :: 0x1022;
     INTEL    :: 0x8086; // Very wow, actually
@@ -42,14 +47,20 @@ PCIVendorID :: enum u32 {
     VK_VENDOR_ID_MOBILEYE :: 0x10007;
 }
 
-createDevice :: (graphics_api : GraphicsAPI, window : *Window) -> *Device #must {
+FrameBuffering :: enum u8 #specified {
+    NONE   :: 1;
+    DOUBLE :: 2;
+    TRIPLE :: 3;
+}
+
+createDevice :: (graphics_api : GraphicsAPI, window : *Window, frame_buffering : FrameBuffering) -> *Device #must {
     device : *Device;
 
     infoMessage("Using graphics API: %", graphics_api);
 
     if #complete graphics_api == {
         case .VULKAN;
-            device = createVulkanDevice(window);
+            device = createVulkanDevice(window, frame_buffering);
     }
 
     device.graphics_api = graphics_api;
@@ -93,6 +104,8 @@ waitDeviceIdle :: (device : *Device) {
 }
 
 getSwapchainTexture :: (device : *Device, swapchain_buffer_index : u32) -> *Texture {
+    assert(swapchain_buffer_index < device.swapchain_buffers_count);
+
     texture : *Texture;
 
     if #complete device.graphics_api == {
@@ -106,8 +119,6 @@ getSwapchainTexture :: (device : *Device, swapchain_buffer_index : u32) -> *Text
 getBackBuffer :: (device : *Device) -> *Texture {
     return inline getSwapchainTexture(device, device.back_buffer_index);
 }
-
-
 
 #scope_file
 

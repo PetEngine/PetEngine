@@ -13,12 +13,13 @@ VulkanDevice :: struct {
 
     queues : [#run Basic.enum_highest_value(QueueType) + 1] Queue;
 
-    surface   : VkSurfaceKHR;
-    swapchain : VkSwapchainKHR;
+    surface            : VkSurfaceKHR;
+    swapchain          : VkSwapchainKHR;
+    swapchain_textures : StaticArray(VulkanTexture, MAX_SWAPCHAIN_BUFFERS);
 
     semaphores : [#run Basic.enum_highest_value(SemaphoreKind) + 1] VkSemaphore;
 
-    frame_data : [Device.MAX_SWAPCHAIN_BUFFERS] FrameData;
+    frame_data : StaticArray(FrameData, MAX_FRAME_BUFFERING);
 
     messenger      : VkDebugUtilsMessengerEXT;
     message_hashes : [..] u32;
@@ -32,9 +33,12 @@ VulkanDevice :: struct {
     limits       : VkPhysicalDeviceLimits;
 }
 
-createVulkanDevice :: (window : *Window) -> *VulkanDevice #must {
+createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *VulkanDevice #must {
     device := pushToArena(*context.pet.persistent_arena, VulkanDevice);
-    device.jai_context = *context;
+
+    device.jai_context      = *context;
+    device.frame_buffering  = frame_buffering;
+    device.frame_data.count = cast,no_check(s64) frame_buffering;
 
     // @TODO: #PerFrameArena
     enabled_instance_extensions : [..] string;
@@ -75,31 +79,37 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
     // @Important: Should be the first call
     waitVulkanDeviceIdle(device);
 
-    frame_data_it := device.frame_data.data;
-
-    for 0 .. device.swapchain_buffers_count - 1 {
-        // @TODO: #Views.
-        // @TODO: VkAllocationCallbacks
-        vkDestroyImageView(device.device, frame_data_it.swapchain_texture.view, null);
-
-        Basic.free(frame_data_it.swapchain_texture.name.data);
-
-        for frame_data_it.command_pools {
-            // @TODO: VkAllocationCallbacks
-            vkDestroyCommandPool(device.device, it, null);
+    for * device.frame_data {
+        for it.command_pools {
+            if it {
+                // @TODO: VkAllocationCallbacks
+                vkDestroyCommandPool(device.device, it, null);
+            }
         }
 
-        for frame_data_it.fences {
-            // @TODO: VkAllocationCallbacks
-            vkDestroyFence(device.device, it, null);
+        for it.fences {
+            if it {
+                // @TODO: VkAllocationCallbacks
+                vkDestroyFence(device.device, it, null);
+            }
         }
-
-        frame_data_it += 1;
     }
 
     for device.semaphores {
         // @TODO: VkAllocationCallbacks
         vkDestroySemaphore(device.device, it, null);
+    }
+
+    for * device.swapchain_textures {
+        if it.view {
+            // @TODO: #Views.
+            // @TODO: VkAllocationCallbacks
+            vkDestroyImageView(device.device, it.view, null);
+        }
+
+        if it.name {
+            Basic.free(it.name.data);
+        }
     }
 
     // @TODO: VkAllocationCallbacks
@@ -121,6 +131,15 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
 }
 
 beginVulkanFrame :: (device : *VulkanDevice) {
+    //
+    // Go to the next frame data
+    //
+    device.frame_index = (device.frame_index + 1) % cast(u8) device.frame_data.count;
+    frame_data := *device.frame_data[device.frame_index];
+
+    //
+    // Acquire next swapchain buffer
+    //
     {
         acquire_info := VkAcquireNextImageInfoKHR.{
             sType      = .VK_STRUCTURE_TYPE_ACQUIRE_NEXT_IMAGE_INFO_KHR,
@@ -138,34 +157,21 @@ beginVulkanFrame :: (device : *VulkanDevice) {
         device.back_buffer_index = cast,no_check(u8) back_buffer_index;
     }
 
-    frame_data := *device.frame_data[device.back_buffer_index];
+    //
+    // Wait for current frame command pools memory
+    //
+    debugCheckVK(vkWaitForFences(device.device, frame_data.fences.count, frame_data.fences.data, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF));
 
-    {
-        debugCheckVK(vkWaitForFences(device.device, frame_data.fences.count, frame_data.fences.data, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF));
+    //
+    // Reset command pools
+    //
+    for frame_data.command_pools {
+        debugCheckVK(vkResetCommandPool(device.device, it, 0));
     }
 
-    // @Speed: Is this (Device.MAX_COMMAND_BUFFERS >> 2) threshold value optimal enough?
-    //         Maybe we should always reset entire command pool no matter how many command buffers we use?
-    {
-        command_buffers_used_it := frame_data.command_buffers_used.data;
-
-        for frame_data.command_pools {
-            if command_buffers_used_it.* > (Device.MAX_COMMAND_BUFFERS >> 2) {
-                debugCheckVK(vkResetCommandPool(device.device, it, 0));
-            } else {
-                command_buffers_it := frame_data.command_buffers.data;
-
-                for 0 .. command_buffers_used_it.* - 1 {
-                    debugCheckVK(vkResetCommandBuffer(command_buffers_it.*, 0));
-
-                    command_buffers_it += 1;
-                }
-            }
-
-            command_buffers_used_it += 1;
-        }
-    }
-
+    //
+    // Begin used command buffers
+    //
     {
         begin_info := VkCommandBufferBeginInfo.{
             sType            = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -192,9 +198,13 @@ beginVulkanFrame :: (device : *VulkanDevice) {
     }
 }
 
+// @TODO: Revisit submits and post frame job
 endVulkanFrame :: (device : *VulkanDevice) {
-    frame_data := *device.frame_data[device.back_buffer_index];
+    frame_data := *device.frame_data[device.frame_index];
 
+    //
+    // End used command buffers
+    //
     {
         command_buffers_used_it := frame_data.command_buffers_used.data;
         command_buffers_it      := frame_data.command_buffers.data;
@@ -213,6 +223,9 @@ endVulkanFrame :: (device : *VulkanDevice) {
         }
     }
 
+    //
+    // Submit frame job
+    //
     {
         submit_info := VkSubmitInfo.{
             sType = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -262,14 +275,13 @@ endVulkanFrame :: (device : *VulkanDevice) {
         }
     }
 
+    //
+    // Post frame job
+    //
     {
         post_frame_command_buffer := frame_data.system_command_buffers[SystemCommandBufferKind.POST_FRAME];
-
-        graphics_command_buffers_used := frame_data.command_buffers_used[QueueType.GRAPHICS];
-
-        if graphics_command_buffers_used <= (Device.MAX_COMMAND_BUFFERS >> 2) {
-            debugCheckVK(vkResetCommandBuffer(post_frame_command_buffer, 0));
-        }
+        back_buffer               := *device.swapchain_textures[device.back_buffer_index];
+        fence_to_signal           := frame_data.fences[QueueType.GRAPHICS];
 
         begin_info := VkCommandBufferBeginInfo.{
             sType            = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -277,15 +289,12 @@ endVulkanFrame :: (device : *VulkanDevice) {
             flags            = 0,
             pInheritanceInfo = null // Ignored for primary command buffers
         };
-
         debugCheckVK(vkBeginCommandBuffer(post_frame_command_buffer, *begin_info));
-
-        assert(frame_data.swapchain_texture.current_owner == .GRAPHICS);
-        changeVulkanTextureLayout(post_frame_command_buffer, *frame_data.swapchain_texture, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
+        {
+            assert(back_buffer.current_owner == .GRAPHICS);
+            changeVulkanTextureLayout(post_frame_command_buffer, back_buffer, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        }
         debugCheckVK(vkEndCommandBuffer(post_frame_command_buffer));
-
-        fence_to_signal := frame_data.fences[QueueType.GRAPHICS];
 
         debugCheckVK(vkResetFences(device.device, 1, *fence_to_signal));
 
@@ -293,7 +302,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
             sType                = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
             pNext                = null,
             waitSemaphoreCount   = 1,
-            pWaitSemaphores      = ifx  graphics_command_buffers_used > 0
+            pWaitSemaphores      = ifx  frame_data.command_buffers_used[QueueType.GRAPHICS] > 0
                                    then *device.semaphores[SemaphoreKind.GRAPHICS_DONE]
                                    else *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
             pWaitDstStageMask    = VkPipelineStageFlags.[ .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT ].data,
@@ -302,13 +311,16 @@ endVulkanFrame :: (device : *VulkanDevice) {
             signalSemaphoreCount = 1,
             pSignalSemaphores    = *device.semaphores[SemaphoreKind.POST_FRAME]
         };
-
         debugCheckVK(vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, fence_to_signal));
     }
 
+    //
+    // Present
+    //
     {
-        back_buffer_indices : [1] u32;
-        back_buffer_indices[0] = device.back_buffer_index;
+        back_buffer_indices := u32.[
+            device.back_buffer_index
+        ];
 
         present_info := VkPresentInfoKHR.{
             sType              = .VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -382,7 +394,7 @@ waitVulkanDeviceIdle :: (device : *VulkanDevice) {
 }
 
 getVulkanSwapchainTexture :: inline (device : *VulkanDevice, swapchain_buffer_index : u32) -> *VulkanTexture {
-    return *device.frame_data[swapchain_buffer_index].swapchain_texture;
+    return *device.swapchain_textures[swapchain_buffer_index];
 }
 
 debugCheckVK :: ($code : Code) #expand #no_debug {
@@ -399,8 +411,6 @@ debugCheckVK :: ($code : Code) #expand #no_debug {
 Hash :: #import "Hash";
 
 FrameData :: struct {
-    swapchain_texture : VulkanTexture;
-
     fences               : [VulkanDevice.queues.count]                              VkFence;
     command_pools        : [VulkanDevice.queues.count]                              VkCommandPool;
     command_buffers      : [VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS] VkCommandBuffer;
@@ -1129,7 +1139,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 
 // @TODO: #NotExistedQueues
 getQueues :: (device : *VulkanDevice) {
-    for * device.queues {
+    for device.queues {
         queue_info := VkDeviceQueueInfo2.{
             sType            = .VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2,
             pNext            = null,
@@ -1182,8 +1192,7 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
                                                                                                  cast(*u32) *surface_formats.count,
                                                                                                  surface_formats.data));
 
-    // @TODO: #Settings. Get the number of swapchain buffers from settings
-    requested_swapchain_buffers_count : u32 = 2;
+    requested_swapchain_buffers_count : u32 = cast,no_check(u32) device.frame_buffering;
     if requested_swapchain_buffers_count < surface_capabilities.minImageCount {
         warningMessage("Requested number of swapchain buffers is %, but surface supports at least % of them. % will be used",
                        requested_swapchain_buffers_count,
@@ -1197,9 +1206,10 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
                        surface_capabilities.maxImageCount);
         requested_swapchain_buffers_count = surface_capabilities.maxImageCount;
     }
-    assert(requested_swapchain_buffers_count <= Device.MAX_SWAPCHAIN_BUFFERS,
-           "You want too many swapchain buffers: %. If you really need that much you can increase Device.MAX_SWAPCHAIN_BUFFERS",
-           requested_swapchain_buffers_count);
+    if requested_swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
+        assertMessage("You want too many swapchain buffers: %. If you really need that much you can increase Device.MAX_SWAPCHAIN_BUFFERS",
+                      requested_swapchain_buffers_count);
+    }
 
     infoMessage("Requested swapchain buffers count: %", requested_swapchain_buffers_count);
 
@@ -1253,8 +1263,9 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
                       ~allowed_usage_flags & REQUESTED_USAGE_FLAGS);
     }
 
-    queue_families_having_access_to_swapchain_images : [1] u32;
-    queue_families_having_access_to_swapchain_images[0] = device.queues[QueueType.GRAPHICS].family_index;
+    queue_families_having_access_to_swapchain_images := u32.[
+        device.queues[QueueType.GRAPHICS].family_index
+    ];
 
     if !(surface_capabilities.supportedTransforms & .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
         assertMessage("For some reason monitor does not support landscape mode");
@@ -1302,68 +1313,69 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
                                                                          *swapchain_buffers_count,
                                                                          null);
         device.swapchain_buffers_count = cast,no_check(u8) swapchain_buffers_count;
-
         assert(device.swapchain_buffers_count > 0);
-        assert(device.swapchain_buffers_count <= Device.MAX_SWAPCHAIN_BUFFERS,
-               "Number of swapchain buffers is too high: %. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
-               device.swapchain_buffers_count);
+
+        if device.swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
+            assertMessage("Swapchain buffers overflow: %/%. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
+                          device.swapchain_buffers_count,
+                          VulkanDevice.swapchain_textures.capacity);
+        }
 
         infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
 
-        swapchain_images : [Device.MAX_SWAPCHAIN_BUFFERS] VkImage;
+        swapchain_images : [VulkanDevice.swapchain_textures.capacity] VkImage;
         device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
                                                                          device.swapchain,
                                                                          *swapchain_buffers_count,
                                                                          swapchain_images.data);
         assert(swapchain_buffers_count == device.swapchain_buffers_count);
 
-        frame_data_it       := device.frame_data.data;
+        device.swapchain_textures.count = device.swapchain_buffers_count;
+
         swapchain_images_it := swapchain_images.data;
 
         // @Important: Should be with default allocator
         builder : Basic.String_Builder;
 
         // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to texture manager
-        for 0 .. device.swapchain_buffers_count - 1 {
-            Basic.print_to_builder(*builder, "Swapchain image #%", it);
+        for * device.swapchain_textures {
+            it.dimension             = ._2D;
+            it.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
+            it.flags                 = .SWAPCHAIN | .RESOLUTION_DEPENDENT;
+            it.width                 = cast(u16) surface_extent.width;
+            it.height                = cast(u16) surface_extent.height;
+            it.depth                 = 0;
+            it.samples_count         = 1;
+            it.mips_count            = 1;
+            it.possible_owners_count = 1;
+            it.possible_owners[0]    = .GRAPHICS;
+            it.current_owner         = .GRAPHICS;
+            it.image                 = swapchain_images_it.*;
+            it.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
 
-            if frame_data_it.swapchain_texture.name.data {
-                Basic.free(frame_data_it.swapchain_texture.name.data);
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then it.usage |= .SHADER_READ;
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then it.usage |= .SHADER_WRITE;
+            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then it.usage |= .COLOR_TARGET;
+
+            if !it.name {
+                Basic.print_to_builder(*builder, "Swapchain image #%", it_index);
+                it.name = Basic.builder_to_string(*builder);
             }
 
-            frame_data_it.swapchain_texture.dimension             = ._2D;
-            frame_data_it.swapchain_texture.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
-            frame_data_it.swapchain_texture.flags                 = .SWAPCHAIN | .RESOLUTION_DEPENDENT;
-            frame_data_it.swapchain_texture.width                 = cast(u16) surface_extent.width;
-            frame_data_it.swapchain_texture.height                = cast(u16) surface_extent.height;
-            frame_data_it.swapchain_texture.depth                 = 0;
-            frame_data_it.swapchain_texture.samples_count         = 1;
-            frame_data_it.swapchain_texture.mips_count            = 1;
-            frame_data_it.swapchain_texture.name                  = Basic.builder_to_string(*builder);
-            frame_data_it.swapchain_texture.possible_owners_count = 1;
-            frame_data_it.swapchain_texture.possible_owners[0]    = .GRAPHICS;
-            frame_data_it.swapchain_texture.current_owner         = .GRAPHICS;
-            frame_data_it.swapchain_texture.image                 = swapchain_images_it.*;
-            frame_data_it.swapchain_texture.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
-
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then frame_data_it.swapchain_texture.usage |= .SHADER_READ;
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then frame_data_it.swapchain_texture.usage |= .SHADER_WRITE;
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then frame_data_it.swapchain_texture.usage |= .COLOR_TARGET;
-
-            setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, frame_data_it.swapchain_texture.image, frame_data_it.swapchain_texture.name);
+            setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, it.image, it.name);
 
             // @TODO: #Views.
             {
-                if frame_data_it.swapchain_texture.view {
+                if it.view {
                     // @TODO: VkAllocationCallbacks
-                    vkDestroyImageView(device.device, frame_data_it.swapchain_texture.view, null);
+                    vkDestroyImageView(device.device, it.view, null);
                 }
 
                 view_create_info := VkImageViewCreateInfo.{
                     sType            = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                     pNext            = null,
                     flags            = 0,
-                    image            = frame_data_it.swapchain_texture.image,
+                    image            = it.image,
                     viewType         = .VK_IMAGE_VIEW_TYPE_2D,
                     format           = allowed_surface_format.format,
                     components       = .{
@@ -1382,15 +1394,11 @@ createSwapchainAndInitImages :: (device : *VulkanDevice, window : *Window, old_s
                 };
 
                 // @TODO: VkAllocationCallbacks
-                debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *frame_data_it.swapchain_texture.view));
+                debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
 
-                setVulkanObjectName(device,
-                                    .VK_OBJECT_TYPE_IMAGE_VIEW,
-                                    frame_data_it.swapchain_texture.view,
-                                    frame_data_it.swapchain_texture.name);
+                setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE_VIEW, it.view, it.name);
             }
 
-            frame_data_it       += 1;
             swapchain_images_it += 1;
         }
     }
@@ -1418,19 +1426,15 @@ createFences :: (device : *VulkanDevice) {
         flags = .VK_FENCE_CREATE_SIGNALED_BIT,
     };
 
-    frame_data_it := device.frame_data.data;
-
-    for swapchain_buffer_index : 0 .. device.swapchain_buffers_count - 1 {
-        for * frame_data_it.fences {
+    for * frame_data, frame_index : device.frame_data {
+        for * frame_data.fences {
             // @TODO: VkAllocationCallbacks
             debugCheckVK(vkCreateFence(device.device, *create_info, null, it));
 
-            setVulkanObjectName(device, .VK_OBJECT_TYPE_FENCE, it.*, "% fence for swapchain buffer #%",
+            setVulkanObjectName(device, .VK_OBJECT_TYPE_FENCE, it.*, "% fence for frame #%",
                                 cast(QueueType) it_index,
-                                swapchain_buffer_index);
+                                frame_index);
         }
-
-        frame_data_it += 1;
     }
 }
 
@@ -1443,28 +1447,24 @@ createCommandPools :: (device : *VulkanDevice) {
         sType            = .VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         pNext            = null,
         flags            = .VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        queueFamilyIndex = 0xFFFF_FFFF // Will be set in a loop
+        queueFamilyIndex = VK_QUEUE_FAMILY_IGNORED // Will be set in a loop
     };
 
-    frame_data_it := device.frame_data.data;
-
-    for buffer_index : 0 .. device.swapchain_buffers_count - 1 {
+    for * frame_data, frame_index : device.frame_data {
         queues_it := device.queues.data;
 
-        for * frame_data_it.command_pools {
+        for * frame_data.command_pools {
             create_info.queueFamilyIndex = queues_it.family_index;
 
             // @TODO: VkAllocationCallbacks
             debugCheckVK(vkCreateCommandPool(device.device, *create_info, null, it));
 
-            setVulkanObjectName(device, .VK_OBJECT_TYPE_COMMAND_POOL, it.*, "% command pool for swapchain buffer #%",
+            setVulkanObjectName(device, .VK_OBJECT_TYPE_COMMAND_POOL, it.*, "% command pool for frame #%",
                                 cast(QueueType) it_index,
-                                buffer_index);
+                                frame_index);
 
             queues_it += 1;
         }
-
-        frame_data_it += 1;
     }
 }
 
@@ -1477,12 +1477,10 @@ createCommandBuffers :: (device : *VulkanDevice) {
         commandBufferCount = cast(u32) Device.MAX_COMMAND_BUFFERS
     };
 
-    frame_data_it := device.frame_data.data;
+    for * frame_data, frame_index : device.frame_data {
+        command_buffers_it := frame_data.command_buffers.data;
 
-    for swapchain_buffer_index : 0 .. device.swapchain_buffers_count - 1 {
-        command_buffers_it := frame_data_it.command_buffers.data;
-
-        for command_pool, command_pool_index : frame_data_it.command_pools {
+        for command_pool, command_pool_index : frame_data.command_pools {
             allocation_info.commandPool = command_pool;
 
             debugCheckVK(vkAllocateCommandBuffers(device.device, *allocation_info, command_buffers_it));
@@ -1494,10 +1492,10 @@ createCommandBuffers :: (device : *VulkanDevice) {
                     setVulkanObjectName(device,
                                         .VK_OBJECT_TYPE_COMMAND_BUFFER,
                                         local_command_buffers_it.*,
-                                        "% command buffer #% for swapchain buffer #%",
+                                        "% command buffer #% for frame #%",
                                         cast(QueueType) command_pool_index,
                                         it,
-                                        swapchain_buffer_index);
+                                        frame_index);
 
                     local_command_buffers_it += 1;
                 }
@@ -1505,36 +1503,30 @@ createCommandBuffers :: (device : *VulkanDevice) {
 
             command_buffers_it += Device.MAX_COMMAND_BUFFERS;
         }
-
-        frame_data_it += 1;
     }
 }
 
 createSystemCommandBuffers :: (device : *VulkanDevice) {
-    frame_data_it := device.frame_data.data;
-
     allocation_info := VkCommandBufferAllocateInfo.{
         sType              = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         pNext              = null,
         commandPool        = null, // Will be set in a loop
         level              = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        commandBufferCount = frame_data_it.system_command_buffers.count
+        commandBufferCount = FrameData.system_command_buffers.count
     };
 
-    for swapchain_buffer_index : 0 .. device.swapchain_buffers_count - 1 {
-        allocation_info.commandPool = frame_data_it.command_pools[QueueType.GRAPHICS];
+    for * frame_data, frame_index : device.frame_data {
+        allocation_info.commandPool = frame_data.command_pools[QueueType.GRAPHICS];
 
-        debugCheckVK(vkAllocateCommandBuffers(device.device, *allocation_info, frame_data_it.system_command_buffers.data));
+        debugCheckVK(vkAllocateCommandBuffers(device.device, *allocation_info, frame_data.system_command_buffers.data));
 
         #if DEBUG_BUILD {
-            for frame_data_it.system_command_buffers {
-                setVulkanObjectName(device, .VK_OBJECT_TYPE_COMMAND_BUFFER, it, "% system command buffer for swapchain buffer #%",
+            for frame_data.system_command_buffers {
+                setVulkanObjectName(device, .VK_OBJECT_TYPE_COMMAND_BUFFER, it, "% system command buffer for frame #%",
                                     cast(SystemCommandBufferKind) it_index,
-                                    swapchain_buffer_index);
+                                    frame_index);
             }
         }
-
-        frame_data_it += 1;
     }
 }
 

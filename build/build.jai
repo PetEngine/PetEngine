@@ -89,7 +89,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         assert(success);
     }
 
-    import_paths : [2] string = ---;
+    import_paths : [1 /* build_options.import_path.count */ + 1] string = ---;
     {
         for build_options.import_path {
             import_paths[it_index] = it;
@@ -97,7 +97,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         import_paths[build_options.import_path.count + 0] = "../source";
     }
 
-    additional_linker_arguments : [1] string = ---;
+    additional_linker_arguments : [0 /* build_options.additional_linker_arguments.count */ + 2] string = ---;
     {
         for build_options.additional_linker_arguments {
             additional_linker_arguments[it_index] = it;
@@ -105,8 +105,16 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
 
         #if OS == .WINDOWS {
             additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "/LIBPATH:../third_party/vulkan";
+            if build_arguments.configuration == {
+                case .DEBUG; #through;
+                case .RELEASE_WITH_DEBUG_INFO;
+                    additional_linker_arguments[build_options.additional_linker_arguments.count + 1] = "/DEBUG:FULL"; // For RemedyBG
+                case;
+                    additional_linker_arguments[build_options.additional_linker_arguments.count + 1] = "";
+            }
         } else {
             additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "--library-path=../third_party/vulkan";
+            additional_linker_arguments[build_options.additional_linker_arguments.count + 1] = "";
         }
     }
 
@@ -127,21 +135,21 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     // Common build options
     //
 
-    build_options.output_type                         = .EXECUTABLE;
-    build_options.runtime_storageless_type_info       = false;
-    build_options.use_visual_studio_message_format    = true;
-    build_options.use_natvis_compatible_types         = false;
-    build_options.dead_code_elimination               = .ALL;
-    build_options.backtrace_on_crash                  = .OFF;
-    build_options.info_flags                          = .POLYMORPH_DEDUPLICATE;
-                                                   // | .POLYMORPH_MATCH;
-    build_options.text_output_flags                   = .OUTPUT_TIMING_INFO;
-    build_options.output_executable_name              = "engine";
-    build_options.output_path                         = output_path;
-    build_options.intermediate_path                   = intermediate_path;
-    build_options.entry_point_name                    = "main";
-    build_options.import_path                         = import_paths;
-    build_options.additional_linker_arguments         = additional_linker_arguments;
+    build_options.output_type                      = .EXECUTABLE;
+    build_options.runtime_storageless_type_info    = false;
+    build_options.use_visual_studio_message_format = true;
+    build_options.use_natvis_compatible_types      = false;
+    build_options.dead_code_elimination            = .ALL;
+    build_options.backtrace_on_crash               = .OFF;
+    build_options.info_flags                       = .POLYMORPH_DEDUPLICATE;
+                                                // | .POLYMORPH_MATCH;
+    build_options.text_output_flags                = .OUTPUT_TIMING_INFO;
+    build_options.output_executable_name           = "engine";
+    build_options.output_path                      = output_path;
+    build_options.intermediate_path                = intermediate_path;
+    build_options.entry_point_name                 = "main";
+    build_options.import_path                      = import_paths;
+    build_options.additional_linker_arguments      = additional_linker_arguments;
 
     //
     // Configuration specific options
@@ -150,6 +158,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     if #complete build_arguments.configuration == {
         case .DEBUG;
             set_optimization(*build_options, .VERY_DEBUG, true);
+            build_options.debug_for_expansions = true;
 
         case .RELEASE;
             set_optimization(*build_options, .VERY_OPTIMIZED, false);

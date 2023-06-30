@@ -1,5 +1,5 @@
 CommandBuffer :: struct (usage : QueueType) {
-    handles : [Device.MAX_SWAPCHAIN_BUFFERS] *void;
+    handles : StaticArray(*void, Device.MAX_FRAME_BUFFERING);
 
     shader : *Shader;
 
@@ -64,21 +64,27 @@ DepthTargetDesc :: struct {
 // @TODO: Per-frame command buffers
 createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(usage) #must {
     command_buffer : CommandBuffer(usage);
-
-    handles_it := command_buffer.handles.data;
+    command_buffer.handles.count = cast,no_check(s64) device.frame_buffering;
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            for 0 .. device.swapchain_buffers_count - 1 {
-                handles_it.*  = pushVulkanCommandBuffer(cast(*VulkanDevice) device, it, usage);
-                handles_it   += 1;
+            for * command_buffer.handles {
+                it.* = pushVulkanCommandBuffer(cast(*VulkanDevice) device, cast(u32) it_index, usage);
             }
     }
 
     return command_buffer;
 }
 
-resetCommandBuffer :: (command_buffer : *CommandBuffer) {
+resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer) {
+    // @TODO: #FrameBuffering.
+    //    - If device.frame_buffering > command_buffer.handles.count allocate new memory memory
+    //    - If device.frame_buffering < command_buffer.handles.count free unusused memory
+    assert(command_buffer.handles.count == cast,no_check(s64) device.frame_buffering,
+           "It's illegal to change frame buffering for now.");
+
+    command_buffer.handles.count = cast,no_check(s64) device.frame_buffering;
+
     command_buffer.shader = null;
 
     #if command_buffer.usage == .GRAPHICS {
@@ -99,7 +105,7 @@ clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *T
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            clearVulkanTexture(command_buffer.handles[device.back_buffer_index],
+            clearVulkanTexture(command_buffer.handles[device.frame_index],
                                cast(*VulkanTexture) texture,
                                clear_value);
     }
@@ -114,7 +120,7 @@ setViewport :: (device : *Device, command_buffer : *CommandBuffer, viewport : *V
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            setVulkanViewport(command_buffer.handles[device.back_buffer_index], viewport, render_target_height);
+            setVulkanViewport(command_buffer.handles[device.frame_index], viewport, render_target_height);
     }
 
     command_buffer.viewport = viewport.*;
@@ -129,7 +135,7 @@ setScissorRect :: (device : *Device, command_buffer : *CommandBuffer, scissor_re
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            setVulkanScissorRect(command_buffer.handles[device.back_buffer_index], scissor_rect);
+            setVulkanScissorRect(command_buffer.handles[device.frame_index], scissor_rect);
     }
 
     command_buffer.scissor_rect = scissor_rect.*;
@@ -145,7 +151,7 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader : *Shade
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            setVulkanShader(command_buffer.handles[device.back_buffer_index], cast(*VulkanShader) shader);
+            setVulkanShader(command_buffer.handles[device.frame_index], cast(*VulkanShader) shader);
     }
 
     command_buffer.shader = shader;
@@ -197,7 +203,7 @@ beginRendering :: (
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            beginVulkanRendering(command_buffer.handles[device.back_buffer_index], color_targets, depth_target);
+            beginVulkanRendering(command_buffer.handles[device.frame_index], color_targets, depth_target);
     }
 
     command_buffer.inside_rendering = true;
@@ -210,7 +216,7 @@ endRendering :: (device : *Device, command_buffer : *CommandBuffer) {
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            endVulkanRendering(command_buffer.handles[device.back_buffer_index]);
+            endVulkanRendering(command_buffer.handles[device.frame_index]);
     }
 
     command_buffer.inside_rendering = false;
@@ -230,7 +236,7 @@ drawPrimitives :: (
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            drawVulkanPrimitives(command_buffer.handles[device.back_buffer_index],
+            drawVulkanPrimitives(command_buffer.handles[device.frame_index],
                                  ifx vertex_count   then vertex_count   else 1,
                                  ifx instance_count then instance_count else 1,
                                  first_vertex,

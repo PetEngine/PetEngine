@@ -1,3 +1,11 @@
+// @TODO:
+//    - @Continue: #StaticStorage.
+//    - @Cleanup: Replace 'for *' with just 'for' where we do not modify iterator.
+//    - @Cleanup: #specified where it's needed.
+//    - Rewrite recreateVulkanSwapchain which frees oldSwapchain which != null?
+//    - #DeviceChecks. vkGetPhysicalDeviceSurfaceSupportKHR, vkGetPhysicalDeviceSurfacePresentModesKHR.
+//    - @Cleanup: VkAllocationCallbacks -> #VkAllocationCallbacks.
+
 #scope_export
 
 ENGINE_NAME    :: "PetEngine";
@@ -38,8 +46,10 @@ main :: () {
     window := createWindow(window_manager, surface_width = 960, surface_height = 540);
     defer destroyWindow(window);
 
-    // @TODO: #Settings. Get graphics API from settings.
-    device := createDevice(.VULKAN, window);
+    // @TODO: #Settings.
+    //    - Get graphics API from settings.
+    //    - Get buffering value from settings.
+    device := createDevice(.VULKAN, window, 2);
     defer destroyDevice(device);
 
     texture_manager := createTextureManager(device);
@@ -79,9 +89,15 @@ main :: () {
 
         beginFrame(device);
         {
-            // @TODO: #PerFrameTextures. Delete unused per frame texture memory when number of swapchain buffers decreased.
+            // Reset
+            {
+                resetArena(*context.pet.per_frame_arena);
+                Basic.reset_temporary_storage();
 
-            resetTextureMemory(device, texture_manager, .PER_FRAME);
+                resetCommandBuffer(device, *command_buffer);
+                // @TODO: #PerFrameTextures. Delete unused per frame texture memory when number of swapchain buffers decreased.
+                resetTextureMemory(device, texture_manager, .PER_FRAME);
+            }
 
             // Create per frame textures here...
 
@@ -95,13 +111,14 @@ main :: () {
 
             clearTexture(device, *command_buffer, depth_buffer, .{ depth = 1.0 });
 
-            color_targets : [1] ColorTargetDesc = ---;
-            color_targets[0] = .{
-                texture      = back_buffer,
-                load_action  = .CLEAR,
-                store_action = .STORE,
-                clear_value  = .{ as_f32 = .[ 0.3, 0.3, 0.3, 0.0 ] } // @TODO: #Settings. Get back buffer clear color from settings.
-            };
+            color_targets := ColorTargetDesc.[
+                /* back_buffer */.{
+                    texture      = back_buffer,
+                    load_action  = .CLEAR,
+                    store_action = .STORE,
+                    clear_value  = .{ as_f32 = .[ 0.3, 0.3, 0.3, 0.0 ] } // @TODO: #Settings. Get back buffer clear color from settings.
+                },
+            ];
 
             beginRendering(device, *command_buffer, color_targets);
             {
@@ -113,14 +130,6 @@ main :: () {
             endRendering(device, *command_buffer);
         }
         endFrame(device);
-
-        // Reset
-        {
-            resetCommandBuffer(*command_buffer);
-
-            resetArena(*context.pet.per_frame_arena);
-            Basic.reset_temporary_storage();
-        }
     }
 
     waitDeviceIdle(device);

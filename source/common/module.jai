@@ -14,6 +14,7 @@ s8_array_to_string :: inline (array : [] s8) -> string #no_context {
 #load "arena.jai";
 #load "debug.jai";
 #load "math.jai";
+#load "static_array.jai";
 #load "vulkan/vulkan.jai";
 #if OS == .WINDOWS {
     #load "windows.jai";
