@@ -14,7 +14,6 @@ Configuration :: enum u8 {
 BuildArguments :: struct {
     configuration   := Configuration.DEBUG;
     compile_shaders := false;
-    run_program     := false;
 }
 
 gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
@@ -30,8 +29,6 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
                 arguments.configuration = .RELEASE_WITH_DEBUG_INFO;
             case "shaders";
                 arguments.compile_shaders = true;
-            case "run";
-                arguments.run_program = true;
             case;
                 compiler_report(join("Unknown command line argument: ", it, allocator = temporary_allocator));
         }
@@ -166,11 +163,6 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     defer compiler_destroy_workspace(workspace);
 
     set_build_options(build_options, workspace);
-
-    if build_arguments.run_program {
-        compiler_begin_intercept(workspace, .SKIP_ALL);
-    }
-
     add_build_file(build_filename, workspace);
 
     //
@@ -244,23 +236,5 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
                 compiler_report("Shader compilation has failed");
             }
         }
-    }
-
-    if build_arguments.run_program {
-        message : Message;
-        while message.kind != .COMPLETE && message.kind != .ERROR {
-            message = compiler_wait_for_message();
-        }
-        compiler_end_intercept(workspace);
-
-        output_filename : string = ---;
-        if build_options.os_target == .WINDOWS {
-            output_filename = join(output_path, "/", build_options.output_executable_name, ".exe", allocator = temporary_allocator);
-        } else {
-            output_filename = join(output_path, "/", build_options.output_executable_name,         allocator = temporary_allocator);
-        }
-
-        write_string("\n------------------------------------\n\n");
-        run_command(output_filename, working_directory = output_path);
     }
 }
