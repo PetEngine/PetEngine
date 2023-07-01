@@ -1,18 +1,12 @@
 @echo off
-cls
 
 setlocal enableExtensions
 
-REM checking current directory
-if not exist "%cd%\%~nx0%" (
-    echo [ERROR] You have to call %~nx0% from the build directory.
-    echo.
-    set /A errorLevel=1
-    goto end
-)
+pushd %~dp0%
+    if exist "..\output"        rmdir /S /Q "..\output"
+    if exist "..\intermediates" rmdir /S /Q "..\intermediates"
+    if exist ".\.build"         rmdir /S /Q ".\.build"
+popd
 
-rmdir /S /Q ..\output ..\intermediates .\.build
-
-:end
 exit /B %errorLevel%
 endlocal
