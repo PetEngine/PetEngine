@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkImage :: VK_NON_DISPATCHABLE_HANDLE;
+VkImage :: *VkImage_T; VkImage_T :: struct {}
 
 // Provided by VK_VERSION_1_0
 VK_REMAINING_ARRAY_LAYERS : u32 : 0xFFFF_FFFF;

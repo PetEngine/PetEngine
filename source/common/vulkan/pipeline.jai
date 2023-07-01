@@ -1,16 +1,16 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkPipelineCache :: VK_NON_DISPATCHABLE_HANDLE;
+VkPipelineCache :: *VkPipelineCache_T; VkPipelineCache_T :: struct {}
 
 // Provided by VK_VERSION_1_0
-VkPipelineLayout :: VK_NON_DISPATCHABLE_HANDLE;
+VkPipelineLayout :: *VkPipelineLayout_T; VkPipelineLayout_T :: struct {}
 
 // Provided by VK_VERSION_1_0
-VkPipeline :: VK_NON_DISPATCHABLE_HANDLE;
+VkPipeline :: *VkPipeline_T; VkPipeline_T :: struct {}
 
 // Provided by VK_VERSION_1_0
-VkShaderModule :: VK_NON_DISPATCHABLE_HANDLE;
+VkShaderModule :: *VkShaderModule_T; VkShaderModule_T :: struct {}
 
 // Provided by VK_VERSION_1_0
 VkSampleMask :: u32;

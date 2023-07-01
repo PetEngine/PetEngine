@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkDeviceMemory :: VK_NON_DISPATCHABLE_HANDLE;
+VkDeviceMemory :: *VkDeviceMemory_T; VkDeviceMemory_T :: struct {}
 
 // Provided by VK_VERSION_1_0
 VK_MAX_MEMORY_TYPES : u32 : 32;

@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkFence :: VK_NON_DISPATCHABLE_HANDLE;
+VkFence :: *VkFence_T; VkFence_T :: struct {}
 
 // Provided by VK_VERSION_1_0
 VkFenceCreateFlags :: enum_flags VkFlags #specified {

@@ -76,7 +76,7 @@ createVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, n
         // @TODO: #VkAllocationCallbacks
         debugCheckVK(vkCreatePipelineLayout(device.device, *create_info, null, *shader.pipeline_layout));
 
-        setVulkanObjectName(device, .VK_OBJECT_TYPE_PIPELINE_LAYOUT, shader.pipeline_layout, "% pipeline layout", shader.name);
+        setVulkanObjectName(device, shader.pipeline_layout, "% pipeline layout", shader.name);
     }
 
     #if DEBUG_BUILD {
@@ -155,7 +155,7 @@ createVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, n
     // @TODO: #VkAllocationCallbacks
     debugCheckVK(vkCreateGraphicsPipelines(device.device, manager.pipeline_cache, 1, *create_info, null, *shader.pipeline));
 
-    setVulkanObjectName(device, .VK_OBJECT_TYPE_PIPELINE, shader.pipeline, "% graphics pipeline", shader.name);
+    setVulkanObjectName(device, shader.pipeline, "% graphics pipeline", shader.name);
 
     return shader;
 }
@@ -207,12 +207,7 @@ createShaderStage :: (device : *VulkanDevice, name : string, stage : ShaderStage
     module : VkShaderModule;
     debugCheckVK(vkCreateShaderModule(device.device, *create_info, null, *module)); // @TODO: VkAllocationCallbacks
 
-    setVulkanObjectName(device,
-                        .VK_OBJECT_TYPE_SHADER_MODULE,
-                        module,
-                        "% % shader module",
-                        stage,
-                        name);
+    setVulkanObjectName(device, module, "% % shader module", stage, name);
 
     return module;
 }

@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkSemaphore :: VK_NON_DISPATCHABLE_HANDLE;
+VkSemaphore :: *VkSemaphore_T; VkSemaphore_T :: struct {}
 
 // Provided by VK_VERSION_1_2
 VkSemaphoreWaitFlags :: enum VkEnum #specified {

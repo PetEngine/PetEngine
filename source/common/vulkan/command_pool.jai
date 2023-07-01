@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkCommandPool :: VK_NON_DISPATCHABLE_HANDLE;
+VkCommandPool :: *VkCommandPool_T; VkCommandPool_T :: struct {}
 
 // Provided by VK_VERSION_1_0
 VkCommandPoolCreateFlags :: enum_flags VkFlags #specified {

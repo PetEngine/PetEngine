@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkDevice :: VK_HANDLE;
+VkDevice :: *VkDevice_T; VkDevice_T :: struct {}
 
 // Provided by VK_VERSION_1_0
 VkSharingMode :: enum VkEnum #specified {
@@ -87,7 +87,7 @@ vkDeviceWaitIdle :: (
 // VK_KHR_swapchain
 //
 
-VkSwapchainKHR :: VK_NON_DISPATCHABLE_HANDLE;
+VkSwapchainKHR :: *VkSwapchainKHR_T; VkSwapchainKHR_T :: struct {}
 
 VkSwapchainCreateFlagsKHR :: enum_flags VkFlags {
     // Provided by VK_VERSION_1_1 with VK_KHR_swapchain, VK_KHR_device_group with VK_KHR_swapchain

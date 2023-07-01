@@ -1,4 +1,4 @@
-pushVulkanCommandBuffer :: (device : *VulkanDevice, frame_index : u32, queue_type : QueueType) -> *VkCommandBuffer #must {
+pushVulkanCommandBuffer :: (device : *VulkanDevice, frame_index : u32, queue_type : QueueType) -> VkCommandBuffer #must {
     frame_data := *device.frame_data[frame_index];
 
     command_buffers_used := *frame_data.command_buffers_used[queue_type];

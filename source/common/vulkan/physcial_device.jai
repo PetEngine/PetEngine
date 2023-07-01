@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkPhysicalDevice :: VK_HANDLE;
+VkPhysicalDevice :: *VkPhysicalDevice_T; VkPhysicalDevice_T :: struct {}
 
 // Provided by VK_VERSION_1_0
 VK_MAX_PHYSICAL_DEVICE_NAME_SIZE : u32 : 256;

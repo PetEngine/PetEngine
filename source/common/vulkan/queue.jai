@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkQueue :: VK_HANDLE;
+VkQueue :: *VkQueue_T; VkQueue_T :: struct {}
 
 // Provided by VK_VERSION_1_0
 VK_QUEUE_FAMILY_IGNORED : u32 : 0xFFFF_FFFF;

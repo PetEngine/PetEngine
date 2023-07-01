@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkInstance :: VK_HANDLE;
+VkInstance :: *VkInstance_T; VkInstance_T :: struct {}
 
 // Provided by VK_VERSION_1_0
 VK_MAX_EXTENSION_NAME_SIZE : u32 : 256;
@@ -159,7 +159,7 @@ vkGetInstanceProcAddr :: (
 // VK_EXT_debug_utils
 //
 
-VkDebugUtilsMessengerEXT :: VK_NON_DISPATCHABLE_HANDLE;
+VkDebugUtilsMessengerEXT :: *VkDebugUtilsMessengerEXT_T; VkDebugUtilsMessengerEXT_T :: struct {}
 
 VkDebugUtilsMessageSeverityFlagsEXT :: enum_flags VkFlags {
     VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT :: 0x00000001;
@@ -269,7 +269,7 @@ PFN_vkDestroyDebugUtilsMessengerEXT :: #type (
 // VK_KHR_surface
 //
 
-VkSurfaceKHR :: VK_NON_DISPATCHABLE_HANDLE;
+VkSurfaceKHR :: *VkSurfaceKHR_T; VkSurfaceKHR_T :: struct {}
 
 VkPresentModeKHR :: enum VkEnum {
     VK_PRESENT_MODE_IMMEDIATE_KHR                 :: 0;

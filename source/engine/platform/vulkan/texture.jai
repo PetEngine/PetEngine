@@ -126,7 +126,7 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
     // @TODO: VkAllocationCallbacks
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory.device_memory));
 
-    setVulkanObjectName(device, .VK_OBJECT_TYPE_DEVICE_MEMORY, memory.device_memory, "% device memory", memory_kind);
+    setVulkanObjectName(device, memory.device_memory, "% device memory", memory_kind);
 
     bind_infos_it = bind_infos;
     for 0 .. memory.textures.count - 1 {
@@ -184,7 +184,7 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
         // @TODO: VkAllocationCallbacks
         debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
 
-        setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE_VIEW, it.view, it.name);
+        setVulkanObjectName(device, it.view, it.name);
     }
 }
 
@@ -373,7 +373,7 @@ createVulkanTexture :: (
     // @TODO: VkAllocationCallbacks
     debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
 
-    setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, texture.image, texture.name);
+    setVulkanObjectName(device, texture.image, texture.name);
 
     return texture;
 }
@@ -619,7 +619,7 @@ resizeResolutionDependentVulkanTextures :: (
         // @TODO: VkAllocationCallbacks
         debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
 
-        setVulkanObjectName(device, .VK_OBJECT_TYPE_IMAGE, texture.image, texture.name);
+        setVulkanObjectName(device, texture.image, texture.name);
     }
 
     if memory.device_memory {

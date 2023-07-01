@@ -1,7 +1,7 @@
 #scope_export
 
 // Provided by VK_VERSION_1_0
-VkCommandBuffer :: VK_HANDLE;
+VkCommandBuffer :: *VkCommandBuffer_T; VkCommandBuffer_T :: struct {}
 
 // Provided by VK_VERSION_1_0
 VkCommandBufferLevel :: enum VkEnum #specified {

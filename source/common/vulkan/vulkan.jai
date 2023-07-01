@@ -8,9 +8,6 @@ VK_FALSE : VkBool32 : 0;
 
 VK_NULL_HANDLE :: null;
 
-VK_HANDLE                  :: *void;
-VK_NON_DISPATCHABLE_HANDLE :: *void;
-
 VkEnum  :: s32;
 VkFlags :: u32;
 
@@ -350,11 +347,11 @@ VK_SUBPASS_EXTERNAL  : u32 : 0xFFFF_FFFF;
 VK_WHOLE_SIZE        : u64 : 0xFFFF_FFFF_FFFF_FFFF;
 
 // @Cleanup: Move to their own files
-VkImageView           :: VK_NON_DISPATCHABLE_HANDLE;
-VkRenderPass          :: VK_NON_DISPATCHABLE_HANDLE;
-VkFramebuffer         :: VK_NON_DISPATCHABLE_HANDLE;
-VkBuffer              :: VK_NON_DISPATCHABLE_HANDLE;
-VkDescriptorSetLayout :: VK_NON_DISPATCHABLE_HANDLE;
+VkImageView           :: *VkImageView_T;           VkImageView_T           :: struct {}
+VkRenderPass          :: *VkRenderPass_T;          VkRenderPass_T          :: struct {}
+VkFramebuffer         :: *VkFramebuffer_T;         VkFramebuffer_T         :: struct {}
+VkBuffer              :: *VkBuffer_T;              VkBuffer_T              :: struct {}
+VkDescriptorSetLayout :: *VkDescriptorSetLayout_T; VkDescriptorSetLayout_T :: struct {}
 
 #scope_module
 
