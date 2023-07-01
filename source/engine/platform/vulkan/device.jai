@@ -355,7 +355,19 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                                                                                                  cast(*u32) *surface_formats.count,
                                                                                                  surface_formats.data));
 
-    requested_swapchain_buffers_count : u32 = cast,no_check(u32) device.frame_buffering;
+    present_modes : [] VkPresentModeKHR;
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
+                                                                                                      device.surface,
+                                                                                                      cast(*u32) *present_modes.count,
+                                                                                                      null));
+
+    present_modes.data = pushToArena(*context.pet.per_frame_arena, VkPresentModeKHR, present_modes.count);
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
+                                                                                                      device.surface,
+                                                                                                      cast(*u32) *present_modes.count,
+                                                                                                      present_modes.data));
+
+    requested_swapchain_buffers_count := cast,no_check(u32) device.frame_buffering;
     if requested_swapchain_buffers_count < surface_capabilities.minImageCount {
         warningMessage("Requested number of swapchain buffers is %, but surface supports at least % of them. % will be used",
                        requested_swapchain_buffers_count,
@@ -444,6 +456,18 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         assertMessage("Surface does not support opaque alpha mode");
     }
 
+    // @TODO: #Settings. Vsync (fifo), allow tearing (immediate), vsync + allow tearing (fifo_relaxed)
+    REQUESTED_PRESENT_MODE :: VkPresentModeKHR.VK_PRESENT_MODE_MAILBOX_KHR;
+
+    present_mode : VkPresentModeKHR = ---;
+    if Basic.array_find(present_modes, REQUESTED_PRESENT_MODE) {
+        present_mode = REQUESTED_PRESENT_MODE;
+    } else {
+        // FIFO is the only one which is guaranteed to be supported acording to Vulkan spec.
+        present_mode = .VK_PRESENT_MODE_FIFO_KHR;
+        warningMessage("Requested present mode (%) is not supported, % will be used", REQUESTED_PRESENT_MODE, present_mode);
+    }
+
     create_info := VkSwapchainCreateInfoKHR.{
         sType                 = .VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         pNext                 = null,
@@ -460,7 +484,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         pQueueFamilyIndices   = queue_families_having_access_to_swapchain_images.data,
         preTransform          = .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
         compositeAlpha        = .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        presentMode           = .VK_PRESENT_MODE_MAILBOX_KHR, // @TODO: #Settings. Vsync (fifo), allow tearing (immediate), vsync + allow tearing (fifo_relaxed)
+        presentMode           = present_mode,
         clipped               = VK_TRUE,
         oldSwapchain          = device.swapchain
     };
@@ -1448,9 +1472,29 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
         };
 
         // @TODO: VkAllocationCallbacks
-        debugCheckVK(device.loader.extensions.instance.required.vkCreateWin32SurfaceKHR(device.instance, *create_info, null, *device.surface));
+        debugCheckVK(device.loader.extensions.instance.required.vkCreateWin32SurfaceKHR(device.instance,
+                                                                                        *create_info,
+                                                                                        null,
+                                                                                        *device.surface));
     } else {
         notImplemented();
+    }
+
+    // Query is graphics queue supports presentation to created sufrace
+    {
+        graphics_queue := *device.queues[QueueType.GRAPHICS];
+
+        presentation_supported : VkBool32 = ---;
+        debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceSupportKHR(device.physical_device,
+                                                                                                     graphics_queue.family_index,
+                                                                                                     device.surface,
+                                                                                                     *presentation_supported));
+        if !presentation_supported {
+            assertMessage("% queue #% in #% queue family does not support presentation to created surface",
+                          QueueType.GRAPHICS,
+                          graphics_queue.index_in_family,
+                          graphics_queue.family_index);
+        }
     }
 }
 

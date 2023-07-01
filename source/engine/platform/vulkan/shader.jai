@@ -310,7 +310,7 @@ initDepthStencilState :: inline (state : *VkPipelineDepthStencilStateCreateInfo)
     state.maxDepthBounds        = 0.0;
 }
 
-// @Cleanup.
+// @Cleanup. #Hardcoded
 COLOR_BLEND_ATTACHMENT :: VkPipelineColorBlendAttachmentState.{
     blendEnable         = VK_FALSE,
     srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR,
@@ -339,7 +339,6 @@ initColorBlendState :: inline (state : *VkPipelineColorBlendStateCreateInfo) #no
     state.blendConstants  = .[ 0.0, 0.0, 0.0, 0.0 ];
 }
 
-// @Cleanup.
 DYNAMIC_STATES :: VkDynamicState.[
     .VK_DYNAMIC_STATE_VIEWPORT,
     .VK_DYNAMIC_STATE_SCISSOR,

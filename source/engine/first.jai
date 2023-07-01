@@ -1,5 +1,4 @@
 // @TODO:
-//    - #DeviceChecks. vkGetPhysicalDeviceSurfaceSupportKHR, vkGetPhysicalDeviceSurfacePresentModesKHR.
 //    - @Cleanup: VkAllocationCallbacks -> #VkAllocationCallbacks.
 
 #scope_export
@@ -97,10 +96,10 @@ main :: () {
 
             // Create per frame textures here...
 
-            // @Cleanup: #PerFrameTextures. Should we be able to upload data to per frame textures?
-            //           Maybe we want to restrict to upload data to per frame textures?
-            //           Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame textures
-            //           since we do not want tot release memory which is in use by async queues.
+            // @TODO: #PerFrameTextures. Should we be able to upload data to per frame textures?
+            //        Maybe we want to restrict to upload data to per frame textures?
+            //        Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame textures
+            //        since we do not want tot release memory which is in use by async queues.
             commitTextureMemory(device, texture_manager, .PER_FRAME);
 
             back_buffer := getBackBuffer(device);

@@ -89,7 +89,7 @@ vkDeviceWaitIdle :: (
 
 VkSwapchainKHR :: *VkSwapchainKHR_T; VkSwapchainKHR_T :: struct {}
 
-VkSwapchainCreateFlagsKHR :: enum_flags VkFlags {
+VkSwapchainCreateFlagsKHR :: enum_flags VkFlags #specified {
     // Provided by VK_VERSION_1_1 with VK_KHR_swapchain, VK_KHR_device_group with VK_KHR_swapchain
     VK_SWAPCHAIN_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT_KHR :: 0x00000001;
     // Provided by VK_VERSION_1_1 with VK_KHR_swapchain

@@ -161,14 +161,14 @@ vkGetInstanceProcAddr :: (
 
 VkDebugUtilsMessengerEXT :: *VkDebugUtilsMessengerEXT_T; VkDebugUtilsMessengerEXT_T :: struct {}
 
-VkDebugUtilsMessageSeverityFlagsEXT :: enum_flags VkFlags {
+VkDebugUtilsMessageSeverityFlagsEXT :: enum_flags VkFlags #specified {
     VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT :: 0x00000001;
     VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT    :: 0x00000010;
     VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT :: 0x00000100;
     VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT   :: 0x00001000;
 }
 
-VkDebugUtilsMessageTypeFlagsEXT :: enum_flags VkFlags {
+VkDebugUtilsMessageTypeFlagsEXT :: enum_flags VkFlags #specified {
     VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT                :: 0x00000001;
     VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT             :: 0x00000002;
     VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT            :: 0x00000004;
@@ -176,10 +176,10 @@ VkDebugUtilsMessageTypeFlagsEXT :: enum_flags VkFlags {
     VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT :: 0x00000008;
 }
 
-VkDebugUtilsMessengerCallbackDataFlagsEXT :: enum_flags VkFlags {
+VkDebugUtilsMessengerCallbackDataFlagsEXT :: enum_flags VkFlags #specified {
 }
 
-VkDebugUtilsMessengerCreateFlagsEXT :: enum_flags VkFlags {
+VkDebugUtilsMessengerCreateFlagsEXT :: enum_flags VkFlags #specified {
 }
 
 VkDebugUtilsLabelEXT :: struct {
@@ -271,7 +271,7 @@ PFN_vkDestroyDebugUtilsMessengerEXT :: #type (
 
 VkSurfaceKHR :: *VkSurfaceKHR_T; VkSurfaceKHR_T :: struct {}
 
-VkPresentModeKHR :: enum VkEnum {
+VkPresentModeKHR :: enum VkEnum #specified {
     VK_PRESENT_MODE_IMMEDIATE_KHR                 :: 0;
     VK_PRESENT_MODE_MAILBOX_KHR                   :: 1;
     VK_PRESENT_MODE_FIFO_KHR                      :: 2;
@@ -282,7 +282,7 @@ VkPresentModeKHR :: enum VkEnum {
     VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR :: 1000111001;
 }
 
-VkColorSpaceKHR :: enum VkEnum {
+VkColorSpaceKHR :: enum VkEnum #specified {
     VK_COLOR_SPACE_SRGB_NONLINEAR_KHR          :: 0;
     // Provided by VK_EXT_swapchain_colorspace
     VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT    :: 1000104001;
@@ -362,6 +362,13 @@ PFN_vkDestroySurfaceKHR :: #type (
     pAllocator : *VkAllocationCallbacks
 ) #c_call;
 
+PFN_vkGetPhysicalDeviceSurfaceSupportKHR :: #type (
+    physicalDevice   : VkPhysicalDevice,
+    queueFamilyIndex : u32,
+    surface          : VkSurfaceKHR,
+    pSupported       : *VkBool32
+) -> VkResult #c_call;
+
 PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR :: #type (
     physicalDevice       : VkPhysicalDevice,
     surface              : VkSurfaceKHR,
@@ -375,13 +382,20 @@ PFN_vkGetPhysicalDeviceSurfaceFormatsKHR :: #type (
     pSurfaceFormats     : *VkSurfaceFormatKHR
 ) -> VkResult #c_call;
 
+PFN_vkGetPhysicalDeviceSurfacePresentModesKHR :: #type (
+    physicalDevice    : VkPhysicalDevice,
+    surface           : VkSurfaceKHR,
+    pPresentModeCount : *u32,
+    pPresentModes     : *VkPresentModeKHR
+) -> VkResult #c_call;
+
 //
 // VK_KHR_win32_surface
 //
 
 #if OS == .WINDOWS {
 
-VkWin32SurfaceCreateFlagsKHR :: enum_flags VkFlags {
+VkWin32SurfaceCreateFlagsKHR :: enum_flags VkFlags #specified {
 };
 
 VkWin32SurfaceCreateInfoKHR :: struct {

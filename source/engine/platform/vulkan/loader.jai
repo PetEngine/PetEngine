@@ -15,8 +15,10 @@ VulkanLoader :: struct {
         instance : struct {
             required : struct {
                 vkDestroySurfaceKHR                       : PFN_vkDestroySurfaceKHR;                       @VK_KHR_surface;
+                vkGetPhysicalDeviceSurfaceSupportKHR      : PFN_vkGetPhysicalDeviceSurfaceSupportKHR;      @VK_KHR_surface;
                 vkGetPhysicalDeviceSurfaceCapabilitiesKHR : PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR; @VK_KHR_surface;
                 vkGetPhysicalDeviceSurfaceFormatsKHR      : PFN_vkGetPhysicalDeviceSurfaceFormatsKHR;      @VK_KHR_surface;
+                vkGetPhysicalDeviceSurfacePresentModesKHR : PFN_vkGetPhysicalDeviceSurfacePresentModesKHR; @VK_KHR_surface;
                 #if OS == .WINDOWS {
                     vkCreateWin32SurfaceKHR               : PFN_vkCreateWin32SurfaceKHR;                   @VK_KHR_win32_surface;
                 } else {
@@ -26,12 +28,12 @@ VulkanLoader :: struct {
 
             optional : struct {
                 #if DEBUG_BUILD {
-                    vkSetDebugUtilsObjectNameEXT : PFN_vkSetDebugUtilsObjectNameEXT;    @VK_EXT_debug_utils
+                    vkSetDebugUtilsObjectNameEXT     : PFN_vkSetDebugUtilsObjectNameEXT;   @VK_EXT_debug_utils
+                    vkQueueBeginDebugUtilsLabelEXT   : PFN_vkQueueBeginDebugUtilsLabelEXT; @VK_EXT_debug_utils
+                    vkQueueEndDebugUtilsLabelEXT     : PFN_vkQueueEndDebugUtilsLabelEXT;   @VK_EXT_debug_utils
+                    vkCmdBeginDebugUtilsLabelEXT     : PFN_vkCmdBeginDebugUtilsLabelEXT;   @VK_EXT_debug_utils
+                    vkCmdEndDebugUtilsLabelEXT       : PFN_vkCmdEndDebugUtilsLabelEXT;     @VK_EXT_debug_utils
                 }
-                vkQueueBeginDebugUtilsLabelEXT   : PFN_vkQueueBeginDebugUtilsLabelEXT;  @VK_EXT_debug_utils
-                vkQueueEndDebugUtilsLabelEXT     : PFN_vkQueueEndDebugUtilsLabelEXT;    @VK_EXT_debug_utils
-                vkCmdBeginDebugUtilsLabelEXT     : PFN_vkCmdBeginDebugUtilsLabelEXT;    @VK_EXT_debug_utils
-                vkCmdEndDebugUtilsLabelEXT       : PFN_vkCmdEndDebugUtilsLabelEXT;      @VK_EXT_debug_utils
                 vkCreateDebugUtilsMessengerEXT   : PFN_vkCreateDebugUtilsMessengerEXT;  @VK_EXT_debug_utils
                 vkDestroyDebugUtilsMessengerEXT  : PFN_vkDestroyDebugUtilsMessengerEXT; @VK_EXT_debug_utils
             };
