@@ -14,10 +14,10 @@ Syntax is super trivial: `<parameter name> = <parameter value>;`.
 ### 2.1. PrimitiveTopology
 
 Possible values:
-- TRIANGLE_LIST
 - POINT_LIST
 - LINE_LIST
 - LINE_STRIP
+- TRIANGLE_LIST
 - TRIANGLE_STRIP
 
 Default value:
@@ -25,10 +25,11 @@ Default value:
 
 ### 2.2. FillMode
 
+[Points](https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap28.html#primsrast-points) are not supported yet
+
 Possible values:
 - FILL
 - LINE
-- POINT
 
 Default value:
 - FILL
@@ -37,9 +38,8 @@ Default value:
 
 Possible values:
 - NONE
-- FRONT
-- BACK
-- FRONT_AND_BACK
+- FRONT_FACE
+- BACK_FACE
 
 Default value:
 - NONE
@@ -108,18 +108,20 @@ Default value:
 
 Possible values:
 - NEVER
-- LESS
+- ALWAYS
+- NOT_EQUAL
 - EQUAL
+- LESS
 - LESS_OR_EQUAL
 - GREATER
-- NOT_EQUAL
 - GREATER_OR_EQUAL
-- ALWAYS
 
 Default value:
 - GREATER
 
 ### 2.12. BlendLogicOpEnable
+
+Only for signed, unsigned and normalized integer framebuffers.
 
 Possible values:
 - false
@@ -130,23 +132,25 @@ Default value:
 
 ### 2.13. BlendLogicOp
 
+[Description of all operations](https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap30.html#framebuffer-logicop).
+
 Possible values:
-- CLEAR
+- ZERO
+- ONE
+- COPY
+- COPY_INVERTED
+- NO_OP
+- INVERT
 - AND
 - AND_REVERSE
-- COPY
 - AND_INVERTED
-- NO_OP
-- XOR
-- OR
-- NOR
-- EQUIVALENT
-- INVERT
-- OR_REVERSE
-- COPY_INVERTED
-- OR_INVERTED
 - NAND
-- SET
+- OR
+- OR_REVERSE
+- OR_INVERTED
+- NOR
+- XOR
+- EQUIVALENT
 
 Default value:
 - COPY
@@ -158,7 +162,7 @@ ColorTarget[`<index>`] is followed by dot followed by any name below e.g. `Color
 **2.14.1. WriteMask**
 
 Possible values:
-- Any combination of `R` `G` `B` `A`.
+- Any combination of `R` `G` `B` `A` without repetitions.
 
 Default value:
 - RGBA
