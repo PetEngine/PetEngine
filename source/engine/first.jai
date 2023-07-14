@@ -106,16 +106,14 @@ main :: () {
 
             clearTexture(device, *command_buffer, depth_buffer, .{ depth = 1.0 });
 
-            color_targets := ColorTargetDesc.[
-                /* back_buffer */.{
+            beginRendering(device, *command_buffer, .[
+                .{
                     texture      = back_buffer,
                     load_action  = .CLEAR,
                     store_action = .STORE,
                     clear_value  = .{ as_f32 = .[ 0.3, 0.3, 0.3, 0.0 ] } // @TODO: #Settings. Get back buffer clear color from settings.
                 },
-            ];
-
-            beginRendering(device, *command_buffer, color_targets);
+            ]);
             {
                 setViewport(device, *command_buffer, *Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }, back_buffer.height);
                 setScissorRect(device, *command_buffer, *ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height });
@@ -144,6 +142,7 @@ DEBUG_BUILD :: #run -> bool {
 #load "render/command_buffer.jai";
 #load "render/texture.jai";
 #load "render/shader.jai";
+#load "shader_compiler/compiler.jai";
 
 String :: #import "String";
 File   :: #import "File";

@@ -23,7 +23,16 @@ destroyShaderManager :: (device : *Device, manager : *ShaderManager) {
 }
 
 Shader :: struct {
+    Kind :: enum u8 {
+        UNKNOWN;
+        GRAPHICS;
+        COMPUTE;
+        MESH;
+        RAY_TRACING;
+    }
+
     name : string;
+    kind : Kind;
 }
 
 createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *Shader #must {
