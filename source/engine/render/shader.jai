@@ -40,7 +40,31 @@ createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *
 
     if #complete device.graphics_api == {
         case .VULKAN;
-           shader = createVulkanShader(cast(*VulkanDevice) device, cast(*VulkanShaderManager) manager, name);
+            shader = pushVulkanShader(cast(*VulkanShaderManager) manager);
+    }
+
+    shader.name = name;
+
+    // @TODO: #ShaderCompiler. Parse binary file
+
+    // @Cleanup: #ShaderCompiler.
+    shader.kind = .GRAPHICS;
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            if #complete shader.kind == {
+                case .UNKNOWN;
+                    // @TODO: Print some meaningful message why it's illegal
+
+                case .GRAPHICS;
+                    createGraphicsVulkanShader(cast(*VulkanDevice) device,
+                                               cast(*VulkanShaderManager) manager,
+                                               cast(*VulkanShader) *shader);
+                case .COMPUTE;     #through;
+                case .MESH;        #through;
+                case .RAY_TRACING;
+                    notImplemented(true);
+            }
     }
 
     return shader;

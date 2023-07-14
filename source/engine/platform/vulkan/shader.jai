@@ -49,19 +49,27 @@ VulkanShader :: struct {
     pipeline        : VkPipeline;
 }
 
-createVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, name : string) -> *VulkanShader #must {
-    shader := pushShader(manager);
-    shader.name = name;
+pushVulkanShader :: (manager : *VulkanShaderManager) -> *VulkanShader #must {
+    assert(manager.shaders_count < manager.shaders_storage.count,
+           "Too many shaders were created. Consider increasing ShaderManager.MAX_SHADERS");
 
+    shader := *manager.shaders_storage[manager.shaders_count];
+    manager.shaders_count += 1;
+
+    return shader;
+}
+
+createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, shader : *VulkanShader) {
     shader_stages : [#run Basic.enum_highest_value(ShaderStage) + 1] VkShaderModule = ---;
     for * shader_stages {
-        it.* = createShaderStage(device, name, cast(ShaderStage) it_index);
+        it.* = createShaderStage(device, shader.name, cast(ShaderStage) it_index);
     }
     defer for shader_stages {
         // @TODO: #VkAllocationCallbacks
         vkDestroyShaderModule(device.device, it, null);
     }
 
+    // @TODO: #ShaderCompiler
     {
         create_info := VkPipelineLayoutCreateInfo.{
             sType                  = .VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -92,7 +100,7 @@ createVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, n
         it.flags               = 0;
         it.stage               = shaderStageToVulkanStage(cast(ShaderStage) it_index);
         it.module              = shader_stages[it_index];
-        it.pName               = "main"; // @TODO: #ShaderCompiler. Stage entry point name.
+        it.pName               = "main";
         it.pSpecializationInfo = null;
     }
 
@@ -156,27 +164,9 @@ createVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, n
     debugCheckVK(vkCreateGraphicsPipelines(device.device, manager.pipeline_cache, 1, *create_info, null, *shader.pipeline));
 
     setVulkanObjectName(device, shader.pipeline, "% graphics pipeline", shader.name);
-
-    return shader;
 }
 
 #scope_file
-
-// @TODO: #ShaderCompiler. Move to shader compiler.
-ShaderStage :: enum u8 {
-    VERTEX;
-    FRAGMENT;
-}
-
-pushShader :: (manager : *VulkanShaderManager) -> *VulkanShader #must {
-    assert(manager.shaders_count < manager.shaders_storage.count,
-           "Too many shaders were created. Consider increasing ShaderManager.MAX_SHADERS");
-
-    shader := *manager.shaders_storage[manager.shaders_count];
-    manager.shaders_count += 1;
-
-    return shader;
-}
 
 // @TODO: #ShaderCompiler. Single file shader.
 createShaderStage :: (device : *VulkanDevice, name : string, stage : ShaderStage) -> VkShaderModule #must {
@@ -276,13 +266,12 @@ initRasterizationState :: inline (state : *VkPipelineRasterizationStateCreateInf
 }
 
 // @TODO: #ShaderCompiler. Get from shader:
-//          1. Sample count
-//          2. Should we execute shader per sample or per pixel
+//          1. Should we execute shader per sample or per pixel
 initMultisampleState :: inline (state : *VkPipelineMultisampleStateCreateInfo) #no_context {
     state.sType                 = .VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     state.pNext                 = null;
     state.flags                 = 0;
-    state.rasterizationSamples  = .VK_SAMPLE_COUNT_1_BIT;
+    state.rasterizationSamples  = .VK_SAMPLE_COUNT_1_BIT; // @TODO: Get from createVulkanShader
     state.sampleShadingEnable   = VK_FALSE;
     state.minSampleShading      = 0.0;
     state.pSampleMask           = null; // If pSampleMask is NULL, it is treated as if the mask has all bits set to 1.

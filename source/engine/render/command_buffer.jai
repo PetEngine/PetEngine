@@ -1,7 +1,7 @@
 CommandBuffer :: struct (usage : QueueType) {
     handles : StaticArray(*void, Device.MAX_FRAME_BUFFERING);
 
-    shader : *Shader;
+    shaders : [#run Basic.enum_highest_value(PipelineBindPoint) + 1] *Shader;
 
 #if usage == .GRAPHICS {
     viewport         : Viewport;
@@ -85,7 +85,9 @@ resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer) {
 
     command_buffer.handles.count = cast,no_check(s64) device.frame_buffering;
 
-    command_buffer.shader = null;
+    for * command_buffer.shaders {
+        it.* = null;
+    }
 
     #if command_buffer.usage == .GRAPHICS {
         command_buffer.viewport         = .{};
@@ -145,7 +147,22 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader : *Shade
     #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
             "Only graphics and compute command buffers can set shaders";
 
-    if command_buffer.shader == shader {
+    pipeline_bind_point : PipelineBindPoint;
+
+    if #complete shader.kind == {
+        case .UNKNOWN;
+            // @TODO: Print some meaningful message why it's illegal
+
+        case .GRAPHICS; #through;
+        case .MESH;
+            pipeline_bind_point = .GRAPHICS_OR_MESH;
+        case .COMPUTE;
+            pipeline_bind_point = .COMPUTE;
+        case .RAY_TRACING;
+            pipeline_bind_point = .RAY_TRACING;
+    }
+
+    if command_buffer.shaders[pipeline_bind_point] == shader {
         return;
     }
 
@@ -154,7 +171,7 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader : *Shade
             setVulkanShader(command_buffer.handles[device.frame_index], cast(*VulkanShader) shader);
     }
 
-    command_buffer.shader = shader;
+    command_buffer.shaders[pipeline_bind_point] = shader;
 }
 
 beginRendering :: (
@@ -245,5 +262,11 @@ drawPrimitives :: (
 }
 
 #scope_file
+
+PipelineBindPoint :: enum u8 {
+    GRAPHICS_OR_MESH;
+    COMPUTE;
+    RAY_TRACING;
+}
 
 #load "../platform/vulkan/command_buffer.jai";

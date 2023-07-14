@@ -52,8 +52,12 @@ debugCheck :: (
     }
 }
 
-notImplemented :: () #expand #no_debug {
-    #assert false "Not implemented";
+notImplemented :: ($assert_in_run_time := false) #expand #no_debug {
+    #if assert_in_run_time {
+        assertMessage("Not implemented");
+    } else {
+        #assert false "Not implemented";
+    }
 }
 
 codeToString :: ($code : Code) -> string {

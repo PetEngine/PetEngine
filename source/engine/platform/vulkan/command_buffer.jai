@@ -108,9 +108,18 @@ setVulkanScissorRect :: inline (command_buffer : VkCommandBuffer, scissor_rect :
     vkCmdSetScissor(command_buffer, 0, 1, *vk_scissor_rect);
 }
 
-// TODO: Compute shaders
 setVulkanShader :: inline (command_buffer : VkCommandBuffer, shader : *VulkanShader) #no_context {
-    vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
+    if #complete shader.kind == {
+        case .UNKNOWN;
+            // @TODO: Print some meaningful message why it's illegal
+        case .GRAPHICS; #through;
+        case .MESH;
+            vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
+        case .COMPUTE;
+            vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline);
+        case .RAY_TRACING;
+            vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, shader.pipeline);
+    }
 }
 
 // @Speed: Load/store actions
