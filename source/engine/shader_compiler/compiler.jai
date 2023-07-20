@@ -1,3 +1,8 @@
+ShaderStage :: enum u8 {
+    VERTEX;
+    FRAGMENT;
+}
+
 compileShader :: (name : string) {
     source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader", allocator = Basic.temporary_allocator);
 
@@ -10,44 +15,38 @@ compileShader :: (name : string) {
     // 1. Get common shader part
     common_code := getShaderStageCode(*stream);
 
-    line         := stream;
-    shader_kind  := Shader.Kind.UNKNOWN;
-
+    // 2. Get code for each shader stage and pipeline state
+    shader_kind         := Shader.Kind.UNKNOWN;
     stage_codes         : [MAX_STAGES] string;
     pipeline_state_code : string;
 
-    // 2. Get code for each shader stage and pipeline state
-    while notEndOfStream(line, stream) {
-        next_line := initLineLengthAndGetNextLine(*line, stream);
+    while stream {
+        line := getLine(*stream);
 
-        if line.count > 0 && line[0] == #char "#" {
+        if line && line[0] == #char "#" {
             line = String.trim_right(line);
 
-            if line == "#vertex_shader" {
-                if shader_kind != .GRAPHICS && shader_kind != .UNKNOWN {
-                    errorMessage("Vertex shader stage is unavailable for shader kind %", shader_kind);
-                    return;
-                }
+            if line == {
+                case "#vertex_shader";
+                    if shader_kind != .GRAPHICS && shader_kind != .UNKNOWN {
+                        errorMessage("Vertex shader stage is unavailable for shader kind %", shader_kind);
+                        return;
+                    }
+                    shader_kind = .GRAPHICS;
+                    stage_codes[ShaderStage.VERTEX] = getShaderStageCode(*stream);
 
-                shader_kind = .GRAPHICS;
+                case "#fragment_shader";
+                    if shader_kind != .GRAPHICS && shader_kind != .UNKNOWN {
+                        errorMessage("Vertex shader stage is unavailable for shader kind %", shader_kind);
+                        return;
+                    }
+                    shader_kind = .GRAPHICS;
+                    stage_codes[ShaderStage.FRAGMENT] = getShaderStageCode(*stream);
 
-                stage_codes[ShaderStage.VERTEX] = getShaderStageCode(*stream);
-            } else if line == "#fragment_shader" {
-                if shader_kind != .GRAPHICS && shader_kind != .UNKNOWN {
-                    errorMessage("Vertex shader stage is unavailable for shader kind %", shader_kind);
-                    return;
-                }
-
-                shader_kind = .GRAPHICS;
-
-                stage_codes[ShaderStage.FRAGMENT] = getShaderStageCode(*stream);
-            } else if line == "#pipeline_state" {
-                // @TODO: Pasrse pipeline state
-                pipeline_state_code = getShaderStageCode(*stream);
+                case "#pipeline_state";
+                    pipeline_state_code = getShaderStageCode(*stream);
             }
         }
-
-        moveToNextLine(*line, next_line);
     }
 
     // 3. Parse pipeline state
@@ -63,11 +62,6 @@ compileShader :: (name : string) {
     // 5. Get binding table from platform specific intermediate shader language
     // 6. Write everything to file
     output_filename := String.join(OUTPUT_SHADERS_FOLDER, "/", name, ".shader_bin", allocator = Basic.temporary_allocator);
-}
-
-ShaderStage :: enum u8 {
-    VERTEX;
-    FRAGMENT;
 }
 
 #scope_file
@@ -205,82 +199,63 @@ GraphicsPipelineState :: struct {
 BindingTable :: struct {
 } #no_padding
 
-initLineLengthAndGetNextLine :: inline (line : *string, stream : string) -> *u8 {
-    next_line := line.data;
+getLine :: (stream : *string) -> string {
+    line : string = ---;
+    line.data  = stream.data;
+    line.count = 0;
 
-    while notEndOfStream(next_line, stream) && next_line.* != #char "\n" {
-        next_line += 1;
+    while stream.* && stream.*[0] != #char "\n" {
+        stream.data  += 1;
+        stream.count -= 1;
     }
 
-    line.count = next_line - line.data;
+    line.count = cast(s64) (stream.data - line.data);
 
-    if notEndOfStream(next_line, stream) {
-        next_line += 1;
+    if stream.* {
+        assert(stream.*[0] == #char "\n");
+
+        stream.data  += 1;
+        stream.count -= 1;
     }
 
-    return next_line;
-}
-
-moveToNextLine :: inline (line : *string, next_line : *u8) {
-    line.data = next_line;
+    return line;
 }
 
 getShaderStageCode :: (stream : *string) -> string {
-    ABORT_STAGE_KEYWORDS :: string.[
+    stream.* = String.trim_left(stream.*);
+
+    stage_code : string = ---;
+    stage_code.data  = stream.data;
+    stage_code.count = 0;
+
+    STAGE_KEYWORDS :: string.[
         "#vertex_shader",
         "#fragment_shader",
         "#pipeline_state",
     ];
 
-    if stream.count > 0 && stream.data.* == #char "#" {
-        line      := stream.*;
-        next_line := initLineLengthAndGetNextLine(*line, stream.*);
+    line : string;
+    while outer_loop := stream.* {
+        line = getLine(stream);
 
-        line = String.trim_right(line);
-
-        for ABORT_STAGE_KEYWORDS {
-            if line == it {
-                moveToNextLine(*line, next_line);
-                stream.count -= line.data - stream.data;
-                stream.data   = line.data;
-                break;
-            }
-        }
-    }
-
-    stream.* = String.trim_left(stream.*);
-    line := stream.*;
-
-    while outer_loop := notEndOfStream(line, stream.*) {
-        next_line := initLineLengthAndGetNextLine(*line, stream.*);
-
-        if line.count > 0 && line[0] == #char "#" {
+        if line && line[0] == #char "#" {
             line = String.trim_right(line);
 
-            for ABORT_STAGE_KEYWORDS {
+            // If we met next stage, this is the end.
+            for STAGE_KEYWORDS {
                 if line == it {
                     break outer_loop;
                 }
             }
         }
-
-        moveToNextLine(*line, next_line);
     }
 
-    result : string = ---;
-    result.data  = stream.data;
-    result.count = line.data - stream.data;
+    if line {
+        stage_code.count = cast(s64) (line.data - stage_code.data);
 
-    stream.data   = line.data;
-    stream.count -= result.count;
+        stream.data   = line.data;
+        stream.count += line.count;
+    }
 
-    return String.trim_right(result);
-}
-
-notEndOfStream :: inline (iterator : *u8, stream : string) -> bool {
-    return iterator - stream.data < stream.count;
-}
-
-notEndOfStream :: inline (iterator : string, stream : string) -> bool {
-    return notEndOfStream(iterator.data, stream);
+    return String.trim_right(stage_code);
 }
