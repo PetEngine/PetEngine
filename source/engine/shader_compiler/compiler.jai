@@ -52,8 +52,8 @@ compileShader :: (name : string) {
     // 3. Parse pipeline state
     pipeline_state : PipelineState;
     if shader_kind == .GRAPHICS {
-        gps := *pipeline_state.graphics;
-        // @TODO, @Continue
+        parseGraphicsPipelineState(*pipeline_state.graphics, pipeline_state_code);
+        warningMessage("%", pipeline_state.graphics);
     } else {
         notImplemented(true);
     }
@@ -66,12 +66,13 @@ compileShader :: (name : string) {
 
 #scope_file
 
-SOURCE_SHADERS_FOLDER :: "../../../source/shaders"; // @TODO: #FileSystem.
-OUTPUT_SHADERS_FOLDER :: "shaders";                 // @TODO: #FileSystem.
-COMPILER_VERSION      :: 1;
-INVALID_OFFSET        :: 0xFFFF_FFFF_FFFF_FFFF;
-MAX_COLOR_TARGETS     :: 8;
-MAX_STAGES            :: #run Basic.enum_highest_value(ShaderStage) + 1;
+SOURCE_SHADERS_FOLDER      :: "../../../source/shaders"; // @TODO: #FileSystem.
+OUTPUT_SHADERS_FOLDER      :: "shaders";                 // @TODO: #FileSystem.
+COMPILER_VERSION           :: 1;
+INVALID_OFFSET             :: 0xFFFF_FFFF_FFFF_FFFF;
+MAX_COLOR_TARGETS          :: 8;
+MAX_STAGES                 :: #run Basic.enum_highest_value(ShaderStage) + 1;
+INVALID_COLOR_TARGET_INDEX : u8 : 0xFF;
 
 Header :: struct {
     version        : u8 = COMPILER_VERSION;
@@ -258,4 +259,305 @@ getShaderStageCode :: (stream : *string) -> string {
     }
 
     return String.trim_right(stage_code);
+}
+
+parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : string) {
+    while state_code {
+        line := getLine(*state_code);
+
+        if String.starts_with(line, "ColorTarget") {
+            line_it : string = ---;
+            line_it.data  = line.data  + "ColorTarget".count;
+            line_it.count = line.count - "ColorTarget".count;
+
+            line_it = String.trim_left(line_it);
+            if line_it.count <= 0 {
+                // @TODO: #BetterMessage.
+                errorMessage("Compilation failed");
+                return;
+            }
+
+            color_target_index := getColorTargetIndex(*line_it);
+            if color_target_index == INVALID_COLOR_TARGET_INDEX {
+                return;
+            }
+
+            line_it = String.trim_left(line_it);
+            if !line_it || line_it[0] != #char "." {
+                // @TODO: #BetterMessage.
+                errorMessage("Compilation failed");
+                return;
+            }
+
+            // Skip "."
+            line_it.data  += 1;
+            line_it.count -= 1;
+
+            line_it = String.trim_left(line_it);
+            if !line_it {
+                // @TODO: #BetterMessage.
+                errorMessage("Compilation failed");
+                return;
+            }
+
+            name, value := splitToNameAndValue(line_it);
+
+            if name == {
+                case "WriteMask";
+                    handleWriteMaskValue(*state.color_targets[color_target_index].write_mask, value);
+
+                case "BlendEnable";
+                    handleBoolValue(*state.color_targets[color_target_index].blend_enable, value);
+
+                case "SrcColorBlendFactor";
+                    handleEnumValue(*state.color_targets[color_target_index].src_color_blend_factor, value);
+
+                case "DstColorBlendFactor";
+                    handleEnumValue(*state.color_targets[color_target_index].dst_color_blend_factor, value);
+
+                case "ColorBlendOp";
+                    handleEnumValue(*state.color_targets[color_target_index].color_blend_op, value);
+
+                case "SrcAlphaBlendFactor";
+                    handleEnumValue(*state.color_targets[color_target_index].src_alpha_blend_factor, value);
+
+                case "DstAlphaBlendFactor";
+                    handleEnumValue(*state.color_targets[color_target_index].dst_alpha_blend_factor, value);
+
+                case "AlphaBlendOp";
+                    handleEnumValue(*state.color_targets[color_target_index].alpha_blend_op, value);
+
+                case;
+                    // @TODO: #BetterMessage.
+                    errorMessage("Compilation failed");
+                    return;
+            }
+        } else {
+            name, value := splitToNameAndValue(line);
+
+            if name == {
+                case "PrimitiveTopology";
+                    handleEnumValue(*state.primitive_topology, value);
+
+                case "FillMode";
+                    handleEnumValue(*state.fill_mode, value);
+
+                case "CullMode";
+                    handleEnumValue(*state.cull_mode, value);
+
+                case "FrontFace";
+                    handleEnumValue(*state.front_face, value);
+
+                case "DepthBiasEnable";
+                    handleBoolValue(*state.depth_bias_enable, value);
+
+                case "DepthBiasConstantFactor";
+                    handleFloatValue(*state.depth_bias_constant_factor, value);
+
+                case "DepthBiasClamp";
+                    handleFloatValue(*state.depth_bias_clamp, value);
+
+                case "DepthBiasSlopeFactor";
+                    handleFloatValue(*state.depth_bias_slope_factor, value);
+
+                case "DepthTestEnable";
+                    handleBoolValue(*state.depth_test_enable, value);
+
+                case "DepthWriteEnable";
+                    handleBoolValue(*state.depth_write_enable, value);
+
+                case "DepthCompareOp";
+                    handleEnumValue(*state.depth_compare_op, value);
+
+                case "BlendLogicOpEnable";
+                    handleBoolValue(*state.blend_logic_op_enable, value);
+
+                case "BlendLogicOp";
+                    handleEnumValue(*state.blend_logic_op, value);
+
+                case;
+                    // @TODO: #BetterMessage.
+                    errorMessage("Compilation failed");
+                    return;
+            }
+        }
+    }
+}
+
+splitToNameAndValue :: (line_ : string) -> (name : string, value : string) {
+    line := String.trim_left(line_);
+
+    name : string = ---;
+    {
+        name_end := line;
+        while name_end && name_end[0] != #char "=" {
+            name_end.data  += 1;
+            name_end.count -= 1;
+        }
+
+        if name_end[0] != #char "=" {
+            // @TODO: #BetterMessage.
+            errorMessage("Compilation failed");
+            return "", "";
+        }
+
+        name.data  = line.data;
+        name.count = cast(s64) (name_end.data - line.data);
+
+        name = String.trim_right(name);
+
+        line = name_end;
+    }
+
+    // Skip "="
+    line.data  += 1;
+    line.count -= 1;
+
+    line = String.trim_left(line);
+
+    value : string = ---;
+    {
+        value_end := line;
+        while value_end && value_end[0] != #char ";" {
+            value_end.data  += 1;
+            value_end.count -= 1;
+        }
+
+        if value_end[0] != #char ";" {
+            // @TODO: #BetterMessage.
+            errorMessage("Compilation failed");
+            return "", "";
+        }
+
+        value.data  = line.data;
+        value.count = cast(s64) (value_end.data - line.data);
+
+        value = String.trim_right(value);
+    }
+
+    return name, value;
+}
+
+handleEnumValue :: inline (enum_value : *$T, value : string) #modify {
+    return (cast(*Type_Info) T).type == .ENUM;
+} {
+    info := type_info(T);
+
+    for info.names {
+        if it == value {
+            enum_value.* = cast(T) info.values[it_index];
+            return;
+        }
+    }
+
+    // @TODO: #BetterMessage.
+    errorMessage("Compilation failed");
+}
+
+handleWriteMaskValue :: (enum_flags_value : *type_of(GraphicsPipelineState.color_targets[0].write_mask), value : string) {
+    Type :: type_of(GraphicsPipelineState.color_targets[0].write_mask);
+    info := type_info(Type);
+
+    values := value;
+    enum_flags_value.* = 0;
+
+    while values {
+        found : bool;
+
+        one_value : string = ---;
+        one_value.data  = values.data;
+        one_value.count = 1;
+
+        for info.names {
+            if it == one_value {
+                enum_flags_value.* |= cast(Type) info.values[it_index];
+
+                found = true;
+
+                values.data  += 1;
+                values.count -= 1;
+
+                break;
+            }
+        }
+
+        if !found {
+            // @TODO: #BetterMessage.
+            errorMessage("Compilation failed");
+            return;
+        }
+    }
+}
+
+handleBoolValue :: inline (bool_value : *bool, value : string) {
+    if value == {
+        case "true";
+            bool_value.* = true;
+
+        case "false";
+            bool_value.* = false;
+
+        case;
+            // @TODO: #BetterMessage.
+            errorMessage("Compilation failed");
+    }
+}
+
+handleFloatValue :: inline (float_value : *f32, value : string) {
+    f32_value, success := Basic.string_to_float(value);
+
+    if success {
+        float_value.* = f32_value;
+    } else {
+        // @TODO: #BetterMessage.
+        errorMessage("Compilation failed");
+    }
+}
+
+getColorTargetIndex :: (stream : *string) -> u8 {
+    line_it := String.trim_left(stream.*);
+    defer stream.* = line_it;
+
+    if !line_it || line_it[0] != #char "[" {
+        // @TODO: #BetterMessage.
+        errorMessage("Compilation failed");
+        return INVALID_COLOR_TARGET_INDEX;
+    }
+
+    // Skip "["
+    line_it.data  += 1;
+    line_it.count -= 1;
+
+    line_it = String.trim_left(line_it);
+    if !line_it {
+        // @TODO: #BetterMessage.
+        errorMessage("Compilation failed");
+        return INVALID_COLOR_TARGET_INDEX;
+    }
+
+    color_target_index, success, line_it= := Basic.string_to_int(line_it, T = u8);
+    if !success {
+        // @TODO: #BetterMessage.
+        errorMessage("Compilation failed");
+        return INVALID_COLOR_TARGET_INDEX;
+    }
+
+    if color_target_index >= MAX_COLOR_TARGETS {
+        // @TODO: #BetterMessage.
+        errorMessage("Compilation failed");
+        return INVALID_COLOR_TARGET_INDEX;
+    }
+
+    line_it = String.trim_left(line_it);
+    if !line_it || line_it[0] != #char "]" {
+        // @TODO: #BetterMessage.
+        errorMessage("Compilation failed");
+        return INVALID_COLOR_TARGET_INDEX;
+    }
+
+    // Skip "]"
+    line_it.data  += 1;
+    line_it.count -= 1;
+
+    return color_target_index;
 }
