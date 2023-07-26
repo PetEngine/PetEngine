@@ -53,12 +53,48 @@ compileShader :: (name : string) {
     pipeline_state : PipelineState;
     if shader_kind == .GRAPHICS {
         parseGraphicsPipelineState(*pipeline_state.graphics, pipeline_state_code);
-        warningMessage("%", pipeline_state.graphics);
+        warningMessage("Pipeline state shader:\n\n%\n", pipeline_state.graphics);
     } else {
         notImplemented(true);
     }
 
     // 4. Compile shader stages
+    //
+    // @TODO: Remove markers when we will deside to compile them concurrently
+    setMarkerInArena(*context.pet.per_frame_arena);
+
+    for stage_codes {
+        if !it continue;
+
+        SEPARATOR   :: "\n\n";
+        full_length := it.count;
+
+        if common_code {
+            full_length += common_code.count + SEPARATOR.count;
+        }
+
+        code : string = ---;
+        code.count = 0;
+        code.data  = pushToArena(*context.pet.per_frame_arena, u8, full_length);
+
+        if common_code {
+            memcpy(code.data + code.count, common_code.data, common_code.count);
+            code.count += common_code.count;
+
+            memcpy(code.data + code.count, SEPARATOR.data, SEPARATOR.count);
+            code.count += SEPARATOR.count;
+        }
+
+        memcpy(code.data + code.count, it.data, it.count);
+        code.count += it.count;
+
+        warningMessage("% shader:\n\n%\n", cast(ShaderStage) it_index, code);
+
+        // @TODO, @Continue: Compile shaders.
+
+        resetArenaToMarker(*context.pet.per_frame_arena);
+    }
+
     // 5. Get binding table from platform specific intermediate shader language
     // 6. Write everything to file
     output_filename := String.join(OUTPUT_SHADERS_FOLDER, "/", name, ".shader_bin", allocator = Basic.temporary_allocator);
@@ -454,13 +490,13 @@ handleEnumValue :: inline (enum_value : *$T, value : string) #modify {
     errorMessage("Compilation failed");
 }
 
-handleWriteMaskValue :: (enum_flags_value : *type_of(GraphicsPipelineState.color_targets[0].write_mask), value : string) {
+handleWriteMaskValue :: (write_mask : *type_of(GraphicsPipelineState.color_targets[0].write_mask), value : string) {
     Type :: type_of(GraphicsPipelineState.color_targets[0].write_mask);
     info := type_info(Type);
 
-    values := value;
-    enum_flags_value.* = 0;
+    write_mask.* = 0;
 
+    values := value;
     while values {
         found : bool;
 
@@ -470,7 +506,7 @@ handleWriteMaskValue :: (enum_flags_value : *type_of(GraphicsPipelineState.color
 
         for info.names {
             if it == one_value {
-                enum_flags_value.* |= cast(Type) info.values[it_index];
+                write_mask.* |= cast(Type) info.values[it_index];
 
                 found = true;
 
