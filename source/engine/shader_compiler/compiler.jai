@@ -3,6 +3,7 @@ ShaderStage :: enum u8 {
     FRAGMENT;
 }
 
+// @TODO: #DumpShaders. shaderc_compile_into_spv_assembly
 compileShader :: (name : string) {
     source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader", allocator = Basic.temporary_allocator);
 
@@ -12,10 +13,16 @@ compileShader :: (name : string) {
 
     stream := source;
 
+    //
     // 1. Get common shader part
+    //
+
     common_code := getShaderStageCode(*stream);
 
+    //
     // 2. Get code for each shader stage and pipeline state
+    //
+
     shader_kind         := Shader.Kind.UNKNOWN;
     stage_codes         : [MAX_STAGES] string;
     pipeline_state_code : string;
@@ -49,17 +56,62 @@ compileShader :: (name : string) {
         }
     }
 
+    //
     // 3. Parse pipeline state
+    //
+
     pipeline_state : PipelineState;
     if shader_kind == .GRAPHICS {
         parseGraphicsPipelineState(*pipeline_state.graphics, pipeline_state_code);
-        warningMessage("Pipeline state shader:\n\n%\n", pipeline_state.graphics);
     } else {
         notImplemented(true);
     }
 
+    //
     // 4. Compile shader stages
     //
+
+    shaderc_compiler := shaderc_compiler_initialize();
+    defer shaderc_compiler_release(shaderc_compiler);
+
+    shaderc_options := shaderc_compile_options_initialize();
+    defer shaderc_compile_options_release(shaderc_options);
+
+    shaderc_compile_options_set_source_language(shaderc_options, .shaderc_source_language_glsl);
+    #if DEBUG_BUILD {
+        shaderc_compile_options_add_macro_definition(shaderc_options,
+                                                     cast(*s8) "DEBUG_BUILD".data,
+                                                     "DEBUG_BUILD".count,
+                                                     cast(*s8) "1".data,
+                                                     1);
+        shaderc_compile_options_set_generate_debug_info(shaderc_options);
+        shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_zero);
+    } else {
+        shaderc_compile_options_add_macro_definition(shaderc_options,
+                                                     cast(*s8) "DEBUG_BUILD".data,
+                                                     "DEBUG_BUILD".count,
+                                                     cast(*s8) "0".data,
+                                                     1);
+        shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_performance);
+    }
+    shaderc_compile_options_set_forced_version_profile(shaderc_options, 460, .shaderc_profile_none);
+    // @Cleanup: if Vulkan?
+    shaderc_compile_options_set_target_env(shaderc_options,
+                                           .shaderc_target_env_vulkan,
+                                           cast(u32) shaderc_env_version.shaderc_env_version_vulkan_1_3);
+    shaderc_compile_options_set_target_spirv(shaderc_options, .shaderc_spirv_version_1_6);
+    shaderc_compile_options_set_auto_bind_uniforms(shaderc_options, true);
+    // @TODO: shaderc_compile_options_set_binding_base
+    shaderc_compile_options_set_auto_map_locations(shaderc_options, true);
+    // @TOOD: #Viewport. Experiment with shaderc_compile_options_set_invert_y
+
+    nt_name : string = ---;
+    {
+        nt_name.count = name.count + 1;
+        nt_name.data  = pushToArena(*context.pet.per_frame_arena, u8, nt_name.count);
+        memcpy(nt_name.data, name.data, name.count);
+    }
+
     // @TODO: Remove markers when we will deside to compile them concurrently
     setMarkerInArena(*context.pet.per_frame_arena);
 
@@ -88,9 +140,25 @@ compileShader :: (name : string) {
         memcpy(code.data + code.count, it.data, it.count);
         code.count += it.count;
 
-        warningMessage("% shader:\n\n%\n", cast(ShaderStage) it_index, code);
+        result := shaderc_compile_into_spv(shaderc_compiler,
+                                           cast(*s8) code.data,
+                                           cast(u64) code.count,
+                                           shaderStageToShadercShaderKind(cast(ShaderStage) it_index),
+                                           cast(*s8) nt_name.data,
+                                           cast(*s8) "main\0".data,
+                                           shaderc_options);
+        defer shaderc_result_release(result);
 
-        // @TODO, @Continue: Compile shaders.
+        status := shaderc_result_get_compilation_status(result);
+        if status != .shaderc_compilation_status_success {
+            error_message := shaderc_result_get_error_message(result);
+            errorMessage("% shader compilation failed: %\n%", cast(ShaderStage) it_index, status, to_string(cast(*u8) error_message));
+            return;
+        }
+
+        stage_spirv : string = ---;
+        stage_spirv.data  = cast(*u8) shaderc_result_get_bytes(result);
+        stage_spirv.count = cast(s64) shaderc_result_get_length(result);
 
         resetArenaToMarker(*context.pet.per_frame_arena);
     }
@@ -101,6 +169,8 @@ compileShader :: (name : string) {
 }
 
 #scope_file
+
+#load "shaderc.jai";
 
 SOURCE_SHADERS_FOLDER      :: "../../../source/shaders"; // @TODO: #FileSystem.
 OUTPUT_SHADERS_FOLDER      :: "shaders";                 // @TODO: #FileSystem.
@@ -596,4 +666,12 @@ getColorTargetIndex :: (stream : *string) -> u8 {
     line_it.count -= 1;
 
     return color_target_index;
+}
+
+shaderStageToShadercShaderKind :: inline (stage : ShaderStage) -> shaderc_shader_kind {
+    if #complete stage == {
+        case .VERTEX;   return .shaderc_vertex_shader;
+        case .FRAGMENT; return .shaderc_fragment_shader;
+    }
+    return .shaderc_glsl_infer_from_source;
 }

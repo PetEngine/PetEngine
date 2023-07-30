@@ -113,6 +113,7 @@ clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *T
     }
 }
 
+// @TOOD: #Viewport. If shaderc_compile_options_set_invert_y will work out, remove flipped viewport for Vulkan
 setViewport :: (device : *Device, command_buffer : *CommandBuffer, viewport : *Viewport, render_target_height : u16) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can set viewport";
 

@@ -10,31 +10,27 @@ struct Vertex {
 };
 
 const Vertex g_Vertices[] = {
-    { vec4(-0.5, -0.5, 0.0, 1.0), vec4(1.0, 0.0, 0.0, 1.0) },
-    { vec4( 0.0,  0.5, 0.0, 1.0), vec4(0.0, 1.0, 0.0, 1.0) },
-    { vec4( 0.5, -0.5, 0.0, 1.0), vec4(0.0, 0.0, 1.0, 1.0) },
+    { { -0.5, -0.5, 0.0, 1.0 }, { 1.0, 0.0, 0.0, 1.0 } },
+    { {  0.0,  0.5, 0.0, 1.0 }, { 0.0, 1.0, 0.0, 1.0 } },
+    { {  0.5, -0.5, 0.0, 1.0 }, { 0.0, 0.0, 1.0, 1.0 } },
 };
 
-out VertexOutput output;
+out VertexOutput vs_output;
 
 void main() {
     Vertex vertex = g_Vertices[gl_VertexIndex];
     gl_Position   = vertex.position;
 
-    output.color = vertex.color;
+    vs_output.color = vertex.color;
 }
 
 #fragment_shader
 
-struct FragmentOutput {
-    vec4 color;
-};
-
-in  VertexOutput   input;
-out FragmentOutput output;
+in  VertexOutput fs_input;
+out vec4         fs_output_color;
 
 void main() {
-    output.color = input.color;
+    fs_output_color = fs_input.color;
 }
 
 #pipeline_state
