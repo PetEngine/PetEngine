@@ -70,10 +70,9 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         to_lower_in_place(workspace_name);
     }
 
-    intermediate_path   := join(project_folder, "/intermediates/", workspace_name, allocator = temporary_allocator);
-    output_path         := join(project_folder, "/output/",        workspace_name, allocator = temporary_allocator);
-    shaders_output_path := join(output_path,    "/shaders",                        allocator = temporary_allocator);
-    build_filename      := join(project_folder, "/source/engine/first.jai",        allocator = temporary_allocator);
+    intermediate_path := join(project_folder, "/intermediates/", workspace_name, allocator = temporary_allocator);
+    output_path       := join(project_folder, "/output/",        workspace_name, allocator = temporary_allocator);
+    build_filename    := join(project_folder, "/source/engine/first.jai",        allocator = temporary_allocator);
 
     import_paths : [1 /* build_options.import_path.count */ + 1] string = ---;
     {
@@ -114,9 +113,6 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     assert(success);
 
     success = make_directory_if_it_does_not_exist(output_path, true);
-    assert(success);
-
-    success = make_directory_if_it_does_not_exist(shaders_output_path, true);
     assert(success);
 
     //

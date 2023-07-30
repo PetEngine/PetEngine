@@ -319,6 +319,12 @@ compileShader :: (name : string) {
 
     output_filename := makeBinaryShaderFilename(name);
 
+    output_directory : string = ---;
+    output_directory.data  = output_filename.data;
+    output_directory.count = String.find_index_from_right(output_filename, #char "/");
+
+    debugCheck(File.make_directory_if_it_does_not_exist(output_directory, true));
+
     output_file, success= := File.file_open(output_filename, true, log_errors = false);
     assert(success);
     defer File.file_close(*output_file);

@@ -68,7 +68,7 @@ createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *
                 case .GRAPHICS;
                     createGraphicsVulkanShader(cast(*VulkanDevice) device,
                                                cast(*VulkanShaderManager) manager,
-                                               cast(*VulkanShader) *shader,
+                                               cast(*VulkanShader) shader,
                                                shader_file_data);
                 case .COMPUTE;     #through;
                 case .MESH;        #through;
