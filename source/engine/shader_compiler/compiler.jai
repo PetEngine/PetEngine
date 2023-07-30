@@ -1,3 +1,137 @@
+ShaderCompiler :: struct {
+    SOURCE_SHADERS_FOLDER      :: "../../../source/shaders"; // @TODO: #FileSystem.
+    OUTPUT_SHADERS_FOLDER      :: "shaders";                 // @TODO: #FileSystem.
+    VERSION                    :: 1;
+    INVALID_OFFSET             :: -1;
+    MAX_COLOR_TARGETS          :: 8;
+    INVALID_COLOR_TARGET_INDEX : u8 : 0xFF;
+
+    Header :: struct {
+        version       : u8 = VERSION;
+        shader_kind   : Shader.Kind;
+        stage_offsets : [#run Basic.enum_highest_value(ShaderStage) + 1] s64;
+    } #no_padding
+
+    PipelineState :: union {
+        graphics : GraphicsPipelineState;
+    } #no_padding
+
+    GraphicsPipelineState :: struct {
+        primitive_topology : enum u8{
+            POINT_LIST;
+            LINE_LIST;
+            LINE_STRIP;
+            TRIANGLE_LIST;
+            TRIANGLE_STRIP;
+        } = .TRIANGLE_LIST;
+
+        fill_mode : enum u8 {
+            FILL;
+            LINE;
+        } = .FILL;
+
+        cull_mode : enum u8 {
+            NONE;
+            FRONT_FACE;
+            BACK_FACE;
+        } = .NONE;
+
+        front_face : enum u8 {
+            CLOCKWISE;
+            COUNTER_CLOCKWISE;
+        } = .CLOCKWISE;
+
+        depth_bias_enable          := false;
+        depth_bias_constant_factor := 0.0;
+        depth_bias_clamp           := 0.0;
+        depth_bias_slope_factor    := 0.0;
+        depth_test_enable          := false;
+        depth_write_enable         := false;
+
+        depth_compare_op : enum u8 {
+            NEVER;
+            ALWAYS;
+            NOT_EQUAL;
+            EQUAL;
+            LESS;
+            LESS_OR_EQUAL;
+            GREATER;
+            GREATER_OR_EQUAL;
+        } = .GREATER;
+
+        blend_logic_op_enable := false;
+
+        blend_logic_op : enum u8 {
+            ZERO;
+            ONE;
+            COPY;
+            COPY_INVERTED;
+            NO_OP;
+            INVERT;
+            AND;
+            AND_REVERSE;
+            AND_INVERTED;
+            NAND;
+            OR;
+            OR_REVERSE;
+            OR_INVERTED;
+            NOR;
+            XOR;
+            EQUIVALENT;
+        } = .COPY;
+
+        color_targets_count : u8;
+
+        color_targets : [MAX_COLOR_TARGETS] struct {
+            BlendFactor :: enum u8 {
+                ZERO;
+                ONE;
+                SRC_COLOR;
+                ONE_MINUS_SRC_COLOR;
+                DST_COLOR;
+                ONE_MINUS_DST_COLOR;
+                SRC_ALPHA;
+                ONE_MINUS_SRC_ALPHA;
+                DST_ALPHA;
+                ONE_MINUS_DST_ALPHA;
+                CONSTANT_COLOR;
+                ONE_MINUS_CONSTANT_COLOR;
+                CONSTANT_ALPHA;
+                ONE_MINUS_CONSTANT_ALPHA;
+                SRC_ALPHA_SATURATE;
+            }
+
+            BlendOp :: enum u8 {
+                ADD;
+                SUBTRACT;
+                REVERSE_SUBTRACT;
+                MIN;
+                MAX;
+            }
+
+            write_mask : enum_flags u8 {
+                R;
+                G;
+                B;
+                A;
+            } = .R | .G | .B | .A;
+
+            blend_enable := false;
+
+            src_color_blend_factor : BlendFactor = .SRC_COLOR;
+            dst_color_blend_factor : BlendFactor = .ZERO;
+            color_blend_op         : BlendOp     = .ADD;
+            src_alpha_blend_factor : BlendFactor = .SRC_ALPHA;
+            dst_alpha_blend_factor : BlendFactor = .ZERO;
+            alpha_blend_op         : BlendOp     = .ADD;
+        } #no_padding;
+    } #no_padding
+
+    // @TODO: #BindingTable
+    BindingTable :: struct {
+    } #no_padding
+}
+
 ShaderStage :: enum u8 {
     VERTEX;
     FRAGMENT;
@@ -7,7 +141,7 @@ ShaderStage :: enum u8 {
 compileShader :: (name : string) {
     source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader", allocator = Basic.temporary_allocator);
 
-    source, success := File.read_entire_file(source_filename);
+    source, success := File.read_entire_file(source_filename, log_errors = false);
     assert(success);
     defer Basic.free(source);
 
@@ -24,7 +158,7 @@ compileShader :: (name : string) {
     //
 
     shader_kind         := Shader.Kind.UNKNOWN;
-    stage_codes         : [MAX_STAGES] string;
+    stage_codes         : [Header.stage_offsets.count] string;
     pipeline_state_code : string;
 
     while stream {
@@ -71,6 +205,8 @@ compileShader :: (name : string) {
     // 4. Compile shader stages
     //
 
+    stage_spirvs : [Header.stage_offsets.count] string;
+
     shaderc_compiler := shaderc_compiler_initialize();
     defer shaderc_compiler_release(shaderc_compiler);
 
@@ -105,15 +241,7 @@ compileShader :: (name : string) {
     shaderc_compile_options_set_auto_map_locations(shaderc_options, true);
     // @TOOD: #Viewport. Experiment with shaderc_compile_options_set_invert_y
 
-    nt_name : string = ---;
-    {
-        nt_name.count = name.count + 1;
-        nt_name.data  = pushToArena(*context.pet.per_frame_arena, u8, nt_name.count);
-        memcpy(nt_name.data, name.data, name.count);
-    }
-
-    // @TODO: Remove markers when we will deside to compile them concurrently
-    setMarkerInArena(*context.pet.per_frame_arena);
+    reported_nt_shader_name := String.join("shaders/", name, ".shader\0", allocator = Basic.temporary_allocator);
 
     for stage_codes {
         if !it continue;
@@ -144,7 +272,7 @@ compileShader :: (name : string) {
                                            cast(*s8) code.data,
                                            cast(u64) code.count,
                                            shaderStageToShadercShaderKind(cast(ShaderStage) it_index),
-                                           cast(*s8) nt_name.data,
+                                           cast(*s8) reported_nt_shader_name.data,
                                            cast(*s8) "main\0".data,
                                            shaderc_options);
         defer shaderc_result_release(result);
@@ -156,155 +284,62 @@ compileShader :: (name : string) {
             return;
         }
 
-        stage_spirv : string = ---;
-        stage_spirv.data  = cast(*u8) shaderc_result_get_bytes(result);
+        stage_spirv := *stage_spirvs[it_index];
         stage_spirv.count = cast(s64) shaderc_result_get_length(result);
-
-        resetArenaToMarker(*context.pet.per_frame_arena);
+        stage_spirv.data  = pushToArena(*context.pet.per_frame_arena, u8, stage_spirv.count);
+        memcpy(stage_spirv.data, shaderc_result_get_bytes(result), stage_spirv.count);
     }
 
+    //
     // 5. Get binding table from platform specific intermediate shader language
+    //
+
+    // @TODO, @Continue
+
+    //
     // 6. Write everything to file
-    output_filename := String.join(OUTPUT_SHADERS_FOLDER, "/", name, ".shader_bin", allocator = Basic.temporary_allocator);
+    //
+
+    header : Header;
+    header.shader_kind = shader_kind;
+
+    // @TODO: #BindingTable
+    offset := size_of(Header) + size_of(PipelineState);
+
+    for * header.stage_offsets {
+        stage_spirv := stage_spirvs[it_index];
+
+        if stage_spirv {
+            it.* = offset;
+            offset += stage_spirv.count;
+        } else {
+            it.* = INVALID_OFFSET;
+        }
+    }
+
+    output_filename := makeBinaryShaderFilename(name);
+
+    output_file, success= := File.file_open(output_filename, true, log_errors = false);
+    assert(success);
+    defer File.file_close(*output_file);
+
+    File.file_write(*output_file, *header, size_of(Header));
+    File.file_write(*output_file, *pipeline_state, size_of(PipelineState));
+    // @TODO: #BindingTable
+    for stage_spirvs {
+        File.file_write(*output_file, it);
+    }
+}
+
+makeBinaryShaderFilename :: (name : string, allocator := Basic.temporary_allocator) -> string {
+    return String.join(OUTPUT_SHADERS_FOLDER, "/", name, ".shader_bin", allocator = allocator);
 }
 
 #scope_file
 
 #load "shaderc.jai";
 
-SOURCE_SHADERS_FOLDER      :: "../../../source/shaders"; // @TODO: #FileSystem.
-OUTPUT_SHADERS_FOLDER      :: "shaders";                 // @TODO: #FileSystem.
-COMPILER_VERSION           :: 1;
-INVALID_OFFSET             :: 0xFFFF_FFFF_FFFF_FFFF;
-MAX_COLOR_TARGETS          :: 8;
-MAX_STAGES                 :: #run Basic.enum_highest_value(ShaderStage) + 1;
-INVALID_COLOR_TARGET_INDEX : u8 : 0xFF;
-
-Header :: struct {
-    version        : u8 = COMPILER_VERSION;
-    shader_kind    : Shader.Kind;
-    stages_count   : u8;
-    stages_offsets : [MAX_STAGES] u64;
-} #no_padding
-
-PipelineState :: union {
-    graphics : GraphicsPipelineState;
-} #no_padding
-
-GraphicsPipelineState :: struct {
-    primitive_topology : enum u8{
-        TPOINT_LIST;
-        LINE_LIST;
-        LINE_STRIP;
-        TRIANGLE_LIST;
-        TRIANGLE_STRIP;
-    } = .TRIANGLE_LIST;
-
-    fill_mode : enum u8 {
-        FILL;
-        LINE;
-    } = .FILL;
-
-    cull_mode : enum u8 {
-        NONE;
-        FRONT_FACE;
-        BACK_FACE;
-    } = .NONE;
-
-    front_face : enum u8 {
-        CLOCKWISE;
-        COUNTER_CLOCKWISE;
-    } = .CLOCKWISE;
-
-    depth_bias_enable          := false;
-    depth_bias_constant_factor := 0.0;
-    depth_bias_clamp           := 0.0;
-    depth_bias_slope_factor    := 0.0;
-    depth_test_enable          := false;
-    depth_write_enable         := false;
-
-    depth_compare_op : enum u8 {
-        NEVER;
-        ALWAYS;
-        NOT_EQUAL;
-        EQUAL;
-        LESS;
-        LESS_OR_EQUAL;
-        GREATER;
-        GREATER_OR_EQUAL;
-    } = .GREATER;
-
-    blend_logic_op_enable := false;
-
-    blend_logic_op : enum u8 {
-        ZERO;
-        ONE;
-        COPY;
-        COPY_INVERTED;
-        NO_OP;
-        INVERT;
-        AND;
-        AND_REVERSE;
-        AND_INVERTED;
-        NAND;
-        OR;
-        OR_REVERSE;
-        OR_INVERTED;
-        NOR;
-        XOR;
-        EQUIVALENT;
-    } = .COPY;
-
-    color_targets_count : u8;
-
-    color_targets : [MAX_COLOR_TARGETS] struct {
-        BlendFactor :: enum u8 {
-            ZERO;
-            ONE;
-            SRC_COLOR;
-            ONE_MINUS_SRC_COLOR;
-            DST_COLOR;
-            ONE_MINUS_DST_COLOR;
-            SRC_ALPHA;
-            ONE_MINUS_SRC_ALPHA;
-            DST_ALPHA;
-            ONE_MINUS_DST_ALPHA;
-            CONSTANT_COLOR;
-            ONE_MINUS_CONSTANT_COLOR;
-            CONSTANT_ALPHA;
-            ONE_MINUS_CONSTANT_ALPHA;
-            SRC_ALPHA_SATURATE;
-        }
-
-        BlendOp :: enum u8 {
-            ADD;
-            SUBTRACT;
-            REVERSE_SUBTRACT;
-            MIN;
-            MAX;
-        }
-
-        write_mask : enum_flags u8 {
-            R;
-            G;
-            B;
-            A;
-        } = .R | .G | .B | .A;
-
-        blend_enable := false;
-
-        src_color_blend_factor : BlendFactor = .SRC_COLOR;
-        dst_color_blend_factor : BlendFactor = .ZERO;
-        color_blend_op         : BlendOp     = .ADD;
-        src_alpha_blend_factor : BlendFactor = .SRC_ALPHA;
-        dst_alpha_blend_factor : BlendFactor = .ZERO;
-        alpha_blend_op         : BlendOp     = .ADD;
-    } #no_padding;
-} #no_padding
-
-// @TODO: #BindingTable
-BindingTable :: struct {
-} #no_padding
+using ShaderCompiler;
 
 getLine :: (stream : *string) -> string {
     line : string = ---;

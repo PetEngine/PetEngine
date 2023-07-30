@@ -31,8 +31,8 @@ Shader :: struct {
         RAY_TRACING;
     }
 
+    kind : Kind = .UNKNOWN;
     name : string;
-    kind : Kind;
 }
 
 createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *Shader #must {
@@ -45,10 +45,19 @@ createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *
 
     shader.name = name;
 
-    // @TODO: #ShaderCompiler. Parse binary file
+    shader_filename := makeBinaryShaderFilename(shader.name);
+    shader_file_data, success := File.read_entire_file(shader_filename, log_errors = false);
+    assert(success);
+    defer Basic.free(shader_file_data);
 
-    // @Cleanup: #ShaderCompiler.
-    shader.kind = .GRAPHICS;
+    // @TODO: #BindingTable.
+    MIN_SHADER_FILE_SIZE :: size_of(ShaderCompiler.Header) + size_of(ShaderCompiler.PipelineState);
+    assert(shader_file_data.count >= MIN_SHADER_FILE_SIZE);
+
+    shader_file_header := cast(*ShaderCompiler.Header) shader_file_data.data;
+    assert(shader_file_header.version == ShaderCompiler.VERSION);
+
+    shader.kind = shader_file_header.shader_kind;
 
     if #complete device.graphics_api == {
         case .VULKAN;
@@ -59,7 +68,8 @@ createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *
                 case .GRAPHICS;
                     createGraphicsVulkanShader(cast(*VulkanDevice) device,
                                                cast(*VulkanShaderManager) manager,
-                                               cast(*VulkanShader) *shader);
+                                               cast(*VulkanShader) *shader,
+                                               shader_file_data);
                 case .COMPUTE;     #through;
                 case .MESH;        #through;
                 case .RAY_TRACING;
