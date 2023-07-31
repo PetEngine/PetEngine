@@ -241,7 +241,10 @@ compileShader :: (name : string) {
     shaderc_compile_options_set_auto_map_locations(shaderc_options, true);
     // @TOOD: #Viewport. Experiment with shaderc_compile_options_set_invert_y
 
-    reported_nt_shader_name := String.join("shaders/", name, ".shader\0", allocator = Basic.temporary_allocator);
+    nt_name : string = ---;
+    nt_name.count = name.count + 1;
+    nt_name.data  = pushToArena(*context.pet.per_frame_arena, u8, nt_name.count);
+    memcpy(nt_name.data, name.data, name.count);
 
     for stage_codes {
         if !it continue;
@@ -272,7 +275,7 @@ compileShader :: (name : string) {
                                            cast(*s8) code.data,
                                            cast(u64) code.count,
                                            shaderStageToShadercShaderKind(cast(ShaderStage) it_index),
-                                           cast(*s8) reported_nt_shader_name.data,
+                                           cast(*s8) nt_name.data,
                                            cast(*s8) "main\0".data,
                                            shaderc_options);
         defer shaderc_result_release(result);
@@ -333,7 +336,9 @@ compileShader :: (name : string) {
     File.file_write(*output_file, *pipeline_state, size_of(PipelineState));
     // @TODO: #BindingTable
     for stage_spirvs {
-        File.file_write(*output_file, it);
+        if it {
+            File.file_write(*output_file, it);
+        }
     }
 }
 

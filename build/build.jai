@@ -1,18 +1,18 @@
+#scope_file
+
 #import "Compiler";
 #import "Basic";
 #import "String";
 #import "File";
-#import "File_Utilities";
-#import "Process";
 
 Configuration :: enum u8 {
-    DEBUG                   :: 0;
-    RELEASE                 :: 1;
-    RELEASE_WITH_DEBUG_INFO :: 2;
+    DEBUG;
+    RELEASE;
+    RELEASE_WITH_DEBUG_INFO;
 }
 
 BuildArguments :: struct {
-    configuration := Configuration.DEBUG;
+    configuration : Configuration = .DEBUG;
 }
 
 gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
