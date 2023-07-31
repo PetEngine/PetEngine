@@ -82,7 +82,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         import_paths[build_options.import_path.count + 0] = "../source";
     }
 
-    additional_linker_arguments : [0 /* build_options.additional_linker_arguments.count */ + 3] string = ---;
+    additional_linker_arguments : [0 /* build_options.additional_linker_arguments.count */ + 4] string = ---;
     {
         for build_options.additional_linker_arguments {
             additional_linker_arguments[it_index] = it;
@@ -91,17 +91,19 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         #if OS == .WINDOWS {
             additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "/LIBPATH:../third_party/vulkan";
             additional_linker_arguments[build_options.additional_linker_arguments.count + 1] = "/LIBPATH:../third_party/shaderc";
+            additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "/LIBPATH:../third_party/spirv_cross";
             if build_arguments.configuration == {
                 case .DEBUG; #through;
                 case .RELEASE_WITH_DEBUG_INFO;
-                    additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "/DEBUG:FULL"; // For RemedyBG
+                    additional_linker_arguments[build_options.additional_linker_arguments.count + 3] = "/DEBUG:FULL"; // For RemedyBG
                 case;
-                    additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "";
+                    additional_linker_arguments[build_options.additional_linker_arguments.count + 3] = "";
             }
         } else {
             additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "--library-path=../third_party/vulkan";
             additional_linker_arguments[build_options.additional_linker_arguments.count + 1] = "--library-path=../third_party/shaderc";
-            additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "";
+            additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "--library-path=../third_party/spirv_cross";
+            additional_linker_arguments[build_options.additional_linker_arguments.count + 3] = "";
         }
     }
 

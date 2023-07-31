@@ -344,6 +344,7 @@ makeBinaryShaderFilename :: (name : string, allocator := Basic.temporary_allocat
 #scope_file
 
 #load "shaderc.jai";
+#load "spirv_cross.jai";
 
 using ShaderCompiler;
 
