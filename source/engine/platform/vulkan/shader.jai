@@ -130,7 +130,8 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
         it.pSpecializationInfo = null;
     }
 
-    graphics_pipeline_state := cast(*ShaderCompiler.GraphicsPipelineState) shader_file_data.data + size_of(ShaderCompiler.Header);
+    pipeline_state          := cast(*ShaderCompiler.PipelineState) (shader_file_data.data + size_of(ShaderCompiler.Header));
+    graphics_pipeline_state := *pipeline_state.graphics;
 
     vertex_input_state : VkPipelineVertexInputStateCreateInfo = ---;
     initVertexInputState(*vertex_input_state);

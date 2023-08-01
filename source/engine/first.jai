@@ -70,6 +70,7 @@ main :: () {
     commitTextureMemory(device, texture_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
     defer resetTextureMemory(device, texture_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
 
+    compileShader("triangle"); // @Cleanup: #ShaderCompiler
     triangle_shader := createShader(device, shader_manager, "triangle");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);

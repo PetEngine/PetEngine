@@ -80,51 +80,52 @@ ShaderCompiler :: struct {
             EQUIVALENT;
         } = .COPY;
 
-        color_targets_count : u8;
+        color_targets_count : u8 = 1;
+        color_targets       : [MAX_COLOR_TARGETS] ColorTarget;
+    } #no_padding
 
-        color_targets : [MAX_COLOR_TARGETS] struct {
-            BlendFactor :: enum u8 {
-                ZERO;
-                ONE;
-                SRC_COLOR;
-                ONE_MINUS_SRC_COLOR;
-                DST_COLOR;
-                ONE_MINUS_DST_COLOR;
-                SRC_ALPHA;
-                ONE_MINUS_SRC_ALPHA;
-                DST_ALPHA;
-                ONE_MINUS_DST_ALPHA;
-                CONSTANT_COLOR;
-                ONE_MINUS_CONSTANT_COLOR;
-                CONSTANT_ALPHA;
-                ONE_MINUS_CONSTANT_ALPHA;
-                SRC_ALPHA_SATURATE;
-            }
+    ColorTarget :: struct {
+        BlendFactor :: enum u8 {
+            ZERO;
+            ONE;
+            SRC_COLOR;
+            ONE_MINUS_SRC_COLOR;
+            DST_COLOR;
+            ONE_MINUS_DST_COLOR;
+            SRC_ALPHA;
+            ONE_MINUS_SRC_ALPHA;
+            DST_ALPHA;
+            ONE_MINUS_DST_ALPHA;
+            CONSTANT_COLOR;
+            ONE_MINUS_CONSTANT_COLOR;
+            CONSTANT_ALPHA;
+            ONE_MINUS_CONSTANT_ALPHA;
+            SRC_ALPHA_SATURATE;
+        }
 
-            BlendOp :: enum u8 {
-                ADD;
-                SUBTRACT;
-                REVERSE_SUBTRACT;
-                MIN;
-                MAX;
-            }
+        BlendOp :: enum u8 {
+            ADD;
+            SUBTRACT;
+            REVERSE_SUBTRACT;
+            MIN;
+            MAX;
+        }
 
-            write_mask : enum_flags u8 {
-                R;
-                G;
-                B;
-                A;
-            } = .R | .G | .B | .A;
+        write_mask : enum_flags u8 {
+            R;
+            G;
+            B;
+            A;
+        } = .R | .G | .B | .A;
 
-            blend_enable := false;
+        blend_enable := false;
 
-            src_color_blend_factor : BlendFactor = .SRC_COLOR;
-            dst_color_blend_factor : BlendFactor = .ZERO;
-            color_blend_op         : BlendOp     = .ADD;
-            src_alpha_blend_factor : BlendFactor = .SRC_ALPHA;
-            dst_alpha_blend_factor : BlendFactor = .ZERO;
-            alpha_blend_op         : BlendOp     = .ADD;
-        } #no_padding;
+        src_color_blend_factor : BlendFactor = .SRC_COLOR;
+        dst_color_blend_factor : BlendFactor = .ZERO;
+        color_blend_op         : BlendOp     = .ADD;
+        src_alpha_blend_factor : BlendFactor = .SRC_ALPHA;
+        dst_alpha_blend_factor : BlendFactor = .ZERO;
+        alpha_blend_op         : BlendOp     = .ADD;
     } #no_padding
 
     // @TODO: #BindingTable
@@ -231,10 +232,6 @@ compileShader :: (name : string) {
         shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_performance);
     }
     shaderc_compile_options_set_forced_version_profile(shaderc_options, 460, .shaderc_profile_none);
-    // @Cleanup: if Vulkan?
-    shaderc_compile_options_set_target_env(shaderc_options,
-                                           .shaderc_target_env_vulkan,
-                                           cast(u32) shaderc_env_version.shaderc_env_version_vulkan_1_3);
     shaderc_compile_options_set_target_spirv(shaderc_options, .shaderc_spirv_version_1_6);
     shaderc_compile_options_set_auto_bind_uniforms(shaderc_options, true);
     // @TODO: shaderc_compile_options_set_binding_base
@@ -607,8 +604,8 @@ handleEnumValue :: inline (enum_value : *$T, value : string) #modify {
     errorMessage("Compilation failed");
 }
 
-handleWriteMaskValue :: (write_mask : *type_of(GraphicsPipelineState.color_targets[0].write_mask), value : string) {
-    Type :: type_of(GraphicsPipelineState.color_targets[0].write_mask);
+handleWriteMaskValue :: (write_mask : *type_of(ColorTarget.write_mask), value : string) {
+    Type :: type_of(ColorTarget.write_mask);
     info := type_info(Type);
 
     write_mask.* = 0;
