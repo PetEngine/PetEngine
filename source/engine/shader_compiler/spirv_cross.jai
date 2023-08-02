@@ -28,7 +28,6 @@ spvc_context   :: *spvc_context_s;   spvc_context_s   :: struct {}
 spvc_parsed_ir :: *spvc_parsed_ir_s; spvc_parsed_ir_s :: struct {}
 spvc_compiler  :: *spvc_compiler_s;  spvc_compiler_s  :: struct {}
 spvc_resources :: *spvc_resources_s; spvc_resources_s :: struct {}
-spvc_set       :: *spvc_set_s;       spvc_set_s       :: struct {}
 
 /*
  * Shallow typedefs. All SPIR-V IDs are plain 32-bit numbers, but this helps communicate which data is used.
@@ -170,9 +169,9 @@ spvc_context_create_compiler :: (
  * Reflect resources.
  * Maps almost 1:1 to C++ API.
  */
-spvc_compiler_get_active_interface_variables :: (
-    compiler : spvc_compiler,
-    set      : *spvc_set
+spvc_compiler_create_shader_resources :: (
+    compiler  : spvc_compiler,
+    resources : *spvc_resources
 ) -> spvc_result #foreign spirv_cross;
 
 spvc_resources_get_resource_list_for_type :: (

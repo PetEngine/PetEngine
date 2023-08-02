@@ -80,7 +80,7 @@ ShaderCompiler :: struct {
             EQUIVALENT;
         } = .COPY;
 
-        color_targets_count : u8 = 1;
+        color_targets_count : u8;
         color_targets       : [MAX_COLOR_TARGETS] ColorTarget;
     } #no_padding
 
@@ -291,7 +291,52 @@ compileShader :: (name : string) {
     }
 
     //
-    // 5. Get binding table from platform specific intermediate shader language
+    // 5. Reflect SPIR-V
+    //
+
+    spirvc_context : spvc_context;
+    debugCheckSPIRVC(spvc_context_create(*spirvc_context));
+    defer spvc_context_destroy(spirvc_context);
+
+    fragment_shader_spirv := *stage_spirvs[ShaderStage.FRAGMENT];
+    assert((fragment_shader_spirv.count % size_of(SpvId)) == 0);
+
+    parsed_fragment_shader_ir : spvc_parsed_ir;
+    debugCheckSPIRVC(spvc_context_parse_spirv(spirvc_context,
+                                              cast(*SpvId) fragment_shader_spirv.data,
+                                              cast(u64)    fragment_shader_spirv.count >> 2,
+                                              *parsed_fragment_shader_ir));
+
+    spirvc_compiler : spvc_compiler;
+    debugCheckSPIRVC(spvc_context_create_compiler(spirvc_context,
+                                                  .SPVC_BACKEND_NONE,
+                                                  parsed_fragment_shader_ir,
+                                                  .SPVC_CAPTURE_MODE_TAKE_OWNERSHIP,
+                                                  *spirvc_compiler));
+
+    //
+    // 5.1. Set the actual number of colors target
+    //
+
+    fragment_shader_resources : spvc_resources;
+    debugCheckSPIRVC(spvc_compiler_create_shader_resources(spirvc_compiler, *fragment_shader_resources));
+
+    fragment_shader_output_resources       : *spvc_reflected_resource;
+    fragment_shader_output_resources_count : u64;
+    debugCheckSPIRVC(spvc_resources_get_resource_list_for_type(fragment_shader_resources,
+                                                               .SPVC_RESOURCE_TYPE_STAGE_OUTPUT,
+                                                               *fragment_shader_output_resources,
+                                                               *fragment_shader_output_resources_count));
+
+    if fragment_shader_output_resources_count >= MAX_COLOR_TARGETS {
+        // @TODO: #BetterMessage.
+        errorMessage("Compilation failed");
+        return;
+    }
+    pipeline_state.graphics.color_targets_count = cast(u8) fragment_shader_output_resources_count;
+
+    //
+    // 5.2. Get binding table from platform specific intermediate shader language
     //
 
     // @TODO, @Continue
@@ -339,7 +384,7 @@ compileShader :: (name : string) {
     }
 }
 
-makeBinaryShaderFilename :: (name : string, allocator := Basic.temporary_allocator) -> string {
+makeBinaryShaderFilename :: inline (name : string, allocator := Basic.temporary_allocator) -> string {
     return String.join(OUTPUT_SHADERS_FOLDER, "/", name, ".shader_bin", allocator = allocator);
 }
 
@@ -718,4 +763,13 @@ shaderStageToShadercShaderKind :: inline (stage : ShaderStage) -> shaderc_shader
         case .FRAGMENT; return .shaderc_fragment_shader;
     }
     return .shaderc_glsl_infer_from_source;
+}
+
+debugCheckSPIRVC :: ($code : Code) #expand #no_debug {
+    #if DEBUG_BUILD {
+        result := #insert code;
+        assert(result == .SPVC_SUCCESS, "% returned %", #run codeToString(code), result);
+    } else {
+        #insert code;
+    }
 }
