@@ -157,11 +157,12 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
     dynamic_state : VkPipelineDynamicStateCreateInfo = ---;
     initDynamicStates(*dynamic_state);
 
+    // #Hardcoded
     pipeline_rendering_create_info := VkPipelineRenderingCreateInfo.{
         sType                   = .VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
         pNext                   = null,
         viewMask                = 0,
-        colorAttachmentCount    = 1,
+        colorAttachmentCount    = color_blend_state.attachmentCount,
         pColorAttachmentFormats = VkFormat.[ .VK_FORMAT_B8G8R8A8_UNORM ].data,
         depthAttachmentFormat   = .VK_FORMAT_UNDEFINED,
         stencilAttachmentFormat = .VK_FORMAT_UNDEFINED,
@@ -367,118 +368,122 @@ initColorBlendState :: inline (this : *VkPipelineColorBlendStateCreateInfo, stat
         case;                assertMessage("Unknown blend logic op op: %", state.blend_logic_op);
     }
 
-    this.attachmentCount = state.color_targets_count;
-    this.pAttachments    = pushToArena(*context.pet.per_frame_arena, VkPipelineColorBlendAttachmentState, this.attachmentCount);
     this.blendConstants  = .[ 0.0, 0.0, 0.0, 0.0 ];
+    this.attachmentCount = state.color_targets_count;
+    if state.color_targets_count {
+        this.pAttachments = pushToArena(*context.pet.per_frame_arena, VkPipelineColorBlendAttachmentState, this.attachmentCount);
 
-    attachment_states : [] VkPipelineColorBlendAttachmentState;
-    attachment_states.count = this.attachmentCount;
-    attachment_states.data  = this.pAttachments;
+        attachment_states : [] VkPipelineColorBlendAttachmentState;
+        attachment_states.count = this.attachmentCount;
+        attachment_states.data  = this.pAttachments;
 
-    for * attachment_states {
-        color_target := *state.color_targets[it_index];
+        for * attachment_states {
+            color_target := *state.color_targets[it_index];
 
-        it.blendEnable = cast,no_check(VkBool32) color_target.blend_enable;
+            it.blendEnable = cast,no_check(VkBool32) color_target.blend_enable;
 
-        if #complete color_target.src_color_blend_factor == {
-            case .ZERO;                     it.srcColorBlendFactor = .VK_BLEND_FACTOR_ZERO;
-            case .ONE;                      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE;
-            case .SRC_COLOR;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
-            case .ONE_MINUS_SRC_COLOR;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-            case .DST_COLOR;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
-            case .ONE_MINUS_DST_COLOR;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-            case .SRC_ALPHA;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
-            case .ONE_MINUS_SRC_ALPHA;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            case .DST_ALPHA;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
-            case .ONE_MINUS_DST_ALPHA;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-            case .CONSTANT_COLOR;           it.srcColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
-            case .ONE_MINUS_CONSTANT_COLOR; it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
-            case .CONSTANT_ALPHA;           it.srcColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
-            case .ONE_MINUS_CONSTANT_ALPHA; it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
-            case .SRC_ALPHA_SATURATE;       it.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
-            case;                           assertMessage("Unknown source color blend factor: %", color_target.src_color_blend_factor);
-        }
+            if #complete color_target.src_color_blend_factor == {
+                case .ZERO;                     it.srcColorBlendFactor = .VK_BLEND_FACTOR_ZERO;
+                case .ONE;                      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE;
+                case .SRC_COLOR;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
+                case .ONE_MINUS_SRC_COLOR;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+                case .DST_COLOR;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
+                case .ONE_MINUS_DST_COLOR;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                case .SRC_ALPHA;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
+                case .ONE_MINUS_SRC_ALPHA;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                case .DST_ALPHA;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
+                case .ONE_MINUS_DST_ALPHA;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+                case .CONSTANT_COLOR;           it.srcColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
+                case .ONE_MINUS_CONSTANT_COLOR; it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+                case .CONSTANT_ALPHA;           it.srcColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
+                case .ONE_MINUS_CONSTANT_ALPHA; it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+                case .SRC_ALPHA_SATURATE;       it.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+                case;                           assertMessage("Unknown source color blend factor: %", color_target.src_color_blend_factor);
+            }
 
-        if #complete color_target.dst_color_blend_factor == {
-            case .ZERO;                     it.dstColorBlendFactor = .VK_BLEND_FACTOR_ZERO;
-            case .ONE;                      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE;
-            case .SRC_COLOR;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
-            case .ONE_MINUS_SRC_COLOR;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-            case .DST_COLOR;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
-            case .ONE_MINUS_DST_COLOR;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-            case .SRC_ALPHA;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
-            case .ONE_MINUS_SRC_ALPHA;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            case .DST_ALPHA;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
-            case .ONE_MINUS_DST_ALPHA;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-            case .CONSTANT_COLOR;           it.dstColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
-            case .ONE_MINUS_CONSTANT_COLOR; it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
-            case .CONSTANT_ALPHA;           it.dstColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
-            case .ONE_MINUS_CONSTANT_ALPHA; it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
-            case .SRC_ALPHA_SATURATE;       it.dstColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
-            case;                           assertMessage("Unknown destination color blend factor: %", color_target.dst_color_blend_factor);
-        }
+            if #complete color_target.dst_color_blend_factor == {
+                case .ZERO;                     it.dstColorBlendFactor = .VK_BLEND_FACTOR_ZERO;
+                case .ONE;                      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE;
+                case .SRC_COLOR;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
+                case .ONE_MINUS_SRC_COLOR;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+                case .DST_COLOR;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
+                case .ONE_MINUS_DST_COLOR;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                case .SRC_ALPHA;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
+                case .ONE_MINUS_SRC_ALPHA;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                case .DST_ALPHA;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
+                case .ONE_MINUS_DST_ALPHA;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+                case .CONSTANT_COLOR;           it.dstColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
+                case .ONE_MINUS_CONSTANT_COLOR; it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+                case .CONSTANT_ALPHA;           it.dstColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
+                case .ONE_MINUS_CONSTANT_ALPHA; it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+                case .SRC_ALPHA_SATURATE;       it.dstColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+                case;                           assertMessage("Unknown destination color blend factor: %", color_target.dst_color_blend_factor);
+            }
 
-        if #complete color_target.color_blend_op == {
-            case .ADD;              it.colorBlendOp = .VK_BLEND_OP_ADD;
-            case .SUBTRACT;         it.colorBlendOp = .VK_BLEND_OP_SUBTRACT;
-            case .REVERSE_SUBTRACT; it.colorBlendOp = .VK_BLEND_OP_REVERSE_SUBTRACT;
-            case .MIN;              it.colorBlendOp = .VK_BLEND_OP_MIN;
-            case .MAX;              it.colorBlendOp = .VK_BLEND_OP_MAX;
-            case;                   assertMessage("Unknown color blend operation: %", color_target.color_blend_op);
-        }
+            if #complete color_target.color_blend_op == {
+                case .ADD;              it.colorBlendOp = .VK_BLEND_OP_ADD;
+                case .SUBTRACT;         it.colorBlendOp = .VK_BLEND_OP_SUBTRACT;
+                case .REVERSE_SUBTRACT; it.colorBlendOp = .VK_BLEND_OP_REVERSE_SUBTRACT;
+                case .MIN;              it.colorBlendOp = .VK_BLEND_OP_MIN;
+                case .MAX;              it.colorBlendOp = .VK_BLEND_OP_MAX;
+                case;                   assertMessage("Unknown color blend operation: %", color_target.color_blend_op);
+            }
 
-        if #complete color_target.src_alpha_blend_factor == {
-            case .ZERO;                     it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ZERO;
-            case .ONE;                      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE;
-            case .SRC_COLOR;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
-            case .ONE_MINUS_SRC_COLOR;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-            case .DST_COLOR;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
-            case .ONE_MINUS_DST_COLOR;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-            case .SRC_ALPHA;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
-            case .ONE_MINUS_SRC_ALPHA;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            case .DST_ALPHA;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
-            case .ONE_MINUS_DST_ALPHA;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-            case .CONSTANT_COLOR;           it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
-            case .ONE_MINUS_CONSTANT_COLOR; it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
-            case .CONSTANT_ALPHA;           it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
-            case .ONE_MINUS_CONSTANT_ALPHA; it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
-            case .SRC_ALPHA_SATURATE;       it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
-            case;                           assertMessage("Unknown source alpha blend factor: %", color_target.src_alpha_blend_factor);
-        }
+            if #complete color_target.src_alpha_blend_factor == {
+                case .ZERO;                     it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ZERO;
+                case .ONE;                      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE;
+                case .SRC_COLOR;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
+                case .ONE_MINUS_SRC_COLOR;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+                case .DST_COLOR;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
+                case .ONE_MINUS_DST_COLOR;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                case .SRC_ALPHA;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
+                case .ONE_MINUS_SRC_ALPHA;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                case .DST_ALPHA;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
+                case .ONE_MINUS_DST_ALPHA;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+                case .CONSTANT_COLOR;           it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
+                case .ONE_MINUS_CONSTANT_COLOR; it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+                case .CONSTANT_ALPHA;           it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
+                case .ONE_MINUS_CONSTANT_ALPHA; it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+                case .SRC_ALPHA_SATURATE;       it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+                case;                           assertMessage("Unknown source alpha blend factor: %", color_target.src_alpha_blend_factor);
+            }
 
-        if #complete color_target.dst_alpha_blend_factor == {
-            case .ZERO;                     it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ZERO;
-            case .ONE;                      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE;
-            case .SRC_COLOR;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
-            case .ONE_MINUS_SRC_COLOR;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-            case .DST_COLOR;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
-            case .ONE_MINUS_DST_COLOR;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-            case .SRC_ALPHA;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
-            case .ONE_MINUS_SRC_ALPHA;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            case .DST_ALPHA;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
-            case .ONE_MINUS_DST_ALPHA;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-            case .CONSTANT_COLOR;           it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
-            case .ONE_MINUS_CONSTANT_COLOR; it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
-            case .CONSTANT_ALPHA;           it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
-            case .ONE_MINUS_CONSTANT_ALPHA; it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
-            case .SRC_ALPHA_SATURATE;       it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
-            case;                           assertMessage("Unknown destination alpha blend factor: %", color_target.dst_alpha_blend_factor);
-        }
+            if #complete color_target.dst_alpha_blend_factor == {
+                case .ZERO;                     it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ZERO;
+                case .ONE;                      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE;
+                case .SRC_COLOR;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
+                case .ONE_MINUS_SRC_COLOR;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+                case .DST_COLOR;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
+                case .ONE_MINUS_DST_COLOR;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                case .SRC_ALPHA;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
+                case .ONE_MINUS_SRC_ALPHA;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                case .DST_ALPHA;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
+                case .ONE_MINUS_DST_ALPHA;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+                case .CONSTANT_COLOR;           it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
+                case .ONE_MINUS_CONSTANT_COLOR; it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+                case .CONSTANT_ALPHA;           it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
+                case .ONE_MINUS_CONSTANT_ALPHA; it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+                case .SRC_ALPHA_SATURATE;       it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+                case;                           assertMessage("Unknown destination alpha blend factor: %", color_target.dst_alpha_blend_factor);
+            }
 
-        if #complete color_target.alpha_blend_op == {
-            case .ADD;              it.alphaBlendOp = .VK_BLEND_OP_ADD;
-            case .SUBTRACT;         it.alphaBlendOp = .VK_BLEND_OP_SUBTRACT;
-            case .REVERSE_SUBTRACT; it.alphaBlendOp = .VK_BLEND_OP_REVERSE_SUBTRACT;
-            case .MIN;              it.alphaBlendOp = .VK_BLEND_OP_MIN;
-            case .MAX;              it.alphaBlendOp = .VK_BLEND_OP_MAX;
-            case;                   assertMessage("Unknown alpha blend operation: %", color_target.alpha_blend_op);
-        }
+            if #complete color_target.alpha_blend_op == {
+                case .ADD;              it.alphaBlendOp = .VK_BLEND_OP_ADD;
+                case .SUBTRACT;         it.alphaBlendOp = .VK_BLEND_OP_SUBTRACT;
+                case .REVERSE_SUBTRACT; it.alphaBlendOp = .VK_BLEND_OP_REVERSE_SUBTRACT;
+                case .MIN;              it.alphaBlendOp = .VK_BLEND_OP_MIN;
+                case .MAX;              it.alphaBlendOp = .VK_BLEND_OP_MAX;
+                case;                   assertMessage("Unknown alpha blend operation: %", color_target.alpha_blend_op);
+            }
 
-        it.colorWriteMask = 0;
+            it.colorWriteMask = 0;
             if color_target.write_mask & .RED   then it.colorWriteMask |= .VK_COLOR_COMPONENT_R_BIT;
             if color_target.write_mask & .GREEN then it.colorWriteMask |= .VK_COLOR_COMPONENT_G_BIT;
             if color_target.write_mask & .BLUE  then it.colorWriteMask |= .VK_COLOR_COMPONENT_B_BIT;
             if color_target.write_mask & .ALPHA then it.colorWriteMask |= .VK_COLOR_COMPONENT_A_BIT;
+        }
+    } else {
+        this.pAttachments = null;
     }
 }
 
