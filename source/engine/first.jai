@@ -150,5 +150,5 @@ File   :: #import "File";
 
 #scope_file
 
-Basic    :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD);
+Basic    :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD, TEMPORARY__USE_NEW_FLOAT_PRINTING = true);
 Compiler :: #import "Compiler";
