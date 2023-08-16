@@ -29,9 +29,11 @@ assert :: (
                 FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
                 assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
             }
-        } else if !(#insert expression) {
-            FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-            assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+        } else {
+            if !(#insert expression) {
+                FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
+                assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+            }
         }
     }
 }

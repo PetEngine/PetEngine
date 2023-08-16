@@ -985,18 +985,15 @@ messengerCallback :: (
 
                     Basic.append(*builder, severity_and_vuid);
 
-                    message.data  += index;
-                    message.count -= index;
+                    advance(*message, index);
 
                     index = String.find_index_from_left(message, "MessageID");
                     if index != -1 {
-                        message.data  += index;
-                        message.count -= index;
+                        advance(*message, index);
 
                         index = String.find_index_from_left(message, "| ");
                         if index != -1 {
-                            message.data  += index + 2;
-                            message.count -= index + 2;
+                            advance(*message, index + 2);
                         }
                     }
 
