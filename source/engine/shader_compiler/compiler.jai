@@ -17,38 +17,31 @@ ShaderCompiler :: struct {
     } #no_padding
 
     GraphicsPipelineState :: struct {
-        primitive_topology : enum u8{
+        PrimitiveTopology :: enum u8{
             POINT_LIST;
             LINE_LIST;
             LINE_STRIP;
             TRIANGLE_LIST;
             TRIANGLE_STRIP;
-        } = .TRIANGLE_LIST;
+        }
 
-        fill_mode : enum u8 {
+        FillMode :: enum u8 {
             FILL;
             LINE;
-        } = .FILL;
+        }
 
-        cull_mode : enum u8 {
+        CullMode :: enum u8 {
             NONE;
             FRONT_FACE;
             BACK_FACE;
-        } = .NONE;
+        }
 
-        front_face : enum u8 {
+        FrontFace :: enum u8 {
             CLOCKWISE;
             COUNTER_CLOCKWISE;
-        } = .CLOCKWISE;
+        }
 
-        depth_bias_enable          := false;
-        depth_bias_constant_factor := 0.0;
-        depth_bias_clamp           := 0.0;
-        depth_bias_slope_factor    := 0.0;
-        depth_test_enable          := false;
-        depth_write_enable         := false;
-
-        depth_compare_op : enum u8 {
+        DepthCompareOp :: enum u8 {
             NEVER;
             ALWAYS;
             NOT_EQUAL;
@@ -57,11 +50,9 @@ ShaderCompiler :: struct {
             LESS_OR_EQUAL;
             GREATER;
             GREATER_OR_EQUAL;
-        } = .GREATER;
+        }
 
-        blend_logic_op_enable := false;
-
-        blend_logic_op : enum u8 {
+        BlendLogicOp :: enum u8 {
             ZERO;
             ONE;
             COPY;
@@ -78,10 +69,23 @@ ShaderCompiler :: struct {
             NOR;
             XOR;
             EQUIVALENT;
-        } = .COPY;
+        }
 
-        color_targets_count : u8;
-        color_targets       : [MAX_COLOR_TARGETS] ColorTarget;
+        primitive_topology         : PrimitiveTopology = .TRIANGLE_LIST;
+        fill_mode                  : FillMode          = .FILL;
+        cull_mode                  : CullMode          = .NONE;
+        front_face                 : FrontFace         = .CLOCKWISE;
+        depth_bias_enable          : bool              = false;
+        depth_bias_constant_factor : f32               = 0.0;
+        depth_bias_clamp           : f32               = 0.0;
+        depth_bias_slope_factor    : f32               = 0.0;
+        depth_test_enable          : bool              = false;
+        depth_write_enable         : bool              = false;
+        depth_compare_op           : DepthCompareOp    = .GREATER;
+        blend_logic_op_enable      : bool              = false;
+        blend_logic_op             : BlendLogicOp      = .COPY;
+        color_targets_count        : u8                = 0;
+        color_targets              : [MAX_COLOR_TARGETS] ColorTarget;
     } #no_padding
 
     ColorTarget :: struct {
@@ -111,15 +115,15 @@ ShaderCompiler :: struct {
             MAX;
         }
 
-        write_mask : enum_flags u8 {
-            R;
-            G;
-            B;
-            A;
-        } = .R | .G | .B | .A;
+        WriteMask :: enum_flags u8 {
+            RED;
+            GREEN;
+            BLUE;
+            ALPHA;
+        }
 
-        blend_enable := false;
-
+        write_mask             : WriteMask   = .RED | .GREEN | .BLUE | .ALPHA;
+        blend_enable           : bool        = false;
         src_color_blend_factor : BlendFactor = .SRC_COLOR;
         dst_color_blend_factor : BlendFactor = .ZERO;
         color_blend_op         : BlendOp     = .ADD;
@@ -220,7 +224,7 @@ compileShader :: (name : string) {
                                                      cast(*s8) "DEBUG_BUILD".data,
                                                      "DEBUG_BUILD".count,
                                                      cast(*s8) "1".data,
-                                                     1);
+                                                     "1".count);
         shaderc_compile_options_set_generate_debug_info(shaderc_options);
         shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_zero);
     } else {
@@ -228,10 +232,14 @@ compileShader :: (name : string) {
                                                      cast(*s8) "DEBUG_BUILD".data,
                                                      "DEBUG_BUILD".count,
                                                      cast(*s8) "0".data,
-                                                     1);
+                                                     "0".count);
         shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_performance);
     }
     shaderc_compile_options_set_forced_version_profile(shaderc_options, 460, .shaderc_profile_none);
+    // @TODO, @Cleanup: if Vulkan. Get vulkan version from Device.
+    shaderc_compile_options_set_target_env(shaderc_options,
+                                           .shaderc_target_env_vulkan,
+                                           cast(u32) shaderc_env_version.shaderc_env_version_vulkan_1_3);
     shaderc_compile_options_set_target_spirv(shaderc_options, .shaderc_spirv_version_1_6);
     shaderc_compile_options_set_auto_bind_uniforms(shaderc_options, true);
     // @TODO: shaderc_compile_options_set_binding_base
@@ -298,13 +306,13 @@ compileShader :: (name : string) {
     debugCheckSPIRVC(spvc_context_create(*spirvc_context));
     defer spvc_context_destroy(spirvc_context);
 
-    fragment_shader_spirv := *stage_spirvs[ShaderStage.FRAGMENT];
+    fragment_shader_spirv := stage_spirvs[ShaderStage.FRAGMENT];
     assert((fragment_shader_spirv.count % size_of(SpvId)) == 0);
 
     parsed_fragment_shader_ir : spvc_parsed_ir;
     debugCheckSPIRVC(spvc_context_parse_spirv(spirvc_context,
                                               cast(*SpvId) fragment_shader_spirv.data,
-                                              cast(u64)    fragment_shader_spirv.count >> 2,
+                                              cast(u64)    (fragment_shader_spirv.count / size_of(SpvId)),
                                               *parsed_fragment_shader_ir));
 
     spirvc_compiler : spvc_compiler;
@@ -315,7 +323,7 @@ compileShader :: (name : string) {
                                                   *spirvc_compiler));
 
     //
-    // 5.1. Set the actual number of colors target
+    // 5.1. Get the actual number of colors target
     //
 
     fragment_shader_resources : spvc_resources;
@@ -401,17 +409,14 @@ getLine :: (stream : *string) -> string {
     line.count = 0;
 
     while stream.* && stream.*[0] != #char "\n" {
-        stream.data  += 1;
-        stream.count -= 1;
+        advance(stream);
     }
 
     line.count = cast(s64) (stream.data - line.data);
 
     if stream.* {
         assert(stream.*[0] == #char "\n");
-
-        stream.data  += 1;
-        stream.count -= 1;
+        advance(stream);
     }
 
     return line;
@@ -461,9 +466,7 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
         line := getLine(*state_code);
 
         if String.starts_with(line, "ColorTarget") {
-            line_it : string = ---;
-            line_it.data  = line.data  + "ColorTarget".count;
-            line_it.count = line.count - "ColorTarget".count;
+            line_it := substring(line, "ColorTarget".count);
 
             line_it = String.trim_left(line_it);
             if line_it.count <= 0 {
@@ -485,8 +488,7 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
             }
 
             // Skip "."
-            line_it.data  += 1;
-            line_it.count -= 1;
+            advance(*line_it);
 
             line_it = String.trim_left(line_it);
             if !line_it {
@@ -499,7 +501,7 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
 
             if name == {
                 case "WriteMask";
-                    handleWriteMaskValue(*state.color_targets[color_target_index].write_mask, value);
+                    handleEnumFlagsValue(*state.color_targets[color_target_index].write_mask, value);
 
                 case "BlendEnable";
                     handleBoolValue(*state.color_targets[color_target_index].blend_enable, value);
@@ -586,8 +588,7 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string) {
     {
         name_end := line;
         while name_end && name_end[0] != #char "=" {
-            name_end.data  += 1;
-            name_end.count -= 1;
+            advance(*name_end);
         }
 
         if name_end[0] != #char "=" {
@@ -605,8 +606,7 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string) {
     }
 
     // Skip "="
-    line.data  += 1;
-    line.count -= 1;
+    advance(*line);
 
     line = String.trim_left(line);
 
@@ -614,8 +614,7 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string) {
     {
         value_end := line;
         while value_end && value_end[0] != #char ";" {
-            value_end.data  += 1;
-            value_end.count -= 1;
+            advance(*value_end);
         }
 
         if value_end[0] != #char ";" {
@@ -649,29 +648,35 @@ handleEnumValue :: inline (enum_value : *$T, value : string) #modify {
     errorMessage("Compilation failed");
 }
 
-handleWriteMaskValue :: (write_mask : *type_of(ColorTarget.write_mask), value : string) {
-    Type :: type_of(ColorTarget.write_mask);
-    info := type_info(Type);
+handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) #modify {
+    return (cast(*Type_Info)      T).type            == .ENUM
+        && (cast(*Type_Info_Enum) T).enum_type_flags == .FLAGS;
+} {
+    assert(value);
 
-    write_mask.* = 0;
+    info := type_info(T);
 
-    values := value;
-    while values {
+    enum_flags_value.* = 0;
+
+    flag_names_it := value;
+    while flag_names_it {
+        flag_name_end := flag_names_it;
+        while flag_name_end && flag_name_end[0] != #char "|" {
+            advance(*flag_name_end);
+        }
+
+        flag_name : string = ---;
+        flag_name.data  = flag_names_it.data;
+        flag_name.count = cast(s64) (flag_name_end.data - flag_names_it.data);
+
+        flag_name = String.trim_right(flag_name);
+
         found : bool;
-
-        one_value : string = ---;
-        one_value.data  = values.data;
-        one_value.count = 1;
-
         for info.names {
-            if it == one_value {
-                write_mask.* |= cast(Type) info.values[it_index];
+            if it == flag_name {
+                enum_flags_value.* |= cast(ColorTarget.WriteMask) info.values[it_index];
 
                 found = true;
-
-                values.data  += 1;
-                values.count -= 1;
-
                 break;
             }
         }
@@ -681,6 +686,12 @@ handleWriteMaskValue :: (write_mask : *type_of(ColorTarget.write_mask), value : 
             errorMessage("Compilation failed");
             return;
         }
+
+        flag_names_it = flag_name_end;
+        if flag_name_end && flag_names_it[0] == #char "|" {
+            advance(*flag_names_it);
+        }
+        flag_names_it = String.trim_left(flag_names_it);
     }
 }
 
@@ -720,8 +731,7 @@ getColorTargetIndex :: (stream : *string) -> u8 {
     }
 
     // Skip "["
-    line_it.data  += 1;
-    line_it.count -= 1;
+    advance(*line_it);
 
     line_it = String.trim_left(line_it);
     if !line_it {
@@ -751,8 +761,7 @@ getColorTargetIndex :: (stream : *string) -> u8 {
     }
 
     // Skip "]"
-    line_it.data  += 1;
-    line_it.count -= 1;
+    advance(*line_it);
 
     return color_target_index;
 }
@@ -768,7 +777,15 @@ shaderStageToShadercShaderKind :: inline (stage : ShaderStage) -> shaderc_shader
 debugCheckSPIRVC :: ($code : Code) #expand #no_debug {
     #if DEBUG_BUILD {
         result := #insert code;
-        assert(result == .SPVC_SUCCESS, "% returned %", #run codeToString(code), result);
+        if `spirvc_context {
+            assert(result == .SPVC_SUCCESS,
+                   "% returned %: %",
+                   #run codeToString(code),
+                   result,
+                   to_string(cast(*u8) spvc_context_get_last_error_string(`spirvc_context)));
+        } else {
+            assert(result == .SPVC_SUCCESS, "% returned %", #run codeToString(code), result);
+        }
     } else {
         #insert code;
     }

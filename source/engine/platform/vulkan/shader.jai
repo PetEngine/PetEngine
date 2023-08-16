@@ -475,10 +475,10 @@ initColorBlendState :: inline (this : *VkPipelineColorBlendStateCreateInfo, stat
         }
 
         it.colorWriteMask = 0;
-        if color_target.write_mask & .R then it.colorWriteMask |= .VK_COLOR_COMPONENT_R_BIT;
-        if color_target.write_mask & .G then it.colorWriteMask |= .VK_COLOR_COMPONENT_G_BIT;
-        if color_target.write_mask & .B then it.colorWriteMask |= .VK_COLOR_COMPONENT_B_BIT;
-        if color_target.write_mask & .A then it.colorWriteMask |= .VK_COLOR_COMPONENT_A_BIT;
+            if color_target.write_mask & .RED   then it.colorWriteMask |= .VK_COLOR_COMPONENT_R_BIT;
+            if color_target.write_mask & .GREEN then it.colorWriteMask |= .VK_COLOR_COMPONENT_G_BIT;
+            if color_target.write_mask & .BLUE  then it.colorWriteMask |= .VK_COLOR_COMPONENT_B_BIT;
+            if color_target.write_mask & .ALPHA then it.colorWriteMask |= .VK_COLOR_COMPONENT_A_BIT;
     }
 }
 
