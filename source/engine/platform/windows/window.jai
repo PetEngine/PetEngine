@@ -31,8 +31,8 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
     setMonitorDPIAwareness();
 
     ASCII_CLASS_NAME :: "PetEngineWindowClass";
-    unicode_class_name : [ASCII_CLASS_NAME.count + 1] s16;
-    for 0 .. ASCII_CLASS_NAME.count - 1 { // @TODO: #utf8_to_wide
+    unicode_class_name : [ASCII_CLASS_NAME.count + 1] WCHAR;
+    for 0 .. ASCII_CLASS_NAME.count - 1 { // @TODO: #utf8_to_wide.
         unicode_class_name[it] = ASCII_CLASS_NAME[it];
     }
 
@@ -45,7 +45,7 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
     window_class.hInstance     = manager.app_instance;
     window_class.hIcon         = LoadIconW(manager.app_instance, IDI_APPLICATION);
     window_class.hCursor       = LoadCursorW(manager.app_instance, IDC_ARROW);
-    window_class.hbrBackground = cast,no_check(HBRUSH) (COLOR_BACKGROUND + 1);
+    window_class.hbrBackground = cast,no_check(HBRUSH) (COLOR_WINDOW + 1);
     window_class.lpszMenuName  = null;
     window_class.lpszClassName = unicode_class_name.data;
     window_class.hIconSm       = window_class.hIcon;
@@ -145,8 +145,8 @@ createWin32Window :: (
         }
     }
 
-    unicode_title := pushToArena(*context.pet.per_frame_arena, s16, title.count + 1);
-    for 0..title.count-1 { // @TODO: #utf8_to_wide
+    unicode_title := pushToArena(*context.pet.per_frame_arena, WCHAR, title.count + 1);
+    for 0..title.count-1 { // @TODO: #utf8_to_wide.
         unicode_title[it] = title[it];
     }
 
@@ -172,6 +172,40 @@ createWin32Window :: (
         window.dpi_scale       = 1.0;
         window.platform_flags |= .APPLY_DPI_SCALING_ON_SHOW;
     }
+
+    // @TODO: #utf8_to_wide.
+    apps_use_light_theme : u32;
+    {
+        SUBKEY         :: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+        unicode_subkey : [SUBKEY.count + 1] WCHAR = ---;
+
+        for 0 .. SUBKEY.count - 1 {
+            unicode_subkey[it] = SUBKEY[it];
+        }
+        unicode_subkey[SUBKEY.count] = 0;
+
+        VALUE         :: "AppsUseLightTheme";
+        unicode_value : [VALUE.count + 1] WCHAR = ---;
+
+        for 0 .. VALUE.count - 1 {
+            unicode_value[it] = VALUE[it];
+        }
+        unicode_value[VALUE.count] = 0;
+
+        data_size : u32 = size_of(u32);
+        lstatus := RegGetValueW(HKEY_CURRENT_USER,
+                                unicode_subkey.data,
+                                unicode_value.data,
+                                RRF_RT_REG_DWORD,
+                                null,
+                                *apps_use_light_theme,
+                                *data_size);
+        assert(lstatus == ERROR_SUCCESS);
+    }
+
+    use_dark_theme := cast(BOOL) (apps_use_light_theme == 0);
+    hresult := DwmSetWindowAttribute(window.handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL));
+    assert(SUCCEEDED(hresult));
 
     return window;
 }

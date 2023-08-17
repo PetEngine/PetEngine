@@ -5,16 +5,19 @@
 
 #scope_export
 
-HANDLE                :: *void;
-HINSTANCE             :: HANDLE;
-HICON                 :: HANDLE;
-HCURSOR               :: HICON;
-HBRUSH                :: HANDLE;
-HWND                  :: HANDLE;
-HMODULE               :: HINSTANCE;
-HLOCAL                :: HANDLE;
-HMENU                 :: HANDLE;
-DPI_AWARENESS_CONTEXT :: HANDLE;
+HANDLE :: *void;
+
+HINSTANCE             :: *HINSTANCE__;             HINSTANCE__             :: struct { unused : s32; }
+HICON                 :: *HICON__;                 HICON__                 :: struct { unused : s32; }
+HCURSOR               :: *HCURSOR__;               HCURSOR__               :: struct { unused : s32; }
+HBRUSH                :: *HBRUSH__;                HBRUSH__                :: struct { unused : s32; }
+HWND                  :: *HWND__;                  HWND__                  :: struct { unused : s32; }
+HMENU                 :: *HMENU__;                 HMENU__                 :: struct { unused : s32; }
+DPI_AWARENESS_CONTEXT :: *DPI_AWARENESS_CONTEXT__; DPI_AWARENESS_CONTEXT__ :: struct { unused : s32; }
+HKEY                  :: *HKEY__;                  HKEY__                  :: struct { unused : s32; }
+
+HMODULE :: HINSTANCE;
+HLOCAL  :: HANDLE;
 
 BOOL      :: s32;
 CHAR      :: s8;
@@ -34,15 +37,22 @@ LPCWSTR :: *WCHAR;
 WPARAM  :: UINT_PTR;
 LPARAM  :: LONG_PTR;
 LRESULT :: LONG_PTR;
+LSTATUS :: s32;
 
 TRUE  : BOOL : 1;
 FALSE : BOOL : 0;
 
-ATOM :: u16;
+ATOM    :: u16;
+HRESULT :: s32;
 
 va_list :: *s8;
 
 INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
+
+ERROR_SUCCESS :: 0;
+
+SUCCEEDED :: inline (hr : HRESULT) -> bool { return hr >= 0; }
+FAILED    :: inline (hr : HRESULT) -> bool { return hr <  0; }
 
 OutputDebugStringA :: (
     lpOutputString : *u8
@@ -183,8 +193,19 @@ DefWindowProcW :: (
     lParam : LPARAM
 ) -> LRESULT #foreign user32;
 
-COLOR_BACKGROUND : s32 : 1;
-COLOR_WINDOW     : s32 : 5;
+// The only supported system colors since Windows 10
+COLOR_WINDOW        : s32 : 5;
+COLOR_WINDOWTEXT    : s32 : 8;
+COLOR_HIGHLIGHT     : s32 : 13;
+COLOR_HIGHLIGHTTEXT : s32 : 14;
+COLOR_3DFACE        : s32 : 15;
+COLOR_GRAYTEXT      : s32 : 17;
+COLOR_BTNTEXT       : s32 : 18;
+COLOR_HOTLIGHT      : s32 : 26;
+
+GetSysColor :: (
+    nIndex : s32
+) -> u32 #foreign user32;
 
 GetLastError :: (
 ) -> u32 #foreign kernel32;
@@ -414,6 +435,41 @@ OVERLAPPED :: struct {
     hEvent : HANDLE;
 }
 
+DWMWINDOWATTRIBUTE :: enum s32 {
+    DWMWA_NCRENDERING_ENABLED :: 1;       // [get] Is non-client rendering enabled/disabled
+    DWMWA_NCRENDERING_POLICY;             // [set] DWMNCRENDERINGPOLICY - Non-client rendering policy
+    DWMWA_TRANSITIONS_FORCEDISABLED;      // [set] Potentially enable/forcibly disable transitions
+    DWMWA_ALLOW_NCPAINT;                  // [set] Allow contents rendered in the non-client area to be visible on the DWM-drawn frame.
+    DWMWA_CAPTION_BUTTON_BOUNDS;          // [get] Bounds of the caption button area in window-relative space.
+    DWMWA_NONCLIENT_RTL_LAYOUT;           // [set] Is non-client content RTL mirrored
+    DWMWA_FORCE_ICONIC_REPRESENTATION;    // [set] Force this window to display iconic thumbnails.
+    DWMWA_FLIP3D_POLICY;                  // [set] Designates how Flip3D will treat the window.
+    DWMWA_EXTENDED_FRAME_BOUNDS;          // [get] Gets the extended frame bounds rectangle in screen space
+    DWMWA_HAS_ICONIC_BITMAP;              // [set] Indicates an available bitmap when there is no better thumbnail representation.
+    DWMWA_DISALLOW_PEEK;                  // [set] Don't invoke Peek on the window.
+    DWMWA_EXCLUDED_FROM_PEEK;             // [set] LivePreview exclusion information
+    DWMWA_CLOAK;                          // [set] Cloak or uncloak the window
+    DWMWA_CLOAKED;                        // [get] Gets the cloaked state of the window
+    DWMWA_FREEZE_REPRESENTATION;          // [set] BOOL, Force this window to freeze the thumbnail without live update
+    DWMWA_PASSIVE_UPDATE_MODE;            // [set] BOOL, Updates the window only when desktop composition runs for other reasons
+    DWMWA_USE_HOSTBACKDROPBRUSH;          // [set] BOOL, Allows the use of host backdrop brushes for the window.
+    DWMWA_USE_IMMERSIVE_DARK_MODE  :: 20; // [set] BOOL, Allows a window to either use the accent color, or dark, according to the user Color Mode preferences.
+    DWMWA_WINDOW_CORNER_PREFERENCE :: 33; // [set] WINDOW_CORNER_PREFERENCE, Controls the policy that rounds top-level window corners
+    DWMWA_BORDER_COLOR;                   // [set] COLORREF, The color of the thin border around a top-level window
+    DWMWA_CAPTION_COLOR;                  // [set] COLORREF, The color of the caption
+    DWMWA_TEXT_COLOR;                     // [set] COLORREF, The color of the caption text
+    DWMWA_VISIBLE_FRAME_BORDER_THICKNESS; // [get] UINT, width of the visible border around a thick frame window
+    DWMWA_SYSTEMBACKDROP_TYPE;            // [get, set] SYSTEMBACKDROP_TYPE, Controls the system-drawn backdrop material of a window, including behind the non-client area.
+    DWMWA_LAST;
+}
+
+DwmSetWindowAttribute :: (
+    hwnd        : HWND,
+    dwAttribute : DWMWINDOWATTRIBUTE,
+    pvAttribute : *void,
+    cbAttribute : u32
+) -> HRESULT #foreign dwmapi;
+
 WriteFile :: (
     hFile                  : HANDLE,
     lpBuffer               : *void,
@@ -481,7 +537,32 @@ GetProcAddress :: (
 IsDebuggerPresent :: (
 ) -> BOOL #foreign kernel32;
 
+HKEY_CLASSES_ROOT                :: cast,no_check(HKEY) 0x80000000;
+HKEY_CURRENT_USER                :: cast,no_check(HKEY) 0x80000001;
+HKEY_LOCAL_MACHINE               :: cast,no_check(HKEY) 0x80000002;
+HKEY_USERS                       :: cast,no_check(HKEY) 0x80000003;
+HKEY_PERFORMANCE_DATA            :: cast,no_check(HKEY) 0x80000004;
+HKEY_PERFORMANCE_TEXT            :: cast,no_check(HKEY) 0x80000050;
+HKEY_PERFORMANCE_NLSTEXT         :: cast,no_check(HKEY) 0x80000060;
+HKEY_CURRENT_CONFIG              :: cast,no_check(HKEY) 0x80000005;
+HKEY_DYN_DATA                    :: cast,no_check(HKEY) 0x80000006;
+HKEY_CURRENT_USER_LOCAL_SETTINGS :: cast,no_check(HKEY) 0x80000007;
+
+RRF_RT_REG_DWORD : u32 : 0x00000010;
+
+RegGetValueW :: (
+    hkey     : HKEY,
+    lpSubKey : LPCWSTR,
+    lpValue  : LPCWSTR,
+    dwFlags  : u32,
+    pdwType  : *u32,
+    pvData   : *void,
+    pcbData  : *u32
+) -> LSTATUS #foreign advapi32;
+
 #scope_file
 
 kernel32 :: #system_library "Kernel32";
 user32   :: #system_library "User32";
+dwmapi   :: #system_library "Dwmapi";
+advapi32 :: #system_library "Advapi32";
