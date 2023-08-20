@@ -315,6 +315,23 @@ drawVulkanPrimitives :: inline (
     vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
 }
 
+setVulkanPushConstants :: inline (command_buffer : VkCommandBuffer, shader : *VulkanShader, stage : ShaderStage, data : *$T) {
+    stage_bindings := *shader.binding_table.stage_bindings[stage];
+
+    assert(size_of(T) == stage_bindings.push_constants.bytes,
+           "The size of push constants data (%) should be equal to the size of push constants block in \"%\" shader (%).",
+           size_of(T),
+           shader.name,
+           stage_bindings.push_constants.bytes);
+
+    vkCmdPushConstants(command_buffer,
+                       shader.pipeline_layout,
+                       shaderStageToVulkanStage(stage),
+                       stage_bindings.push_constants.offset,
+                       stage_bindings.push_constants.bytes,
+                       data);
+}
+
 #scope_file
 
 loadActionToVulkanLoadOp :: (action : TargetLoadAction) -> VkAttachmentLoadOp #no_context {

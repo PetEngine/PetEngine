@@ -33,6 +33,8 @@ Shader :: struct {
 
     kind : Kind = .UNKNOWN;
     name : string;
+
+    binding_table : ShaderCompiler.BindingTable;
 }
 
 createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *Shader #must {
@@ -47,17 +49,17 @@ createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *
 
     shader_filename := makeBinaryShaderFilename(shader.name);
     shader_file_data, success := File.read_entire_file(shader_filename, log_errors = false);
-    assert(success);
+    assert(success, print_sys_error = true);
     defer Basic.free(shader_file_data);
 
-    // @TODO: #BindingTable.
-    MIN_SHADER_FILE_SIZE :: size_of(ShaderCompiler.Header) + size_of(ShaderCompiler.PipelineState);
-    assert(shader_file_data.count >= MIN_SHADER_FILE_SIZE);
+    assert(shader_file_data.count >= ShaderCompiler.MIN_FILE_SIZE);
 
-    shader_file_header := cast(*ShaderCompiler.Header) shader_file_data.data;
+    shader_file_header := ShaderCompiler.getHeader(shader_file_data);
     assert(shader_file_header.version == ShaderCompiler.VERSION);
 
     shader.kind = shader_file_header.shader_kind;
+
+    shader.binding_table = ShaderCompiler.getBindingTable(shader_file_data).*;
 
     if #complete device.graphics_api == {
         case .VULKAN;

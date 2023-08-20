@@ -47,6 +47,12 @@ spvc_reflected_resource :: struct {
     name         : *s8;
 }
 
+spvc_buffer_range :: struct {
+    index  : u32;
+    offset : size_t;
+    range  : size_t;
+}
+
 spvc_result :: enum s32 {
     /* Success. */
     SPVC_SUCCESS :: 0;
@@ -179,6 +185,17 @@ spvc_resources_get_resource_list_for_type :: (
     type          : spvc_resource_type,
     resource_list : **spvc_reflected_resource,
     resource_size : *size_t
+) -> spvc_result #foreign spirv_cross;
+
+/*
+ * Buffer ranges
+ * Maps to C++ API.
+ */
+spvc_compiler_get_active_buffer_ranges :: (
+    compiler   : spvc_compiler,
+    id         : spvc_variable_id,
+    ranges     : **spvc_buffer_range,
+    num_ranges : *size_t
 ) -> spvc_result #foreign spirv_cross;
 
 #scope_file

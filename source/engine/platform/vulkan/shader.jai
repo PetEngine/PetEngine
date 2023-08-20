@@ -60,9 +60,9 @@ pushVulkanShader :: (manager : *VulkanShaderManager) -> *VulkanShader #must {
 }
 
 createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, shader : *VulkanShader, shader_file_data : string) {
-    shader_file_header := cast(*ShaderCompiler.Header) shader_file_data.data;
+    shader_file_header := ShaderCompiler.getHeader(shader_file_data);
 
-    shader_stages : [ShaderCompiler.Header.stage_offsets.count] VkShaderModule = ---;
+    shader_stages : [ShaderCompiler.MAX_STAGES] VkShaderModule = ---;
     for * shader_stages {
         this_stage_offset := shader_file_header.stage_offsets[it_index];
 
@@ -97,6 +97,8 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
 
     // @TODO: #ShaderCompiler
     {
+        ranges : [ShaderCompiler.MAX_STAGES] VkPushConstantRange;
+
         create_info := VkPipelineLayoutCreateInfo.{
             sType                  = .VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             pNext                  = null,
@@ -104,8 +106,10 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
             setLayoutCount         = 0,
             pSetLayouts            = null,
             pushConstantRangeCount = 0,
-            pPushConstantRanges    = null,
+            pPushConstantRanges    = ranges.data,
         };
+
+        initPushConstantRanges(*create_info, *shader.binding_table);
 
         // @TODO: #VkAllocationCallbacks
         debugCheckVK(vkCreatePipelineLayout(device.device, *create_info, null, *shader.pipeline_layout));
@@ -130,7 +134,7 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
         it.pSpecializationInfo = null;
     }
 
-    pipeline_state          := cast(*ShaderCompiler.PipelineState) (shader_file_data.data + size_of(ShaderCompiler.Header));
+    pipeline_state          := ShaderCompiler.getPipelineState(shader_file_data);
     graphics_pipeline_state := *pipeline_state.graphics;
 
     vertex_input_state : VkPipelineVertexInputStateCreateInfo = ---;
@@ -196,6 +200,14 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
     setVulkanObjectName(device, shader.pipeline, "% graphics pipeline", shader.name);
 }
 
+shaderStageToVulkanStage :: inline (stage : ShaderStage) -> VkShaderStageFlags #no_context {
+    if #complete stage == {
+        case .VERTEX;   return .VK_SHADER_STAGE_VERTEX_BIT;
+        case .FRAGMENT; return .VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+    return 0;
+}
+
 #scope_file
 
 // @TODO: #ShaderCompiler. Single file shader.
@@ -216,12 +228,18 @@ createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStag
     return module;
 }
 
-shaderStageToVulkanStage :: inline (stage : ShaderStage) -> VkShaderStageFlags #no_context {
-    if #complete stage == {
-        case .VERTEX;   return .VK_SHADER_STAGE_VERTEX_BIT;
-        case .FRAGMENT; return .VK_SHADER_STAGE_FRAGMENT_BIT;
+initPushConstantRanges :: inline (create_info : *VkPipelineLayoutCreateInfo, binding_table : *ShaderCompiler.BindingTable) {
+    for binding_table.stage_bindings {
+        if it.push_constants.bytes {
+            range := *create_info.pPushConstantRanges[create_info.pushConstantRangeCount];
+
+            range.stageFlags = shaderStageToVulkanStage(cast(ShaderStage) it_index);
+            range.offset     = it.push_constants.offset;
+            range.size       = it.push_constants.bytes;
+
+            create_info.pushConstantRangeCount += 1;
+        }
     }
-    return 0;
 }
 
 // @TODO: #ShaderCompiler. Get vertex shader input from shader.

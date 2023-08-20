@@ -29,8 +29,13 @@ void main() {
 in  VertexOutput fs_input;
 out vec4         fs_output_color;
 
+layout(push_constant) uniform PushConstants {
+    float time;
+};
+
 void main() {
-    fs_output_color = fs_input.color;
+    const float alpha = sin(1.5 * time) * 0.5 + 0.5;
+    fs_output_color = fs_input.color * alpha;
 }
 
 #pipeline_state

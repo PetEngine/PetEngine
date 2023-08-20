@@ -262,6 +262,21 @@ drawPrimitives :: (
     }
 }
 
+setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, stage : ShaderStage, data : *$T) {
+    #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can draw";
+
+    shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
+    assert(shader, "You should set shader before setting its push constants");
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            setVulkanPushConstants(command_buffer.handles[device.frame_index],
+                                   cast(*VulkanShader) shader,
+                                   stage,
+                                   data);
+    }
+}
+
 #scope_file
 
 PipelineBindPoint :: enum u8 {

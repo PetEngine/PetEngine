@@ -1,15 +1,21 @@
 ShaderCompiler :: struct {
-    SOURCE_SHADERS_FOLDER      :: "../../../source/shaders"; // @TODO: #FileSystem.
-    OUTPUT_SHADERS_FOLDER      :: "shaders";                 // @TODO: #FileSystem.
-    VERSION                    :: 1;
+    VERSION :: 1;
+
+    SOURCE_SHADERS_FOLDER :: "../../../source/shaders"; // @TODO: #FileSystem.
+    OUTPUT_SHADERS_FOLDER :: "shaders";                 // @TODO: #FileSystem.
+
     INVALID_OFFSET             :: -1;
-    MAX_COLOR_TARGETS          :: 8;
     INVALID_COLOR_TARGET_INDEX : u8 : 0xFF;
+
+    MAX_STAGES        :: #run Basic.enum_highest_value(ShaderStage) + 1;
+    MAX_COLOR_TARGETS :: 8;
+
+    MIN_FILE_SIZE :: size_of(Header) + size_of(PipelineState) + size_of(BindingTable);
 
     Header :: struct {
         version       : u8 = VERSION;
         shader_kind   : Shader.Kind;
-        stage_offsets : [#run Basic.enum_highest_value(ShaderStage) + 1] s64;
+        stage_offsets : [MAX_STAGES] s64;
     } #no_padding
 
     PipelineState :: union {
@@ -132,9 +138,35 @@ ShaderCompiler :: struct {
         alpha_blend_op         : BlendOp     = .ADD;
     } #no_padding
 
-    // @TODO: #BindingTable
     BindingTable :: struct {
+        PushConstants :: struct {
+            offset : u32;
+            bytes  : u32;
+        } #no_padding
+
+        StageBindings :: struct {
+            push_constants : PushConstants;
+        } #no_padding
+
+        // @TODO: #BindingTable. Common bindings?
+        stage_bindings : [MAX_STAGES] StageBindings;
     } #no_padding
+
+    //
+    // Util functions
+    //
+
+    getHeader :: inline (file_data : string) -> *Header {
+        return cast(*Header) file_data.data;
+    }
+
+    getPipelineState :: inline (file_data : string) -> *PipelineState {
+        return cast(*PipelineState) (file_data.data + size_of(Header));
+    }
+
+    getBindingTable :: inline (file_data : string) -> *BindingTable {
+        return cast(*BindingTable) (file_data.data + size_of(Header) + size_of(PipelineState));
+    }
 }
 
 ShaderStage :: enum u8 {
@@ -147,7 +179,7 @@ compileShader :: (name : string) {
     source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader", allocator = Basic.temporary_allocator);
 
     source, success := File.read_entire_file(source_filename, log_errors = false);
-    assert(success);
+    assert(success, print_sys_error = true);
     defer Basic.free(source);
 
     stream := source;
@@ -163,7 +195,7 @@ compileShader :: (name : string) {
     //
 
     shader_kind         := Shader.Kind.UNKNOWN;
-    stage_codes         : [Header.stage_offsets.count] string;
+    stage_codes         : [MAX_STAGES] string;
     pipeline_state_code : string;
 
     while stream {
@@ -210,7 +242,7 @@ compileShader :: (name : string) {
     // 4. Compile shader stages
     //
 
-    stage_spirvs : [Header.stage_offsets.count] string;
+    stage_spirvs : [MAX_STAGES] string;
 
     shaderc_compiler := shaderc_compiler_initialize();
     defer shaderc_compiler_release(shaderc_compiler);
@@ -306,48 +338,89 @@ compileShader :: (name : string) {
     debugCheckSPIRVC(spvc_context_create(*spirvc_context));
     defer spvc_context_destroy(spirvc_context);
 
-    fragment_shader_spirv := stage_spirvs[ShaderStage.FRAGMENT];
-    assert((fragment_shader_spirv.count % size_of(SpvId)) == 0);
+    stage_compilers : [MAX_STAGES] spvc_compiler;
+    stage_resources : [MAX_STAGES] spvc_resources;
 
-    parsed_fragment_shader_ir : spvc_parsed_ir;
-    debugCheckSPIRVC(spvc_context_parse_spirv(spirvc_context,
-                                              cast(*SpvId) fragment_shader_spirv.data,
-                                              cast(u64)    (fragment_shader_spirv.count / size_of(SpvId)),
-                                              *parsed_fragment_shader_ir));
+    for * stage_resources {
+        bytecode := stage_spirvs[it_index];
+        assert((bytecode.count % size_of(SpvId)) == 0);
 
-    spirvc_compiler : spvc_compiler;
-    debugCheckSPIRVC(spvc_context_create_compiler(spirvc_context,
-                                                  .SPVC_BACKEND_NONE,
-                                                  parsed_fragment_shader_ir,
-                                                  .SPVC_CAPTURE_MODE_TAKE_OWNERSHIP,
-                                                  *spirvc_compiler));
+        parsed_bytecode_ir : spvc_parsed_ir;
+        debugCheckSPIRVC(spvc_context_parse_spirv(spirvc_context,
+                                                  cast(*SpvId) bytecode.data,
+                                                  cast(u64) (bytecode.count / size_of(SpvId)),
+                                                  *parsed_bytecode_ir));
+
+        stage_compiler := *stage_compilers[it_index];
+        debugCheckSPIRVC(spvc_context_create_compiler(spirvc_context,
+                                                      .SPVC_BACKEND_NONE,
+                                                      parsed_bytecode_ir,
+                                                      .SPVC_CAPTURE_MODE_TAKE_OWNERSHIP,
+                                                      stage_compiler));
+
+        debugCheckSPIRVC(spvc_compiler_create_shader_resources(stage_compiler.*, it));
+    }
 
     //
     // 5.1. Get the actual number of colors target
     //
 
-    fragment_shader_resources : spvc_resources;
-    debugCheckSPIRVC(spvc_compiler_create_shader_resources(spirvc_compiler, *fragment_shader_resources));
+    fragment_stage_resources := stage_resources[ShaderStage.FRAGMENT];
 
-    fragment_shader_output_resources       : *spvc_reflected_resource;
-    fragment_shader_output_resources_count : u64;
-    debugCheckSPIRVC(spvc_resources_get_resource_list_for_type(fragment_shader_resources,
+    fragment_stage_output_resources       : *spvc_reflected_resource;
+    fragment_stage_output_resources_count : u64;
+    debugCheckSPIRVC(spvc_resources_get_resource_list_for_type(fragment_stage_resources,
                                                                .SPVC_RESOURCE_TYPE_STAGE_OUTPUT,
-                                                               *fragment_shader_output_resources,
-                                                               *fragment_shader_output_resources_count));
+                                                               *fragment_stage_output_resources,
+                                                               *fragment_stage_output_resources_count));
 
-    if fragment_shader_output_resources_count >= MAX_COLOR_TARGETS {
+    if fragment_stage_output_resources_count >= MAX_COLOR_TARGETS {
         // @TODO: #BetterMessage.
         errorMessage("Compilation failed");
         return;
     }
-    pipeline_state.graphics.color_targets_count = cast(u8) fragment_shader_output_resources_count;
+    pipeline_state.graphics.color_targets_count = cast(u8) fragment_stage_output_resources_count;
 
     //
     // 5.2. Get binding table from platform specific intermediate shader language
     //
 
-    // @TODO, @Continue
+    binding_table : BindingTable;
+
+    for stage_resources {
+        stage_bindings := *binding_table.stage_bindings[it_index];
+        stage_compiler := stage_compilers[it_index];
+
+        // Push constants
+        push_constnats       : *spvc_reflected_resource;
+        push_constnats_count : u64;
+        debugCheckSPIRVC(spvc_resources_get_resource_list_for_type(it,
+                                                                   .SPVC_RESOURCE_TYPE_PUSH_CONSTANT,
+                                                                   *push_constnats,
+                                                                   *push_constnats_count));
+
+        if push_constnats_count {
+            assert(push_constnats_count == 1, "There can be only 1 push_constants block per stage, got %", push_constnats_count);
+
+            push_constnats_block := push_constnats[0];
+
+            buffer_ranges       : *spvc_buffer_range;
+            buffer_ranges_count : u64;
+            debugCheckSPIRVC(spvc_compiler_get_active_buffer_ranges(stage_compiler,
+                                                                    push_constnats_block.id,
+                                                                    *buffer_ranges,
+                                                                    *buffer_ranges_count));
+
+            assert(buffer_ranges_count == 1, "Expected one range, got %", buffer_ranges_count);
+
+            buffer_range := buffer_ranges[0];
+
+            stage_bindings.push_constants.offset = cast(u32) buffer_range.offset;
+            stage_bindings.push_constants.bytes  = cast(u32) buffer_range.range;
+        }
+
+        // @Continue
+    }
 
     //
     // 6. Write everything to file
@@ -356,8 +429,7 @@ compileShader :: (name : string) {
     header : Header;
     header.shader_kind = shader_kind;
 
-    // @TODO: #BindingTable
-    offset := size_of(Header) + size_of(PipelineState);
+    offset := MIN_FILE_SIZE;
 
     for * header.stage_offsets {
         stage_spirv := stage_spirvs[it_index];
@@ -379,17 +451,19 @@ compileShader :: (name : string) {
     debugCheck(File.make_directory_if_it_does_not_exist(output_directory, true));
 
     output_file, success= := File.file_open(output_filename, true, log_errors = false);
-    assert(success);
+    assert(success, print_sys_error = true);
     defer File.file_close(*output_file);
 
     File.file_write(*output_file, *header, size_of(Header));
     File.file_write(*output_file, *pipeline_state, size_of(PipelineState));
-    // @TODO: #BindingTable
+    File.file_write(*output_file, *binding_table, size_of(BindingTable));
     for stage_spirvs {
         if it {
             File.file_write(*output_file, it);
         }
     }
+
+    infoMessage("Shader \"%\" has been compiled", name);
 }
 
 makeBinaryShaderFilename :: inline (name : string, allocator := Basic.temporary_allocator) -> string {
