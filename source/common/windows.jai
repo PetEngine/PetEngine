@@ -195,6 +195,7 @@ SetWindowLongPtrW :: (
 WM_DESTROY          : u32 : 0x0002;
 WM_SIZE             : u32 : 0x0005;
 WM_CLOSE            : u32 : 0x0010;
+WM_WININICHANGE     : u32 : 0x001A;
 WM_WINDOWPOSCHANGED : u32 : 0x0047;
 WM_MENUCHAR         : u32 : 0x0120;
 WM_DPICHANGED       : u32 : 0x02E0;

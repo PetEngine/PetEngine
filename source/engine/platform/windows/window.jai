@@ -67,30 +67,9 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
     last_window.manager   = manager;
     last_window.next_free = null;
 
-    manager.free_windows = manager.windows.data;
-    manager.jai_context  = *context;
-
-    {
-        SUBKEY         :: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
-        unicode_subkey : [SUBKEY.count + 1] WCHAR = ---;
-        asciiToWide(*unicode_subkey, SUBKEY, true);
-
-        VALUE         :: "AppsUseLightTheme";
-        unicode_value : [VALUE.count + 1] WCHAR = ---;
-        asciiToWide(*unicode_value, VALUE, true);
-
-        apps_use_light_theme : u32;
-        data_size            : u32 = size_of(u32);
-        debugCheckOSError(RegGetValueW(HKEY_CURRENT_USER,
-                          unicode_subkey.data,
-                          unicode_value.data,
-                          RRF_RT_REG_DWORD,
-                          null,
-                          *apps_use_light_theme,
-                          *data_size));
-
-        manager.use_dark_theme = apps_use_light_theme == 0;
-    }
+    manager.free_windows   = manager.windows.data;
+    manager.jai_context    = *context;
+    manager.use_dark_theme = useDarkTheme();
 
     return manager;
 }
@@ -259,6 +238,20 @@ windowEventsCallback :: (
 
             result = DefWindowProcW(window_handle, message, wparam, lparam);
 
+        case WM_WININICHANGE;
+            was_using_dark_theme := window.manager.use_dark_theme;
+
+            push_context window.manager.jai_context {
+                window.manager.use_dark_theme = useDarkTheme();
+
+                if was_using_dark_theme != window.manager.use_dark_theme {
+                    use_dark_theme := cast(BOOL) window.manager.use_dark_theme;
+                    debugCheckOSError(DwmSetWindowAttribute(window_handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
+                }
+            }
+
+            result = DefWindowProcW(window_handle, message, wparam, lparam);
+
         case WM_WINDOWPOSCHANGED;
             window_position := cast,no_check(*WINDOWPOS) lparam;
 
@@ -302,12 +295,12 @@ windowEventsCallback :: (
                                   | SWP_DEFERERASE;
 
             success := SetWindowPos(window_handle,
-                                           HWND_TOP,
-                                           new_window_rect.left,
-                                           new_window_rect.top,
-                                           new_window_rect.right  - new_window_rect.left,
-                                           new_window_rect.bottom - new_window_rect.top,
-                                           SET_WINDOW_POS_FLAGS);
+                                    HWND_TOP,
+                                    new_window_rect.left,
+                                    new_window_rect.top,
+                                    new_window_rect.right  - new_window_rect.left,
+                                    new_window_rect.bottom - new_window_rect.top,
+                                    SET_WINDOW_POS_FLAGS);
 
             push_context window.manager.jai_context {
                 assert(success != FALSE);
@@ -384,6 +377,28 @@ applyInitialDPIScalingToWindow :: (window_handle : HWND, width : u16, height : u
     debugCheck(SetWindowPos(window_handle, HWND_TOP, 0, 0, scaled_width, scaled_height, SET_WINDOW_POS_FLAGS), print_sys_error = true);
 
     return dpi_scale;
+}
+
+useDarkTheme :: () -> bool {
+    SUBKEY         :: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+    unicode_subkey : [SUBKEY.count + 1] WCHAR = ---;
+    asciiToWide(*unicode_subkey, SUBKEY, true);
+
+    VALUE         :: "AppsUseLightTheme";
+    unicode_value : [VALUE.count + 1] WCHAR = ---;
+    asciiToWide(*unicode_value, VALUE, true);
+
+    apps_use_light_theme : u32;
+    data_size            : u32 = size_of(u32);
+    debugCheckOSError(RegGetValueW(HKEY_CURRENT_USER,
+                      unicode_subkey.data,
+                      unicode_value.data,
+                      RRF_RT_REG_DWORD,
+                      null,
+                      *apps_use_light_theme,
+                      *data_size));
+
+    return !apps_use_light_theme;
 }
 
 Math  :: #import "Math";
