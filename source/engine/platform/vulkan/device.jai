@@ -701,10 +701,17 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
     }
 }
 
-debugCheckVK :: ($code : Code) #expand #no_debug {
+debugCheckVK :: ($code : Code, $strict := true, $location := #caller_location) #expand #no_debug {
     #if DEBUG_BUILD {
         result := #insert code;
-        assert(result == .VK_SUCCESS, "% returned %", #run codeToString(code), result);
+
+        #if strict {
+            success := result == .VK_SUCCESS;
+        } else {
+            success := result >= .VK_SUCCESS;
+        }
+
+        assert(success, "% returned %", #run codeToString(code), result, location = location);
     } else {
         #insert code;
     }

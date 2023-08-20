@@ -17,6 +17,8 @@ Win32WindowManager :: struct {
 
     free_windows : *Win32Window;
     windows      : [WindowManager.MAX_WINDOWS] Win32Window;
+
+    use_dark_theme : bool;
 }
 
 // @TODO: #PersistentArena
@@ -32,9 +34,7 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
 
     ASCII_CLASS_NAME :: "PetEngineWindowClass";
     unicode_class_name : [ASCII_CLASS_NAME.count + 1] WCHAR;
-    for 0 .. ASCII_CLASS_NAME.count - 1 { // @TODO: #utf8_to_wide.
-        unicode_class_name[it] = ASCII_CLASS_NAME[it];
-    }
+    asciiToWide(*unicode_class_name, ASCII_CLASS_NAME, true);
 
     window_class : WNDCLASSEXW = ---;
     window_class.cbSize        = size_of(WNDCLASSEXW);
@@ -69,6 +69,28 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
 
     manager.free_windows = manager.windows.data;
     manager.jai_context  = *context;
+
+    {
+        SUBKEY         :: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+        unicode_subkey : [SUBKEY.count + 1] WCHAR = ---;
+        asciiToWide(*unicode_subkey, SUBKEY, true);
+
+        VALUE         :: "AppsUseLightTheme";
+        unicode_value : [VALUE.count + 1] WCHAR = ---;
+        asciiToWide(*unicode_value, VALUE, true);
+
+        apps_use_light_theme : u32;
+        data_size            : u32 = size_of(u32);
+        debugCheckOSError(RegGetValueW(HKEY_CURRENT_USER,
+                          unicode_subkey.data,
+                          unicode_value.data,
+                          RRF_RT_REG_DWORD,
+                          null,
+                          *apps_use_light_theme,
+                          *data_size));
+
+        manager.use_dark_theme = apps_use_light_theme == 0;
+    }
 
     return manager;
 }
@@ -145,14 +167,13 @@ createWin32Window :: (
         }
     }
 
-    unicode_title := pushToArena(*context.pet.per_frame_arena, WCHAR, title.count + 1);
-    for 0..title.count-1 { // @TODO: #utf8_to_wide.
-        unicode_title[it] = title[it];
-    }
+    unicode_title : [] WCHAR = ---;
+    unicode_title.data = pushToArena(*context.pet.per_frame_arena, WCHAR, title.count + 1);
+    asciiToWide(*unicode_title, title, true);
 
     window.handle = CreateWindowExW(EXTENDED_WINDOW_STYLES,
                                     cast,no_check(LPCWSTR) manager.window_class,
-                                    unicode_title,
+                                    unicode_title.data,
                                     WINDOW_STYLES,
                                     ifx x == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else x,
                                     ifx y == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else y,
@@ -173,39 +194,8 @@ createWin32Window :: (
         window.platform_flags |= .APPLY_DPI_SCALING_ON_SHOW;
     }
 
-    // @TODO: #utf8_to_wide.
-    apps_use_light_theme : u32;
-    {
-        SUBKEY         :: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
-        unicode_subkey : [SUBKEY.count + 1] WCHAR = ---;
-
-        for 0 .. SUBKEY.count - 1 {
-            unicode_subkey[it] = SUBKEY[it];
-        }
-        unicode_subkey[SUBKEY.count] = 0;
-
-        VALUE         :: "AppsUseLightTheme";
-        unicode_value : [VALUE.count + 1] WCHAR = ---;
-
-        for 0 .. VALUE.count - 1 {
-            unicode_value[it] = VALUE[it];
-        }
-        unicode_value[VALUE.count] = 0;
-
-        data_size : u32 = size_of(u32);
-        lstatus := RegGetValueW(HKEY_CURRENT_USER,
-                                unicode_subkey.data,
-                                unicode_value.data,
-                                RRF_RT_REG_DWORD,
-                                null,
-                                *apps_use_light_theme,
-                                *data_size);
-        assert(lstatus == ERROR_SUCCESS);
-    }
-
-    use_dark_theme := cast(BOOL) (apps_use_light_theme == 0);
-    hresult := DwmSetWindowAttribute(window.handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL));
-    assert(SUCCEEDED(hresult));
+    use_dark_theme := cast(BOOL) manager.use_dark_theme;
+    debugCheckOSError(DwmSetWindowAttribute(window.handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
 
     return window;
 }

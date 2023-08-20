@@ -51,8 +51,21 @@ INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 
 ERROR_SUCCESS :: 0;
 
-SUCCEEDED :: inline (hr : HRESULT) -> bool { return hr >= 0; }
-FAILED    :: inline (hr : HRESULT) -> bool { return hr <  0; }
+SUCCEEDED :: inline ($$result : $T) -> bool {
+    #assert T == u8 || T == u16 || T == u32 || T == u64
+         || T == s8 || T == s16 || T == s32 || T == s64
+         "T should be integer";
+
+    return result >= ERROR_SUCCESS;
+}
+
+FAILED :: inline ($$result : $T) -> bool {
+    #assert T == u8 || T == u16 || T == u32 || T == u64
+         || T == s8 || T == s16 || T == s32 || T == s64
+         "T should be integer";
+
+    return result < ERROR_SUCCESS;
+}
 
 OutputDebugStringA :: (
     lpOutputString : *u8

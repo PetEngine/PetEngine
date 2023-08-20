@@ -54,6 +54,33 @@ debugCheck :: (
     }
 }
 
+#if OS == .WINDOWS {
+    debugCheckOSError :: ($expression : Code, $strict := false, $location := #caller_location) #expand #no_debug {
+        #if DEBUG_BUILD {
+            result := #insert expression;
+
+            #if strict {
+                bool_result := result == ERROR_SUCCESS;
+            } else {
+                bool_result := SUCCEEDED(result);
+            }
+
+            assert(bool_result,
+                   "% returned %",
+                   #run codeToString(expression),
+                   result,
+                   print_sys_error = true,
+                   location = location);
+        } else {
+            #insert expression;
+        }
+    }
+} else {
+    debugCheckOSError :: ($expression : Code, $strict := false, $location := #caller_location) #expand #no_debug {
+        notImplemented();
+    }
+}
+
 notImplemented :: ($assert_in_run_time := false) #expand #no_debug {
     #if assert_in_run_time {
         assertMessage("Not implemented");

@@ -11,6 +11,37 @@ s8_array_to_string :: inline (array : [] s8) -> string #no_context {
     return str;
 }
 
+#if OS == .WINDOWS {
+    asciiToWide :: (wide_string : *[] s16, ascii_string : string, $null_terminated : bool) #no_context {
+        wide_string.count = ascii_string.count;
+
+        for 0 .. ascii_string.count - 1 {
+            wide_string.*[it] = ascii_string[it];
+        }
+
+        #if null_terminated {
+            wide_string.count += 1;
+            wide_string.*[ascii_string.count] = 0;
+        }
+    }
+
+    asciiToWide :: (wide_string : *[$wide_string_capacity] s16, ascii_string : string, $null_terminated : bool) {
+        #if null_terminated {
+            assert(wide_string_capacity > ascii_string.count);
+        } else {
+            assert(wide_string_capacity >= ascii_string.count);
+        }
+
+        for 0 .. ascii_string.count - 1 {
+            wide_string.*[it] = ascii_string[it];
+        }
+
+        #if null_terminated {
+            wide_string.*[ascii_string.count] = 0;
+        }
+    }
+}
+
 advance :: inline (str : *string, amount : s64 = 1) {
     assert(amount > 0, "amount should be > 0. amount = %", amount);
     assert(str.count >= amount, "str.count should be >= amount. str.count = %, amount = %", str.count, amount);
