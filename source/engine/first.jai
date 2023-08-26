@@ -26,6 +26,11 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 };
 
 main :: () {
+    {
+        context.print_style.default_format_struct.use_long_form_if_more_than_this_many_members = -1;
+        context.print_style.default_format_struct.use_newlines_if_long_form                    = true;
+    }
+
     // @TODO: #Settings. Get persistent arena capacity from settings.
     createArena(*context.pet.persistent_arena, gigaBytes(1), "Persistent");
     defer destroyArena(*context.pet.persistent_arena);
