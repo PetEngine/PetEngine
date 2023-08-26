@@ -91,7 +91,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         #if OS == .WINDOWS {
             additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "/LIBPATH:../third_party/vulkan";
             additional_linker_arguments[build_options.additional_linker_arguments.count + 1] = "/LIBPATH:../third_party/shaderc";
-            additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "/LIBPATH:../third_party/spirv_cross";
+            additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "/LIBPATH:../third_party/spirv_reflect";
             if build_arguments.configuration == {
                 case .DEBUG; #through;
                 case .RELEASE_WITH_DEBUG_INFO;
@@ -102,7 +102,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         } else {
             additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "--library-path=../third_party/vulkan";
             additional_linker_arguments[build_options.additional_linker_arguments.count + 1] = "--library-path=../third_party/shaderc";
-            additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "--library-path=../third_party/spirv_cross";
+            additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "--library-path=../third_party/spirv_reflect";
             additional_linker_arguments[build_options.additional_linker_arguments.count + 3] = "";
         }
     }

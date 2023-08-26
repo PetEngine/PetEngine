@@ -3,6 +3,7 @@ ShaderCompiler :: struct {
 
     SOURCE_SHADERS_FOLDER :: "../../../source/shaders"; // @TODO: #FileSystem.
     OUTPUT_SHADERS_FOLDER :: "shaders";                 // @TODO: #FileSystem.
+    DUMP_SHADERS_FOLDER   :: "shaders_dump";            // @TODO: #FileSystem.
 
     INVALID_OFFSET             :: -1;
     INVALID_COLOR_TARGET_INDEX : u8 : 0xFF;
@@ -139,13 +140,13 @@ ShaderCompiler :: struct {
     } #no_padding
 
     BindingTable :: struct {
-        PushConstants :: struct {
+        PushConstantsRange :: struct {
             offset : u32;
             bytes  : u32;
         } #no_padding
 
         StageBindings :: struct {
-            push_constants : PushConstants;
+            push_constants : PushConstantsRange;
         } #no_padding
 
         // @TODO: #BindingTable. Common bindings?
@@ -174,7 +175,6 @@ ShaderStage :: enum u8 {
     FRAGMENT;
 }
 
-// @TODO: #DumpShaders. shaderc_compile_into_spv_assembly
 compileShader :: (name : string) {
     source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader", allocator = Basic.temporary_allocator);
 
@@ -334,93 +334,38 @@ compileShader :: (name : string) {
     // 5. Reflect SPIR-V
     //
 
-    spirvc_context : spvc_context;
-    debugCheckSPIRVC(spvc_context_create(*spirvc_context));
-    defer spvc_context_destroy(spirvc_context);
+    stage_modules : [MAX_STAGES] SpvReflectShaderModule = ---;
 
-    stage_compilers : [MAX_STAGES] spvc_compiler;
-    stage_resources : [MAX_STAGES] spvc_resources;
-
-    for * stage_resources {
-        bytecode := stage_spirvs[it_index];
-        assert((bytecode.count % size_of(SpvId)) == 0);
-
-        parsed_bytecode_ir : spvc_parsed_ir;
-        debugCheckSPIRVC(spvc_context_parse_spirv(spirvc_context,
-                                                  cast(*SpvId) bytecode.data,
-                                                  cast(u64) (bytecode.count / size_of(SpvId)),
-                                                  *parsed_bytecode_ir));
-
-        stage_compiler := *stage_compilers[it_index];
-        debugCheckSPIRVC(spvc_context_create_compiler(spirvc_context,
-                                                      .SPVC_BACKEND_NONE,
-                                                      parsed_bytecode_ir,
-                                                      .SPVC_CAPTURE_MODE_TAKE_OWNERSHIP,
-                                                      stage_compiler));
-
-        debugCheckSPIRVC(spvc_compiler_create_shader_resources(stage_compiler.*, it));
+    for stage_spirvs {
+        debugCheckSpvReflect(spvReflectCreateShaderModule2(.SPV_REFLECT_MODULE_FLAG_NO_COPY,
+                                                           cast(u64) it.count,
+                                                           it.data,
+                                                           *stage_modules[it_index]));
     }
 
     //
-    // 5.1. Get the actual number of colors target
+    // 5.1 Get the actual number of color targets
     //
 
-    fragment_stage_resources := stage_resources[ShaderStage.FRAGMENT];
+    {
+        fragment_stage_module := *stage_modules[ShaderStage.FRAGMENT];
 
-    fragment_stage_output_resources       : *spvc_reflected_resource;
-    fragment_stage_output_resources_count : u64;
-    debugCheckSPIRVC(spvc_resources_get_resource_list_for_type(fragment_stage_resources,
-                                                               .SPVC_RESOURCE_TYPE_STAGE_OUTPUT,
-                                                               *fragment_stage_output_resources,
-                                                               *fragment_stage_output_resources_count));
+        if fragment_stage_module.output_variable_count > MAX_COLOR_TARGETS {
+            // @TODO: #BetterMessage.
+            errorMessage("Compilation failed");
+            return;
+        }
 
-    if fragment_stage_output_resources_count >= MAX_COLOR_TARGETS {
-        // @TODO: #BetterMessage.
-        errorMessage("Compilation failed");
-        return;
+        pipeline_state.graphics.color_targets_count = cast(u8) fragment_stage_module.output_variable_count;
     }
-    pipeline_state.graphics.color_targets_count = cast(u8) fragment_stage_output_resources_count;
 
     //
     // 5.2. Get binding table from platform specific intermediate shader language
     //
 
     binding_table : BindingTable;
-
-    for stage_resources {
-        stage_bindings := *binding_table.stage_bindings[it_index];
-        stage_compiler := stage_compilers[it_index];
-
-        // Push constants
-        push_constnats       : *spvc_reflected_resource;
-        push_constnats_count : u64;
-        debugCheckSPIRVC(spvc_resources_get_resource_list_for_type(it,
-                                                                   .SPVC_RESOURCE_TYPE_PUSH_CONSTANT,
-                                                                   *push_constnats,
-                                                                   *push_constnats_count));
-
-        if push_constnats_count {
-            assert(push_constnats_count == 1, "There can be only 1 push_constants block per stage, got %", push_constnats_count);
-
-            push_constnats_block := push_constnats[0];
-
-            buffer_ranges       : *spvc_buffer_range;
-            buffer_ranges_count : u64;
-            debugCheckSPIRVC(spvc_compiler_get_active_buffer_ranges(stage_compiler,
-                                                                    push_constnats_block.id,
-                                                                    *buffer_ranges,
-                                                                    *buffer_ranges_count));
-
-            assert(buffer_ranges_count == 1, "Expected one range, got %", buffer_ranges_count);
-
-            buffer_range := buffer_ranges[0];
-
-            stage_bindings.push_constants.offset = cast(u32) buffer_range.offset;
-            stage_bindings.push_constants.bytes  = cast(u32) buffer_range.range;
-        }
-
-        // @Continue
-    }
+    reflectPushConstants(*binding_table, *stage_modules);
+    // @TODO: other reflection
 
     //
     // 6. Write everything to file
@@ -463,6 +408,18 @@ compileShader :: (name : string) {
         }
     }
 
+    //
+    // 7. @TODO: Dump shaders
+    //
+
+    /*#if DEBUG_BUILD {
+        dump_filename := String.join(DUMP_SHADERS_FOLDER, "/", name, ".shader_assembly", allocator = Basic.temporary_allocator);
+
+        debug_output_file, success= := File.file_open(dump_filename, true, log_errors = false);
+        assert(success, print_sys_error = true);
+        defer File.file_close(*output_file);
+    }*/
+
     infoMessage("Shader \"%\" has been compiled", name);
 }
 
@@ -473,7 +430,7 @@ makeBinaryShaderFilename :: inline (name : string, allocator := Basic.temporary_
 #scope_file
 
 #load "shaderc.jai";
-#load "spirv_cross.jai";
+#load "spirv_reflect.jai";
 
 using ShaderCompiler;
 
@@ -848,19 +805,30 @@ shaderStageToShadercShaderKind :: inline (stage : ShaderStage) -> shaderc_shader
     return .shaderc_glsl_infer_from_source;
 }
 
-debugCheckSPIRVC :: ($code : Code) #expand #no_debug {
+debugCheckSpvReflect :: ($code : Code) #expand #no_debug {
     #if DEBUG_BUILD {
         result := #insert code;
-        if `spirvc_context {
-            assert(result == .SPVC_SUCCESS,
-                   "% returned %: %",
-                   #run codeToString(code),
-                   result,
-                   to_string(cast(*u8) spvc_context_get_last_error_string(`spirvc_context)));
-        } else {
-            assert(result == .SPVC_SUCCESS, "% returned %", #run codeToString(code), result);
-        }
+        assert(result == .SPV_REFLECT_RESULT_SUCCESS, "% returned %", #run codeToString(code), result);
     } else {
         #insert code;
+    }
+}
+
+reflectPushConstants :: (binding_table : *BindingTable, stage_modules : *[MAX_STAGES] SpvReflectShaderModule) {
+    for stage_modules.* {
+        if it.push_constant_block_count {
+            assert(it.push_constant_block_count == 1,
+                   "Only 1 push_constants block is allowed per stage, got %",
+                   it.push_constant_block_count);
+
+            push_constant_block := *it.push_constant_blocks[0];
+
+            stage_bindings := *binding_table.stage_bindings[it_index];
+            stage_bindings.push_constants.offset = push_constant_block.offset;
+
+            for 0 .. push_constant_block.member_count - 1 {
+                stage_bindings.push_constants.bytes += push_constant_block.members[it].size;
+            }
+        }
     }
 }
