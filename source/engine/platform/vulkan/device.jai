@@ -551,7 +551,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
             if !it.name {
                 Basic.print_to_builder(*builder, "Swapchain image #%", it_index);
-                it.name = Basic.builder_to_string(*builder);
+                it.name = Basic.builder_to_string(*builder, builder.allocator);
             }
 
             setVulkanObjectName(device, it.image, it.name);
@@ -686,7 +686,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
                 #assert false "Unhandled Vk* type";
             }
 
-            object_name := Basic.builder_to_string(*builder);
+            object_name := Basic.builder_to_string(*builder, builder.allocator);
 
             name_info := VkDebugUtilsObjectNameInfoEXT.{
                 sType        = .VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
@@ -711,7 +711,19 @@ debugCheckVK :: ($code : Code, $strict := true, $location := #caller_location) #
             success := result >= .VK_SUCCESS;
         }
 
-        assert(success, "% returned %", #run codeToString(code), result, location = location);
+        STR_CODE :: #run codeToString(code);
+
+        assert(success, "% returned %", STR_CODE, result, location = location);
+
+        #if !strict {
+            if result != ERROR_SUCCESS {
+                warningMessage("% returned % at %(%)",
+                               STR_CODE,
+                               result,
+                               location.fully_pathed_filename,
+                               location.line_number);
+            }
+        }
     } else {
         #insert code;
     }
@@ -792,7 +804,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             for available_layers {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.layerName.data));
             }
-            debugMessage("%", Basic.builder_to_string(*builder), new_line = false);
+            debugMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
         }
 
         REQUIRED_LAYERS, OPTIONAL_LAYERS :: #run gatherVulkanLayers();
@@ -835,7 +847,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         for layers_to_apply {
             Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it));
         }
-        infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
     }
 
     extensions_to_apply : [..] *s8;
@@ -853,7 +865,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             for available_extensions {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
-            debugMessage("%", Basic.builder_to_string(*builder), new_line = false);
+            debugMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
         }
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanInstanceExtensions();
@@ -897,7 +909,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             Basic.array_add(*extensions_to_apply, cast(*s8) it.data);
             Basic.print_to_builder(*builder, "    %\n", it);
         }
-        infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
     }
 
     nt_engine_name : [ENGINE_NAME.count + 1] s8;
@@ -1006,7 +1018,7 @@ messengerCallback :: (
 
                     Basic.append(*builder, message);
 
-                    message = Basic.builder_to_string(*builder);
+                    message = Basic.builder_to_string(*builder, builder.allocator);
                 }
             }
 
@@ -1246,7 +1258,7 @@ END;
                                    it.queueFamilyProperties.queueCount);
         }
 
-        infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
     }
 
     QUEUE_TYPE_TO_VK_QUEUE_FLAGS :: VkQueueFlags.[
@@ -1307,7 +1319,7 @@ END;
                                    it.index_in_family);
         }
 
-        infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
     }
 }
 
@@ -1362,7 +1374,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
             for available_extensions {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
-            debugMessage("%", Basic.builder_to_string(*builder), new_line = false);
+            debugMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
         }
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanDeviceExtensions();
@@ -1406,7 +1418,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
             Basic.array_add(*extensions_to_apply, cast(*s8) it.data);
             Basic.print_to_builder(*builder, "    %\n", it);
         }
-        infoMessage("%", Basic.builder_to_string(*builder), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
     }
 
     dynamic_rendering_features := VkPhysicalDeviceDynamicRenderingFeatures.{

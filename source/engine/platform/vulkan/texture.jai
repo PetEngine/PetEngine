@@ -501,7 +501,7 @@ createVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
             Basic.print_to_builder(*builder, "% textures for frame #%", memory_kind, it_index);
 
             // @TODO: #Settings. Get the size of the arena from settings.
-            createArena(*it.arena, megaBytes(1), Basic.builder_to_string(*builder));
+            createArena(*it.arena, megaBytes(1), Basic.builder_to_string(*builder, builder.allocator));
 
             it.textures.data = it.arena.memory;
         }
@@ -511,7 +511,7 @@ createVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
         Basic.print_to_builder(*builder, "% textures", memory_kind);
 
         // @TODO: #Settings. Get the size of the arena from settings.
-        createArena(*memory.arena, megaBytes(1), Basic.builder_to_string(*builder));
+        createArena(*memory.arena, megaBytes(1), Basic.builder_to_string(*builder, builder.allocator));
 
         memory.textures.data = memory.arena.memory;
     }

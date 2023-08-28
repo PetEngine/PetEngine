@@ -33,7 +33,7 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
     setMonitorDPIAwareness();
 
     ASCII_CLASS_NAME :: "PetEngineWindowClass";
-    unicode_class_name : [ASCII_CLASS_NAME.count + 1] WCHAR;
+    unicode_class_name : [ASCII_CLASS_NAME.count + 1] WCHAR = ---;
     asciiToWide(*unicode_class_name, ASCII_CLASS_NAME, true);
 
     window_class : WNDCLASSEXW = ---;
