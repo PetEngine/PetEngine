@@ -42,6 +42,10 @@ main :: () {
     createArena(*context.pet.per_frame_arena, megaBytes(512), "per frame");
     defer destroyArena(*context.pet.per_frame_arena);
 
+    shaders_hot_reload : ShadersHotReload;
+    initShadersHotReload(*shaders_hot_reload);
+    defer destroyShadersHotReload(*shaders_hot_reload);
+
     window_manager := createWindowManager();
     defer destroyWindowManager(window_manager);
 
@@ -78,7 +82,6 @@ main :: () {
     commitTextureMemory(device, texture_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
     defer resetTextureMemory(device, texture_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
 
-    compileShader("triangle"); // @Cleanup: #ShaderCompiler. Reload shaders
     triangle_shader := createShader(device, shader_manager, "triangle");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
@@ -157,6 +160,7 @@ DEBUG_BUILD :: #run -> bool {
 #load "render/texture.jai";
 #load "render/shader.jai";
 #load "shader_compiler/compiler.jai";
+#load "shader_compiler/hot_reload.jai";
 
 String :: #import "String";
 File   :: #import "File";

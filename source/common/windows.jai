@@ -629,6 +629,142 @@ WaitForSingleObjectEx :: (
     bAlertable     : BOOL
 ) -> u32 #foreign kernel32;
 
+GENERIC_ALL     : u32 : 0x10000000;
+GENERIC_EXECUTE : u32 : 0x20000000;
+GENERIC_WRITE   : u32 : 0x40000000;
+GENERIC_READ    : u32 : 0x80000000;
+
+FILE_SHARE_READ   : u32 : 0x00000001;
+FILE_SHARE_WRITE  : u32 : 0x00000002;
+FILE_SHARE_DELETE : u32 : 0x00000004;
+
+CREATE_NEW        : u32 : 1;
+CREATE_ALWAYS     : u32 : 2;
+OPEN_EXISTING     : u32 : 3;
+OPEN_ALWAYS       : u32 : 4;
+TRUNCATE_EXISTING : u32 : 5;
+
+FILE_ATTRIBUTE_READONLY              : u32 : 0x00000001;
+FILE_ATTRIBUTE_HIDDEN                : u32 : 0x00000002;
+FILE_ATTRIBUTE_SYSTEM                : u32 : 0x00000004;
+FILE_ATTRIBUTE_DIRECTORY             : u32 : 0x00000010;
+FILE_ATTRIBUTE_ARCHIVE               : u32 : 0x00000020;
+FILE_ATTRIBUTE_DEVICE                : u32 : 0x00000040;
+FILE_ATTRIBUTE_NORMAL                : u32 : 0x00000080;
+FILE_ATTRIBUTE_TEMPORARY             : u32 : 0x00000100;
+FILE_ATTRIBUTE_SPARSE_FILE           : u32 : 0x00000200;
+FILE_ATTRIBUTE_REPARSE_POINT         : u32 : 0x00000400;
+FILE_ATTRIBUTE_COMPRESSED            : u32 : 0x00000800;
+FILE_ATTRIBUTE_OFFLINE               : u32 : 0x00001000;
+FILE_ATTRIBUTE_NOT_CONTENT_INDEXED   : u32 : 0x00002000;
+FILE_ATTRIBUTE_ENCRYPTED             : u32 : 0x00004000;
+FILE_ATTRIBUTE_INTEGRITY_STREAM      : u32 : 0x00008000;
+FILE_ATTRIBUTE_VIRTUAL               : u32 : 0x00010000;
+FILE_ATTRIBUTE_NO_SCRUB_DATA         : u32 : 0x00020000;
+FILE_ATTRIBUTE_EA                    : u32 : 0x00040000;
+FILE_ATTRIBUTE_RECALL_ON_OPEN        : u32 : 0x00040000;
+FILE_ATTRIBUTE_PINNED                : u32 : 0x00080000;
+FILE_ATTRIBUTE_UNPINNED              : u32 : 0x00100000;
+FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS : u32 : 0x00400000;
+FILE_ATTRIBUTE_STRICTLY_SEQUENTIAL   : u32 : 0x20000000;
+
+FILE_FLAG_OPEN_REQUIRING_OPLOCK : u32 : 0x00040000;
+FILE_FLAG_FIRST_PIPE_INSTANCE   : u32 : 0x00080000;
+FILE_FLAG_OPEN_NO_RECALL        : u32 : 0x00100000;
+FILE_FLAG_OPEN_REPARSE_POINT    : u32 : 0x00200000;
+FILE_FLAG_SESSION_AWARE         : u32 : 0x00800000;
+FILE_FLAG_POSIX_SEMANTICS       : u32 : 0x01000000;
+FILE_FLAG_BACKUP_SEMANTICS      : u32 : 0x02000000;
+FILE_FLAG_DELETE_ON_CLOSE       : u32 : 0x04000000;
+FILE_FLAG_SEQUENTIAL_SCAN       : u32 : 0x08000000;
+FILE_FLAG_RANDOM_ACCESS         : u32 : 0x10000000;
+FILE_FLAG_NO_BUFFERING          : u32 : 0x20000000;
+FILE_FLAG_OVERLAPPED            : u32 : 0x40000000;
+FILE_FLAG_WRITE_THROUGH         : u32 : 0x80000000;
+
+CreateFileW :: (
+    lpFileName            : LPCWSTR,
+    dwDesiredAccess       : u32,
+    dwShareMode           : u32,
+    lpSecurityAttributes  : *SECURITY_ATTRIBUTES,
+    dwCreationDisposition : u32,
+    dwFlagsAndAttributes  : u32,
+    hTemplateFile         : HANDLE
+) -> HANDLE #foreign kernel32;
+
+GetOverlappedResult :: (
+    hFile                      : HANDLE,
+    lpOverlapped               : *OVERLAPPED,
+    lpNumberOfBytesTransferred : *u32,
+    bWait                      : BOOL
+) -> BOOL #foreign kernel32;
+
+FILE_NOTIFY_CHANGE_FILE_NAME   : u32 : 0x00000001;
+FILE_NOTIFY_CHANGE_DIR_NAME    : u32 : 0x00000002;
+FILE_NOTIFY_CHANGE_ATTRIBUTES  : u32 : 0x00000004;
+FILE_NOTIFY_CHANGE_SIZE        : u32 : 0x00000008;
+FILE_NOTIFY_CHANGE_LAST_WRITE  : u32 : 0x00000010;
+FILE_NOTIFY_CHANGE_LAST_ACCESS : u32 : 0x00000020;
+FILE_NOTIFY_CHANGE_CREATION    : u32 : 0x00000040;
+FILE_NOTIFY_CHANGE_SECURITY    : u32 : 0x00000100;
+
+FindFirstChangeNotificationW :: (
+    lpPathName     : LPCWSTR,
+    bWatchSubtree  : BOOL,
+    dwNotifyFilter : u32
+) -> HANDLE #foreign kernel32;
+
+FindNextChangeNotification :: (
+    hChangeHandle : HANDLE
+) -> BOOL #foreign kernel32;
+
+FindCloseChangeNotification :: (
+    hChangeHandle : HANDLE
+) -> BOOL #foreign kernel32;
+
+FILE_ACTION_ADDED            : u32 : 0x00000001;
+FILE_ACTION_REMOVED          : u32 : 0x00000002;
+FILE_ACTION_MODIFIED         : u32 : 0x00000003;
+FILE_ACTION_RENAMED_OLD_NAME : u32 : 0x00000004;
+FILE_ACTION_RENAMED_NEW_NAME : u32 : 0x00000005;
+
+FILE_NOTIFY_INFORMATION :: struct {
+    NextEntryOffset : u32;
+    Action          : u32;
+    FileNameLength  : u32;
+    FileName        : [1] WCHAR;
+}
+
+OVERLAPPED_COMPLETION_ROUTINE :: #type (
+    dwErrorCode               : u32,
+    dwNumberOfBytesTransfered : u32,
+    lpOverlapped              : *OVERLAPPED
+) #c_call;
+
+ReadDirectoryChangesW :: (
+    hDirectory          : HANDLE,
+    lpBuffer            : *void,
+    nBufferLength       : u32,
+    bWatchSubtree       : BOOL,
+    dwNotifyFilter      : u32,
+    lpBytesReturned     : *u32,
+    lpOverlapped        : *OVERLAPPED,
+    lpCompletionRoutine : OVERLAPPED_COMPLETION_ROUTINE
+) -> BOOL #foreign kernel32;
+
+CREATE_EVENT_MANUAL_RESET : u32 : 0x00000001;
+CREATE_EVENT_INITIAL_SET  : u32 : 0x00000002;
+
+EVENT_MODIFY_STATE : u32 : 0x000002;
+EVENT_ALL_ACCESS   : u32 : 0x1F0003;
+
+CreateEventExW :: (
+    lpEventAttributes : *SECURITY_ATTRIBUTES,
+    lpName            : LPCWSTR,
+    dwFlags           : u32,
+    dwDesiredAccess   : u32
+) -> HANDLE #foreign kernel32;
+
 #scope_file
 
 kernel32 :: #system_library "Kernel32";
