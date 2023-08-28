@@ -21,6 +21,7 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 #scope_module
 
 #add_context pet : struct {
+    thread_name      : string;
     persistent_arena : Arena;
     per_frame_arena  : Arena;
 };
@@ -31,12 +32,14 @@ main :: () {
         context.print_style.default_format_struct.use_newlines_if_long_form                    = true;
     }
 
+    context.pet.thread_name = "Main";
+
     // @TODO: #Settings. Get persistent arena capacity from settings.
-    createArena(*context.pet.persistent_arena, gigaBytes(1), "Persistent");
+    createArena(*context.pet.persistent_arena, gigaBytes(1), "persistent");
     defer destroyArena(*context.pet.persistent_arena);
 
     // @TODO: #Settings. Get per frame arena capacity from settings.
-    createArena(*context.pet.per_frame_arena, megaBytes(512), "Per frame");
+    createArena(*context.pet.per_frame_arena, megaBytes(512), "per frame");
     defer destroyArena(*context.pet.per_frame_arena);
 
     window_manager := createWindowManager();
@@ -160,5 +163,5 @@ File   :: #import "File";
 
 #scope_file
 
-Basic    :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD, TEMPORARY__USE_NEW_FLOAT_PRINTING = true);
+Basic    :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
 Compiler :: #import "Compiler";

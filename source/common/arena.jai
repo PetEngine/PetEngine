@@ -14,7 +14,13 @@ Arena :: struct {
 createArena :: (arena : *Arena, capacity : s64, name : string) {
     assert(capacity > 0);
 
-    arena.name = name;
+    {
+        builder : Basic.String_Builder;
+        builder.allocator = Basic.temporary_allocator;
+
+        Basic.print_to_builder(*builder, "% thread %", context.pet.thread_name, name);
+        arena.name = Basic.builder_to_string(*builder, context.allocator);
+    }
 
     #if OS == .WINDOWS {
         system_info : SYSTEM_INFO = ---;
@@ -58,6 +64,8 @@ destroyArena :: (arena : *Arena) {
         debugMessage("% arena: max occupied bytes: % / %", arena.name, arena.max_occupied, arena.capacity);
         arena.max_occupied = 0;
     }
+
+    Basic.free(arena.name);
 
     arena.memory   = null;
     arena.occupied = 0;

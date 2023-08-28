@@ -33,6 +33,7 @@ LPSTR   :: *CHAR;
 LPCSTR  :: *CHAR;
 LPWSTR  :: *WCHAR;
 LPCWSTR :: *WCHAR;
+PCWSTR  :: *WCHAR;
 
 WPARAM  :: UINT_PTR;
 LPARAM  :: LONG_PTR;
@@ -43,6 +44,11 @@ TRUE  : BOOL : 1;
 FALSE : BOOL : 0;
 
 ATOM    :: u16;
+
+// bit 31        - 1-bit code indicating severity, where zero represents success and 1 represents failure.
+// bits [30, 27] - 4-bit reserved value.
+// bits [26, 16] - 11-bit code indicating responsibility for the error or warning, also known as a facility code.
+// bits [15, 0]  - 16-bit code describing the error or warning.
 HRESULT :: s32;
 
 va_list :: *s8;
@@ -52,20 +58,18 @@ INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 ERROR_SUCCESS :: 0;
 
 SUCCEEDED :: inline ($$result : $T) -> bool {
-    #assert T == u8 || T == u16 || T == u32 || T == u64
-         || T == s8 || T == s16 || T == s32 || T == s64
-         "T should be integer";
-
+    #assert T == u32 || T == s32 "T should be a 32-bit integer";
     return result >= ERROR_SUCCESS;
 }
 
 FAILED :: inline ($$result : $T) -> bool {
-    #assert T == u8 || T == u16 || T == u32 || T == u64
-         || T == s8 || T == s16 || T == s32 || T == s64
-         "T should be integer";
-
+    #assert T == u32 || T == s32 "T should be a 32-bit integer";
     return result < ERROR_SUCCESS;
 }
+
+CloseHandle :: (
+    handle : HANDLE
+) -> BOOL #foreign kernel32;
 
 OutputDebugStringA :: (
     lpOutputString : *u8
@@ -114,8 +118,6 @@ WNDCLASSEXW :: struct {
     lpszClassName : LPCWSTR;
     hIconSm       : HICON;
 }
-
-LPWNDCLASSEXW :: *WNDCLASSEXW;
 
 RegisterClassExW :: (
     lpwcx : *WNDCLASSEXW
@@ -573,6 +575,59 @@ RegGetValueW :: (
     pvData   : *void,
     pcbData  : *u32
 ) -> LSTATUS #foreign advapi32;
+
+SECURITY_ATTRIBUTES :: struct {
+    nLength              : u32;
+    lpSecurityDescriptor : *void;
+    bInheritHandle       : BOOL;
+}
+
+THREAD_START_ROUTINE :: #type (
+    lpParameter : *void
+) -> u32 #c_call;
+
+CREATE_SUSPENDED                  : u32 : 0x00000004;
+STACK_SIZE_PARAM_IS_A_RESERVATION : u32 : 0x00010000;
+
+CreateThread :: (
+    lpThreadAttributes : *SECURITY_ATTRIBUTES,
+    dwStackSize        : SIZE_T,
+    lpStartAddress     : THREAD_START_ROUTINE,
+    lpParameter        : *void,
+    dwCreationFlags    : u32,
+    lpThreadId         : *u32
+) -> HANDLE #foreign kernel32;
+
+SetThreadDescription :: (
+    hThread             : HANDLE,
+    lpThreadDescription : PCWSTR
+) -> HRESULT #foreign kernel32;
+
+ResumeThread :: (
+    hThread : HANDLE
+) -> u32 #foreign kernel32;
+
+SuspendThread :: (
+    hThread : HANDLE
+) -> u32 #foreign kernel32;
+
+TerminateThread :: (
+    hThread    : HANDLE,
+    dwExitCode : u32
+) -> BOOL #foreign kernel32;
+
+INFINITE : u32 : 0xFFFFFFFF;
+
+WAIT_OBJECT_0  : u32 : 0x00000000;
+WAIT_ABANDONED : u32 : 0x00000080;
+WAIT_TIMEOUT   : u32 : 0x00000102;
+WAIT_FAILED    : u32 : 0xFFFFFFFF;
+
+WaitForSingleObjectEx :: (
+    hHandle        : HANDLE,
+    dwMilliseconds : u32,
+    bAlertable     : BOOL
+) -> u32 #foreign kernel32;
 
 #scope_file
 

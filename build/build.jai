@@ -143,6 +143,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         case .DEBUG;
             set_optimization(*build_options, .VERY_DEBUG, true);
             build_options.debug_for_expansions = true;
+            build_options.arithmetic_overflow_check = .FATAL;
 
         case .RELEASE;
             set_optimization(*build_options, .VERY_OPTIMIZED, false);

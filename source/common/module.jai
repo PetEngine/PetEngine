@@ -12,7 +12,7 @@ s8_array_to_string :: inline (array : [] s8) -> string #no_context {
 }
 
 #if OS == .WINDOWS {
-    asciiToWide :: (wide_string : *[] s16, ascii_string : string, $null_terminated : bool) #no_context {
+    asciiToWide :: (wide_string : *[] WCHAR, ascii_string : string, $null_terminated : bool) #no_context {
         wide_string.count = ascii_string.count;
 
         for 0 .. ascii_string.count - 1 {
@@ -25,11 +25,19 @@ s8_array_to_string :: inline (array : [] s8) -> string #no_context {
         }
     }
 
-    asciiToWide :: (wide_string : *[$wide_string_capacity] s16, ascii_string : string, $null_terminated : bool) {
+    asciiToWide :: (wide_string : *[$wide_string_capacity] WCHAR, $$ascii_string : string, $null_terminated : bool) {
         #if null_terminated {
-            assert(wide_string_capacity > ascii_string.count);
+            #if is_constant(ascii_string) {
+                #assert wide_string_capacity > ascii_string.count;
+            } else {
+                assert(wide_string_capacity > ascii_string.count);
+            }
         } else {
-            assert(wide_string_capacity >= ascii_string.count);
+            #if is_constant(ascii_string) {
+                #assert wide_string_capacity >= ascii_string.count;
+            } else {
+                assert(wide_string_capacity >= ascii_string.count);
+            }
         }
 
         for 0 .. ascii_string.count - 1 {
@@ -84,6 +92,7 @@ substring :: inline (source : string, index : s64, $$count : s64 = -1) -> string
 #load "debug.jai";
 #load "math.jai";
 #load "static_array.jai";
+#load "thread.jai";
 #load "vulkan/vulkan.jai";
 #if OS == .WINDOWS {
     #load "windows.jai";

@@ -55,9 +55,12 @@ debugCheck :: (
 }
 
 #if OS == .WINDOWS {
-    debugCheckOSError :: ($expression : Code, $strict := false, $location := #caller_location) #expand #no_debug {
+    debugCheckOSError :: ($expression : Code, $strict := true, $location := #caller_location) #expand #no_debug {
         #if DEBUG_BUILD {
             result := #insert expression;
+
+            // Mask out reserved value (see common/windows.jai HRESULT definition)
+            result &= 0x87FF_FFFF;
 
             #if strict {
                 bool_result := result == ERROR_SUCCESS;
@@ -65,18 +68,27 @@ debugCheck :: (
                 bool_result := SUCCEEDED(result);
             }
 
-            assert(bool_result,
-                   "% returned %",
-                   #run codeToString(expression),
-                   result,
-                   print_sys_error = true,
-                   location = location);
+            STR_EXPRESSION :: #run codeToString(expression);
+            format_result  := Basic.formatInt(result, base = 16, minimum_digits = 8, digits_per_comma = 4, comma_string = "_");
+
+            assert(bool_result, "% returned 0x%", STR_EXPRESSION, format_result, print_sys_error = true, location = location);
+
+            #if !strict {
+                if result != ERROR_SUCCESS {
+                    warningMessage("% returned 0x% at %(%)",
+                                   STR_EXPRESSION,
+                                   format_result,
+                                   location.fully_pathed_filename,
+                                   location.line_number,
+                                   print_sys_error = true);
+                }
+            }
         } else {
             #insert expression;
         }
     }
 } else {
-    debugCheckOSError :: ($expression : Code, $strict := false, $location := #caller_location) #expand #no_debug {
+    debugCheckOSError :: ($expression : Code, $strict := true, $location := #caller_location) #expand #no_debug {
         notImplemented();
     }
 }
@@ -96,7 +108,7 @@ codeToString :: ($code : Code) -> string {
     root := Compiler.compiler_get_nodes(code);
     Program_Print.print_expression(*builder, root);
 
-    return Basic.builder_to_string(*builder);
+    return Basic.builder_to_string(*builder, builder.allocator);
 }
 
 #scope_file

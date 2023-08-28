@@ -162,10 +162,14 @@ ColorTarget[`<index>`] is followed by dot followed by any name below e.g. `Color
 **2.14.1. WriteMask**
 
 Possible values:
-- Any combination of `R` `G` `B` `A` without repetitions.
+- RED
+- GREEN
+- BLUE
+- ALPHA
+Could be OR'd
 
 Default value:
-- RGBA
+- RED | GREEN | BLUE | ALPHA
 
 **2.14.2. BlendEnable**
 
