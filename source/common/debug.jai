@@ -216,16 +216,26 @@ message :: (
         else                   console_handle = GetStdHandle(STD_OUTPUT_HANDLE);
         Basic.assert(console_handle != INVALID_HANDLE_VALUE);
 
-             #if priority == .DEBUG   SetConsoleTextAttribute(console_handle, 0x09);
-        else #if priority == .INFO    SetConsoleTextAttribute(console_handle, 0x0A);
-        else #if priority == .WARNING SetConsoleTextAttribute(console_handle, 0x06);
-        else #if priority >= .ERROR   SetConsoleTextAttribute(console_handle, 0x04);
-        else                          #assert false "Unhandled message priority";
+        console_mode : u32;
+        if GetConsoleMode(console_handle, *console_mode) {
+            success : BOOL;
 
-        success := WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
-        Basic.assert(success != FALSE);
+                 #if priority == .DEBUG   success = SetConsoleTextAttribute(console_handle, 0x09);
+            else #if priority == .INFO    success = SetConsoleTextAttribute(console_handle, 0x0A);
+            else #if priority == .WARNING success = SetConsoleTextAttribute(console_handle, 0x06);
+            else #if priority >= .ERROR   success = SetConsoleTextAttribute(console_handle, 0x04);
+            else                          #assert false "Unhandled message priority";
+            Basic.assert(success != FALSE);
 
-        SetConsoleTextAttribute(console_handle, 0x07);
+            success = WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
+            Basic.assert(success != FALSE);
+
+            success = SetConsoleTextAttribute(console_handle, 0x07);
+            Basic.assert(success != FALSE);
+        } else {
+            success := WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
+            Basic.assert(success != FALSE);
+        }
     } else {
         notImplemented();
     }

@@ -83,6 +83,11 @@ OutputDebugStringA :: (
     lpOutputString : *u8
 ) #foreign kernel32;
 
+GetConsoleMode :: (
+    hConsoleHandle : HANDLE,
+    lpMode         : *u32
+) -> BOOL #foreign kernel32;
+
 SetConsoleTextAttribute :: (
     hConsoleOutput : HANDLE,
     wAttributes    : u16
