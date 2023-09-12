@@ -163,7 +163,6 @@ DEBUG_BUILD :: #run -> bool {
 #load "shader_compiler/hot_reload.jai";
 
 String :: #import "String";
-File   :: #import "File";
 
 #scope_file
 

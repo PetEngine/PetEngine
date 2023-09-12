@@ -178,17 +178,24 @@ ShaderStage :: enum u8 {
 compileShader :: (name : string) {
     source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader", allocator = Basic.temporary_allocator);
 
-    source, success := File.read_entire_file(source_filename, log_errors = false);
-    assert(success, print_sys_error = true);
-    defer Basic.free(source);
+    source     : string     = ---;
+    file_error : File.Error = .SHARED_ACCESS_VIOLATION;
 
-    stream := source;
+    while file_error == .SHARED_ACCESS_VIOLATION {
+        source, file_error = readEntireFile(source_filename, pushToArena, *context.pet.per_frame_arena);
+    }
+
+    if file_error != .NONE {
+        // @TODO: #BetterMessage.
+        errorMessage("Compilation failed");
+        return;
+    }
 
     //
     // 1. Get common shader part
     //
 
-    common_code := getShaderStageCode(*stream);
+    common_code := getShaderStageCode(*source);
 
     //
     // 2. Get code for each shader stage and pipeline state
@@ -198,8 +205,8 @@ compileShader :: (name : string) {
     stage_codes         : [MAX_STAGES] string;
     pipeline_state_code : string;
 
-    while stream {
-        line := getLine(*stream);
+    while source {
+        line := getLine(*source);
 
         if line && line[0] == #char "#" {
             line = String.trim_right(line);
@@ -211,7 +218,7 @@ compileShader :: (name : string) {
                         return;
                     }
                     shader_kind = .GRAPHICS;
-                    stage_codes[ShaderStage.VERTEX] = getShaderStageCode(*stream);
+                    stage_codes[ShaderStage.VERTEX] = getShaderStageCode(*source);
 
                 case "#fragment_shader";
                     if shader_kind != .GRAPHICS && shader_kind != .UNKNOWN {
@@ -219,10 +226,10 @@ compileShader :: (name : string) {
                         return;
                     }
                     shader_kind = .GRAPHICS;
-                    stage_codes[ShaderStage.FRAGMENT] = getShaderStageCode(*stream);
+                    stage_codes[ShaderStage.FRAGMENT] = getShaderStageCode(*source);
 
                 case "#pipeline_state";
-                    pipeline_state_code = getShaderStageCode(*stream);
+                    pipeline_state_code = getShaderStageCode(*source);
             }
         }
     }
@@ -387,25 +394,22 @@ compileShader :: (name : string) {
         }
     }
 
-    output_filename := makeBinaryShaderFilename(name);
-
-    output_directory : string = ---;
-    output_directory.data  = output_filename.data;
-    output_directory.count = String.find_index_from_right(output_filename, #char "/");
-
-    debugCheck(File.make_directory_if_it_does_not_exist(output_directory, true));
-
-    output_file, success= := File.file_open(output_filename, true, log_errors = false);
-    assert(success, print_sys_error = true);
-    defer File.file_close(*output_file);
-
-    File.file_write(*output_file, *header, size_of(Header));
-    File.file_write(*output_file, *pipeline_state, size_of(PipelineState));
-    File.file_write(*output_file, *binding_table, size_of(BindingTable));
-    for stage_spirvs {
-        if it {
-            File.file_write(*output_file, it);
+    output_file, file_error= := openFile(makeBinaryShaderFilename(name), .WRITE | .TRUNCATE | .SEQ, true);
+    if file_error == .NONE {
+        writeFile(output_file, *header, size_of(Header));
+        writeFile(output_file, *pipeline_state, size_of(PipelineState));
+        writeFile(output_file, *binding_table, size_of(BindingTable));
+        for stage_spirvs {
+            if it {
+                writeFile(output_file, it);
+            }
         }
+
+        closeFile(*output_file);
+    } else {
+        // @TODO: #BetterMessage.
+        errorMessage("Compilation failed");
+        return;
     }
 
     //
@@ -415,9 +419,13 @@ compileShader :: (name : string) {
     /*#if DEBUG_BUILD {
         dump_filename := String.join(DUMP_SHADERS_FOLDER, "/", name, ".shader_assembly", allocator = Basic.temporary_allocator);
 
-        debug_output_file, success= := File.file_open(dump_filename, true, log_errors = false);
-        assert(success, print_sys_error = true);
-        defer File.file_close(*output_file);
+        dump_file, file_error= := openFile(dump_filename, .WRITE | .TRUNCATE | .SEQ, true);
+        if file_error != .NONE {
+            // @TODO: #BetterMessage.
+            errorMessage("Dump failed");
+            return;
+        }
+        defer closeFile(*dump_file);
     }*/
 
     infoMessage("Shader \"%\" has been compiled", name);

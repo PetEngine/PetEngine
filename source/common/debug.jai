@@ -113,7 +113,7 @@ codeToString :: ($code : Code) -> string {
 
 #scope_file
 
-File :: #import "File";
+File_CLEANUP :: #import "File";
 
 message :: (
     $priority        : MessagePriority,
@@ -144,7 +144,7 @@ message :: (
     Basic.print_to_builder(*builder, "[%]: ", priority);
 
     #if priority == .ASSERT {
-        normalized_filename, result := File.get_absolute_path(location.fully_pathed_filename);
+        normalized_filename, result := File_CLEANUP.get_absolute_path(location.fully_pathed_filename);
         Basic.assert(result);
 
         Basic.print_to_builder(*builder, "%(%,%): ", normalized_filename, location.line_number, location.character_number);

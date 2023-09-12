@@ -47,10 +47,11 @@ createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *
 
     shader.name = name;
 
-    shader_filename := makeBinaryShaderFilename(shader.name);
-    shader_file_data, success := File.read_entire_file(shader_filename, log_errors = false);
-    assert(success, print_sys_error = true);
-    defer Basic.free(shader_file_data);
+    shader_file_data, file_error := readEntireFile(makeBinaryShaderFilename(shader.name), pushToArena, *context.pet.per_frame_arena);
+    if file_error != .NONE {
+        errorMessage("Shader \"%\" was not found", name);
+        return shader;
+    }
 
     assert(shader_file_data.count >= ShaderCompiler.MIN_FILE_SIZE);
 

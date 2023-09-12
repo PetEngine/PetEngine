@@ -90,6 +90,7 @@ substring :: inline (source : string, index : s64, $$count : s64 = -1) -> string
 
 #load "arena.jai";
 #load "debug.jai";
+#load "file.jai";
 #load "math.jai";
 #load "static_array.jai";
 #load "thread.jai";

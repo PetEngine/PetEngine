@@ -43,7 +43,7 @@ LSTATUS :: s32;
 TRUE  : BOOL : 1;
 FALSE : BOOL : 0;
 
-ATOM    :: u16;
+ATOM :: u16;
 
 // bit 31        - 1-bit code indicating severity, where zero represents success and 1 represents failure.
 // bits [30, 27] - 4-bit reserved value.
@@ -55,7 +55,14 @@ va_list :: *s8;
 
 INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 
-ERROR_SUCCESS :: 0;
+ERROR_SUCCESS           :: 0;
+ERROR_FILE_NOT_FOUND    :: 2;
+ERROR_PATH_NOT_FOUND    :: 3;
+ERROR_SHARING_VIOLATION :: 32;
+ERROR_FILE_EXISTS       :: 80;
+ERROR_ALREADY_EXISTS    :: 183;
+ERROR_OPERATION_ABORTED :: 995;
+ERROR_NOT_FOUND         :: 1168;
 
 SUCCEEDED :: inline ($$result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
@@ -486,14 +493,6 @@ DwmSetWindowAttribute :: (
     cbAttribute : u32
 ) -> HRESULT #foreign dwmapi;
 
-WriteFile :: (
-    hFile                  : HANDLE,
-    lpBuffer               : *void,
-    nNumberOfBytesToWrite  : u32,
-    lpNumberOfBytesWritten : *u32,
-    lpOverlapped           : *OVERLAPPED
-) -> BOOL #foreign kernel32;
-
 MEM_COMMIT      : u32 : 0x00001000;
 MEM_RESERVE     : u32 : 0x00002000;
 MEM_DECOMMIT    : u32 : 0x00004000;
@@ -629,6 +628,11 @@ WaitForSingleObjectEx :: (
     bAlertable     : BOOL
 ) -> u32 #foreign kernel32;
 
+CreateDirectoryW :: (
+    lpPathName           : LPCWSTR,
+    lpSecurityAttributes : *SECURITY_ATTRIBUTES
+) -> BOOL #foreign kernel32;
+
 GENERIC_ALL     : u32 : 0x10000000;
 GENERIC_EXECUTE : u32 : 0x20000000;
 GENERIC_WRITE   : u32 : 0x40000000;
@@ -691,6 +695,39 @@ CreateFileW :: (
     dwFlagsAndAttributes  : u32,
     hTemplateFile         : HANDLE
 ) -> HANDLE #foreign kernel32;
+
+ReadFile :: (
+    hFile                : HANDLE,
+    lpBuffer             : *void,
+    nNumberOfBytesToRead : u32,
+    lpNumberOfBytesRead  : *u32,
+    lpOverlapped         : *OVERLAPPED
+) -> BOOL #foreign kernel32;
+
+WriteFile :: (
+    hFile                  : HANDLE,
+    lpBuffer               : *void,
+    nNumberOfBytesToWrite  : u32,
+    lpNumberOfBytesWritten : *u32,
+    lpOverlapped           : *OVERLAPPED
+) -> BOOL #foreign kernel32;
+
+LARGE_INTEGER :: union {
+    struct {
+        LowPart  : u32;
+        HighPart : s32;
+    }
+    u : struct {
+        LowPart  : u32;
+        HighPart : s32;
+    };
+    QuadPart : s64;
+}
+
+GetFileSizeEx :: (
+    hFile      : HANDLE,
+    lpFileSize : *LARGE_INTEGER
+) -> BOOL #foreign kernel32;
 
 GetOverlappedResult :: (
     hFile                      : HANDLE,
