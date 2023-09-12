@@ -3,12 +3,25 @@
 VulkanShaderManager :: struct {
     #as using public_data : ShaderManager;
 
+    ResetData :: struct {
+        pipeline        : VkPipeline;
+        pipeline_layout : VkPipelineLayout;
+    }
+
+    PerFrameResetData :: struct {
+        data  : StaticArray(ResetData, MAX_SHADERS);
+        mutex : Mutex;
+    };
+
+    per_frame_reset_data : StaticArray(PerFrameResetData, Device.MAX_FRAME_BUFFERING);
+
     pipeline_cache  : VkPipelineCache;
     shaders_storage : [MAX_SHADERS] VulkanShader;
 }
 
 createVulkanShaderManager :: (device : *VulkanDevice) -> *VulkanShaderManager #must {
     manager := pushToArena(*context.pet.persistent_arena, VulkanShaderManager);
+    manager.per_frame_reset_data.count = cast,no_check(s64) device.frame_buffering;
 
     // @TODO: #PipelineCache. Initial data.
     create_info := VkPipelineCacheCreateInfo.{
@@ -40,6 +53,42 @@ destroyVulkanShaderManager :: (device : *VulkanDevice, manager : *VulkanShaderMa
         // @TODO: #VkAllocationCallbacks
         vkDestroyPipelineLayout(device.device, it.pipeline_layout, null);
     }
+}
+
+resetVulkanShaderManager :: (device : *VulkanDevice, manager : *VulkanShaderManager) {
+    assertThreadKind(.MAIN);
+
+    reset_data := *manager.per_frame_reset_data[device.frame_index];
+    scopedLock(*reset_data.mutex);
+
+    if reset_data.data.count > 0 {
+        waitVulkanDeviceIdle(device);
+
+        for reset_data.data {
+            if it.pipeline {
+                // @TODO: #VkAllocationCallbacks
+                vkDestroyPipeline(device.device, it.pipeline, null);
+            }
+
+            if it.pipeline_layout {
+                // @TODO: #VkAllocationCallbacks
+                vkDestroyPipelineLayout(device.device, it.pipeline_layout, null);
+            }
+        }
+
+        reset_data.data.count = 0;
+    }
+}
+
+findVulkanShader :: (manager : *VulkanShaderManager, name : string) -> *VulkanShader #no_context {
+    shaders_it := manager.shaders_storage.data;
+    for 0 .. manager.shaders_count {
+        if shaders_it.name == name {
+            return shaders_it;
+        }
+        shaders_it += 1;
+    }
+    return null;
 }
 
 VulkanShader :: struct {
@@ -198,6 +247,22 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
     debugCheckVK(vkCreateGraphicsPipelines(device.device, manager.pipeline_cache, 1, *create_info, null, *shader.pipeline));
 
     setVulkanObjectName(device, shader.pipeline, "% graphics pipeline", shader.name);
+}
+
+reloadGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, shader : *VulkanShader, shader_file_data : string) {
+    reset_data := VulkanShaderManager.ResetData.{
+        pipeline        = shader.pipeline,
+        pipeline_layout = shader.pipeline_layout,
+    };
+
+    createGraphicsVulkanShader(device, manager, shader, shader_file_data);
+
+    if shader.pipeline != reset_data.pipeline || shader.pipeline_layout != reset_data.pipeline_layout {
+        per_frame_reset_data := *manager.per_frame_reset_data[device.frame_index];
+        scopedLock(*per_frame_reset_data.mutex);
+
+        pushBack(*per_frame_reset_data.data).* = reset_data;
+    }
 }
 
 shaderStageToVulkanStage :: inline (stage : ShaderStage) -> VkShaderStageFlags #no_context {

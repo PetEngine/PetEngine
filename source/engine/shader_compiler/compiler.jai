@@ -175,7 +175,7 @@ ShaderStage :: enum u8 {
     FRAGMENT;
 }
 
-compileShader :: (name : string) {
+compileShader :: (name : string) -> bool {
     source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader", allocator = Basic.temporary_allocator);
 
     source     : string     = ---;
@@ -188,7 +188,7 @@ compileShader :: (name : string) {
     if file_error != .NONE {
         // @TODO: #BetterMessage.
         errorMessage("Compilation failed");
-        return;
+        return false;
     }
 
     //
@@ -215,7 +215,7 @@ compileShader :: (name : string) {
                 case "#vertex_shader";
                     if shader_kind != .GRAPHICS && shader_kind != .UNKNOWN {
                         errorMessage("Vertex shader stage is unavailable for shader kind %", shader_kind);
-                        return;
+                        return false;
                     }
                     shader_kind = .GRAPHICS;
                     stage_codes[ShaderStage.VERTEX] = getShaderStageCode(*source);
@@ -223,7 +223,7 @@ compileShader :: (name : string) {
                 case "#fragment_shader";
                     if shader_kind != .GRAPHICS && shader_kind != .UNKNOWN {
                         errorMessage("Vertex shader stage is unavailable for shader kind %", shader_kind);
-                        return;
+                        return false;
                     }
                     shader_kind = .GRAPHICS;
                     stage_codes[ShaderStage.FRAGMENT] = getShaderStageCode(*source);
@@ -240,9 +240,12 @@ compileShader :: (name : string) {
 
     pipeline_state : PipelineState;
     if shader_kind == .GRAPHICS {
-        parseGraphicsPipelineState(*pipeline_state.graphics, pipeline_state_code);
+        if !parseGraphicsPipelineState(*pipeline_state.graphics, pipeline_state_code) {
+            return false;
+        }
     } else {
         notImplemented(true);
+        return false;
     }
 
     //
@@ -328,7 +331,7 @@ compileShader :: (name : string) {
         if status != .shaderc_compilation_status_success {
             error_message := shaderc_result_get_error_message(result);
             errorMessage("% shader compilation failed: %\n%", cast(ShaderStage) it_index, status, to_string(cast(*u8) error_message));
-            return;
+            return false;
         }
 
         stage_spirv := *stage_spirvs[it_index];
@@ -360,7 +363,7 @@ compileShader :: (name : string) {
         if fragment_stage_module.output_variable_count > MAX_COLOR_TARGETS {
             // @TODO: #BetterMessage.
             errorMessage("Compilation failed");
-            return;
+            return false;
         }
 
         pipeline_state.graphics.color_targets_count = cast(u8) fragment_stage_module.output_variable_count;
@@ -409,7 +412,7 @@ compileShader :: (name : string) {
     } else {
         // @TODO: #BetterMessage.
         errorMessage("Compilation failed");
-        return;
+        return false;
     }
 
     //
@@ -423,12 +426,13 @@ compileShader :: (name : string) {
         if file_error != .NONE {
             // @TODO: #BetterMessage.
             errorMessage("Dump failed");
-            return;
+            return false;
         }
         defer closeFile(*dump_file);
     }*/
 
     infoMessage("Shader \"%\" has been compiled", name);
+    return true;
 }
 
 makeBinaryShaderFilename :: inline (name : string, allocator := Basic.temporary_allocator) -> string {
@@ -500,7 +504,7 @@ getShaderStageCode :: (stream : *string) -> string {
     return String.trim_right(stage_code);
 }
 
-parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : string) {
+parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : string) -> bool {
     while state_code {
         line := getLine(*state_code);
 
@@ -511,19 +515,19 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
             if line_it.count <= 0 {
                 // @TODO: #BetterMessage.
                 errorMessage("Compilation failed");
-                return;
+                return false;
             }
 
             color_target_index := getColorTargetIndex(*line_it);
             if color_target_index == INVALID_COLOR_TARGET_INDEX {
-                return;
+                return false;
             }
 
             line_it = String.trim_left(line_it);
             if !line_it || line_it[0] != #char "." {
                 // @TODO: #BetterMessage.
                 errorMessage("Compilation failed");
-                return;
+                return false;
             }
 
             // Skip "."
@@ -533,10 +537,11 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
             if !line_it {
                 // @TODO: #BetterMessage.
                 errorMessage("Compilation failed");
-                return;
+                return false;
             }
 
-            name, value := splitToNameAndValue(line_it);
+            name, value, success := splitToNameAndValue(line_it);
+            if !success return false;
 
             if name == {
                 case "WriteMask";
@@ -566,10 +571,11 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
                 case;
                     // @TODO: #BetterMessage.
                     errorMessage("Compilation failed");
-                    return;
+                    return false;
             }
         } else {
-            name, value := splitToNameAndValue(line);
+            name, value, success := splitToNameAndValue(line);
+            if !success return false;
 
             if name == {
                 case "PrimitiveTopology";
@@ -614,13 +620,15 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
                 case;
                     // @TODO: #BetterMessage.
                     errorMessage("Compilation failed");
-                    return;
+                    return false;
             }
         }
     }
+
+    return true;
 }
 
-splitToNameAndValue :: (line_ : string) -> (name : string, value : string) {
+splitToNameAndValue :: (line_ : string) -> (name : string, value : string, success : bool) {
     line := String.trim_left(line_);
 
     name : string = ---;
@@ -633,7 +641,7 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string) {
         if name_end[0] != #char "=" {
             // @TODO: #BetterMessage.
             errorMessage("Compilation failed");
-            return "", "";
+            return "", "", false;
         }
 
         name.data  = line.data;
@@ -659,7 +667,7 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string) {
         if value_end[0] != #char ";" {
             // @TODO: #BetterMessage.
             errorMessage("Compilation failed");
-            return "", "";
+            return "", "", false;
         }
 
         value.data  = line.data;
@@ -668,29 +676,29 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string) {
         value = String.trim_right(value);
     }
 
-    return name, value;
+    return name, value, true;
 }
 
-handleEnumValue :: inline (enum_value : *$T, value : string) #modify {
-    return (cast(*Type_Info) T).type == .ENUM;
-} {
+handleEnumValue :: inline (enum_value : *$T, value : string) -> bool {
+    #assert (cast(*Type_Info) T).type == .ENUM;
     info := type_info(T);
 
     for info.names {
         if it == value {
             enum_value.* = cast(T) info.values[it_index];
-            return;
+            return true;
         }
     }
 
     // @TODO: #BetterMessage.
     errorMessage("Compilation failed");
+    return false;
 }
 
-handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) #modify {
-    return (cast(*Type_Info)      T).type            == .ENUM
-        && (cast(*Type_Info_Enum) T).enum_type_flags == .FLAGS;
-} {
+handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) -> bool {
+    #assert (cast(*Type_Info)      T).type            == .ENUM
+         && (cast(*Type_Info_Enum) T).enum_type_flags == .FLAGS;
+
     assert(value);
 
     info := type_info(T);
@@ -723,7 +731,7 @@ handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) #modify {
         if !found {
             // @TODO: #BetterMessage.
             errorMessage("Compilation failed");
-            return;
+            return false;
         }
 
         flag_names_it = flag_name_end;
@@ -732,9 +740,11 @@ handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) #modify {
         }
         flag_names_it = String.trim_left(flag_names_it);
     }
+
+    return true;
 }
 
-handleBoolValue :: inline (bool_value : *bool, value : string) {
+handleBoolValue :: inline (bool_value : *bool, value : string) -> bool {
     if value == {
         case "true";
             bool_value.* = true;
@@ -745,10 +755,12 @@ handleBoolValue :: inline (bool_value : *bool, value : string) {
         case;
             // @TODO: #BetterMessage.
             errorMessage("Compilation failed");
+            return false;
     }
+    return true;
 }
 
-handleFloatValue :: inline (float_value : *f32, value : string) {
+handleFloatValue :: inline (float_value : *f32, value : string) -> bool {
     f32_value, success := Basic.string_to_float(value);
 
     if success {
@@ -757,6 +769,8 @@ handleFloatValue :: inline (float_value : *f32, value : string) {
         // @TODO: #BetterMessage.
         errorMessage("Compilation failed");
     }
+
+    return success;
 }
 
 getColorTargetIndex :: (stream : *string) -> u8 {

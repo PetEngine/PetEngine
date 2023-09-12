@@ -48,6 +48,18 @@ s8_array_to_string :: inline (array : [] s8) -> string #no_context {
             wide_string.*[ascii_string.count] = 0;
         }
     }
+
+    wideToAscii :: (wide_string : *WCHAR, length : s64) -> string /* temp */ {
+        ascii_string : string = ---;
+        ascii_string.count = length;
+        ascii_string.data  = pushToArena(*context.pet.per_frame_arena, u8, ascii_string.count);
+
+        for 0 .. ascii_string.count - 1 {
+            ascii_string[it] = cast(u8) wide_string[it];
+        }
+
+        return ascii_string;
+    }
 }
 
 advance :: inline (str : *string, amount : s64 = 1) {
@@ -92,6 +104,7 @@ substring :: inline (source : string, index : s64, $$count : s64 = -1) -> string
 #load "debug.jai";
 #load "file.jai";
 #load "math.jai";
+#load "mutex.jai";
 #load "static_array.jai";
 #load "thread.jai";
 #load "vulkan/vulkan.jai";

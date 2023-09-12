@@ -65,6 +65,8 @@ ERROR_ALREADY_EXISTS    :: 183;
 ERROR_OPERATION_ABORTED :: 995;
 ERROR_NOT_FOUND         :: 1168;
 
+STATUS_PENDING :: 0x00000103;
+
 SUCCEEDED :: inline ($$result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
     return result >= ERROR_SUCCESS;
@@ -101,7 +103,6 @@ GetStdHandle :: (
   nStdHandle : u32
 ) -> HANDLE #foreign kernel32;
 
-// @Cleanup: #RemoveUnused
 CS_VREDRAW         : u32 : 0x00001;
 CS_HREDRAW         : u32 : 0x00002;
 CS_DBLCLKS         : u32 : 0x00008;
@@ -154,7 +155,6 @@ FreeLibrary :: (
     hLibModule : HMODULE
 ) -> BOOL #foreign kernel32;
 
-// @Cleanup: #RemoveUnused
 IDI_APPLICATION :: cast,no_check(LPWSTR) cast,trunc(u16) 32512;
 IDI_ERROR       :: cast,no_check(LPWSTR) cast,trunc(u16) 32513;
 IDI_QUESTION    :: cast,no_check(LPWSTR) cast,trunc(u16) 32514;
@@ -171,7 +171,6 @@ LoadIconW :: (
     lpIconName : LPCWSTR
 ) -> HICON #foreign user32;
 
-// @Cleanup: #RemoveUnused
 IDC_ARROW       :: cast,no_check(LPWSTR) cast,trunc(u16) 32512;
 IDC_IBEAM       :: cast,no_check(LPWSTR) cast,trunc(u16) 32513;
 IDC_WAIT        :: cast,no_check(LPWSTR) cast,trunc(u16) 32514;
@@ -634,6 +633,14 @@ WaitForSingleObjectEx :: (
     bAlertable     : BOOL
 ) -> u32 #foreign kernel32;
 
+WaitForMultipleObjectsEx :: (
+    nCount         : u32,
+    lpHandles      : *HANDLE,
+    bWaitAll       : BOOL,
+    dwMilliseconds : u32,
+    bAlertable     : BOOL
+) -> u32 #foreign kernel32;
+
 CreateDirectoryW :: (
     lpPathName           : LPCWSTR,
     lpSecurityAttributes : *SECURITY_ATTRIBUTES
@@ -742,6 +749,19 @@ GetOverlappedResult :: (
     bWait                      : BOOL
 ) -> BOOL #foreign kernel32;
 
+HasOverlappedIoCompleted :: inline (lpOverlapped : *OVERLAPPED) -> bool #no_context {
+    return cast(u32) lpOverlapped.Internal != STATUS_PENDING;
+}
+
+CancelIo :: (
+    hFile : HANDLE
+) -> BOOL #foreign kernel32;
+
+CancelIoEx :: (
+    hFile        : HANDLE,
+    lpOverlapped : *OVERLAPPED
+) -> BOOL #foreign kernel32;
+
 FILE_NOTIFY_CHANGE_FILE_NAME   : u32 : 0x00000001;
 FILE_NOTIFY_CHANGE_DIR_NAME    : u32 : 0x00000002;
 FILE_NOTIFY_CHANGE_ATTRIBUTES  : u32 : 0x00000004;
@@ -807,6 +827,10 @@ CreateEventExW :: (
     dwFlags           : u32,
     dwDesiredAccess   : u32
 ) -> HANDLE #foreign kernel32;
+
+SetEvent :: (
+    hEvent : HANDLE
+) -> BOOL #foreign kernel32;
 
 SRWLOCK :: struct {
     Ptr : *void;

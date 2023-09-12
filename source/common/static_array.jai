@@ -49,6 +49,22 @@ operator []= :: (array : *StaticArray, index : s64, value : array.T) #no_context
     array.data[index] = value;
 }
 
+pushBack :: (array : *StaticArray) -> *array.T #must {
+    #if DEBUG_BUILD {
+        if array.count >= array.capacity {
+            write_string("[ASSERT]: StaticArray overflow\n", true);
+            if IsDebuggerPresent() {
+                debug_break();
+            }
+            exit(1);
+        }
+    }
+
+    new := *array.data[array.count];
+    array.count += 1;
+    return new;
+}
+
 for_expansion :: (array : *StaticArray, body : Code, flags : For_Flags) #expand {
     REVERSE    :: cast(bool) (flags & .REVERSE);
     BY_POINTER :: cast(bool) (flags & .POINTER);

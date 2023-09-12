@@ -44,10 +44,6 @@ main :: () {
     createArena(*context.pet.per_frame_arena, megaBytes(512), "per frame");
     defer destroyArena(*context.pet.per_frame_arena);
 
-    shaders_hot_reload : ShadersHotReload;
-    initShadersHotReload(*shaders_hot_reload);
-    defer destroyShadersHotReload(*shaders_hot_reload);
-
     window_manager := createWindowManager();
     defer destroyWindowManager(window_manager);
 
@@ -66,6 +62,10 @@ main :: () {
 
     shader_manager := createShaderManager(device);
     defer destroyShaderManager(device, shader_manager);
+
+    shaders_hot_reload : ShadersHotReload;
+    initShadersHotReload(*shaders_hot_reload, device, shader_manager);
+    defer destroyShadersHotReload(*shaders_hot_reload);
 
     depth_buffer := createTexture(device,
                                   texture_manager,
@@ -106,6 +106,8 @@ main :: () {
                 resetCommandBuffer(device, *command_buffer);
                 // @TODO: #PerFrameTextures. Delete unused per frame texture memory when number of swapchain buffers decreased.
                 resetTextureMemory(device, texture_manager, .PER_FRAME);
+
+                resetShaderManager(device, shader_manager);
             }
 
             // Create per frame textures here...

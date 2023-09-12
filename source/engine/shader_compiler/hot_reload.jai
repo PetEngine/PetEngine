@@ -2,16 +2,18 @@ ShadersHotReload :: struct {
     thread : Thread(ShadersHotReload);
 
     #if OS == .WINDOWS {
-        notification : HANDLE;
-        directory    : HANDLE;
-        event        : HANDLE;
+        notification      : HANDLE;
+        directory         : HANDLE;
+        overlapped        : OVERLAPPED;
+        stop_thread_event : HANDLE;
     }
 
-    running : bool;
+    device         : *Device;
+    shader_manager : *ShaderManager;
 }
 
-initShadersHotReload :: (hot_reload : *ShadersHotReload) {
-    createThread(*hot_reload.thread, hotReloadProc, hot_reload, name = "Shaders Hot Reload");
+initShadersHotReload :: (hot_reload : *ShadersHotReload, device : *Device, shader_manager : *ShaderManager) {
+    createThread(*hot_reload.thread, hotReloadProc, hot_reload, "Shaders Hot Reload", .SHADERS_HOT_RELOAD);
 
     #if OS == .WINDOWS {
         wide_source_shaders_folder : [ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1] WCHAR = ---;
@@ -29,32 +31,53 @@ initShadersHotReload :: (hot_reload : *ShadersHotReload) {
                                            null);
         assert(hot_reload.directory != INVALID_HANDLE_VALUE, print_sys_error = true);
 
-        EVENT_NAME :: "Shaders Hot Reload Event";
-        wide_event_name : [EVENT_NAME.count + 1] WCHAR = ---;
-        asciiToWide(*wide_event_name, EVENT_NAME, true);
+        OVERLAPPED_IO_EVENT_NAME :: "Shaders Hot Reload Overlapped IO Event";
+        wide_overlapped_io_event_name : [OVERLAPPED_IO_EVENT_NAME.count + 1] WCHAR = ---;
+        asciiToWide(*wide_overlapped_io_event_name, OVERLAPPED_IO_EVENT_NAME, true);
 
-        hot_reload.event = CreateEventExW(null, wide_event_name.data, 0, EVENT_ALL_ACCESS);
-        assert(hot_reload.event, print_sys_error = true);
+        hot_reload.overlapped.hEvent = CreateEventExW(null, wide_overlapped_io_event_name.data, 0, EVENT_ALL_ACCESS);
+        assert(hot_reload.overlapped.hEvent, print_sys_error = true);
+
+        STOP_THREAD_EVENT_NAME :: "Shaders Hot Reload Stop Thread Event";
+        wide_stop_thread_event_name : [STOP_THREAD_EVENT_NAME.count + 1] WCHAR = ---;
+        asciiToWide(*wide_stop_thread_event_name, STOP_THREAD_EVENT_NAME, true);
+
+        hot_reload.stop_thread_event = CreateEventExW(null, wide_stop_thread_event_name.data, CREATE_EVENT_MANUAL_RESET, EVENT_ALL_ACCESS);
+        assert(hot_reload.stop_thread_event, print_sys_error = true);
     } else {
         notImplemented();
     }
 
-    hot_reload.running = true;
+    hot_reload.device         = device;
+    hot_reload.shader_manager = shader_manager;
+
     startThread(*hot_reload.thread);
+
+    // @TODO: Initial reload check
+    reloadShader(device, shader_manager, "triangle");
 }
 
 destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
-    hot_reload.running = false;
+    #if OS == .WINDOWS {
+        debugCheck(SetEvent(hot_reload.stop_thread_event), print_sys_error = true);
+
+        result := CancelIoEx(hot_reload.directory, *hot_reload.overlapped);
+        assert(result || GetLastError() == ERROR_NOT_FOUND, print_sys_error = true);
+    } else {
+        notImplemented();
+    }
+
+    waitThread(*hot_reload.thread);
 
     #if OS == .WINDOWS {
-        debugCheck(CloseHandle(hot_reload.event), print_sys_error = true);
+        debugCheck(CloseHandle(hot_reload.stop_thread_event), print_sys_error = true);
+        debugCheck(CloseHandle(hot_reload.overlapped.hEvent), print_sys_error = true);
         debugCheck(CloseHandle(hot_reload.directory), print_sys_error = true);
         debugCheck(FindCloseChangeNotification(hot_reload.notification), print_sys_error = true);
     } else {
         notImplemented();
     }
 
-    waitThread(*hot_reload.thread);
     closeThreadHandle(*hot_reload.thread);
 }
 
@@ -64,40 +87,65 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
     hotReloadProc :: (hot_reload : *ShadersHotReload) {
         notification_information_buffer : [4096] u8 #align 4;
 
-        while hot_reload.running {
+        handles_to_wait := HANDLE.[
+            hot_reload.notification,
+            hot_reload.stop_thread_event
+        ];
+
+        while true {
             resetArena(*context.pet.per_frame_arena);
             Basic.reset_temporary_storage();
 
-            wait_result := WaitForSingleObjectEx(hot_reload.notification, INFINITE, FALSE);
-            assert(wait_result == WAIT_OBJECT_0, print_sys_error = true);
-            if !hot_reload.running break;
+            wait_result := WaitForMultipleObjectsEx(handles_to_wait.count, handles_to_wait.data, FALSE, INFINITE, FALSE);
+            if wait_result == WAIT_OBJECT_0 {
+                info := cast(*FILE_NOTIFY_INFORMATION) notification_information_buffer.data;
+                debugCheck(ReadDirectoryChangesW(hot_reload.directory,
+                                                 info,
+                                                 notification_information_buffer.count,
+                                                 TRUE,
+                                                 FILE_NOTIFY_CHANGE_LAST_WRITE,
+                                                 null,
+                                                 *hot_reload.overlapped,
+                                                 null),
+                           print_sys_error = true);
 
-            info := cast(*FILE_NOTIFY_INFORMATION) notification_information_buffer.data;
+                bytes_transferred : u32;
+                if GetOverlappedResult(hot_reload.directory, *hot_reload.overlapped, *bytes_transferred, TRUE) {
+                    assert(bytes_transferred, print_sys_error = true);
 
-            overlapped : OVERLAPPED;
-            overlapped.hEvent = hot_reload.event;
+                    while info {
+                        filename := wideToAscii(info.FileName.data, info.FileNameLength / size_of(WCHAR));
 
-            bytes_returned : u32;
-            debugCheck(ReadDirectoryChangesW(hot_reload.directory,
-                                             info,
-                                             notification_information_buffer.count,
-                                             TRUE,
-                                             FILE_NOTIFY_CHANGE_LAST_WRITE,
-                                             *bytes_returned,
-                                             *overlapped,
-                                             null),
-                       print_sys_error = true);
-            defer memset(notification_information_buffer.data, 0, bytes_returned);
+                        // Remove file extension
+                        filename.count = String.find_index_from_right(filename, #char ".");
 
-            bytes_transferred : u32;
-            debugCheck(GetOverlappedResult(hot_reload.directory, *overlapped, *bytes_transferred, TRUE),
-                       print_sys_error = true);
+                        reloadShader(hot_reload.device, hot_reload.shader_manager, filename);
 
-            warningMessage("Bytes transferred: %", bytes_transferred);
+                        info = ifx  info.NextEntryOffset
+                               then cast(*void) info + info.NextEntryOffset
+                               else null;
+                    }
+                } else {
+                    assert(GetLastError() == ERROR_OPERATION_ABORTED, print_sys_error = true);
+                }
 
-            debugCheck(FindNextChangeNotification(hot_reload.notification), print_sys_error = true);
+                debugCheck(FindNextChangeNotification(hot_reload.notification), print_sys_error = true);
+            } else {
+                assert(wait_result == WAIT_OBJECT_0 + 1, print_sys_error = true);
+                break;
+            }
         }
     }
 } else {
     notImplemented();
+}
+
+// @TODO: #ThreadPool
+reloadShader :: inline (device : *Device, manager : *ShaderManager, name : string) {
+    if compileShader(name) {
+        shader := findShader(device, manager, name);
+        if shader {
+            reloadShader(device, manager, shader);
+        }
+    }
 }

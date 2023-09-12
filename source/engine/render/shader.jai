@@ -22,6 +22,13 @@ destroyShaderManager :: (device : *Device, manager : *ShaderManager) {
     }
 }
 
+resetShaderManager :: (device : *Device, manager : *ShaderManager) {
+    if #complete device.graphics_api == {
+        case .VULKAN;
+           resetVulkanShaderManager(cast(*VulkanDevice) device, cast(*VulkanShaderManager) manager);
+    }
+}
+
 Shader :: struct {
     Kind :: enum u8 {
         UNKNOWN;
@@ -81,6 +88,65 @@ createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *
     }
 
     return shader;
+}
+
+findShader :: (device : *Device, manager : *ShaderManager, name : string) -> *Shader #must #no_context {
+    shader : *Shader;
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+           shader = findVulkanShader(cast(*VulkanShaderManager) manager, name);
+    }
+
+    return shader;
+}
+
+findOrCreateShader :: (device : *Device, manager : *ShaderManager, name : string) -> *Shader #must {
+    shader : *Shader;
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+           shader = findVulkanShader(cast(*VulkanShaderManager) manager, name);
+    }
+
+    if !shader {
+        shader = createShader(device, manager, name);
+    }
+
+    return shader;
+}
+
+reloadShader :: (device : *Device, manager : *ShaderManager, shader : *Shader) {
+    shader_file_data, file_error := readEntireFile(makeBinaryShaderFilename(shader.name), pushToArena, *context.pet.per_frame_arena);
+    if file_error != .NONE {
+        errorMessage("Shader \"%\" was not found", shader.name);
+        return;
+    }
+
+    assert(shader_file_data.count >= ShaderCompiler.MIN_FILE_SIZE);
+
+    shader_file_header := ShaderCompiler.getHeader(shader_file_data);
+    assert(shader_file_header.version == ShaderCompiler.VERSION);
+
+    shader.binding_table = ShaderCompiler.getBindingTable(shader_file_data).*;
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            if #complete shader.kind == {
+                case .UNKNOWN;
+                    // @TODO: Print some meaningful message why it's illegal
+
+                case .GRAPHICS;
+                    reloadGraphicsVulkanShader(cast(*VulkanDevice) device,
+                                               cast(*VulkanShaderManager) manager,
+                                               cast(*VulkanShader) shader,
+                                               shader_file_data);
+                case .COMPUTE;     #through;
+                case .MESH;        #through;
+                case .RAY_TRACING;
+                    notImplemented(true);
+            }
+    }
 }
 
 #scope_file
