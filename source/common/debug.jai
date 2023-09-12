@@ -115,6 +115,8 @@ codeToString :: ($code : Code) -> string {
 
 File_CLEANUP :: #import "File";
 
+g_mutex : Mutex;
+
 message :: (
     $priority        : MessagePriority,
     $format          : string,
@@ -201,7 +203,7 @@ message :: (
 
     message := Basic.builder_to_string(*builder, builder.allocator);
 
-    // @TODO: Lock mutex
+    lock(*g_mutex);
 
     #if OS == .WINDOWS {
         #if priority != .INFO {
@@ -228,7 +230,7 @@ message :: (
         notImplemented();
     }
 
-    // @TODO: Unlock mutex
+    unlock(*g_mutex);
 
     #if priority == .ASSERT {
         if IsDebuggerPresent() {

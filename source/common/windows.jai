@@ -20,13 +20,14 @@ HMODULE :: HINSTANCE;
 HLOCAL  :: HANDLE;
 
 BOOL      :: s32;
+BOOLEAN   :: u8;
 CHAR      :: s8;
 WCHAR     :: s16;
-INT_PTR   :: s64;
-UINT_PTR  :: u64;
-LONG_PTR  :: s64;
-ULONG_PTR :: u64;
-SIZE_T    :: u64; // We target only 64-bit systems, so... whatever.
+INT_PTR   :: s64; // We target only 64-bit systems, so... whatever.
+UINT_PTR  :: u64; // We target only 64-bit systems, so... whatever.
+LONG_PTR  :: s64; // We target only 64-bit systems, so... whatever.
+ULONG_PTR :: u64; // We target only 64-bit systems, so... whatever.
+SIZE_T    :: ULONG_PTR;
 DWORD_PTR :: ULONG_PTR;
 
 LPSTR   :: *CHAR;
@@ -801,6 +802,34 @@ CreateEventExW :: (
     dwFlags           : u32,
     dwDesiredAccess   : u32
 ) -> HANDLE #foreign kernel32;
+
+SRWLOCK :: struct {
+    Ptr : *void;
+}
+
+ReleaseSRWLockExclusive :: (
+    SRWLock : *SRWLOCK
+) #foreign kernel32;
+
+ReleaseSRWLockShared :: (
+    SRWLock : *SRWLOCK
+) #foreign kernel32;
+
+AcquireSRWLockExclusive :: (
+    SRWLock : *SRWLOCK
+) #foreign kernel32;
+
+AcquireSRWLockShared :: (
+    SRWLock : *SRWLOCK
+) #foreign kernel32;
+
+TryAcquireSRWLockExclusive :: (
+    SRWLock : *SRWLOCK
+) -> BOOLEAN #foreign kernel32;
+
+TryAcquireSRWLockShared :: (
+    SRWLock : *SRWLOCK
+) -> BOOLEAN #foreign kernel32;
 
 #scope_file
 
