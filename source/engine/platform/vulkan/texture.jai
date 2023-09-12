@@ -35,7 +35,6 @@ VulkanTextureManager :: struct {
 // @TODO: https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap11.html#_device_group_memory_allocations
 createVulkanTextureManager :: (device : *VulkanDevice) -> *VulkanTextureManager #must {
     manager := pushToArena(*context.pet.persistent_arena, VulkanTextureManager);
-
     manager.per_frame_memory.count = cast,no_check(s64) device.frame_buffering;
 
     createVulkanTextureMemory(device, manager, .PERSISTENT);

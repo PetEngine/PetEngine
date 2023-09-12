@@ -109,6 +109,8 @@ setVulkanScissorRect :: inline (command_buffer : VkCommandBuffer, scissor_rect :
 }
 
 setVulkanShader :: inline (command_buffer : VkCommandBuffer, shader : *VulkanShader) #no_context {
+    if !shader.pipeline return;
+
     if #complete shader.kind == {
         case .UNKNOWN;
             // @TODO: Print some meaningful message why it's illegal
@@ -307,15 +309,20 @@ endVulkanRendering :: inline (command_buffer : VkCommandBuffer) #no_context {
 
 drawVulkanPrimitives :: inline (
     command_buffer : VkCommandBuffer,
+    shader         : *VulkanShader,
     vertex_count   : u32,
     instance_count : u32,
     first_vertex   : u32,
     first_instance : u32
 ) #no_context {
-    vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
+    if shader.pipeline {
+        vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
+    }
 }
 
 setVulkanPushConstants :: inline (command_buffer : VkCommandBuffer, shader : *VulkanShader, stage : ShaderStage, data : *$T) {
+    if !shader.pipeline return;
+
     stage_bindings := *shader.binding_table.stage_bindings[stage];
 
     assert(size_of(T) == stage_bindings.push_constants.bytes,

@@ -7,7 +7,7 @@ StaticArray :: struct(T : Type, capacity : s64) {
     data  : [capacity] T;
 }
 
-operator [] :: (array : StaticArray, index : s64) -> array.T #must #no_context {
+operator [] :: inline (array : StaticArray, index : s64) -> array.T #must #no_context {
     #if DEBUG_BUILD {
         if index >= array.count {
             write_string("[ASSERT]: StaticArray out of bounds access violation\n", true);
@@ -21,7 +21,7 @@ operator [] :: (array : StaticArray, index : s64) -> array.T #must #no_context {
     return array.data[index];
 }
 
-operator *[] :: (array : *StaticArray, index : s64) -> *array.T #must #no_context {
+operator *[] :: inline (array : *StaticArray, index : s64) -> *array.T #must #no_context {
     #if DEBUG_BUILD {
         if index >= array.count {
             write_string("[ASSERT]: StaticArray out of bounds access violation\n", true);
@@ -35,7 +35,7 @@ operator *[] :: (array : *StaticArray, index : s64) -> *array.T #must #no_contex
     return *array.data[index];
 }
 
-operator []= :: (array : *StaticArray, index : s64, value : array.T) #no_context {
+operator []= :: inline (array : *StaticArray, index : s64, value : array.T) #no_context {
     #if DEBUG_BUILD {
         if index >= array.count {
             write_string("[ASSERT]: StaticArray out of bounds access violation\n", true);
@@ -49,7 +49,7 @@ operator []= :: (array : *StaticArray, index : s64, value : array.T) #no_context
     array.data[index] = value;
 }
 
-pushBack :: (array : *StaticArray) -> *array.T #must {
+pushBack :: inline (array : *StaticArray) -> *array.T #must {
     #if DEBUG_BUILD {
         if array.count >= array.capacity {
             write_string("[ASSERT]: StaticArray overflow\n", true);
