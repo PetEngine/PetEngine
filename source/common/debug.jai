@@ -93,6 +93,10 @@ debugCheck :: (
     }
 }
 
+assertThreadKind :: (kind : ThreadKind, procedure_name := #procedure_name()) #expand #no_debug {
+    assert(context.pet.thread_kind == kind, "% can be called only from % thread kind", procedure_name, kind);
+}
+
 notImplemented :: ($assert_in_run_time := false) #expand #no_debug {
     #if assert_in_run_time {
         assertMessage("Not implemented");

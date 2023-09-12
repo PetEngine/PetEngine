@@ -13,7 +13,12 @@ Thread :: struct(Data : Type) {
     jai_context : Context;
 }
 
-createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.Data, stack_size := 0, $name := "") {
+ThreadKind :: enum u8 {
+    MAIN;
+    SHADERS_HOT_RELOAD;
+}
+
+createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.Data, $name : string, kind : ThreadKind, stack_size := 0) {
     thread.procedure   = procedure;
     thread.data        = data;
 
@@ -22,6 +27,7 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
     thread.jai_context.logger_data     = context.logger_data;
     thread.jai_context.print_style     = context.print_style;
     thread.jai_context.pet.thread_name = name;
+    thread.jai_context.pet.thread_kind = kind;
 
     #if OS == .WINDOWS {
         Data :: thread.Data;
@@ -38,15 +44,15 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
         //     thread.handle = CreateThread(null, cast(SIZE_T) stack_size, winThreadProc, thread, CREATE_SUSPENDED, null);
         thread.handle = cast(HANDLE) _beginthreadex(null, cast(u32) stack_size, winThreadProc, thread, CREATE_SUSPENDED, null);
         assert(thread.handle, print_sys_error = true);
+
+        #if name {
+            wide_name : [name.count + 1] WCHAR = ---;
+            asciiToWide(*wide_name, name, true);
+
+            debugCheckOSError(SetThreadDescription(thread.handle, wide_name.data));
+        }
     } else {
         notImplemented();
-    }
-
-    #if name {
-        wide_name : [name.count + 1] WCHAR = ---;
-        asciiToWide(*wide_name, name, true);
-
-        debugCheckOSError(SetThreadDescription(thread.handle, wide_name.data));
     }
 }
 
@@ -83,19 +89,19 @@ terminateThread :: (thread : *Thread, exit_code : u32 = 0) {
     }
 }
 
-waitThread :: (thread : *Thread, milliseconds : u32 = 0xFFFF_FFFF, alertable := false) {
+waitThread :: (thread : *Thread, milliseconds : u32 = 0xFFFF_FFFF, alertable := false) -> bool {
+    signaled : bool;
+
     #if OS == .WINDOWS {
         wait_result := WaitForSingleObjectEx(thread.handle, milliseconds, cast(BOOL) alertable);
-        #if DEBUG_BUILD {
-            if milliseconds == 0xFFFF_FFFF {
-                assert(wait_result == WAIT_OBJECT_0, print_sys_error = true);
-            } else {
-                assert(wait_result == WAIT_OBJECT_0 || wait_result == WAIT_TIMEOUT, print_sys_error = true);
-            }
-        }
+        assert(wait_result == WAIT_OBJECT_0 || wait_result == WAIT_TIMEOUT, print_sys_error = true);
+
+        signaled = wait_result == WAIT_OBJECT_0;
     } else {
         notImplemented();
     }
+
+    return signaled;
 }
 
 #scope_file

@@ -22,6 +22,7 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 
 #add_context pet : struct {
     thread_name      : string;
+    thread_kind      : ThreadKind;
     persistent_arena : Arena;
     per_frame_arena  : Arena;
 };
@@ -33,6 +34,7 @@ main :: () {
     }
 
     context.pet.thread_name = "Main";
+    context.pet.thread_kind = .MAIN;
 
     // @TODO: #Settings. Get persistent arena capacity from settings.
     createArena(*context.pet.persistent_arena, gigaBytes(1), "persistent");

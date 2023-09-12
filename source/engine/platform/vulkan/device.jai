@@ -131,6 +131,8 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
 }
 
 beginVulkanFrame :: (device : *VulkanDevice) {
+    assertThreadKind(.MAIN);
+
     //
     // Go to the next frame data
     //
@@ -200,6 +202,7 @@ beginVulkanFrame :: (device : *VulkanDevice) {
 
 // @TODO: Revisit submits and post frame job
 endVulkanFrame :: (device : *VulkanDevice) {
+    assertThreadKind(.MAIN);
     frame_data := *device.frame_data[device.frame_index];
 
     //
@@ -338,6 +341,8 @@ endVulkanFrame :: (device : *VulkanDevice) {
 }
 
 recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
+    assertThreadKind(.MAIN);
+
     surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
                                                                                                       device.surface,
@@ -597,6 +602,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 }
 
 waitVulkanDeviceIdle :: (device : *VulkanDevice) {
+    assertThreadKind(.MAIN);
     debugCheckVK(vkDeviceWaitIdle(device.device));
 }
 
