@@ -52,9 +52,6 @@ initShadersHotReload :: (hot_reload : *ShadersHotReload, device : *Device, shade
     hot_reload.shader_manager = shader_manager;
 
     startThread(*hot_reload.thread);
-
-    // @TODO: Initial reload check
-    reloadShader(device, shader_manager, "triangle");
 }
 
 destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
@@ -79,6 +76,19 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
     }
 
     closeThreadHandle(*hot_reload.thread);
+}
+
+initialReload :: (hot_reload : *ShadersHotReload) {
+    enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, file_info : *FileInfo) -> EnumerateFilesCallbackResult {
+        if String.path_extension(file_info.name) != "shader" {
+            return .CONTINUE;
+        }
+
+        // @TODO, @Continue: Reload shaders.
+        debugMessage("File: %", file_info.name);
+
+        return .CONTINUE;
+    }, hot_reload, recursively = true);
 }
 
 #scope_file
@@ -114,7 +124,10 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
                     assert(bytes_transferred, print_sys_error = true);
 
                     while info {
-                        filename := wideToAscii(info.FileName.data, info.FileNameLength / size_of(WCHAR));
+                        filename := wideToAscii(info.FileName.data,
+                                                info.FileNameLength / size_of(WCHAR),
+                                                pushToArena,
+                                                *context.pet.per_frame_arena);
 
                         // Remove file extension
                         filename.count = String.find_index_from_right(filename, #char ".");

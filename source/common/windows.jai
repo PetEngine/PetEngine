@@ -59,6 +59,7 @@ INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 ERROR_SUCCESS           :: 0;
 ERROR_FILE_NOT_FOUND    :: 2;
 ERROR_PATH_NOT_FOUND    :: 3;
+ERROR_NO_MORE_FILES     :: 18;
 ERROR_SHARING_VIOLATION :: 32;
 ERROR_FILE_EXISTS       :: 80;
 ERROR_ALREADY_EXISTS    :: 183;
@@ -813,6 +814,66 @@ ReadDirectoryChangesW :: (
     lpBytesReturned     : *u32,
     lpOverlapped        : *OVERLAPPED,
     lpCompletionRoutine : OVERLAPPED_COMPLETION_ROUTINE
+) -> BOOL #foreign kernel32;
+
+FINDEX_INFO_LEVELS :: enum s32 {
+    FindExInfoStandard;
+    FindExInfoBasic;
+    FindExInfoMaxInfoLevel;
+}
+
+FINDEX_SEARCH_OPS :: enum s32 {
+    FindExSearchNameMatch;
+    FindExSearchLimitToDirectories;
+    FindExSearchLimitToDevices;
+    FindExSearchMaxSearchOp;
+}
+
+FIND_FIRST_EX_CASE_SENSITIVE       : u32 : 1;
+FIND_FIRST_EX_LARGE_FETCH          : u32 : 2;
+FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY : u32 : 4;
+
+IO_REPARSE_TAG_SYMLINK :: 0xA000000C;
+
+FindFirstFileExW :: (
+    lpFileName        : LPCWSTR,
+    fInfoLevelId      : FINDEX_INFO_LEVELS,
+    lpFindFileData    : *void,
+    fSearchOp         : FINDEX_SEARCH_OPS,
+    lpSearchFilter    : *void,
+    dwAdditionalFlags : u32
+) -> HANDLE #foreign kernel32;
+
+MAX_PATH :: 260;
+
+FILETIME :: struct {
+    dwLowDateTime  : u32;
+    dwHighDateTime : u32;
+}
+
+WIN32_FIND_DATAW :: struct {
+    dwFileAttributes   : u32;
+    ftCreationTime     : FILETIME;
+    ftLastAccessTime   : FILETIME;
+    ftLastWriteTime    : FILETIME;
+    nFileSizeHigh      : u32;
+    nFileSizeLow       : u32;
+    dwReserved0        : u32;
+    dwReserved1        : u32;
+    cFileName          : [MAX_PATH] WCHAR;
+    cAlternateFileName : [14] WCHAR;
+    dwFileType         : u32; // Obsolete. Do not use.
+    dwCreatorType      : u32; // Obsolete. Do not use
+    wFinderFlags       : u16; // Obsolete. Do not use
+}
+
+FindNextFileW :: (
+    hFindFile      : HANDLE,
+    lpFindFileData : *WIN32_FIND_DATAW
+) -> BOOL #foreign kernel32;
+
+FindClose :: (
+    hFindFile : HANDLE
 ) -> BOOL #foreign kernel32;
 
 CREATE_EVENT_MANUAL_RESET : u32 : 0x00000001;

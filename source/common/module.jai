@@ -49,16 +49,39 @@ s8_array_to_string :: inline (array : [] s8) -> string #no_context {
         }
     }
 
-    wideToAscii :: (wide_string : *WCHAR, length : s64) -> string /* temp */ {
+    wideToAscii :: (
+        wide_string : *WCHAR,
+        length      : s64,
+        allocate    : (user_data : *$T, bytes : s64) -> *void,
+        user_data   : *T
+    ) -> string {
         ascii_string : string = ---;
         ascii_string.count = length;
-        ascii_string.data  = pushToArena(*context.pet.per_frame_arena, u8, ascii_string.count);
+        ascii_string.data  = allocate(user_data, ascii_string.count);
 
         for 0 .. ascii_string.count - 1 {
             ascii_string[it] = cast(u8) wide_string[it];
         }
 
         return ascii_string;
+    }
+
+    wideToAscii :: (ascii_string : *string, ascii_string_capacity : s64, wide_string : *WCHAR, length : s64) {
+        assert(length <= ascii_string_capacity);
+        ascii_string.count = length;
+
+        for 0 .. ascii_string.count - 1 {
+            ascii_string.*[it] = cast(u8) wide_string[it];
+        }
+    }
+
+    wideLength :: inline (wide_string : [$wide_string_capacity] WCHAR) -> s64 #no_context {
+        length := 0;
+        for wide_string {
+            if it == 0 break;
+            length += 1;
+        }
+        return length;
     }
 }
 

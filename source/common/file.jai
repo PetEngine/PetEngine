@@ -45,7 +45,7 @@ openFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exi
 
     #if OS == .WINDOWS {
         wide_filename : [] WCHAR;
-        wide_filename.data = pushToArena(*context.pet.per_frame_arena, WCHAR, filename.count);
+        wide_filename.data = pushToArena(*context.pet.per_frame_arena, WCHAR, filename.count + 1);
         asciiToWide(*wide_filename, filename, true);
 
         desired_access, shared_access, creation_disposition, flags_and_attributes := flagsToWin32Flags(flags);
@@ -170,6 +170,46 @@ fileSize :: (file : File) -> s64 {
     return file_size;
 }
 
+FileInfo :: struct {
+    name             : string;
+    creation_time    : u64;
+    last_access_time : u64;
+    last_write_time  : u64;
+    size             : u64;
+    attributes       : enum_flags u8 {
+        READ_ONLY;
+        HIDDEN;
+        SYSTEM;
+        ARCHIVE;
+        DIRECTORY;
+        DEVICE;
+        TEMPORARY;
+        SYMLINK;
+    };
+}
+
+// @Cleanup: #Naming. Shorter name?
+EnumerateFilesCallbackResult :: enum u8 {
+    CONTINUE;
+    BREAK;
+}
+
+enumerateFiles :: inline (
+    $$directory       : string,
+    callback          : (user_data : *$T, file_info : *FileInfo) -> EnumerateFilesCallbackResult,
+    user_data         : *T,
+    $case_sensitive   := true,
+    $recursively      := false,
+    $skip_directories := true,
+    $skip_symlinks    := true
+) {
+    #if OS == .WINDOWS {
+        enumerateWindowsFiles(directory, callback, user_data, case_sensitive, recursively, skip_directories, skip_symlinks);
+    } else {
+        notImplemented();
+    }
+}
+
 #scope_file
 
 #if OS == .WINDOWS {
@@ -268,6 +308,133 @@ fileSize :: (file : File) -> s64 {
 
                 break;
             }
+        }
+    }
+
+    enumerateWindowsFiles :: (
+        $$directory       : string,
+        callback          : (user_data : *$T, file_info : *FileInfo) -> EnumerateFilesCallbackResult,
+        user_data         : *T,
+        $case_sensitive   : bool,
+        $recursively      : bool,
+        $skip_directories : bool,
+        $skip_symlinks    : bool
+    ) -> EnumerateFilesCallbackResult {
+        #if is_constant(directory) {
+            wide_wildcard : [directory.count + "/*\0".count] WCHAR;
+            asciiToWide(*wide_wildcard, directory, false);
+        } else {
+            wide_wildcard : [] WCHAR;
+            wide_wildcard.data = pushToArena(*context.pet.per_frame_arena, WCHAR, directory.count + "/*\0".count);
+            asciiToWide(*wide_wildcard, directory, false);
+
+            wide_wildcard.count += "/*\0".count;
+        }
+
+        wide_wildcard[directory.count + 0] = #char "/";
+        wide_wildcard[directory.count + 1] = #char "*";
+        wide_wildcard[directory.count + 2] = 0;
+
+        additional_flags := FIND_FIRST_EX_LARGE_FETCH;
+        #if case_sensitive additional_flags |= FIND_FIRST_EX_CASE_SENSITIVE;
+
+        find_data : WIN32_FIND_DATAW;
+        find_file := FindFirstFileExW(wide_wildcard.data, .FindExInfoBasic, *find_data, .FindExSearchNameMatch, null, additional_flags);
+        assert(find_file != INVALID_HANDLE_VALUE, print_sys_error = true);
+
+        filename_buffer : [MAX_PATH] u8;
+
+        file_info : FileInfo;
+        file_info.name.data = filename_buffer.data;
+
+        result : EnumerateFilesCallbackResult = .CONTINUE;
+        while true {
+            wideToAscii(*file_info.name, filename_buffer.count, find_data.cFileName.data, wideLength(find_data.cFileName));
+
+            // Make file_info.name "<directory>/<relative_name>"
+            assert(directory.count + 1 + file_info.name.count <= filename_buffer.count);
+            memcpy(file_info.name.data + directory.count + 1, file_info.name.data, file_info.name.count);
+            memcpy(file_info.name.data, directory.data, directory.count);
+            file_info.name.count += directory.count + 1;
+            #no_abc { file_info.name[directory.count] = #char "/"; }
+
+            relative_name : string = ---;
+            relative_name.data  = *file_info.name[directory.count + 1];
+            relative_name.count = file_info.name.count - (directory.count + 1);
+
+            if find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY {
+                if relative_name != "." && relative_name != ".." {
+                    #if !skip_directories {
+                        gatherFileInfo(*file_info, *find_data, true);
+
+                        #if skip_symlinks {
+                            if !(file_info.attributes & .SYMLINK) {
+                                result = callback(user_data, *file_info);
+                                if result == .BREAK break;
+                            }
+                        } else {
+                            result = callback(user_data, *file_info);
+                            if result == .BREAK break;
+                        }
+                    }
+
+                    #if recursively {
+                        result = enumerateWindowsFiles(file_info.name,
+                                                       callback,
+                                                       user_data,
+                                                       case_sensitive,
+                                                       recursively,
+                                                       skip_directories,
+                                                       skip_symlinks);
+                        if result == .BREAK break;
+                    }
+                }
+            } else {
+                gatherFileInfo(*file_info, *find_data, false);
+
+                #if skip_symlinks {
+                    if !(file_info.attributes & .SYMLINK) {
+                        result = callback(user_data, *file_info);
+                        if result == .BREAK break;
+                    }
+                } else {
+                    result = callback(user_data, *file_info);
+                    if result == .BREAK break;
+                }
+            }
+
+            if !FindNextFileW(find_file, *find_data) {
+                assert(GetLastError() == ERROR_NO_MORE_FILES, print_sys_error = true);
+                break;
+            }
+        }
+
+        debugCheck(FindClose(find_file), print_sys_error = true);
+        return result;
+    }
+
+    gatherFileInfo :: (file_info : *FileInfo, find_data : *WIN32_FIND_DATAW, $is_directory : bool) {
+        file_info.creation_time    = (cast(u64) find_data.ftCreationTime.dwHighDateTime   << 32) | find_data.ftCreationTime.dwLowDateTime;
+        file_info.last_access_time = (cast(u64) find_data.ftLastAccessTime.dwHighDateTime << 32) | find_data.ftLastAccessTime.dwLowDateTime;
+        file_info.last_write_time  = (cast(u64) find_data.ftLastWriteTime.dwHighDateTime  << 32) | find_data.ftLastWriteTime.dwLowDateTime;
+
+        file_info.size = (cast(u64) find_data.nFileSizeHigh << 32) | find_data.nFileSizeLow;
+
+        file_info.attributes = 0;
+        if find_data.dwFileAttributes & FILE_ATTRIBUTE_READONLY then file_info.attributes |= .READ_ONLY;
+        if find_data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN   then file_info.attributes |= .HIDDEN;
+        if find_data.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM   then file_info.attributes |= .SYSTEM;
+        if find_data.dwFileAttributes & FILE_ATTRIBUTE_ARCHIVE  then file_info.attributes |= .ARCHIVE;
+
+        #if is_directory {
+            file_info.attributes |= .DIRECTORY;
+        }
+
+        if find_data.dwFileAttributes & FILE_ATTRIBUTE_DEVICE    then file_info.attributes |= .DEVICE;
+        if find_data.dwFileAttributes & FILE_ATTRIBUTE_TEMPORARY then file_info.attributes |= .TEMPORARY;
+
+        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) && find_data.dwReserved0 == IO_REPARSE_TAG_SYMLINK {
+            file_info.attributes |= .SYMLINK;
         }
     }
 }
