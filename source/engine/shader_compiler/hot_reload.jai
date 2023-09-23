@@ -51,6 +51,7 @@ initShadersHotReload :: (hot_reload : *ShadersHotReload, device : *Device, shade
     hot_reload.device         = device;
     hot_reload.shader_manager = shader_manager;
 
+    recompileOutOfDateShaders(hot_reload);
     startThread(*hot_reload.thread);
 }
 
@@ -76,19 +77,6 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
     }
 
     closeThreadHandle(*hot_reload.thread);
-}
-
-initialReload :: (hot_reload : *ShadersHotReload) {
-    enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, file_info : *FileInfo) -> EnumerateFilesCallbackResult {
-        if String.path_extension(file_info.name) != "shader" {
-            return .CONTINUE;
-        }
-
-        // @TODO, @Continue: Reload shaders.
-        debugMessage("File: %", file_info.name);
-
-        return .CONTINUE;
-    }, hot_reload, recursively = true);
 }
 
 #scope_file
@@ -161,4 +149,36 @@ reloadShader :: inline (device : *Device, manager : *ShaderManager, name : strin
             reloadShader(device, manager, shader);
         }
     }
+}
+
+recompileOutOfDateShaders :: (hot_reload : *ShadersHotReload) {
+    enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, file_info : *FileInfo) -> EnumerateFilesCallbackResult {
+        if String.path_extension(file_info.name) != "shader" {
+            return .CONTINUE;
+        }
+
+        shader_name : string = ---;
+        shader_name.data  = file_info.name.data  + (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1);
+        shader_name.count = file_info.name.count - (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1) - ".shader".count;
+
+        binary_filename := makeBinaryShaderFilename(shader_name);
+
+        source_file_info, source_file_error := getFileInfo(file_info.name);
+        assert(source_file_error == .NONE);
+
+        binary_file_info, binary_file_error := getFileInfo(binary_filename);
+        assert(binary_file_error == .NONE || binary_file_error == .FILE_NOT_FOUND || binary_file_error == .PATH_NOT_FOUND);
+
+        if binary_file_error == .FILE_NOT_FOUND || binary_file_error == .PATH_NOT_FOUND {
+            warningMessage("File % does not exist", binary_filename);
+        }
+
+        if Basic.compare_apollo_times(binary_file_info.last_write_time, source_file_info.last_write_time) > 0 {
+            return .CONTINUE;
+        }
+
+        compileShader(shader_name);
+
+        return .CONTINUE;
+    }, hot_reload, recursively = true);
 }

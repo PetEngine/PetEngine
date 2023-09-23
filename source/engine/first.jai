@@ -67,8 +67,6 @@ main :: () {
     initShadersHotReload(*shaders_hot_reload, device, shader_manager);
     defer destroyShadersHotReload(*shaders_hot_reload);
 
-    initialReload(*shaders_hot_reload);
-
     depth_buffer := createTexture(device,
                                   texture_manager,
                                   .D32,

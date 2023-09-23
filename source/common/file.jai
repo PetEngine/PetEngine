@@ -1,5 +1,9 @@
 #scope_export
 
+// @TODO: #File.
+//     1. Try more secure *FromAppW functions.
+//     2. Remove MAX_PATH limit prepending \\?\ to the filename when filename.count >= MAX_PATH.
+
 File :: struct {
     Flags :: enum_flags u16 {
         // Access (required)
@@ -44,6 +48,8 @@ openFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exi
     file : File;
 
     #if OS == .WINDOWS {
+        assert(filename.count < MAX_PATH, "Too long filename (length = %), max allowed: %", filename.count, MAX_PATH - 1);
+
         wide_filename : [] WCHAR;
         wide_filename.data = pushToArena(*context.pet.per_frame_arena, WCHAR, filename.count + 1);
         asciiToWide(*wide_filename, filename, true);
@@ -172,9 +178,9 @@ fileSize :: (file : File) -> s64 {
 
 FileInfo :: struct {
     name             : string;
-    creation_time    : u64;
-    last_access_time : u64;
-    last_write_time  : u64;
+    creation_time    : Basic.Apollo_Time;
+    last_access_time : Basic.Apollo_Time;
+    last_write_time  : Basic.Apollo_Time;
     size             : u64;
     attributes       : enum_flags u8 {
         READ_ONLY;
@@ -208,6 +214,40 @@ enumerateFiles :: inline (
     } else {
         notImplemented();
     }
+}
+
+// @TODO: getFileInfo :: (file : File) -> (FileInfo, File.Error);
+getFileInfo :: (filename : string) -> (FileInfo, File.Error) {
+    file_info := FileInfo.{ name = filename };
+
+    #if OS == .WINDOWS {
+        assert(filename.count < MAX_PATH, "Too long filename (length = %), max allowed: %", filename.count, MAX_PATH - 1);
+
+        wide_filename : [MAX_PATH] WCHAR;
+        asciiToWide(*wide_filename, filename, true);
+
+        attribute_data : WIN32_FILE_ATTRIBUTE_DATA = ---;
+        if !GetFileAttributesExW(wide_filename.data, .GetFileExInfoStandard, *attribute_data) {
+            file_error : File.Error = ---;
+
+            if GetLastError() == {
+                case ERROR_FILE_NOT_FOUND;    file_error = .FILE_NOT_FOUND;
+                case ERROR_PATH_NOT_FOUND;    file_error = .PATH_NOT_FOUND;
+                case ERROR_SHARING_VIOLATION; file_error = .SHARED_ACCESS_VIOLATION;
+                case;
+                    errorMessage("GetFileAttributesExW failed for file \"%\"", filename, print_sys_error = true);
+                    file_error = .UNHANDLED;
+            }
+
+            return file_info, file_error;
+        }
+
+        gatherFileInfo(*file_info, *attribute_data);
+    } else {
+        notImplemented();
+    }
+
+    return file_info, .NONE;
 }
 
 #scope_file
@@ -414,9 +454,9 @@ enumerateFiles :: inline (
     }
 
     gatherFileInfo :: (file_info : *FileInfo, find_data : *WIN32_FIND_DATAW, $is_directory : bool) {
-        file_info.creation_time    = (cast(u64) find_data.ftCreationTime.dwHighDateTime   << 32) | find_data.ftCreationTime.dwLowDateTime;
-        file_info.last_access_time = (cast(u64) find_data.ftLastAccessTime.dwHighDateTime << 32) | find_data.ftLastAccessTime.dwLowDateTime;
-        file_info.last_write_time  = (cast(u64) find_data.ftLastWriteTime.dwHighDateTime  << 32) | find_data.ftLastWriteTime.dwLowDateTime;
+        file_info.creation_time    = Basic.filetime_to_apollo(xx find_data.ftCreationTime);
+        file_info.last_access_time = Basic.filetime_to_apollo(xx find_data.ftLastAccessTime);
+        file_info.last_write_time  = Basic.filetime_to_apollo(xx find_data.ftLastWriteTime);
 
         file_info.size = (cast(u64) find_data.nFileSizeHigh << 32) | find_data.nFileSizeLow;
 
@@ -434,6 +474,27 @@ enumerateFiles :: inline (
         if find_data.dwFileAttributes & FILE_ATTRIBUTE_TEMPORARY then file_info.attributes |= .TEMPORARY;
 
         if (find_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) && find_data.dwReserved0 == IO_REPARSE_TAG_SYMLINK {
+            file_info.attributes |= .SYMLINK;
+        }
+    }
+
+    gatherFileInfo :: (file_info : *FileInfo, attribute_data : *WIN32_FILE_ATTRIBUTE_DATA) {
+        file_info.creation_time    = Basic.filetime_to_apollo(xx attribute_data.ftCreationTime);
+        file_info.last_access_time = Basic.filetime_to_apollo(xx attribute_data.ftLastAccessTime);
+        file_info.last_write_time  = Basic.filetime_to_apollo(xx attribute_data.ftLastWriteTime);
+
+        file_info.size = (cast(u64) attribute_data.nFileSizeHigh << 32) | attribute_data.nFileSizeLow;
+
+        file_info.attributes = 0;
+        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_READONLY  then file_info.attributes |= .READ_ONLY;
+        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN    then file_info.attributes |= .HIDDEN;
+        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM    then file_info.attributes |= .SYSTEM;
+        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_ARCHIVE   then file_info.attributes |= .ARCHIVE;
+        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY then file_info.attributes |= .DIRECTORY;
+        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_DEVICE    then file_info.attributes |= .DEVICE;
+        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_TEMPORARY then file_info.attributes |= .TEMPORARY;
+
+        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT {
             file_info.attributes |= .SYMLINK;
         }
     }

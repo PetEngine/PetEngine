@@ -876,6 +876,26 @@ FindClose :: (
     hFindFile : HANDLE
 ) -> BOOL #foreign kernel32;
 
+GET_FILEEX_INFO_LEVELS :: enum s32 {
+    GetFileExInfoStandard;
+    GetFileExMaxInfoLevel;
+}
+
+WIN32_FILE_ATTRIBUTE_DATA :: struct {
+    dwFileAttributes : u32;
+    ftCreationTime   : FILETIME;
+    ftLastAccessTime : FILETIME;
+    ftLastWriteTime  : FILETIME;
+    nFileSizeHigh    : u32;
+    nFileSizeLow     : u32;
+}
+
+GetFileAttributesExW :: (
+    lpFileName        : LPCWSTR,
+    fInfoLevelId      : GET_FILEEX_INFO_LEVELS,
+    lpFileInformation : *void
+) -> BOOL #foreign kernel32;
+
 CREATE_EVENT_MANUAL_RESET : u32 : 0x00000001;
 CREATE_EVENT_INITIAL_SET  : u32 : 0x00000002;
 

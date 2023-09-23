@@ -176,6 +176,8 @@ ShaderStage :: enum u8 {
 }
 
 compileShader :: (name : string) -> bool {
+    infoMessage("Compiling shader \"%\"...", name);
+
     source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader", allocator = Basic.temporary_allocator);
 
     source     : string     = ---;
