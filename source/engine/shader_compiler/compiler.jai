@@ -1,9 +1,13 @@
+// @TODO:
+//     1. Enrich error messages with <shader name>(col, line)
+//     2. Allow comments in pipeline state description
+//     3. Dump shaders
+
 ShaderCompiler :: struct {
     VERSION :: 1;
 
-    SOURCE_SHADERS_FOLDER :: "../../../source/shaders"; // @TODO: #FileSystem.
-    OUTPUT_SHADERS_FOLDER :: "shaders";                 // @TODO: #FileSystem.
-    DUMP_SHADERS_FOLDER   :: "shaders_dump";            // @TODO: #FileSystem.
+    SOURCE_SHADERS_FOLDER :: "../../../source/shaders";
+    OUTPUT_SHADERS_FOLDER :: "shaders";
 
     INVALID_OFFSET             :: -1;
     INVALID_COLOR_TARGET_INDEX : u8 : 0xFF;
@@ -188,8 +192,7 @@ compileShader :: (name : string) -> bool {
     }
 
     if file_error != .NONE {
-        // @TODO: #BetterMessage.
-        errorMessage("Compilation failed");
+        errorMessage("Compilation failed: Unable to open source shader file \"%\"", source_filename);
         return false;
     }
 
@@ -243,6 +246,7 @@ compileShader :: (name : string) -> bool {
     pipeline_state : PipelineState;
     if shader_kind == .GRAPHICS {
         if !parseGraphicsPipelineState(*pipeline_state.graphics, pipeline_state_code) {
+            // Error message has already been printed in parseGraphicsPipelineState
             return false;
         }
     } else {
@@ -363,8 +367,7 @@ compileShader :: (name : string) -> bool {
         fragment_stage_module := *stage_modules[ShaderStage.FRAGMENT];
 
         if fragment_stage_module.output_variable_count > MAX_COLOR_TARGETS {
-            // @TODO: #BetterMessage.
-            errorMessage("Compilation failed");
+            errorMessage("Compilation failed: Too many output variables used in \"%\" shader. Max allowed is %", name, MAX_COLOR_TARGETS);
             return false;
         }
 
@@ -399,7 +402,8 @@ compileShader :: (name : string) -> bool {
         }
     }
 
-    output_file, file_error= := openFile(makeBinaryShaderFilename(name), .WRITE | .TRUNCATE | .SEQ, true);
+    output_filename := makeBinaryShaderFilename(name);
+    output_file, file_error= := openFile(output_filename, .WRITE | .TRUNCATE | .SEQ, true);
     if file_error == .NONE {
         writeFile(output_file, *header, size_of(Header));
         writeFile(output_file, *pipeline_state, size_of(PipelineState));
@@ -412,26 +416,9 @@ compileShader :: (name : string) -> bool {
 
         closeFile(*output_file);
     } else {
-        // @TODO: #BetterMessage.
-        errorMessage("Compilation failed");
+        errorMessage("Compilation failed: Unable to open output shader file \"%\"", output_filename);
         return false;
     }
-
-    //
-    // 7. @TODO: Dump shaders
-    //
-
-    /*#if DEBUG_BUILD {
-        dump_filename := String.join(DUMP_SHADERS_FOLDER, "/", name, ".shader_assembly", allocator = Basic.temporary_allocator);
-
-        dump_file, file_error= := openFile(dump_filename, .WRITE | .TRUNCATE | .SEQ, true);
-        if file_error != .NONE {
-            // @TODO: #BetterMessage.
-            errorMessage("Dump failed");
-            return false;
-        }
-        defer closeFile(*dump_file);
-    }*/
 
     infoMessage("Shader \"%\" has been compiled", name);
     return true;
@@ -509,40 +496,28 @@ getShaderStageCode :: (stream : *string) -> string {
 parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : string) -> bool {
     while state_code {
         line := getLine(*state_code);
+        line = Basic.eat_spaces(line);
 
-        if String.starts_with(line, "ColorTarget") {
-            line_it := substring(line, "ColorTarget".count);
+        if String.starts_with(line, "//") || String.starts_with(line, "/*") {
+            errorMessage("Compilation failed: Comments are not allowed yet in pipeline state description.");
+            return false;
+        } else  if String.starts_with(line, "ColorTarget") {
+            advance(*line, "ColorTarget".count);
 
-            line_it = String.trim_left(line_it);
-            if line_it.count <= 0 {
-                // @TODO: #BetterMessage.
-                errorMessage("Compilation failed");
-                return false;
-            }
-
-            color_target_index := getColorTargetIndex(*line_it);
+            color_target_index, line := getColorTargetIndex(line);
             if color_target_index == INVALID_COLOR_TARGET_INDEX {
+                // Error message has already been printed in getColorTargetIndex
                 return false;
             }
 
-            line_it = String.trim_left(line_it);
-            if !line_it || line_it[0] != #char "." {
-                // @TODO: #BetterMessage.
-                errorMessage("Compilation failed");
+            line = Basic.eat_spaces(line);
+            if !line || line[0] != #char "." {
+                errorMessage("Compilation failed: Expected '.', got '%'", ifx line then toString(line.data, 1) else "<EOL>");
                 return false;
             }
+            advance(*line);
 
-            // Skip "."
-            advance(*line_it);
-
-            line_it = String.trim_left(line_it);
-            if !line_it {
-                // @TODO: #BetterMessage.
-                errorMessage("Compilation failed");
-                return false;
-            }
-
-            name, value, success := splitToNameAndValue(line_it);
+            name, value, success := splitToNameAndValue(line);
             if !success return false;
 
             if name == {
@@ -571,8 +546,7 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
                     handleEnumValue(*state.color_targets[color_target_index].alpha_blend_op, value);
 
                 case;
-                    // @TODO: #BetterMessage.
-                    errorMessage("Compilation failed");
+                    errorMessage("Compilation failed: unknown name of the ColorTarget[%] setting: '%'", color_target_index, name);
                     return false;
             }
         } else {
@@ -620,8 +594,7 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
                     handleEnumValue(*state.blend_logic_op, value);
 
                 case;
-                    // @TODO: #BetterMessage.
-                    errorMessage("Compilation failed");
+                    errorMessage("Compilation failed: unknown name of the graphics pipeline state setting: '%'", name);
                     return false;
             }
         }
@@ -631,7 +604,7 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
 }
 
 splitToNameAndValue :: (line_ : string) -> (name : string, value : string, success : bool) {
-    line := String.trim_left(line_);
+    line := Basic.eat_spaces(line_);
 
     name : string = ---;
     {
@@ -640,9 +613,8 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string, succe
             advance(*name_end);
         }
 
-        if name_end[0] != #char "=" {
-            // @TODO: #BetterMessage.
-            errorMessage("Compilation failed");
+        if !name_end || name_end[0] != #char "=" {
+            errorMessage("Compilation failed: Expected '=', got '%'", ifx name_end then toString(name_end.data, 1) else "<EOL>");
             return "", "", false;
         }
 
@@ -657,7 +629,7 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string, succe
     // Skip "="
     advance(*line);
 
-    line = String.trim_left(line);
+    line = Basic.eat_spaces(line);
 
     value : string = ---;
     {
@@ -666,9 +638,8 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string, succe
             advance(*value_end);
         }
 
-        if value_end[0] != #char ";" {
-            // @TODO: #BetterMessage.
-            errorMessage("Compilation failed");
+        if !value_end || value_end[0] != #char ";" {
+            errorMessage("Compilation failed: Expected ';', got '%'", ifx value_end then toString(value_end.data, 1) else "<EOL>");
             return "", "", false;
         }
 
@@ -692,8 +663,7 @@ handleEnumValue :: inline (enum_value : *$T, value : string) -> bool {
         }
     }
 
-    // @TODO: #BetterMessage.
-    errorMessage("Compilation failed");
+    errorMessage("Compilation failed: invalid enum name: '%'", value);
     return false;
 }
 
@@ -731,8 +701,7 @@ handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) -> bool {
         }
 
         if !found {
-            // @TODO: #BetterMessage.
-            errorMessage("Compilation failed");
+            errorMessage("Compilation failed: invalid enum_flags name: '%'", value);
             return false;
         }
 
@@ -740,7 +709,7 @@ handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) -> bool {
         if flag_name_end && flag_names_it[0] == #char "|" {
             advance(*flag_names_it);
         }
-        flag_names_it = String.trim_left(flag_names_it);
+        flag_names_it = Basic.eat_spaces(flag_names_it);
     }
 
     return true;
@@ -755,8 +724,7 @@ handleBoolValue :: inline (bool_value : *bool, value : string) -> bool {
             bool_value.* = false;
 
         case;
-            // @TODO: #BetterMessage.
-            errorMessage("Compilation failed");
+            errorMessage("Compilation failed: inavlid bool value: '%'", value);
             return false;
     }
     return true;
@@ -768,57 +736,39 @@ handleFloatValue :: inline (float_value : *f32, value : string) -> bool {
     if success {
         float_value.* = f32_value;
     } else {
-        // @TODO: #BetterMessage.
-        errorMessage("Compilation failed");
+        errorMessage("Compilation failed: invalid float literal: '%'", value);
     }
 
     return success;
 }
 
-getColorTargetIndex :: (stream : *string) -> u8 {
-    line_it := String.trim_left(stream.*);
-    defer stream.* = line_it;
-
-    if !line_it || line_it[0] != #char "[" {
-        // @TODO: #BetterMessage.
-        errorMessage("Compilation failed");
-        return INVALID_COLOR_TARGET_INDEX;
+getColorTargetIndex :: (line_ : string) -> (index : u8, line : string) {
+    line := Basic.eat_spaces(line_);
+    if !line || line[0] != #char "[" {
+        errorMessage("Compilation failed: Expected '[', got '%'", ifx line then toString(line.data, 1) else "<EOL>");
+        return INVALID_COLOR_TARGET_INDEX, line;
     }
+    advance(*line);
 
-    // Skip "["
-    advance(*line_it);
-
-    line_it = String.trim_left(line_it);
-    if !line_it {
-        // @TODO: #BetterMessage.
-        errorMessage("Compilation failed");
-        return INVALID_COLOR_TARGET_INDEX;
-    }
-
-    color_target_index, success, line_it= := Basic.string_to_int(line_it, T = u8);
+    color_target_index, success, line= := Basic.string_to_int(line, T = u8);
     if !success {
-        // @TODO: #BetterMessage.
-        errorMessage("Compilation failed");
-        return INVALID_COLOR_TARGET_INDEX;
+        errorMessage("Compilation failed: Failed to parse index of a color target");
+        return INVALID_COLOR_TARGET_INDEX, line;
     }
 
     if color_target_index >= MAX_COLOR_TARGETS {
-        // @TODO: #BetterMessage.
-        errorMessage("Compilation failed");
-        return INVALID_COLOR_TARGET_INDEX;
+        errorMessage("Compilation failed: Too big color target index: %. Maximum allowed: %", color_target_index, MAX_COLOR_TARGETS - 1);
+        return INVALID_COLOR_TARGET_INDEX, line;
     }
 
-    line_it = String.trim_left(line_it);
-    if !line_it || line_it[0] != #char "]" {
-        // @TODO: #BetterMessage.
-        errorMessage("Compilation failed");
-        return INVALID_COLOR_TARGET_INDEX;
+    line = Basic.eat_spaces(line);
+    if !line || line[0] != #char "]" {
+        errorMessage("Compilation failed: Expected ']', got '%'", ifx line then toString(line.data, 1) else "<EOL>");
+        return INVALID_COLOR_TARGET_INDEX, line;
     }
+    advance(*line);
 
-    // Skip "]"
-    advance(*line_it);
-
-    return color_target_index;
+    return color_target_index, line;
 }
 
 shaderStageToShadercShaderKind :: inline (stage : ShaderStage) -> shaderc_shader_kind {

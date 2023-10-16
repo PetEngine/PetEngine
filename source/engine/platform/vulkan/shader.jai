@@ -144,7 +144,7 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
         vkDestroyShaderModule(device.device, it, null);
     }
 
-    // @TODO: #ShaderCompiler
+    // @TODO: #ShaderCompiler. VkDescriptorSetLayout
     {
         ranges : [ShaderCompiler.MAX_STAGES] VkPushConstantRange;
 
@@ -275,7 +275,6 @@ shaderStageToVulkanStage :: inline (stage : ShaderStage) -> VkShaderStageFlags #
 
 #scope_file
 
-// @TODO: #ShaderCompiler. Single file shader.
 createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStage, shader_name : string) -> VkShaderModule #must {
     create_info := VkShaderModuleCreateInfo.{
         sType    = .VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -288,7 +287,7 @@ createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStag
     module : VkShaderModule;
     debugCheckVK(vkCreateShaderModule(device.device, *create_info, null, *module)); // @TODO: VkAllocationCallbacks
 
-    setVulkanObjectName(device, module, "% % shader module", stage, shader_name);
+    setVulkanObjectName(device, module, "% stage % shader module", stage, shader_name);
 
     return module;
 }

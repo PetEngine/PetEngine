@@ -93,34 +93,42 @@ advance :: inline (str : *string, amount : s64 = 1) {
     str.count -= amount;
 }
 
-substring :: inline (source : string, index : s64, $$count : s64 = -1) -> string {
-    if index >= source.count {
+substring :: inline (source : string, offset : s64, $$count : s64 = -1) -> string {
+    if offset >= source.count {
         return "";
     }
 
-    assert(index >=  0, "index should be >= 0, index = %", index);
-    assert(count >= -1, "count should be >= -1, count = %", count);
+    assert(offset >=  0, "offset should be >= 0, offset = %", offset);
+    assert(count  >= -1, "count should be >= -1, count = %", count);
 
     substr : string = ---;
-    substr.data  = source.data + index;
+    substr.data  = source.data + offset;
 
     #if is_constant(count) {
         #if count == -1 {
-            substr.count = source.count - index;
+            substr.count = source.count - offset;
         } else {
-            assert(count <= source.count - index);
+            assert(count <= source.count - offset);
             substr.count = count;
         }
     } else {
         if count == -1 {
-            substr.count = source.count - index;
+            substr.count = source.count - offset;
         } else {
-            assert(count <= source.count - index);
+            assert(count <= source.count - offset);
             substr.count = count;
         }
     }
 
     return substr;
+}
+
+toString :: inline (data : *void, bytes : s64) -> string #no_context {
+    result : string = ---;
+    result.data  = data;
+    result.count = bytes;
+
+    return result;
 }
 
 #load "arena.jai";
