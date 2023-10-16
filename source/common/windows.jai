@@ -5,48 +5,91 @@
 
 #scope_export
 
-HANDLE                :: *void;
-HINSTANCE             :: HANDLE;
-HICON                 :: HANDLE;
-HCURSOR               :: HICON;
-HBRUSH                :: HANDLE;
-HWND                  :: HANDLE;
-HMODULE               :: HINSTANCE;
-HLOCAL                :: HANDLE;
-HMENU                 :: HANDLE;
-DPI_AWARENESS_CONTEXT :: HANDLE;
+HANDLE :: *void;
+
+HINSTANCE             :: *HINSTANCE__;             HINSTANCE__             :: struct { unused : s32; }
+HICON                 :: *HICON__;                 HICON__                 :: struct { unused : s32; }
+HCURSOR               :: *HCURSOR__;               HCURSOR__               :: struct { unused : s32; }
+HBRUSH                :: *HBRUSH__;                HBRUSH__                :: struct { unused : s32; }
+HWND                  :: *HWND__;                  HWND__                  :: struct { unused : s32; }
+HMENU                 :: *HMENU__;                 HMENU__                 :: struct { unused : s32; }
+DPI_AWARENESS_CONTEXT :: *DPI_AWARENESS_CONTEXT__; DPI_AWARENESS_CONTEXT__ :: struct { unused : s32; }
+HKEY                  :: *HKEY__;                  HKEY__                  :: struct { unused : s32; }
+
+HMODULE :: HINSTANCE;
+HLOCAL  :: HANDLE;
 
 BOOL      :: s32;
+BOOLEAN   :: u8;
 CHAR      :: s8;
 WCHAR     :: s16;
-INT_PTR   :: s64;
-UINT_PTR  :: u64;
-LONG_PTR  :: s64;
-ULONG_PTR :: u64;
-SIZE_T    :: u64; // We target only 64-bit systems, so... whatever.
+INT_PTR   :: s64; // We target only 64-bit systems, so... whatever.
+UINT_PTR  :: u64; // We target only 64-bit systems, so... whatever.
+LONG_PTR  :: s64; // We target only 64-bit systems, so... whatever.
+ULONG_PTR :: u64; // We target only 64-bit systems, so... whatever.
+SIZE_T    :: ULONG_PTR;
 DWORD_PTR :: ULONG_PTR;
 
 LPSTR   :: *CHAR;
 LPCSTR  :: *CHAR;
 LPWSTR  :: *WCHAR;
 LPCWSTR :: *WCHAR;
+PCWSTR  :: *WCHAR;
 
 WPARAM  :: UINT_PTR;
 LPARAM  :: LONG_PTR;
 LRESULT :: LONG_PTR;
+LSTATUS :: s32;
 
 TRUE  : BOOL : 1;
 FALSE : BOOL : 0;
 
 ATOM :: u16;
 
+// bit 31        - 1-bit code indicating severity, where zero represents success and 1 represents failure.
+// bits [30, 27] - 4-bit reserved value.
+// bits [26, 16] - 11-bit code indicating responsibility for the error or warning, also known as a facility code.
+// bits [15, 0]  - 16-bit code describing the error or warning.
+HRESULT :: s32;
+
 va_list :: *s8;
 
 INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 
+ERROR_SUCCESS           :: 0;
+ERROR_FILE_NOT_FOUND    :: 2;
+ERROR_PATH_NOT_FOUND    :: 3;
+ERROR_NO_MORE_FILES     :: 18;
+ERROR_SHARING_VIOLATION :: 32;
+ERROR_FILE_EXISTS       :: 80;
+ERROR_ALREADY_EXISTS    :: 183;
+ERROR_OPERATION_ABORTED :: 995;
+ERROR_NOT_FOUND         :: 1168;
+
+STATUS_PENDING :: 0x00000103;
+
+SUCCEEDED :: inline ($$result : $T) -> bool {
+    #assert T == u32 || T == s32 "T should be a 32-bit integer";
+    return result >= ERROR_SUCCESS;
+}
+
+FAILED :: inline ($$result : $T) -> bool {
+    #assert T == u32 || T == s32 "T should be a 32-bit integer";
+    return result < ERROR_SUCCESS;
+}
+
+CloseHandle :: (
+    handle : HANDLE
+) -> BOOL #foreign kernel32;
+
 OutputDebugStringA :: (
     lpOutputString : *u8
 ) #foreign kernel32;
+
+GetConsoleMode :: (
+    hConsoleHandle : HANDLE,
+    lpMode         : *u32
+) -> BOOL #foreign kernel32;
 
 SetConsoleTextAttribute :: (
     hConsoleOutput : HANDLE,
@@ -61,7 +104,6 @@ GetStdHandle :: (
   nStdHandle : u32
 ) -> HANDLE #foreign kernel32;
 
-// @Cleanup: #RemoveUnused
 CS_VREDRAW         : u32 : 0x00001;
 CS_HREDRAW         : u32 : 0x00002;
 CS_DBLCLKS         : u32 : 0x00008;
@@ -92,8 +134,6 @@ WNDCLASSEXW :: struct {
     hIconSm       : HICON;
 }
 
-LPWNDCLASSEXW :: *WNDCLASSEXW;
-
 RegisterClassExW :: (
     lpwcx : *WNDCLASSEXW
 ) -> ATOM #foreign user32;
@@ -116,7 +156,6 @@ FreeLibrary :: (
     hLibModule : HMODULE
 ) -> BOOL #foreign kernel32;
 
-// @Cleanup: #RemoveUnused
 IDI_APPLICATION :: cast,no_check(LPWSTR) cast,trunc(u16) 32512;
 IDI_ERROR       :: cast,no_check(LPWSTR) cast,trunc(u16) 32513;
 IDI_QUESTION    :: cast,no_check(LPWSTR) cast,trunc(u16) 32514;
@@ -133,7 +172,6 @@ LoadIconW :: (
     lpIconName : LPCWSTR
 ) -> HICON #foreign user32;
 
-// @Cleanup: #RemoveUnused
 IDC_ARROW       :: cast,no_check(LPWSTR) cast,trunc(u16) 32512;
 IDC_IBEAM       :: cast,no_check(LPWSTR) cast,trunc(u16) 32513;
 IDC_WAIT        :: cast,no_check(LPWSTR) cast,trunc(u16) 32514;
@@ -172,6 +210,7 @@ SetWindowLongPtrW :: (
 WM_DESTROY          : u32 : 0x0002;
 WM_SIZE             : u32 : 0x0005;
 WM_CLOSE            : u32 : 0x0010;
+WM_WININICHANGE     : u32 : 0x001A;
 WM_WINDOWPOSCHANGED : u32 : 0x0047;
 WM_MENUCHAR         : u32 : 0x0120;
 WM_DPICHANGED       : u32 : 0x02E0;
@@ -183,8 +222,19 @@ DefWindowProcW :: (
     lParam : LPARAM
 ) -> LRESULT #foreign user32;
 
-COLOR_BACKGROUND : s32 : 1;
-COLOR_WINDOW     : s32 : 5;
+// The only supported system colors since Windows 10
+COLOR_WINDOW        : s32 : 5;
+COLOR_WINDOWTEXT    : s32 : 8;
+COLOR_HIGHLIGHT     : s32 : 13;
+COLOR_HIGHLIGHTTEXT : s32 : 14;
+COLOR_3DFACE        : s32 : 15;
+COLOR_GRAYTEXT      : s32 : 17;
+COLOR_BTNTEXT       : s32 : 18;
+COLOR_HOTLIGHT      : s32 : 26;
+
+GetSysColor :: (
+    nIndex : s32
+) -> u32 #foreign user32;
 
 GetLastError :: (
 ) -> u32 #foreign kernel32;
@@ -414,13 +464,40 @@ OVERLAPPED :: struct {
     hEvent : HANDLE;
 }
 
-WriteFile :: (
-    hFile                  : HANDLE,
-    lpBuffer               : *void,
-    nNumberOfBytesToWrite  : u32,
-    lpNumberOfBytesWritten : *u32,
-    lpOverlapped           : *OVERLAPPED
-) -> BOOL #foreign kernel32;
+DWMWINDOWATTRIBUTE :: enum s32 {
+    DWMWA_NCRENDERING_ENABLED :: 1;       // [get] Is non-client rendering enabled/disabled
+    DWMWA_NCRENDERING_POLICY;             // [set] DWMNCRENDERINGPOLICY - Non-client rendering policy
+    DWMWA_TRANSITIONS_FORCEDISABLED;      // [set] Potentially enable/forcibly disable transitions
+    DWMWA_ALLOW_NCPAINT;                  // [set] Allow contents rendered in the non-client area to be visible on the DWM-drawn frame.
+    DWMWA_CAPTION_BUTTON_BOUNDS;          // [get] Bounds of the caption button area in window-relative space.
+    DWMWA_NONCLIENT_RTL_LAYOUT;           // [set] Is non-client content RTL mirrored
+    DWMWA_FORCE_ICONIC_REPRESENTATION;    // [set] Force this window to display iconic thumbnails.
+    DWMWA_FLIP3D_POLICY;                  // [set] Designates how Flip3D will treat the window.
+    DWMWA_EXTENDED_FRAME_BOUNDS;          // [get] Gets the extended frame bounds rectangle in screen space
+    DWMWA_HAS_ICONIC_BITMAP;              // [set] Indicates an available bitmap when there is no better thumbnail representation.
+    DWMWA_DISALLOW_PEEK;                  // [set] Don't invoke Peek on the window.
+    DWMWA_EXCLUDED_FROM_PEEK;             // [set] LivePreview exclusion information
+    DWMWA_CLOAK;                          // [set] Cloak or uncloak the window
+    DWMWA_CLOAKED;                        // [get] Gets the cloaked state of the window
+    DWMWA_FREEZE_REPRESENTATION;          // [set] BOOL, Force this window to freeze the thumbnail without live update
+    DWMWA_PASSIVE_UPDATE_MODE;            // [set] BOOL, Updates the window only when desktop composition runs for other reasons
+    DWMWA_USE_HOSTBACKDROPBRUSH;          // [set] BOOL, Allows the use of host backdrop brushes for the window.
+    DWMWA_USE_IMMERSIVE_DARK_MODE  :: 20; // [set] BOOL, Allows a window to either use the accent color, or dark, according to the user Color Mode preferences.
+    DWMWA_WINDOW_CORNER_PREFERENCE :: 33; // [set] WINDOW_CORNER_PREFERENCE, Controls the policy that rounds top-level window corners
+    DWMWA_BORDER_COLOR;                   // [set] COLORREF, The color of the thin border around a top-level window
+    DWMWA_CAPTION_COLOR;                  // [set] COLORREF, The color of the caption
+    DWMWA_TEXT_COLOR;                     // [set] COLORREF, The color of the caption text
+    DWMWA_VISIBLE_FRAME_BORDER_THICKNESS; // [get] UINT, width of the visible border around a thick frame window
+    DWMWA_SYSTEMBACKDROP_TYPE;            // [get, set] SYSTEMBACKDROP_TYPE, Controls the system-drawn backdrop material of a window, including behind the non-client area.
+    DWMWA_LAST;
+}
+
+DwmSetWindowAttribute :: (
+    hwnd        : HWND,
+    dwAttribute : DWMWINDOWATTRIBUTE,
+    pvAttribute : *void,
+    cbAttribute : u32
+) -> HRESULT #foreign dwmapi;
 
 MEM_COMMIT      : u32 : 0x00001000;
 MEM_RESERVE     : u32 : 0x00002000;
@@ -481,7 +558,392 @@ GetProcAddress :: (
 IsDebuggerPresent :: (
 ) -> BOOL #foreign kernel32;
 
+HKEY_CLASSES_ROOT                :: cast,no_check(HKEY) 0x80000000;
+HKEY_CURRENT_USER                :: cast,no_check(HKEY) 0x80000001;
+HKEY_LOCAL_MACHINE               :: cast,no_check(HKEY) 0x80000002;
+HKEY_USERS                       :: cast,no_check(HKEY) 0x80000003;
+HKEY_PERFORMANCE_DATA            :: cast,no_check(HKEY) 0x80000004;
+HKEY_PERFORMANCE_TEXT            :: cast,no_check(HKEY) 0x80000050;
+HKEY_PERFORMANCE_NLSTEXT         :: cast,no_check(HKEY) 0x80000060;
+HKEY_CURRENT_CONFIG              :: cast,no_check(HKEY) 0x80000005;
+HKEY_DYN_DATA                    :: cast,no_check(HKEY) 0x80000006;
+HKEY_CURRENT_USER_LOCAL_SETTINGS :: cast,no_check(HKEY) 0x80000007;
+
+RRF_RT_REG_DWORD : u32 : 0x00000010;
+
+RegGetValueW :: (
+    hkey     : HKEY,
+    lpSubKey : LPCWSTR,
+    lpValue  : LPCWSTR,
+    dwFlags  : u32,
+    pdwType  : *u32,
+    pvData   : *void,
+    pcbData  : *u32
+) -> LSTATUS #foreign advapi32;
+
+SECURITY_ATTRIBUTES :: struct {
+    nLength              : u32;
+    lpSecurityDescriptor : *void;
+    bInheritHandle       : BOOL;
+}
+
+THREAD_START_ROUTINE :: #type (
+    lpParameter : *void
+) -> u32 #c_call;
+
+CREATE_SUSPENDED                  : u32 : 0x00000004;
+STACK_SIZE_PARAM_IS_A_RESERVATION : u32 : 0x00010000;
+
+CreateThread :: (
+    lpThreadAttributes : *SECURITY_ATTRIBUTES,
+    dwStackSize        : SIZE_T,
+    lpStartAddress     : THREAD_START_ROUTINE,
+    lpParameter        : *void,
+    dwCreationFlags    : u32,
+    lpThreadId         : *u32
+) -> HANDLE #foreign kernel32;
+
+SetThreadDescription :: (
+    hThread             : HANDLE,
+    lpThreadDescription : PCWSTR
+) -> HRESULT #foreign kernel32;
+
+ResumeThread :: (
+    hThread : HANDLE
+) -> u32 #foreign kernel32;
+
+SuspendThread :: (
+    hThread : HANDLE
+) -> u32 #foreign kernel32;
+
+TerminateThread :: (
+    hThread    : HANDLE,
+    dwExitCode : u32
+) -> BOOL #foreign kernel32;
+
+INFINITE : u32 : 0xFFFFFFFF;
+
+WAIT_OBJECT_0  : u32 : 0x00000000;
+WAIT_ABANDONED : u32 : 0x00000080;
+WAIT_TIMEOUT   : u32 : 0x00000102;
+WAIT_FAILED    : u32 : 0xFFFFFFFF;
+
+WaitForSingleObjectEx :: (
+    hHandle        : HANDLE,
+    dwMilliseconds : u32,
+    bAlertable     : BOOL
+) -> u32 #foreign kernel32;
+
+WaitForMultipleObjectsEx :: (
+    nCount         : u32,
+    lpHandles      : *HANDLE,
+    bWaitAll       : BOOL,
+    dwMilliseconds : u32,
+    bAlertable     : BOOL
+) -> u32 #foreign kernel32;
+
+CreateDirectoryW :: (
+    lpPathName           : LPCWSTR,
+    lpSecurityAttributes : *SECURITY_ATTRIBUTES
+) -> BOOL #foreign kernel32;
+
+GENERIC_ALL     : u32 : 0x10000000;
+GENERIC_EXECUTE : u32 : 0x20000000;
+GENERIC_WRITE   : u32 : 0x40000000;
+GENERIC_READ    : u32 : 0x80000000;
+
+FILE_SHARE_READ   : u32 : 0x00000001;
+FILE_SHARE_WRITE  : u32 : 0x00000002;
+FILE_SHARE_DELETE : u32 : 0x00000004;
+
+CREATE_NEW        : u32 : 1;
+CREATE_ALWAYS     : u32 : 2;
+OPEN_EXISTING     : u32 : 3;
+OPEN_ALWAYS       : u32 : 4;
+TRUNCATE_EXISTING : u32 : 5;
+
+FILE_ATTRIBUTE_READONLY              : u32 : 0x00000001;
+FILE_ATTRIBUTE_HIDDEN                : u32 : 0x00000002;
+FILE_ATTRIBUTE_SYSTEM                : u32 : 0x00000004;
+FILE_ATTRIBUTE_DIRECTORY             : u32 : 0x00000010;
+FILE_ATTRIBUTE_ARCHIVE               : u32 : 0x00000020;
+FILE_ATTRIBUTE_DEVICE                : u32 : 0x00000040;
+FILE_ATTRIBUTE_NORMAL                : u32 : 0x00000080;
+FILE_ATTRIBUTE_TEMPORARY             : u32 : 0x00000100;
+FILE_ATTRIBUTE_SPARSE_FILE           : u32 : 0x00000200;
+FILE_ATTRIBUTE_REPARSE_POINT         : u32 : 0x00000400;
+FILE_ATTRIBUTE_COMPRESSED            : u32 : 0x00000800;
+FILE_ATTRIBUTE_OFFLINE               : u32 : 0x00001000;
+FILE_ATTRIBUTE_NOT_CONTENT_INDEXED   : u32 : 0x00002000;
+FILE_ATTRIBUTE_ENCRYPTED             : u32 : 0x00004000;
+FILE_ATTRIBUTE_INTEGRITY_STREAM      : u32 : 0x00008000;
+FILE_ATTRIBUTE_VIRTUAL               : u32 : 0x00010000;
+FILE_ATTRIBUTE_NO_SCRUB_DATA         : u32 : 0x00020000;
+FILE_ATTRIBUTE_EA                    : u32 : 0x00040000;
+FILE_ATTRIBUTE_RECALL_ON_OPEN        : u32 : 0x00040000;
+FILE_ATTRIBUTE_PINNED                : u32 : 0x00080000;
+FILE_ATTRIBUTE_UNPINNED              : u32 : 0x00100000;
+FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS : u32 : 0x00400000;
+FILE_ATTRIBUTE_STRICTLY_SEQUENTIAL   : u32 : 0x20000000;
+
+FILE_FLAG_OPEN_REQUIRING_OPLOCK : u32 : 0x00040000;
+FILE_FLAG_FIRST_PIPE_INSTANCE   : u32 : 0x00080000;
+FILE_FLAG_OPEN_NO_RECALL        : u32 : 0x00100000;
+FILE_FLAG_OPEN_REPARSE_POINT    : u32 : 0x00200000;
+FILE_FLAG_SESSION_AWARE         : u32 : 0x00800000;
+FILE_FLAG_POSIX_SEMANTICS       : u32 : 0x01000000;
+FILE_FLAG_BACKUP_SEMANTICS      : u32 : 0x02000000;
+FILE_FLAG_DELETE_ON_CLOSE       : u32 : 0x04000000;
+FILE_FLAG_SEQUENTIAL_SCAN       : u32 : 0x08000000;
+FILE_FLAG_RANDOM_ACCESS         : u32 : 0x10000000;
+FILE_FLAG_NO_BUFFERING          : u32 : 0x20000000;
+FILE_FLAG_OVERLAPPED            : u32 : 0x40000000;
+FILE_FLAG_WRITE_THROUGH         : u32 : 0x80000000;
+
+CreateFileW :: (
+    lpFileName            : LPCWSTR,
+    dwDesiredAccess       : u32,
+    dwShareMode           : u32,
+    lpSecurityAttributes  : *SECURITY_ATTRIBUTES,
+    dwCreationDisposition : u32,
+    dwFlagsAndAttributes  : u32,
+    hTemplateFile         : HANDLE
+) -> HANDLE #foreign kernel32;
+
+ReadFile :: (
+    hFile                : HANDLE,
+    lpBuffer             : *void,
+    nNumberOfBytesToRead : u32,
+    lpNumberOfBytesRead  : *u32,
+    lpOverlapped         : *OVERLAPPED
+) -> BOOL #foreign kernel32;
+
+WriteFile :: (
+    hFile                  : HANDLE,
+    lpBuffer               : *void,
+    nNumberOfBytesToWrite  : u32,
+    lpNumberOfBytesWritten : *u32,
+    lpOverlapped           : *OVERLAPPED
+) -> BOOL #foreign kernel32;
+
+LARGE_INTEGER :: union {
+    struct {
+        LowPart  : u32;
+        HighPart : s32;
+    }
+    u : struct {
+        LowPart  : u32;
+        HighPart : s32;
+    };
+    QuadPart : s64;
+}
+
+GetFileSizeEx :: (
+    hFile      : HANDLE,
+    lpFileSize : *LARGE_INTEGER
+) -> BOOL #foreign kernel32;
+
+GetOverlappedResult :: (
+    hFile                      : HANDLE,
+    lpOverlapped               : *OVERLAPPED,
+    lpNumberOfBytesTransferred : *u32,
+    bWait                      : BOOL
+) -> BOOL #foreign kernel32;
+
+HasOverlappedIoCompleted :: inline (lpOverlapped : *OVERLAPPED) -> bool #no_context {
+    return cast(u32) lpOverlapped.Internal != STATUS_PENDING;
+}
+
+CancelIo :: (
+    hFile : HANDLE
+) -> BOOL #foreign kernel32;
+
+CancelIoEx :: (
+    hFile        : HANDLE,
+    lpOverlapped : *OVERLAPPED
+) -> BOOL #foreign kernel32;
+
+FILE_NOTIFY_CHANGE_FILE_NAME   : u32 : 0x00000001;
+FILE_NOTIFY_CHANGE_DIR_NAME    : u32 : 0x00000002;
+FILE_NOTIFY_CHANGE_ATTRIBUTES  : u32 : 0x00000004;
+FILE_NOTIFY_CHANGE_SIZE        : u32 : 0x00000008;
+FILE_NOTIFY_CHANGE_LAST_WRITE  : u32 : 0x00000010;
+FILE_NOTIFY_CHANGE_LAST_ACCESS : u32 : 0x00000020;
+FILE_NOTIFY_CHANGE_CREATION    : u32 : 0x00000040;
+FILE_NOTIFY_CHANGE_SECURITY    : u32 : 0x00000100;
+
+FindFirstChangeNotificationW :: (
+    lpPathName     : LPCWSTR,
+    bWatchSubtree  : BOOL,
+    dwNotifyFilter : u32
+) -> HANDLE #foreign kernel32;
+
+FindNextChangeNotification :: (
+    hChangeHandle : HANDLE
+) -> BOOL #foreign kernel32;
+
+FindCloseChangeNotification :: (
+    hChangeHandle : HANDLE
+) -> BOOL #foreign kernel32;
+
+FILE_ACTION_ADDED            : u32 : 0x00000001;
+FILE_ACTION_REMOVED          : u32 : 0x00000002;
+FILE_ACTION_MODIFIED         : u32 : 0x00000003;
+FILE_ACTION_RENAMED_OLD_NAME : u32 : 0x00000004;
+FILE_ACTION_RENAMED_NEW_NAME : u32 : 0x00000005;
+
+FILE_NOTIFY_INFORMATION :: struct {
+    NextEntryOffset : u32;
+    Action          : u32;
+    FileNameLength  : u32;
+    FileName        : [1] WCHAR;
+}
+
+OVERLAPPED_COMPLETION_ROUTINE :: #type (
+    dwErrorCode               : u32,
+    dwNumberOfBytesTransfered : u32,
+    lpOverlapped              : *OVERLAPPED
+) #c_call;
+
+ReadDirectoryChangesW :: (
+    hDirectory          : HANDLE,
+    lpBuffer            : *void,
+    nBufferLength       : u32,
+    bWatchSubtree       : BOOL,
+    dwNotifyFilter      : u32,
+    lpBytesReturned     : *u32,
+    lpOverlapped        : *OVERLAPPED,
+    lpCompletionRoutine : OVERLAPPED_COMPLETION_ROUTINE
+) -> BOOL #foreign kernel32;
+
+FINDEX_INFO_LEVELS :: enum s32 {
+    FindExInfoStandard;
+    FindExInfoBasic;
+    FindExInfoMaxInfoLevel;
+}
+
+FINDEX_SEARCH_OPS :: enum s32 {
+    FindExSearchNameMatch;
+    FindExSearchLimitToDirectories;
+    FindExSearchLimitToDevices;
+    FindExSearchMaxSearchOp;
+}
+
+FIND_FIRST_EX_CASE_SENSITIVE       : u32 : 1;
+FIND_FIRST_EX_LARGE_FETCH          : u32 : 2;
+FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY : u32 : 4;
+
+IO_REPARSE_TAG_SYMLINK :: 0xA000000C;
+
+FindFirstFileExW :: (
+    lpFileName        : LPCWSTR,
+    fInfoLevelId      : FINDEX_INFO_LEVELS,
+    lpFindFileData    : *void,
+    fSearchOp         : FINDEX_SEARCH_OPS,
+    lpSearchFilter    : *void,
+    dwAdditionalFlags : u32
+) -> HANDLE #foreign kernel32;
+
+MAX_PATH :: 260;
+
+FILETIME :: struct {
+    dwLowDateTime  : u32;
+    dwHighDateTime : u32;
+}
+
+WIN32_FIND_DATAW :: struct {
+    dwFileAttributes   : u32;
+    ftCreationTime     : FILETIME;
+    ftLastAccessTime   : FILETIME;
+    ftLastWriteTime    : FILETIME;
+    nFileSizeHigh      : u32;
+    nFileSizeLow       : u32;
+    dwReserved0        : u32;
+    dwReserved1        : u32;
+    cFileName          : [MAX_PATH] WCHAR;
+    cAlternateFileName : [14] WCHAR;
+    dwFileType         : u32; // Obsolete. Do not use.
+    dwCreatorType      : u32; // Obsolete. Do not use
+    wFinderFlags       : u16; // Obsolete. Do not use
+}
+
+FindNextFileW :: (
+    hFindFile      : HANDLE,
+    lpFindFileData : *WIN32_FIND_DATAW
+) -> BOOL #foreign kernel32;
+
+FindClose :: (
+    hFindFile : HANDLE
+) -> BOOL #foreign kernel32;
+
+GET_FILEEX_INFO_LEVELS :: enum s32 {
+    GetFileExInfoStandard;
+    GetFileExMaxInfoLevel;
+}
+
+WIN32_FILE_ATTRIBUTE_DATA :: struct {
+    dwFileAttributes : u32;
+    ftCreationTime   : FILETIME;
+    ftLastAccessTime : FILETIME;
+    ftLastWriteTime  : FILETIME;
+    nFileSizeHigh    : u32;
+    nFileSizeLow     : u32;
+}
+
+GetFileAttributesExW :: (
+    lpFileName        : LPCWSTR,
+    fInfoLevelId      : GET_FILEEX_INFO_LEVELS,
+    lpFileInformation : *void
+) -> BOOL #foreign kernel32;
+
+CREATE_EVENT_MANUAL_RESET : u32 : 0x00000001;
+CREATE_EVENT_INITIAL_SET  : u32 : 0x00000002;
+
+EVENT_MODIFY_STATE : u32 : 0x000002;
+EVENT_ALL_ACCESS   : u32 : 0x1F0003;
+
+CreateEventExW :: (
+    lpEventAttributes : *SECURITY_ATTRIBUTES,
+    lpName            : LPCWSTR,
+    dwFlags           : u32,
+    dwDesiredAccess   : u32
+) -> HANDLE #foreign kernel32;
+
+SetEvent :: (
+    hEvent : HANDLE
+) -> BOOL #foreign kernel32;
+
+SRWLOCK :: struct {
+    Ptr : *void;
+}
+
+ReleaseSRWLockExclusive :: (
+    SRWLock : *SRWLOCK
+) #foreign kernel32;
+
+ReleaseSRWLockShared :: (
+    SRWLock : *SRWLOCK
+) #foreign kernel32;
+
+AcquireSRWLockExclusive :: (
+    SRWLock : *SRWLOCK
+) #foreign kernel32;
+
+AcquireSRWLockShared :: (
+    SRWLock : *SRWLOCK
+) #foreign kernel32;
+
+TryAcquireSRWLockExclusive :: (
+    SRWLock : *SRWLOCK
+) -> BOOLEAN #foreign kernel32;
+
+TryAcquireSRWLockShared :: (
+    SRWLock : *SRWLOCK
+) -> BOOLEAN #foreign kernel32;
+
 #scope_file
 
 kernel32 :: #system_library "Kernel32";
 user32   :: #system_library "User32";
+dwmapi   :: #system_library "Dwmapi";
+advapi32 :: #system_library "Advapi32";

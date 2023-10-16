@@ -35,7 +35,6 @@ VulkanTextureManager :: struct {
 // @TODO: https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap11.html#_device_group_memory_allocations
 createVulkanTextureManager :: (device : *VulkanDevice) -> *VulkanTextureManager #must {
     manager := pushToArena(*context.pet.persistent_arena, VulkanTextureManager);
-
     manager.per_frame_memory.count = cast,no_check(s64) device.frame_buffering;
 
     createVulkanTextureMemory(device, manager, .PERSISTENT);
@@ -501,7 +500,7 @@ createVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
             Basic.print_to_builder(*builder, "% textures for frame #%", memory_kind, it_index);
 
             // @TODO: #Settings. Get the size of the arena from settings.
-            createArena(*it.arena, megaBytes(1), Basic.builder_to_string(*builder));
+            createArena(*it.arena, megaBytes(1), Basic.builder_to_string(*builder, builder.allocator));
 
             it.textures.data = it.arena.memory;
         }
@@ -511,7 +510,7 @@ createVulkanTextureMemory :: (device : *VulkanDevice, manager : *VulkanTextureMa
         Basic.print_to_builder(*builder, "% textures", memory_kind);
 
         // @TODO: #Settings. Get the size of the arena from settings.
-        createArena(*memory.arena, megaBytes(1), Basic.builder_to_string(*builder));
+        createArena(*memory.arena, megaBytes(1), Basic.builder_to_string(*builder, builder.allocator));
 
         memory.textures.data = memory.arena.memory;
     }

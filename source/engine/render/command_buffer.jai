@@ -1,13 +1,13 @@
-CommandBuffer :: struct (usage : QueueType) {
+CommandBuffer :: struct(usage : QueueType) {
     handles : StaticArray(*void, Device.MAX_FRAME_BUFFERING);
 
-    shader : *Shader;
+    shaders : [#run Basic.enum_highest_value(PipelineBindPoint) + 1] *Shader;
 
-#if usage == .GRAPHICS {
-    viewport         : Viewport;
-    scissor_rect     : ScissorRect;
-    inside_rendering : bool;
-}
+    #if usage == .GRAPHICS {
+        viewport         : Viewport;
+        scissor_rect     : ScissorRect;
+        inside_rendering : bool;
+    }
 }
 
 Viewport :: struct {
@@ -85,7 +85,9 @@ resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer) {
 
     command_buffer.handles.count = cast,no_check(s64) device.frame_buffering;
 
-    command_buffer.shader = null;
+    for * command_buffer.shaders {
+        it.* = null;
+    }
 
     #if command_buffer.usage == .GRAPHICS {
         command_buffer.viewport         = .{};
@@ -111,7 +113,8 @@ clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *T
     }
 }
 
-setViewport :: (device : *Device, command_buffer : *CommandBuffer, viewport : *Viewport, render_target_height : u16) {
+// @TOOD: #Viewport. If shaderc_compile_options_set_invert_y will work out, remove flipped viewport for Vulkan
+setViewport :: (device : *Device, command_buffer : *CommandBuffer, viewport : *Viewport, render_target_height : u16) #no_context {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can set viewport";
 
     if !memcmp(*command_buffer.viewport, viewport, size_of(Viewport)) {
@@ -145,7 +148,22 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader : *Shade
     #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
             "Only graphics and compute command buffers can set shaders";
 
-    if command_buffer.shader == shader {
+    pipeline_bind_point : PipelineBindPoint;
+
+    if #complete shader.kind == {
+        case .UNKNOWN;
+            // @TODO: Print some meaningful message why it's illegal
+
+        case .GRAPHICS; #through;
+        case .MESH;
+            pipeline_bind_point = .GRAPHICS_OR_MESH;
+        case .COMPUTE;
+            pipeline_bind_point = .COMPUTE;
+        case .RAY_TRACING;
+            pipeline_bind_point = .RAY_TRACING;
+    }
+
+    if command_buffer.shaders[pipeline_bind_point] == shader {
         return;
     }
 
@@ -154,7 +172,7 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader : *Shade
             setVulkanShader(command_buffer.handles[device.frame_index], cast(*VulkanShader) shader);
     }
 
-    command_buffer.shader = shader;
+    command_buffer.shaders[pipeline_bind_point] = shader;
 }
 
 beginRendering :: (
@@ -234,9 +252,13 @@ drawPrimitives :: (
 
     assert(command_buffer.inside_rendering);
 
+    shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
+    assert(shader, "You should set graphics or mesh shader before calling %", #procedure_name());
+
     if #complete device.graphics_api == {
         case .VULKAN;
             drawVulkanPrimitives(command_buffer.handles[device.frame_index],
+                                 cast(*VulkanShader) shader,
                                  ifx vertex_count   then vertex_count   else 1,
                                  ifx instance_count then instance_count else 1,
                                  first_vertex,
@@ -244,6 +266,28 @@ drawPrimitives :: (
     }
 }
 
+// @TODO: Other shaders
+setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, stage : ShaderStage, data : *$T) {
+    #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can draw";
+
+    shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
+    assert(shader, "You should set shader before setting its push constants");
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            setVulkanPushConstants(command_buffer.handles[device.frame_index],
+                                   cast(*VulkanShader) shader,
+                                   stage,
+                                   data);
+    }
+}
+
 #scope_file
+
+PipelineBindPoint :: enum u8 {
+    GRAPHICS_OR_MESH;
+    COMPUTE;
+    RAY_TRACING;
+}
 
 #load "../platform/vulkan/command_buffer.jai";

@@ -271,3 +271,13 @@ vkCmdDraw :: (
     firstVertex   : u32,
     firstInstance : u32
 ) #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkCmdPushConstants :: (
+    commandBuffer : VkCommandBuffer,
+    layout        : VkPipelineLayout,
+    stageFlags    : VkShaderStageFlags,
+    offset        : u32,
+    size          : u32,
+    pValues       : *void
+) #foreign vulkan;

@@ -108,9 +108,20 @@ setVulkanScissorRect :: inline (command_buffer : VkCommandBuffer, scissor_rect :
     vkCmdSetScissor(command_buffer, 0, 1, *vk_scissor_rect);
 }
 
-// TODO: Compute shaders
 setVulkanShader :: inline (command_buffer : VkCommandBuffer, shader : *VulkanShader) #no_context {
-    vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
+    if !shader.pipeline return;
+
+    if #complete shader.kind == {
+        case .UNKNOWN;
+            // @TODO: Print some meaningful message why it's illegal
+        case .GRAPHICS; #through;
+        case .MESH;
+            vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
+        case .COMPUTE;
+            vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline);
+        case .RAY_TRACING;
+            vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, shader.pipeline);
+    }
 }
 
 // @Speed: Load/store actions
@@ -197,40 +208,6 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
 
         format_flags := textureFormatFlags(texture.format);
 
-        if format_flags & .DEPTH {
-            depth_attachment.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-            depth_attachment.pNext              = null;
-            depth_attachment.imageView          = texture.view;
-            depth_attachment.imageLayout        = texture.current_layout;
-            depth_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
-            depth_attachment.resolveImageView   = VK_NULL_HANDLE;
-            depth_attachment.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-            depth_attachment.loadOp             = loadActionToVulkanLoadOp(depth_target.depth_load_action);
-            depth_attachment.storeOp            = storeActionToVulkanStoreOp(depth_target.depth_store_action);
-            depth_attachment.clearValue         = .{
-                depthStencil = .{ depth = depth_target.depth_clear_value }
-            };
-
-            rendering_info.pDepthAttachment = *depth_attachment;
-        }
-
-        if format_flags & .STENCIL {
-            stencil_attachment.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-            stencil_attachment.pNext              = null;
-            stencil_attachment.imageView          = texture.view;
-            stencil_attachment.imageLayout        = texture.current_layout;
-            stencil_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
-            stencil_attachment.resolveImageView   = VK_NULL_HANDLE;
-            stencil_attachment.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-            stencil_attachment.loadOp             = loadActionToVulkanLoadOp(depth_target.stencil_load_action);
-            stencil_attachment.storeOp            = storeActionToVulkanStoreOp(depth_target.stencil_store_action);
-            stencil_attachment.clearValue         = .{
-                depthStencil = .{ stencil = depth_target.stencil_clear_value }
-            };
-
-            rendering_info.pStencilAttachment = *stencil_attachment;
-        }
-
         new_layout : VkImageLayout      = ---;
         aspectMask : VkImageAspectFlags = ---;
 
@@ -276,6 +253,40 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
 
             barriers_it += 1;
         }
+
+        if format_flags & .DEPTH {
+            depth_attachment.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+            depth_attachment.pNext              = null;
+            depth_attachment.imageView          = texture.view;
+            depth_attachment.imageLayout        = texture.current_layout;
+            depth_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
+            depth_attachment.resolveImageView   = VK_NULL_HANDLE;
+            depth_attachment.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
+            depth_attachment.loadOp             = loadActionToVulkanLoadOp(depth_target.depth_load_action);
+            depth_attachment.storeOp            = storeActionToVulkanStoreOp(depth_target.depth_store_action);
+            depth_attachment.clearValue         = .{
+                depthStencil = .{ depth = depth_target.depth_clear_value }
+            };
+
+            rendering_info.pDepthAttachment = *depth_attachment;
+        }
+
+        if format_flags & .STENCIL {
+            stencil_attachment.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+            stencil_attachment.pNext              = null;
+            stencil_attachment.imageView          = texture.view;
+            stencil_attachment.imageLayout        = texture.current_layout;
+            stencil_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
+            stencil_attachment.resolveImageView   = VK_NULL_HANDLE;
+            stencil_attachment.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
+            stencil_attachment.loadOp             = loadActionToVulkanLoadOp(depth_target.stencil_load_action);
+            stencil_attachment.storeOp            = storeActionToVulkanStoreOp(depth_target.stencil_store_action);
+            stencil_attachment.clearValue         = .{
+                depthStencil = .{ stencil = depth_target.stencil_clear_value }
+            };
+
+            rendering_info.pStencilAttachment = *stencil_attachment;
+        }
     }
 
     barriers_count := cast(u32) (barriers_it - barriers);
@@ -292,18 +303,40 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
     vkCmdBeginRendering(command_buffer, *rendering_info);
 }
 
-endVulkanRendering :: (command_buffer : VkCommandBuffer) #no_context {
+endVulkanRendering :: inline (command_buffer : VkCommandBuffer) #no_context {
     vkCmdEndRendering(command_buffer);
 }
 
 drawVulkanPrimitives :: inline (
     command_buffer : VkCommandBuffer,
+    shader         : *VulkanShader,
     vertex_count   : u32,
     instance_count : u32,
     first_vertex   : u32,
     first_instance : u32
 ) #no_context {
-    vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
+    if shader.pipeline {
+        vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
+    }
+}
+
+setVulkanPushConstants :: inline (command_buffer : VkCommandBuffer, shader : *VulkanShader, stage : ShaderStage, data : *$T) {
+    if !shader.pipeline return;
+
+    stage_bindings := *shader.binding_table.stage_bindings[stage];
+
+    assert(size_of(T) == stage_bindings.push_constants.bytes,
+           "The size of push constants data (%) should be equal to the size of push constants block in \"%\" shader (%).",
+           size_of(T),
+           shader.name,
+           stage_bindings.push_constants.bytes);
+
+    vkCmdPushConstants(command_buffer,
+                       shader.pipeline_layout,
+                       shaderStageToVulkanStage(stage),
+                       stage_bindings.push_constants.offset,
+                       stage_bindings.push_constants.bytes,
+                       data);
 }
 
 #scope_file

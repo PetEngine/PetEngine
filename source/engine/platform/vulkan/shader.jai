@@ -3,12 +3,25 @@
 VulkanShaderManager :: struct {
     #as using public_data : ShaderManager;
 
+    ResetData :: struct {
+        pipeline        : VkPipeline;
+        pipeline_layout : VkPipelineLayout;
+    }
+
+    PerFrameResetData :: struct {
+        data  : StaticArray(ResetData, MAX_SHADERS);
+        mutex : Mutex;
+    };
+
+    per_frame_reset_data : StaticArray(PerFrameResetData, Device.MAX_FRAME_BUFFERING);
+
     pipeline_cache  : VkPipelineCache;
     shaders_storage : [MAX_SHADERS] VulkanShader;
 }
 
 createVulkanShaderManager :: (device : *VulkanDevice) -> *VulkanShaderManager #must {
     manager := pushToArena(*context.pet.persistent_arena, VulkanShaderManager);
+    manager.per_frame_reset_data.count = cast,no_check(s64) device.frame_buffering;
 
     // @TODO: #PipelineCache. Initial data.
     create_info := VkPipelineCacheCreateInfo.{
@@ -42,6 +55,42 @@ destroyVulkanShaderManager :: (device : *VulkanDevice, manager : *VulkanShaderMa
     }
 }
 
+resetVulkanShaderManager :: (device : *VulkanDevice, manager : *VulkanShaderManager) {
+    assertThreadKind(.MAIN);
+
+    reset_data := *manager.per_frame_reset_data[device.frame_index];
+    scopedLock(*reset_data.mutex);
+
+    if reset_data.data.count > 0 {
+        waitVulkanDeviceIdle(device);
+
+        for reset_data.data {
+            if it.pipeline {
+                // @TODO: #VkAllocationCallbacks
+                vkDestroyPipeline(device.device, it.pipeline, null);
+            }
+
+            if it.pipeline_layout {
+                // @TODO: #VkAllocationCallbacks
+                vkDestroyPipelineLayout(device.device, it.pipeline_layout, null);
+            }
+        }
+
+        reset_data.data.count = 0;
+    }
+}
+
+findVulkanShader :: (manager : *VulkanShaderManager, name : string) -> *VulkanShader #no_context {
+    shaders_it := manager.shaders_storage.data;
+    for 0 .. manager.shaders_count {
+        if shaders_it.name == name {
+            return shaders_it;
+        }
+        shaders_it += 1;
+    }
+    return null;
+}
+
 VulkanShader :: struct {
     #as using public_data : Shader;
 
@@ -49,20 +98,56 @@ VulkanShader :: struct {
     pipeline        : VkPipeline;
 }
 
-createVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, name : string) -> *VulkanShader #must {
-    shader := pushShader(manager);
-    shader.name = name;
+pushVulkanShader :: (manager : *VulkanShaderManager) -> *VulkanShader #must {
+    assert(manager.shaders_count < manager.shaders_storage.count,
+           "Too many shaders were created. Consider increasing ShaderManager.MAX_SHADERS");
 
-    shader_stages : [#run Basic.enum_highest_value(ShaderStage) + 1] VkShaderModule = ---;
+    shader := *manager.shaders_storage[manager.shaders_count];
+    manager.shaders_count += 1;
+
+    return shader;
+}
+
+createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, shader : *VulkanShader, shader_file_data : string) {
+    shader_file_header := ShaderCompiler.getHeader(shader_file_data);
+
+    shader_stages : [ShaderCompiler.MAX_STAGES] VkShaderModule = ---;
     for * shader_stages {
-        it.* = createShaderStage(device, name, cast(ShaderStage) it_index);
+        this_stage_offset := shader_file_header.stage_offsets[it_index];
+
+        if this_stage_offset == ShaderCompiler.INVALID_OFFSET {
+            continue;
+        }
+
+        next_stage_offset := ShaderCompiler.INVALID_OFFSET;
+        {
+            for next_stage_index : it_index + 1 .. shader_stages.count - 1 {
+                next_stage_offset = shader_file_header.stage_offsets[next_stage_index];
+                if next_stage_offset != ShaderCompiler.INVALID_OFFSET {
+                    break;
+                }
+            }
+
+            if next_stage_offset == ShaderCompiler.INVALID_OFFSET {
+                next_stage_offset = shader_file_data.count;
+            }
+        }
+
+        spirv : string = ---;
+        spirv.count = next_stage_offset - this_stage_offset;
+        spirv.data  = *shader_file_data[this_stage_offset];
+
+        it.* = createShaderStage(device, spirv, cast(ShaderStage) it_index, shader.name);
     }
     defer for shader_stages {
         // @TODO: #VkAllocationCallbacks
         vkDestroyShaderModule(device.device, it, null);
     }
 
+    // @TODO: #ShaderCompiler. VkDescriptorSetLayout
     {
+        ranges : [ShaderCompiler.MAX_STAGES] VkPushConstantRange;
+
         create_info := VkPipelineLayoutCreateInfo.{
             sType                  = .VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             pNext                  = null,
@@ -70,8 +155,10 @@ createVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, n
             setLayoutCount         = 0,
             pSetLayouts            = null,
             pushConstantRangeCount = 0,
-            pPushConstantRanges    = null,
+            pPushConstantRanges    = ranges.data,
         };
+
+        initPushConstantRanges(*create_info, *shader.binding_table);
 
         // @TODO: #VkAllocationCallbacks
         debugCheckVK(vkCreatePipelineLayout(device.device, *create_info, null, *shader.pipeline_layout));
@@ -92,39 +179,43 @@ createVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, n
         it.flags               = 0;
         it.stage               = shaderStageToVulkanStage(cast(ShaderStage) it_index);
         it.module              = shader_stages[it_index];
-        it.pName               = "main"; // @TODO: #ShaderCompiler. Stage entry point name.
+        it.pName               = "main";
         it.pSpecializationInfo = null;
     }
+
+    pipeline_state          := ShaderCompiler.getPipelineState(shader_file_data);
+    graphics_pipeline_state := *pipeline_state.graphics;
 
     vertex_input_state : VkPipelineVertexInputStateCreateInfo = ---;
     initVertexInputState(*vertex_input_state);
 
     input_assembly_state : VkPipelineInputAssemblyStateCreateInfo = ---;
-    initInputAssemblyState(*input_assembly_state);
+    initInputAssemblyState(*input_assembly_state, graphics_pipeline_state);
 
     viewport_state : VkPipelineViewportStateCreateInfo = ---;
     initViewportState(*viewport_state);
 
     rasterization_state : VkPipelineRasterizationStateCreateInfo = ---;
-    initRasterizationState(*rasterization_state);
+    initRasterizationState(*rasterization_state, graphics_pipeline_state);
 
     multisample_state : VkPipelineMultisampleStateCreateInfo = ---;
     initMultisampleState(*multisample_state);
 
     depth_stencil_state : VkPipelineDepthStencilStateCreateInfo = ---;
-    initDepthStencilState(*depth_stencil_state);
+    initDepthStencilState(*depth_stencil_state, graphics_pipeline_state);
 
     color_blend_state : VkPipelineColorBlendStateCreateInfo = ---;
-    initColorBlendState(*color_blend_state);
+    initColorBlendState(*color_blend_state, graphics_pipeline_state);
 
     dynamic_state : VkPipelineDynamicStateCreateInfo = ---;
     initDynamicStates(*dynamic_state);
 
+    // #Hardcoded
     pipeline_rendering_create_info := VkPipelineRenderingCreateInfo.{
         sType                   = .VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
         pNext                   = null,
         viewMask                = 0,
-        colorAttachmentCount    = 1,
+        colorAttachmentCount    = color_blend_state.attachmentCount,
         pColorAttachmentFormats = VkFormat.[ .VK_FORMAT_B8G8R8A8_UNORM ].data,
         depthAttachmentFormat   = .VK_FORMAT_UNDEFINED,
         stencilAttachmentFormat = .VK_FORMAT_UNDEFINED,
@@ -156,46 +247,35 @@ createVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, n
     debugCheckVK(vkCreateGraphicsPipelines(device.device, manager.pipeline_cache, 1, *create_info, null, *shader.pipeline));
 
     setVulkanObjectName(device, shader.pipeline, "% graphics pipeline", shader.name);
+}
 
-    return shader;
+reloadGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, shader : *VulkanShader, shader_file_data : string) {
+    reset_data := VulkanShaderManager.ResetData.{
+        pipeline        = shader.pipeline,
+        pipeline_layout = shader.pipeline_layout,
+    };
+
+    createGraphicsVulkanShader(device, manager, shader, shader_file_data);
+
+    if shader.pipeline != reset_data.pipeline || shader.pipeline_layout != reset_data.pipeline_layout {
+        per_frame_reset_data := *manager.per_frame_reset_data[device.frame_index];
+        scopedLock(*per_frame_reset_data.mutex);
+
+        pushBack(*per_frame_reset_data.data).* = reset_data;
+    }
+}
+
+shaderStageToVulkanStage :: inline (stage : ShaderStage) -> VkShaderStageFlags #no_context {
+    if #complete stage == {
+        case .VERTEX;   return .VK_SHADER_STAGE_VERTEX_BIT;
+        case .FRAGMENT; return .VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+    return 0;
 }
 
 #scope_file
 
-// @TODO: #ShaderCompiler. Move to shader compiler.
-ShaderStage :: enum u8 {
-    VERTEX;
-    FRAGMENT;
-}
-
-pushShader :: (manager : *VulkanShaderManager) -> *VulkanShader #must {
-    assert(manager.shaders_count < manager.shaders_storage.count,
-           "Too many shaders were created. Consider increasing ShaderManager.MAX_SHADERS");
-
-    shader := *manager.shaders_storage[manager.shaders_count];
-    manager.shaders_count += 1;
-
-    return shader;
-}
-
-// @TODO: #ShaderCompiler. Single file shader.
-createShaderStage :: (device : *VulkanDevice, name : string, stage : ShaderStage) -> VkShaderModule #must {
-    SHADERS_FOLDER :: "shaders"; // @TODO: #FileSystem.
-
-    file_extension : string = ---;
-    if #complete stage == {
-        case .VERTEX;
-            file_extension = ".vert.spv";
-        case .FRAGMENT;
-            file_extension = ".frag.spv";
-    }
-
-    filename := String.join(SHADERS_FOLDER, "/", name, file_extension, allocator = Basic.temporary_allocator);
-
-    spirv, success := File.read_entire_file(filename);
-    assert(success);
-    defer Basic.free(spirv);
-
+createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStage, shader_name : string) -> VkShaderModule #must {
     create_info := VkShaderModuleCreateInfo.{
         sType    = .VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         pNext    = null,
@@ -207,136 +287,286 @@ createShaderStage :: (device : *VulkanDevice, name : string, stage : ShaderStage
     module : VkShaderModule;
     debugCheckVK(vkCreateShaderModule(device.device, *create_info, null, *module)); // @TODO: VkAllocationCallbacks
 
-    setVulkanObjectName(device, module, "% % shader module", stage, name);
+    setVulkanObjectName(device, module, "% stage % shader module", stage, shader_name);
 
     return module;
 }
 
-shaderStageToVulkanStage :: inline (stage : ShaderStage) -> VkShaderStageFlags #no_context {
-    if #complete stage == {
-        case .VERTEX;   return .VK_SHADER_STAGE_VERTEX_BIT;
-        case .FRAGMENT; return .VK_SHADER_STAGE_FRAGMENT_BIT;
+initPushConstantRanges :: inline (create_info : *VkPipelineLayoutCreateInfo, binding_table : *ShaderCompiler.BindingTable) {
+    for binding_table.stage_bindings {
+        if it.push_constants.bytes {
+            range := *create_info.pPushConstantRanges[create_info.pushConstantRangeCount];
+
+            range.stageFlags = shaderStageToVulkanStage(cast(ShaderStage) it_index);
+            range.offset     = it.push_constants.offset;
+            range.size       = it.push_constants.bytes;
+
+            create_info.pushConstantRangeCount += 1;
+        }
     }
-    return 0;
 }
 
 // @TODO: #ShaderCompiler. Get vertex shader input from shader.
-initVertexInputState :: inline (state : *VkPipelineVertexInputStateCreateInfo) #no_context {
-    state.sType                           = .VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    state.pNext                           = null;
-    state.flags                           = 0;
-    state.vertexBindingDescriptionCount   = 0;
-    state.pVertexBindingDescriptions      = null;
-    state.vertexAttributeDescriptionCount = 0;
-    state.pVertexAttributeDescriptions    = null;
+initVertexInputState :: inline (this : *VkPipelineVertexInputStateCreateInfo) #no_context {
+    this.sType                           = .VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    this.pNext                           = null;
+    this.flags                           = 0;
+    this.vertexBindingDescriptionCount   = 0;
+    this.pVertexBindingDescriptions      = null;
+    this.vertexAttributeDescriptionCount = 0;
+    this.pVertexAttributeDescriptions    = null;
 }
 
-// @TODO: #ShaderCompiler. Get primitive topology from shader.
-initInputAssemblyState :: inline (state : *VkPipelineInputAssemblyStateCreateInfo) #no_context {
-    state.sType                   = .VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    state.pNext                   = null;
-    state.flags                   = 0;
-    state.topology                = .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    state.primitiveRestartEnable  = cast,no_check(u32) (   state.topology == .VK_PRIMITIVE_TOPOLOGY_LINE_STRIP
-                                                        || state.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
-                                                        || state.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN
-                                                        || state.topology == .VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY
-                                                        || state.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY);
+initInputAssemblyState :: inline (this : *VkPipelineInputAssemblyStateCreateInfo, state : *ShaderCompiler.GraphicsPipelineState) {
+    this.sType = .VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    this.pNext = null;
+    this.flags = 0;
+
+    if #complete state.primitive_topology == {
+        case .POINT_LIST;     this.topology = .VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+        case .LINE_LIST;      this.topology = .VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        case .LINE_STRIP;     this.topology = .VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+        case .TRIANGLE_LIST;  this.topology = .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        case .TRIANGLE_STRIP; this.topology = .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+        case;                 assertMessage("Unknown topology: %", state.primitive_topology);
+    }
+
+    this.primitiveRestartEnable = cast,no_check(u32) (   this.topology == .VK_PRIMITIVE_TOPOLOGY_LINE_STRIP
+                                                      || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
+                                                      || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN
+                                                      || this.topology == .VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY
+                                                      || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY);
 }
 
-initViewportState :: inline (state : *VkPipelineViewportStateCreateInfo) #no_context {
-    state.sType         = .VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    state.pNext         = null;
-    state.flags         = 0;
-    state.viewportCount = 1;
-    state.pViewports    = null;
-    state.scissorCount  = 1;
-    state.pScissors     = null;
+initViewportState :: inline (this : *VkPipelineViewportStateCreateInfo) #no_context {
+    this.sType         = .VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    this.pNext         = null;
+    this.flags         = 0;
+    this.viewportCount = 1;
+    this.pViewports    = null;
+    this.scissorCount  = 1;
+    this.pScissors     = null;
+}
+
+initRasterizationState :: inline (this : *VkPipelineRasterizationStateCreateInfo, state : *ShaderCompiler.GraphicsPipelineState) {
+    this.sType                   = .VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    this.pNext                   = null;
+    this.flags                   = 0;
+    this.depthClampEnable        = VK_FALSE;
+    this.rasterizerDiscardEnable = VK_FALSE;
+
+    if #complete state.fill_mode == {
+        case .FILL; this.polygonMode = .VK_POLYGON_MODE_FILL;
+        case .LINE; this.polygonMode = .VK_POLYGON_MODE_LINE;
+        case;       assertMessage("Unknown fill mode: %", state.fill_mode);
+    }
+
+    if #complete state.cull_mode == {
+        case .NONE;       this.cullMode = .VK_CULL_MODE_NONE;
+        case .FRONT_FACE; this.cullMode = .VK_CULL_MODE_FRONT_BIT;
+        case .BACK_FACE;  this.cullMode = .VK_CULL_MODE_BACK_BIT;
+        case;             assertMessage("Unknown cull mode: %", state.cull_mode);
+    }
+
+    if #complete state.front_face == {
+        case .CLOCKWISE;         this.frontFace = .VK_FRONT_FACE_CLOCKWISE;
+        case .COUNTER_CLOCKWISE; this.frontFace = .VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        case;       assertMessage("Unknown front face: %", state.front_face);
+    }
+
+    this.depthBiasEnable         = cast,no_check(VkBool32) state.depth_bias_enable;
+    this.depthBiasConstantFactor = state.depth_bias_constant_factor;
+    this.depthBiasClamp          = state.depth_bias_clamp;
+    this.depthBiasSlopeFactor    = state.depth_bias_slope_factor;
+    this.lineWidth               = 1.0;
 }
 
 // @TODO: #ShaderCompiler. Get from shader:
-//          1. Polygon mode
-//          2. Cull mode
-//          3. Front face
-//          4. Depth bias stuff (I'm not sure we really need it)
-initRasterizationState :: inline (state : *VkPipelineRasterizationStateCreateInfo) #no_context {
-    state.sType                   = .VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    state.pNext                   = null;
-    state.flags                   = 0;
-    state.depthClampEnable        = VK_FALSE;
-    state.rasterizerDiscardEnable = VK_FALSE;
-    state.polygonMode             = .VK_POLYGON_MODE_FILL;
-    state.cullMode                = .VK_CULL_MODE_BACK_BIT;
-    state.frontFace               = .VK_FRONT_FACE_CLOCKWISE;
-    state.depthBiasEnable         = VK_FALSE;
-    state.depthBiasConstantFactor = 0.0;
-    state.depthBiasClamp          = 0.0;
-    state.depthBiasSlopeFactor    = 0.0;
-    state.lineWidth               = 1.0;
+//          1. Should we execute shader per sample or per pixel
+initMultisampleState :: inline (this : *VkPipelineMultisampleStateCreateInfo) #no_context {
+    this.sType                 = .VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    this.pNext                 = null;
+    this.flags                 = 0;
+    this.rasterizationSamples  = .VK_SAMPLE_COUNT_1_BIT; // @TODO: Get from createVulkanShader
+    this.sampleShadingEnable   = VK_FALSE;
+    this.minSampleShading      = 0.0;
+    this.pSampleMask           = null; // If pSampleMask is NULL, it is treated as if the mask has all bits set to 1.
+    this.alphaToCoverageEnable = VK_FALSE; // @TODO: AlphaToCoverage
+    this.alphaToOneEnable      = VK_FALSE; // @TODO: AlphaToOne
 }
 
 // @TODO: #ShaderCompiler. Get from shader:
-//          1. Sample count
-//          2. Should we execute shader per sample or per pixel
-initMultisampleState :: inline (state : *VkPipelineMultisampleStateCreateInfo) #no_context {
-    state.sType                 = .VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    state.pNext                 = null;
-    state.flags                 = 0;
-    state.rasterizationSamples  = .VK_SAMPLE_COUNT_1_BIT;
-    state.sampleShadingEnable   = VK_FALSE;
-    state.minSampleShading      = 0.0;
-    state.pSampleMask           = null; // If pSampleMask is NULL, it is treated as if the mask has all bits set to 1.
-    state.alphaToCoverageEnable = VK_FALSE; // @TODO: AlphaToCoverage
-    state.alphaToOneEnable      = VK_FALSE; // @TODO: AlphaToOne
+//          1. stencilTestEnable
+initDepthStencilState :: inline (this : *VkPipelineDepthStencilStateCreateInfo, state : *ShaderCompiler.GraphicsPipelineState) {
+    this.sType            = .VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    this.pNext            = null;
+    this.flags            = 0;
+    this.depthTestEnable  = cast,no_check(VkBool32) state.depth_test_enable;
+    this.depthWriteEnable = cast,no_check(VkBool32) state.depth_write_enable;
+
+    if #complete state.depth_compare_op == {
+        case .NEVER;            this.depthCompareOp = .VK_COMPARE_OP_NEVER;
+        case .ALWAYS;           this.depthCompareOp = .VK_COMPARE_OP_ALWAYS;
+        case .NOT_EQUAL;        this.depthCompareOp = .VK_COMPARE_OP_NOT_EQUAL;
+        case .EQUAL;            this.depthCompareOp = .VK_COMPARE_OP_EQUAL;
+        case .LESS;             this.depthCompareOp = .VK_COMPARE_OP_LESS;
+        case .LESS_OR_EQUAL;    this.depthCompareOp = .VK_COMPARE_OP_LESS_OR_EQUAL;
+        case .GREATER;          this.depthCompareOp = .VK_COMPARE_OP_GREATER;
+        case .GREATER_OR_EQUAL; this.depthCompareOp = .VK_COMPARE_OP_GREATER_OR_EQUAL;
+        case;                   assertMessage("Unknown depth compare op: %", state.depth_compare_op);
+    }
+
+    this.depthBoundsTestEnable = VK_FALSE;
+    this.stencilTestEnable     = VK_FALSE;
+    this.front                 = .{};
+    this.back                  = .{};
+    this.minDepthBounds        = 0.0;
+    this.maxDepthBounds        = 0.0;
 }
 
-// @TODO: #ShaderCompiler. Get from shader:
-//          1. depthTestEnable
-//          2. depthWriteEnable
-//          3. depthCompareOp
-//          4. stencilTestEnable
-initDepthStencilState :: inline (state : *VkPipelineDepthStencilStateCreateInfo) #no_context {
-    state.sType                 = .VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    state.pNext                 = null;
-    state.flags                 = 0;
-    state.depthTestEnable       = VK_FALSE;
-    state.depthWriteEnable      = VK_FALSE;
-    state.depthCompareOp        = .VK_COMPARE_OP_ALWAYS;
-    state.depthBoundsTestEnable = VK_FALSE;
-    state.stencilTestEnable     = VK_FALSE;
-    state.front                 = .{};
-    state.back                  = .{};
-    state.minDepthBounds        = 0.0;
-    state.maxDepthBounds        = 0.0;
-}
+initColorBlendState :: inline (this : *VkPipelineColorBlendStateCreateInfo, state : *ShaderCompiler.GraphicsPipelineState) {
+    this.sType           = .VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    this.pNext           = null;
+    this.flags           = 0;
+    this.logicOpEnable   = cast,no_check(VkBool32) state.blend_logic_op_enable;
 
-// @Cleanup. #Hardcoded
-COLOR_BLEND_ATTACHMENT :: VkPipelineColorBlendAttachmentState.{
-    blendEnable         = VK_FALSE,
-    srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR,
-    dstColorBlendFactor = .VK_BLEND_FACTOR_ZERO,
-    colorBlendOp        = .VK_BLEND_OP_ADD,
-    srcAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA,
-    dstAlphaBlendFactor = .VK_BLEND_FACTOR_ZERO,
-    alphaBlendOp        = .VK_BLEND_OP_ADD,
-    colorWriteMask      = .VK_COLOR_COMPONENT_R_BIT
-                        | .VK_COLOR_COMPONENT_G_BIT
-                        | .VK_COLOR_COMPONENT_B_BIT
-                        | .VK_COLOR_COMPONENT_A_BIT,
-};
+    if state.blend_logic_op == {
+        case .ZERO;          this.logicOp = .VK_LOGIC_OP_CLEAR;
+        case .ONE;           this.logicOp = .VK_LOGIC_OP_SET;
+        case .COPY;          this.logicOp = .VK_LOGIC_OP_COPY;
+        case .COPY_INVERTED; this.logicOp = .VK_LOGIC_OP_COPY_INVERTED;
+        case .NO_OP;         this.logicOp = .VK_LOGIC_OP_NO_OP;
+        case .INVERT;        this.logicOp = .VK_LOGIC_OP_INVERT;
+        case .AND;           this.logicOp = .VK_LOGIC_OP_AND;
+        case .AND_REVERSE;   this.logicOp = .VK_LOGIC_OP_AND_REVERSE;
+        case .AND_INVERTED;  this.logicOp = .VK_LOGIC_OP_AND_INVERTED;
+        case .NAND;          this.logicOp = .VK_LOGIC_OP_NAND;
+        case .OR;            this.logicOp = .VK_LOGIC_OP_OR;
+        case .OR_REVERSE;    this.logicOp = .VK_LOGIC_OP_OR_REVERSE;
+        case .OR_INVERTED;   this.logicOp = .VK_LOGIC_OP_OR_INVERTED;
+        case .NOR;           this.logicOp = .VK_LOGIC_OP_NOR;
+        case .XOR;           this.logicOp = .VK_LOGIC_OP_XOR;
+        case .EQUIVALENT;    this.logicOp = .VK_LOGIC_OP_EQUIVALENT;
+        case;                assertMessage("Unknown blend logic op op: %", state.blend_logic_op);
+    }
 
-// @TODO: #ShaderCompiler. Get from shader:
-//          1. logicOp
-//          2. attachments (fragment shader output)
-initColorBlendState :: inline (state : *VkPipelineColorBlendStateCreateInfo) #no_context {
-    state.sType           = .VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    state.pNext           = null;
-    state.flags           = 0;
-    state.logicOpEnable   = VK_FALSE;
-    state.logicOp         = .VK_LOGIC_OP_COPY;
-    state.attachmentCount = 1;
-    state.pAttachments    = *COLOR_BLEND_ATTACHMENT;
-    state.blendConstants  = .[ 0.0, 0.0, 0.0, 0.0 ];
+    this.blendConstants  = .[ 0.0, 0.0, 0.0, 0.0 ];
+    this.attachmentCount = state.color_targets_count;
+    if state.color_targets_count {
+        this.pAttachments = pushToArena(*context.pet.per_frame_arena, VkPipelineColorBlendAttachmentState, this.attachmentCount);
+
+        attachment_states : [] VkPipelineColorBlendAttachmentState;
+        attachment_states.count = this.attachmentCount;
+        attachment_states.data  = this.pAttachments;
+
+        for * attachment_states {
+            color_target := *state.color_targets[it_index];
+
+            it.blendEnable = cast,no_check(VkBool32) color_target.blend_enable;
+
+            if #complete color_target.src_color_blend_factor == {
+                case .ZERO;                     it.srcColorBlendFactor = .VK_BLEND_FACTOR_ZERO;
+                case .ONE;                      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE;
+                case .SRC_COLOR;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
+                case .ONE_MINUS_SRC_COLOR;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+                case .DST_COLOR;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
+                case .ONE_MINUS_DST_COLOR;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                case .SRC_ALPHA;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
+                case .ONE_MINUS_SRC_ALPHA;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                case .DST_ALPHA;                it.srcColorBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
+                case .ONE_MINUS_DST_ALPHA;      it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+                case .CONSTANT_COLOR;           it.srcColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
+                case .ONE_MINUS_CONSTANT_COLOR; it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+                case .CONSTANT_ALPHA;           it.srcColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
+                case .ONE_MINUS_CONSTANT_ALPHA; it.srcColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+                case .SRC_ALPHA_SATURATE;       it.srcColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+                case;                           assertMessage("Unknown source color blend factor: %", color_target.src_color_blend_factor);
+            }
+
+            if #complete color_target.dst_color_blend_factor == {
+                case .ZERO;                     it.dstColorBlendFactor = .VK_BLEND_FACTOR_ZERO;
+                case .ONE;                      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE;
+                case .SRC_COLOR;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
+                case .ONE_MINUS_SRC_COLOR;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+                case .DST_COLOR;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
+                case .ONE_MINUS_DST_COLOR;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                case .SRC_ALPHA;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
+                case .ONE_MINUS_SRC_ALPHA;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                case .DST_ALPHA;                it.dstColorBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
+                case .ONE_MINUS_DST_ALPHA;      it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+                case .CONSTANT_COLOR;           it.dstColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
+                case .ONE_MINUS_CONSTANT_COLOR; it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+                case .CONSTANT_ALPHA;           it.dstColorBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
+                case .ONE_MINUS_CONSTANT_ALPHA; it.dstColorBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+                case .SRC_ALPHA_SATURATE;       it.dstColorBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+                case;                           assertMessage("Unknown destination color blend factor: %", color_target.dst_color_blend_factor);
+            }
+
+            if #complete color_target.color_blend_op == {
+                case .ADD;              it.colorBlendOp = .VK_BLEND_OP_ADD;
+                case .SUBTRACT;         it.colorBlendOp = .VK_BLEND_OP_SUBTRACT;
+                case .REVERSE_SUBTRACT; it.colorBlendOp = .VK_BLEND_OP_REVERSE_SUBTRACT;
+                case .MIN;              it.colorBlendOp = .VK_BLEND_OP_MIN;
+                case .MAX;              it.colorBlendOp = .VK_BLEND_OP_MAX;
+                case;                   assertMessage("Unknown color blend operation: %", color_target.color_blend_op);
+            }
+
+            if #complete color_target.src_alpha_blend_factor == {
+                case .ZERO;                     it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ZERO;
+                case .ONE;                      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE;
+                case .SRC_COLOR;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
+                case .ONE_MINUS_SRC_COLOR;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+                case .DST_COLOR;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
+                case .ONE_MINUS_DST_COLOR;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                case .SRC_ALPHA;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
+                case .ONE_MINUS_SRC_ALPHA;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                case .DST_ALPHA;                it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
+                case .ONE_MINUS_DST_ALPHA;      it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+                case .CONSTANT_COLOR;           it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
+                case .ONE_MINUS_CONSTANT_COLOR; it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+                case .CONSTANT_ALPHA;           it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
+                case .ONE_MINUS_CONSTANT_ALPHA; it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+                case .SRC_ALPHA_SATURATE;       it.srcAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+                case;                           assertMessage("Unknown source alpha blend factor: %", color_target.src_alpha_blend_factor);
+            }
+
+            if #complete color_target.dst_alpha_blend_factor == {
+                case .ZERO;                     it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ZERO;
+                case .ONE;                      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE;
+                case .SRC_COLOR;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_COLOR;
+                case .ONE_MINUS_SRC_COLOR;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+                case .DST_COLOR;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_DST_COLOR;
+                case .ONE_MINUS_DST_COLOR;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                case .SRC_ALPHA;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA;
+                case .ONE_MINUS_SRC_ALPHA;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                case .DST_ALPHA;                it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_DST_ALPHA;
+                case .ONE_MINUS_DST_ALPHA;      it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+                case .CONSTANT_COLOR;           it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_COLOR;
+                case .ONE_MINUS_CONSTANT_COLOR; it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+                case .CONSTANT_ALPHA;           it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_CONSTANT_ALPHA;
+                case .ONE_MINUS_CONSTANT_ALPHA; it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+                case .SRC_ALPHA_SATURATE;       it.dstAlphaBlendFactor = .VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+                case;                           assertMessage("Unknown destination alpha blend factor: %", color_target.dst_alpha_blend_factor);
+            }
+
+            if #complete color_target.alpha_blend_op == {
+                case .ADD;              it.alphaBlendOp = .VK_BLEND_OP_ADD;
+                case .SUBTRACT;         it.alphaBlendOp = .VK_BLEND_OP_SUBTRACT;
+                case .REVERSE_SUBTRACT; it.alphaBlendOp = .VK_BLEND_OP_REVERSE_SUBTRACT;
+                case .MIN;              it.alphaBlendOp = .VK_BLEND_OP_MIN;
+                case .MAX;              it.alphaBlendOp = .VK_BLEND_OP_MAX;
+                case;                   assertMessage("Unknown alpha blend operation: %", color_target.alpha_blend_op);
+            }
+
+            it.colorWriteMask = 0;
+            if color_target.write_mask & .RED   then it.colorWriteMask |= .VK_COLOR_COMPONENT_R_BIT;
+            if color_target.write_mask & .GREEN then it.colorWriteMask |= .VK_COLOR_COMPONENT_G_BIT;
+            if color_target.write_mask & .BLUE  then it.colorWriteMask |= .VK_COLOR_COMPONENT_B_BIT;
+            if color_target.write_mask & .ALPHA then it.colorWriteMask |= .VK_COLOR_COMPONENT_A_BIT;
+        }
+    } else {
+        this.pAttachments = null;
+    }
 }
 
 DYNAMIC_STATES :: VkDynamicState.[
@@ -344,10 +574,10 @@ DYNAMIC_STATES :: VkDynamicState.[
     .VK_DYNAMIC_STATE_SCISSOR,
 ];
 
-initDynamicStates :: inline (state : *VkPipelineDynamicStateCreateInfo) #no_context {
-    state.sType             = .VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    state.pNext             = null;
-    state.flags             = 0;
-    state.dynamicStateCount = DYNAMIC_STATES.count;
-    state.pDynamicStates    = DYNAMIC_STATES.data;
+initDynamicStates :: inline (this : *VkPipelineDynamicStateCreateInfo) #no_context {
+    this.sType             = .VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    this.pNext             = null;
+    this.flags             = 0;
+    this.dynamicStateCount = DYNAMIC_STATES.count;
+    this.pDynamicStates    = DYNAMIC_STATES.data;
 }

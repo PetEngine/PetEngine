@@ -17,6 +17,8 @@ Win32WindowManager :: struct {
 
     free_windows : *Win32Window;
     windows      : [WindowManager.MAX_WINDOWS] Win32Window;
+
+    use_dark_theme : bool;
 }
 
 // @TODO: #PersistentArena
@@ -31,10 +33,8 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
     setMonitorDPIAwareness();
 
     ASCII_CLASS_NAME :: "PetEngineWindowClass";
-    unicode_class_name : [ASCII_CLASS_NAME.count + 1] s16;
-    for 0 .. ASCII_CLASS_NAME.count - 1 { // @TODO: #utf8_to_wide
-        unicode_class_name[it] = ASCII_CLASS_NAME[it];
-    }
+    unicode_class_name : [ASCII_CLASS_NAME.count + 1] WCHAR = ---;
+    asciiToWide(*unicode_class_name, ASCII_CLASS_NAME, true);
 
     window_class : WNDCLASSEXW = ---;
     window_class.cbSize        = size_of(WNDCLASSEXW);
@@ -45,7 +45,7 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
     window_class.hInstance     = manager.app_instance;
     window_class.hIcon         = LoadIconW(manager.app_instance, IDI_APPLICATION);
     window_class.hCursor       = LoadCursorW(manager.app_instance, IDC_ARROW);
-    window_class.hbrBackground = cast,no_check(HBRUSH) (COLOR_BACKGROUND + 1);
+    window_class.hbrBackground = cast,no_check(HBRUSH) (COLOR_WINDOW + 1);
     window_class.lpszMenuName  = null;
     window_class.lpszClassName = unicode_class_name.data;
     window_class.hIconSm       = window_class.hIcon;
@@ -67,8 +67,9 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
     last_window.manager   = manager;
     last_window.next_free = null;
 
-    manager.free_windows = manager.windows.data;
-    manager.jai_context  = *context;
+    manager.free_windows   = manager.windows.data;
+    manager.jai_context    = *context;
+    manager.use_dark_theme = useDarkTheme();
 
     return manager;
 }
@@ -145,14 +146,13 @@ createWin32Window :: (
         }
     }
 
-    unicode_title := pushToArena(*context.pet.per_frame_arena, s16, title.count + 1);
-    for 0..title.count-1 { // @TODO: #utf8_to_wide
-        unicode_title[it] = title[it];
-    }
+    unicode_title : [] WCHAR = ---;
+    unicode_title.data = pushToArena(*context.pet.per_frame_arena, WCHAR, title.count + 1);
+    asciiToWide(*unicode_title, title, true);
 
     window.handle = CreateWindowExW(EXTENDED_WINDOW_STYLES,
                                     cast,no_check(LPCWSTR) manager.window_class,
-                                    unicode_title,
+                                    unicode_title.data,
                                     WINDOW_STYLES,
                                     ifx x == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else x,
                                     ifx y == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else y,
@@ -172,6 +172,9 @@ createWin32Window :: (
         window.dpi_scale       = 1.0;
         window.platform_flags |= .APPLY_DPI_SCALING_ON_SHOW;
     }
+
+    use_dark_theme := cast(BOOL) manager.use_dark_theme;
+    debugCheckOSError(DwmSetWindowAttribute(window.handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
 
     return window;
 }
@@ -235,6 +238,20 @@ windowEventsCallback :: (
 
             result = DefWindowProcW(window_handle, message, wparam, lparam);
 
+        case WM_WININICHANGE;
+            was_using_dark_theme := window.manager.use_dark_theme;
+
+            push_context window.manager.jai_context {
+                window.manager.use_dark_theme = useDarkTheme();
+
+                if was_using_dark_theme != window.manager.use_dark_theme {
+                    use_dark_theme := cast(BOOL) window.manager.use_dark_theme;
+                    debugCheckOSError(DwmSetWindowAttribute(window_handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
+                }
+            }
+
+            result = DefWindowProcW(window_handle, message, wparam, lparam);
+
         case WM_WINDOWPOSCHANGED;
             window_position := cast,no_check(*WINDOWPOS) lparam;
 
@@ -278,12 +295,12 @@ windowEventsCallback :: (
                                   | SWP_DEFERERASE;
 
             success := SetWindowPos(window_handle,
-                                           HWND_TOP,
-                                           new_window_rect.left,
-                                           new_window_rect.top,
-                                           new_window_rect.right  - new_window_rect.left,
-                                           new_window_rect.bottom - new_window_rect.top,
-                                           SET_WINDOW_POS_FLAGS);
+                                    HWND_TOP,
+                                    new_window_rect.left,
+                                    new_window_rect.top,
+                                    new_window_rect.right  - new_window_rect.left,
+                                    new_window_rect.bottom - new_window_rect.top,
+                                    SET_WINDOW_POS_FLAGS);
 
             push_context window.manager.jai_context {
                 assert(success != FALSE);
@@ -360,6 +377,28 @@ applyInitialDPIScalingToWindow :: (window_handle : HWND, width : u16, height : u
     debugCheck(SetWindowPos(window_handle, HWND_TOP, 0, 0, scaled_width, scaled_height, SET_WINDOW_POS_FLAGS), print_sys_error = true);
 
     return dpi_scale;
+}
+
+useDarkTheme :: () -> bool {
+    SUBKEY         :: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+    unicode_subkey : [SUBKEY.count + 1] WCHAR = ---;
+    asciiToWide(*unicode_subkey, SUBKEY, true);
+
+    VALUE         :: "AppsUseLightTheme";
+    unicode_value : [VALUE.count + 1] WCHAR = ---;
+    asciiToWide(*unicode_value, VALUE, true);
+
+    apps_use_light_theme : u32;
+    data_size            : u32 = size_of(u32);
+    debugCheckOSError(RegGetValueW(HKEY_CURRENT_USER,
+                      unicode_subkey.data,
+                      unicode_value.data,
+                      RRF_RT_REG_DWORD,
+                      null,
+                      *apps_use_light_theme,
+                      *data_size));
+
+    return !apps_use_light_theme;
 }
 
 Math  :: #import "Math";

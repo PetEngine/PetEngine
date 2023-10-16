@@ -21,17 +21,27 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 #scope_module
 
 #add_context pet : struct {
+    thread_name      : string;
+    thread_kind      : ThreadKind;
     persistent_arena : Arena;
     per_frame_arena  : Arena;
 };
 
 main :: () {
+    {
+        context.print_style.default_format_struct.use_long_form_if_more_than_this_many_members = -1;
+        context.print_style.default_format_struct.use_newlines_if_long_form                    = true;
+    }
+
+    context.pet.thread_name = "Main";
+    context.pet.thread_kind = .MAIN;
+
     // @TODO: #Settings. Get persistent arena capacity from settings.
-    createArena(*context.pet.persistent_arena, gigaBytes(1), "Persistent");
+    createArena(*context.pet.persistent_arena, gigaBytes(1), "persistent");
     defer destroyArena(*context.pet.persistent_arena);
 
     // @TODO: #Settings. Get per frame arena capacity from settings.
-    createArena(*context.pet.per_frame_arena, megaBytes(512), "Per frame");
+    createArena(*context.pet.per_frame_arena, megaBytes(512), "per frame");
     defer destroyArena(*context.pet.per_frame_arena);
 
     window_manager := createWindowManager();
@@ -52,6 +62,10 @@ main :: () {
 
     shader_manager := createShaderManager(device);
     defer destroyShaderManager(device, shader_manager);
+
+    shaders_hot_reload : ShadersHotReload;
+    initShadersHotReload(*shaders_hot_reload, device, shader_manager);
+    defer destroyShadersHotReload(*shaders_hot_reload);
 
     depth_buffer := createTexture(device,
                                   texture_manager,
@@ -92,6 +106,8 @@ main :: () {
                 resetCommandBuffer(device, *command_buffer);
                 // @TODO: #PerFrameTextures. Delete unused per frame texture memory when number of swapchain buffers decreased.
                 resetTextureMemory(device, texture_manager, .PER_FRAME);
+
+                resetShaderManager(device, shader_manager);
             }
 
             // Create per frame textures here...
@@ -106,20 +122,23 @@ main :: () {
 
             clearTexture(device, *command_buffer, depth_buffer, .{ depth = 1.0 });
 
-            color_targets := ColorTargetDesc.[
-                /* back_buffer */.{
+            beginRendering(device, *command_buffer, .[
+                .{
                     texture      = back_buffer,
                     load_action  = .CLEAR,
                     store_action = .STORE,
                     clear_value  = .{ as_f32 = .[ 0.3, 0.3, 0.3, 0.0 ] } // @TODO: #Settings. Get back buffer clear color from settings.
                 },
-            ];
-
-            beginRendering(device, *command_buffer, color_targets);
+            ]);
             {
                 setViewport(device, *command_buffer, *Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }, back_buffer.height);
                 setScissorRect(device, *command_buffer, *ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height });
+
                 setShader(device, *command_buffer, triangle_shader);
+
+                time := cast(f32) Basic.get_time();
+                setPushConstants(device, *command_buffer, .FRAGMENT, *time);
+
                 drawPrimitives(device, *command_buffer, 3);
             }
             endRendering(device, *command_buffer);
@@ -144,11 +163,12 @@ DEBUG_BUILD :: #run -> bool {
 #load "render/command_buffer.jai";
 #load "render/texture.jai";
 #load "render/shader.jai";
+#load "shader_compiler/compiler.jai";
+#load "shader_compiler/hot_reload.jai";
 
 String :: #import "String";
-File   :: #import "File";
 
 #scope_file
 
-Basic    :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD);
+Basic    :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
 Compiler :: #import "Compiler";
