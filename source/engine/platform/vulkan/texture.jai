@@ -344,30 +344,7 @@ createVulkanTexture :: (
     }
 
     checkCreateInfoLimits(device, *create_info, textureFormatFlags(texture.format));
-
-    {
-        image_format_info := VkPhysicalDeviceImageFormatInfo2.{
-            sType  = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
-            pNext  = null,
-            format = create_info.format,
-            type   = create_info.imageType,
-            tiling = create_info.tiling,
-            usage  = create_info.usage,
-            flags  = create_info.flags
-        };
-
-        image_format_properties := VkImageFormatProperties2.{
-            sType = .VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2,
-            pNext = null
-        };
-
-        result := vkGetPhysicalDeviceImageFormatProperties2(device.physical_device, *image_format_info, *image_format_properties);
-        if result == .VK_ERROR_FORMAT_NOT_SUPPORTED {
-            assertMessage("Texture format % (%) is not supported", texture.format, create_info.format);
-        } else {
-            assert(result == .VK_SUCCESS, "vkGetPhysicalDeviceImageFormatProperties2 returned %", result);
-        }
-    }
+    checkImageProperties(device, texture, *create_info);
 
     // @TODO: VkAllocationCallbacks
     debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
@@ -736,5 +713,67 @@ checkCreateInfoLimits :: (device : *VulkanDevice, create_info : *VkImageCreateIn
                               device.limits.storageImageSampleCounts);
             }
         }
+    }
+}
+
+checkImageProperties :: (device : *VulkanDevice, texture : *VulkanTexture, create_info : *VkImageCreateInfo) {
+    image_format_info := VkPhysicalDeviceImageFormatInfo2.{
+        sType  = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
+        pNext  = null,
+        format = create_info.format,
+        type   = create_info.imageType,
+        tiling = create_info.tiling,
+        usage  = create_info.usage,
+        flags  = create_info.flags
+    };
+
+    image_format_properties := VkImageFormatProperties2.{
+        sType = .VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2,
+        pNext = null
+    };
+
+    result := vkGetPhysicalDeviceImageFormatProperties2(device.physical_device, *image_format_info, *image_format_properties);
+
+    if result == .VK_ERROR_FORMAT_NOT_SUPPORTED {
+        assertMessage("Texture \"%\": format % (%) is not supported", texture.name, texture.format, create_info.format);
+    } else {
+        assert(result == .VK_SUCCESS,
+               "Texture \"%\": vkGetPhysicalDeviceImageFormatProperties2 returned %",
+               texture.name,
+               result);
+    }
+
+    if create_info.extent.width  > image_format_properties.imageFormatProperties.maxExtent.width
+    || create_info.extent.height > image_format_properties.imageFormatProperties.maxExtent.height
+    || create_info.extent.depth  > image_format_properties.imageFormatProperties.maxExtent.depth {
+        assertMessage("Texture \"%\": image extent [% x % x %] is too big for this texture, max supported is [% x % x %]",
+                      texture.name,
+                      create_info.extent.width,
+                      create_info.extent.height,
+                      create_info.extent.depth,
+                      image_format_properties.imageFormatProperties.maxExtent.width,
+                      image_format_properties.imageFormatProperties.maxExtent.height,
+                      image_format_properties.imageFormatProperties.maxExtent.depth);
+    }
+
+    if create_info.mipLevels > image_format_properties.imageFormatProperties.maxMipLevels {
+        assertMessage("Texture \"%\": number of mip levels (%) is too high for this texture, max supported is %",
+                      texture.name,
+                      create_info.mipLevels,
+                      image_format_properties.imageFormatProperties.maxMipLevels);
+    }
+
+    if create_info.arrayLayers > image_format_properties.imageFormatProperties.maxArrayLayers {
+        assertMessage("Texture \"%\": number of array layers (%) is too high for this texture, max supported is %",
+                      texture.name,
+                      create_info.arrayLayers,
+                      image_format_properties.imageFormatProperties.maxArrayLayers);
+    }
+
+    if !(image_format_properties.imageFormatProperties.sampleCounts & create_info.samples) {
+        assertMessage("Texture \"%\": % samples is not supported for this texture. Supported sample count mask: %",
+                      texture.name,
+                      create_info.samples,
+                      image_format_properties.imageFormatProperties.sampleCounts);
     }
 }
