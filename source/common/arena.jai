@@ -26,19 +26,23 @@ createArena :: (arena : *Arena, capacity : s64, name : string) {
         system_info : SYSTEM_INFO = ---;
         GetSystemInfo(*system_info);
 
-        page_size : s64 = system_info.dwPageSize;
+        page_size              : s64 = system_info.dwPageSize;
+        allocation_granularity : s64 = system_info.dwAllocationGranularity;
     } else {
-        page_size : s64 : 4096;
+        page_size              : s64 : 4096;
+        allocation_granularity : s64 : 4096;
         notImplemented();
     }
 
     arena.capacity = alignUpWithPowerOfTwo(capacity, page_size);
+    arena.capacity = alignUpWithPowerOfTwo(arena.capacity, allocation_granularity);
     if arena.capacity != capacity {
-        warningMessage("\"%\" arena will be created with different capacity since given capacity does not match system page size alignment requirement. Given capacity: % bytes, aligned capacity: % byte, page size: % bytes",
+        warningMessage("\"%\" arena will be created with different capacity since given capacity does not match system page size and allocation granularity alignment requirement. Given capacity: % bytes, aligned capacity: % byte, page size: % bytes, allocation granularity: % bytes",
                        arena.name,
                        Basic.formatInt(capacity,       digits_per_comma = 3, comma_string = "'"),
                        Basic.formatInt(arena.capacity, digits_per_comma = 3, comma_string = "'"),
-                       page_size);
+                       page_size,
+                       allocation_granularity);
     }
 
     #if OS == .WINDOWS {

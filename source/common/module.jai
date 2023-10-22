@@ -131,6 +131,14 @@ toString :: inline (data : *void, bytes : s64) -> string #no_context {
     return result;
 }
 
+toView :: inline (data : *$T, count : s64) -> [] T #no_context {
+    result : [] T = ---;
+    result.data  = data;
+    result.count = count;
+
+    return result;
+}
+
 #load "arena.jai";
 #load "debug.jai";
 #load "file.jai";

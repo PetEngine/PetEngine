@@ -152,9 +152,22 @@ GetModuleHandleExW :: (
     phModule     : *HMODULE
 ) -> BOOL #foreign kernel32;
 
+LoadLibraryA :: (
+    lpLibFileName : *s8
+) -> HMODULE #foreign kernel32;
+
 FreeLibrary :: (
     hLibModule : HMODULE
 ) -> BOOL #foreign kernel32;
+
+FARPROC  :: #type () -> INT_PTR #c_call;
+NEARPROC :: #type () -> INT_PTR #c_call;
+PROC     :: #type () -> INT_PTR #c_call;
+
+GetProcAddress :: (
+    hModule    : HMODULE,
+    lpProcName : *s8
+) -> FARPROC #foreign kernel32;
 
 IDI_APPLICATION :: cast,no_check(LPWSTR) cast,trunc(u16) 32512;
 IDI_ERROR       :: cast,no_check(LPWSTR) cast,trunc(u16) 32513;
@@ -541,19 +554,6 @@ SYSTEM_INFO :: struct {
 GetSystemInfo :: (
     lpSystemInfo : *SYSTEM_INFO
 ) -> void #foreign kernel32;
-
-LoadLibraryA :: (
-    lpLibFileName : *s8
-) -> HMODULE #foreign kernel32;
-
-FARPROC  :: #type () -> INT_PTR #c_call;
-NEARPROC :: #type () -> INT_PTR #c_call;
-PROC     :: #type () -> INT_PTR #c_call;
-
-GetProcAddress :: (
-    hModule    : HMODULE,
-    lpProcName : *s8
-) -> FARPROC #foreign kernel32;
 
 IsDebuggerPresent :: (
 ) -> BOOL #foreign kernel32;

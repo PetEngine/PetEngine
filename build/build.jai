@@ -125,9 +125,8 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     build_options.use_visual_studio_message_format = true;
     build_options.dead_code_elimination            = .ALL;
     build_options.backtrace_on_crash               = .OFF;
-    build_options.info_flags                       = .POLYMORPH_DEDUPLICATE;
-                                                // | .POLYMORPH_MATCH;
-    build_options.text_output_flags                = .OUTPUT_TIMING_INFO;
+    build_options.info_flags                       = .POLYMORPH_DEDUPLICATE; // | .POLYMORPH_MATCH;
+    build_options.text_output_flags                = .OUTPUT_TIMING_INFO;    // | .OUTPUT_LINK_LINE;
     build_options.output_executable_name           = "engine";
     build_options.output_path                      = output_path;
     build_options.intermediate_path                = intermediate_path;

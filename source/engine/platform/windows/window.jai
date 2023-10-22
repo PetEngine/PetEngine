@@ -12,20 +12,18 @@ Win32WindowManager :: struct {
     app_instance : HMODULE;
     window_class : ATOM;
 
-    // @TODO: #ContextDependency
     jai_context : *Context;
 
     free_windows : *Win32Window;
     windows      : [WindowManager.MAX_WINDOWS] Win32Window;
 
+    mutex : Mutex;
+
     use_dark_theme : bool;
 }
 
-// @TODO: #PersistentArena
-g_windowManager : Win32WindowManager;
-
 createWin32WindowManager :: () -> *Win32WindowManager #must {
-    manager := *g_windowManager;
+    manager := pushToArena(*context.pet.persistent_arena, Win32WindowManager);
 
     debugCheck(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, cast,no_check(LPCWSTR) #this, *manager.app_instance),
                print_sys_error = true);
@@ -75,8 +73,6 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
 }
 
 destroyWin32WindowManager :: (manager : *Win32WindowManager) {
-    assert(manager == *g_windowManager);
-
     for manager.windows {
         if it.handle {
             SendMessageW(it.handle, WM_CLOSE, 0, 0);
@@ -106,7 +102,7 @@ Win32Window :: struct {
 
     platform_flags : PlatformFlags;
 
-    handle : HANDLE;
+    handle : HWND;
 
     manager   : *Win32WindowManager;
     next_free : *Win32Window;
@@ -120,8 +116,6 @@ createWin32Window :: (
     surface_height : u16,
     title          : string
 ) -> *Win32Window #must {
-    assert(manager == *g_windowManager);
-
     window := allocateWindow(manager);
 
     // @TODO: #Editor. WS_EX_ACCEPTFILES only in editor builds.
@@ -203,12 +197,7 @@ processWin32WindowEvents :: (window : *Win32Window) {
 
 #scope_file
 
-windowEventsCallback :: (
-    window_handle : HWND,
-    message       : u32,
-    wparam        : WPARAM,
-    lparam        : LPARAM
-) -> LRESULT #c_call {
+windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, lparam : LPARAM) -> LRESULT #c_call {
     result : LRESULT = 0;
     window := cast,no_check(*Win32Window) GetWindowLongPtrW(window_handle, GWLP_USERDATA);
 
@@ -231,14 +220,13 @@ windowEventsCallback :: (
             window.surface.width  = cast(u16) (lparam & 0xFFFF);
             window.surface.height = cast(u16) (lparam >> 16);
 
-            result = DefWindowProcW(window_handle, message, wparam, lparam);
-
         case WM_CLOSE;
             window.flags |= .CLOSED;
 
+            // DefWindowProc calls DestroyWindow to destroy the window
             result = DefWindowProcW(window_handle, message, wparam, lparam);
 
-        case WM_WININICHANGE;
+        case WM_WININICHANGE; // @TODO: Replace with WM_SETTINGCHANGE
             was_using_dark_theme := window.manager.use_dark_theme;
 
             push_context window.manager.jai_context {
@@ -271,6 +259,7 @@ windowEventsCallback :: (
                 window.platform_flags &= ~.APPLY_DPI_SCALING_ON_SHOW;
             }
 
+            // WM_SIZE and WM_MOVE are not sent if an application handles the WM_WINDOWPOSCHANGED without calling DefWindowProc
             result = DefWindowProcW(window_handle, message, wparam, lparam);
 
         case WM_MENUCHAR;
@@ -303,10 +292,8 @@ windowEventsCallback :: (
                                     SET_WINDOW_POS_FLAGS);
 
             push_context window.manager.jai_context {
-                assert(success != FALSE);
+                assert(success, print_sys_error = true);
             }
-
-            result = DefWindowProcW(window_handle, message, wparam, lparam);
 
         case;
             result = DefWindowProcW(window_handle, message, wparam, lparam);
@@ -327,7 +314,8 @@ setMonitorDPIAwareness :: () {
 }
 
 allocateWindow :: (manager : *Win32WindowManager) -> *Win32Window #must {
-    assert(manager == *g_windowManager);
+    scopedLock(*manager.mutex);
+
     assert(manager.windows_count < manager.MAX_WINDOWS, "You have created too many windows, maximum number allowed is %", manager.MAX_WINDOWS);
 
     window := manager.free_windows;
@@ -343,7 +331,8 @@ allocateWindow :: (manager : *Win32WindowManager) -> *Win32Window #must {
 
 deallocateWindow :: (window : *Win32Window) {
     manager := window.manager;
-    assert(manager == *g_windowManager);
+    scopedLock(*manager.mutex);
+
     assert(manager.windows_count != 0);
 
     window.next_free     = manager.free_windows;

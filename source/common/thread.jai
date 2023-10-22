@@ -19,8 +19,8 @@ ThreadKind :: enum u8 {
 }
 
 createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.Data, $name : string, kind : ThreadKind, stack_size := 0) {
-    thread.procedure   = procedure;
-    thread.data        = data;
+    thread.procedure = procedure;
+    thread.data      = data;
 
     thread.jai_context.allocator       = context.allocator;
     thread.jai_context.logger          = context.logger;
