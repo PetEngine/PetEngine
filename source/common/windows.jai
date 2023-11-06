@@ -15,6 +15,7 @@ HWND                  :: *HWND__;                  HWND__                  :: st
 HMENU                 :: *HMENU__;                 HMENU__                 :: struct { unused : s32; }
 DPI_AWARENESS_CONTEXT :: *DPI_AWARENESS_CONTEXT__; DPI_AWARENESS_CONTEXT__ :: struct { unused : s32; }
 HKEY                  :: *HKEY__;                  HKEY__                  :: struct { unused : s32; }
+HRAWINPUT             :: *HRAWINPUT__;             HRAWINPUT__             :: struct { unused : s32; }
 
 HMODULE :: HINSTANCE;
 HLOCAL  :: HANDLE;
@@ -56,15 +57,18 @@ va_list :: *s8;
 
 INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 
-ERROR_SUCCESS           :: 0;
-ERROR_FILE_NOT_FOUND    :: 2;
-ERROR_PATH_NOT_FOUND    :: 3;
-ERROR_NO_MORE_FILES     :: 18;
-ERROR_SHARING_VIOLATION :: 32;
-ERROR_FILE_EXISTS       :: 80;
-ERROR_ALREADY_EXISTS    :: 183;
-ERROR_OPERATION_ABORTED :: 995;
-ERROR_NOT_FOUND         :: 1168;
+ERROR_SUCCESS             :: 0;
+ERROR_FILE_NOT_FOUND      :: 2;
+ERROR_PATH_NOT_FOUND      :: 3;
+ERROR_ACCESS_DENIED       :: 5;
+ERROR_NO_MORE_FILES       :: 18;
+ERROR_SHARING_VIOLATION   :: 32;
+ERROR_FILE_EXISTS         :: 80;
+ERROR_INSUFFICIENT_BUFFER :: 122;
+ERROR_ALREADY_EXISTS      :: 183;
+ERROR_OPERATION_ABORTED   :: 995;
+ERROR_NOT_FOUND           :: 1168;
+ERROR_INVALID_USER_BUFFER :: 1784;
 
 STATUS_PENDING :: 0x00000103;
 
@@ -220,13 +224,15 @@ SetWindowLongPtrW :: (
     dwNewLong : LONG_PTR
 ) -> LONG_PTR #foreign user32;
 
-WM_DESTROY          : u32 : 0x0002;
-WM_SIZE             : u32 : 0x0005;
-WM_CLOSE            : u32 : 0x0010;
-WM_WININICHANGE     : u32 : 0x001A;
-WM_WINDOWPOSCHANGED : u32 : 0x0047;
-WM_MENUCHAR         : u32 : 0x0120;
-WM_DPICHANGED       : u32 : 0x02E0;
+WM_DESTROY             : u32 : 0x0002;
+WM_SIZE                : u32 : 0x0005;
+WM_CLOSE               : u32 : 0x0010;
+WM_WININICHANGE        : u32 : 0x001A;
+WM_WINDOWPOSCHANGED    : u32 : 0x0047;
+WM_INPUT_DEVICE_CHANGE : u32 : 0x00FE;
+WM_INPUT               : u32 : 0x00FF;
+WM_MENUCHAR            : u32 : 0x0120;
+WM_DPICHANGED          : u32 : 0x02E0;
 
 DefWindowProcW :: (
     hWnd   : HWND,
@@ -647,10 +653,43 @@ CreateDirectoryW :: (
     lpSecurityAttributes : *SECURITY_ATTRIBUTES
 ) -> BOOL #foreign kernel32;
 
+DELETE                   : u32 : 0x00010000;
+READ_CONTROL             : u32 : 0x00020000;
+WRITE_DAC                : u32 : 0x00040000;
+WRITE_OWNER              : u32 : 0x00080000;
+SYNCHRONIZE              : u32 : 0x00100000;
+STANDARD_RIGHTS_REQUIRED : u32 : 0x000F0000;
+STANDARD_RIGHTS_READ     : u32 : READ_CONTROL;
+STANDARD_RIGHTS_WRITE    : u32 : READ_CONTROL;
+STANDARD_RIGHTS_EXECUTE  : u32 : READ_CONTROL;
+STANDARD_RIGHTS_ALL      : u32 : 0x001F0000;
+SPECIFIC_RIGHTS_ALL      : u32 : 0x0000FFFF;
+ACCESS_SYSTEM_SECURITY   : u32 : 0x01000000;
+MAXIMUM_ALLOWED          : u32 : 0x02000000;
+
 GENERIC_ALL     : u32 : 0x10000000;
 GENERIC_EXECUTE : u32 : 0x20000000;
 GENERIC_WRITE   : u32 : 0x40000000;
 GENERIC_READ    : u32 : 0x80000000;
+
+FILE_READ_DATA            : u32 : 0x0001; // file & pipe
+FILE_LIST_DIRECTORY       : u32 : 0x0001; // directory
+FILE_WRITE_DATA           : u32 : 0x0002; // file & pipe
+FILE_ADD_FILE             : u32 : 0x0002; // directory
+FILE_APPEND_DATA          : u32 : 0x0004; // file
+FILE_ADD_SUBDIRECTORY     : u32 : 0x0004; // directory
+FILE_CREATE_PIPE_INSTANCE : u32 : 0x0004; // named pipe
+FILE_READ_EA              : u32 : 0x0008; // file & directory
+FILE_WRITE_EA             : u32 : 0x0010; // file & directory
+FILE_EXECUTE              : u32 : 0x0020; // file
+FILE_TRAVERSE             : u32 : 0x0020; // directory
+FILE_DELETE_CHILD         : u32 : 0x0040; // directory
+FILE_READ_ATTRIBUTES      : u32 : 0x0080; // all
+FILE_WRITE_ATTRIBUTES     : u32 : 0x0100; // all
+FILE_ALL_ACCESS           : u32 : STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x1FF;
+FILE_GENERIC_READ         : u32 : STANDARD_RIGHTS_READ | FILE_READ_DATA | FILE_READ_ATTRIBUTES | FILE_READ_EA | SYNCHRONIZE;
+FILE_GENERIC_WRITE        : u32 : STANDARD_RIGHTS_WRITE | FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | FILE_APPEND_DATA | SYNCHRONIZE;
+FILE_GENERIC_EXECUTE      : u32 : STANDARD_RIGHTS_EXECUTE | FILE_READ_ATTRIBUTES | FILE_EXECUTE | SYNCHRONIZE;
 
 FILE_SHARE_READ   : u32 : 0x00000001;
 FILE_SHARE_WRITE  : u32 : 0x00000002;
@@ -941,9 +980,240 @@ TryAcquireSRWLockShared :: (
     SRWLock : *SRWLOCK
 ) -> BOOLEAN #foreign kernel32;
 
+//
+// Raw input
+//
+
+GIDC_ARRIVAL : u8 : 1;
+GIDC_REMOVAL : u8 : 2;
+
+GET_DEVICE_CHANGE_WPARAM :: inline (wparam : WPARAM) -> u8 #no_context {
+    return cast(u8) (wparam & 0xFF);
+}
+
+HID_USAGE_PAGE_GENERIC : u16 : 0x01;
+HID_USAGE_PAGE_GAME    : u16 : 0x05;
+HID_USAGE_PAGE_LED     : u16 : 0x08;
+HID_USAGE_PAGE_BUTTON  : u16 : 0x09;
+
+HID_USAGE_GENERIC_POINTER               : u16 : 0x01;
+HID_USAGE_GENERIC_MOUSE                 : u16 : 0x02;
+HID_USAGE_GENERIC_JOYSTICK              : u16 : 0x04;
+HID_USAGE_GENERIC_GAMEPAD               : u16 : 0x05;
+HID_USAGE_GENERIC_KEYBOARD              : u16 : 0x06;
+HID_USAGE_GENERIC_KEYPAD                : u16 : 0x07;
+HID_USAGE_GENERIC_MULTI_AXIS_CONTROLLER : u16 : 0x08;
+
+RIDEV_REMOVE       : u32 : 0x00000001;
+RIDEV_EXCLUDE      : u32 : 0x00000010;
+RIDEV_PAGEONLY     : u32 : 0x00000020;
+RIDEV_NOLEGACY     : u32 : 0x00000030;
+RIDEV_INPUTSINK    : u32 : 0x00000100;
+RIDEV_CAPTUREMOUSE : u32 : 0x00000200;
+RIDEV_NOHOTKEYS    : u32 : 0x00000200;
+RIDEV_APPKEYS      : u32 : 0x00000400;
+RIDEV_EXINPUTSINK  : u32 : 0x00001000;
+RIDEV_DEVNOTIFY    : u32 : 0x00002000;
+
+RAWINPUTDEVICE :: struct {
+    usUsagePage : u16;
+    usUsage     : u16;
+    dwFlags     : u32;
+    hwndTarget  : HWND;
+}
+
+RegisterRawInputDevices :: (
+    pRawInputDevices : *RAWINPUTDEVICE,
+    uiNumDevices     : u32,
+    cbSize           : u32
+) -> BOOL #foreign user32;
+
+RIDI_PREPARSEDDATA : u32 : 0x20000005;
+RIDI_DEVICENAME    : u32 : 0x20000007;
+RIDI_DEVICEINFO    : u32 : 0x2000000B;
+
+RIM_TYPEMOUSE    : u32 : 0;
+RIM_TYPEKEYBOARD : u32 : 1;
+RIM_TYPEHID      : u32 : 2;
+
+MOUSE_HID_HARDWARE       : u32 : 0x0080;
+WHEELMOUSE_HID_HARDWARE  : u32 : 0x0100;
+HORIZONTAL_WHEEL_PRESENT : u32 : 0x8000;
+
+RID_DEVICE_INFO_MOUSE :: struct {
+    dwId                : u32;
+    dwNumberOfButtons   : u32;
+    dwSampleRate        : u32;
+    fHasHorizontalWheel : BOOL;
+}
+
+RID_DEVICE_INFO_KEYBOARD :: struct {
+    dwType                 : u32;
+    dwSubType              : u32;
+    dwKeyboardMode         : u32;
+    dwNumberOfFunctionKeys : u32;
+    dwNumberOfIndicators   : u32;
+    dwNumberOfKeysTotal    : u32;
+}
+
+RID_DEVICE_INFO_HID :: struct {
+    dwVendorId      : u32;
+    dwProductId     : u32;
+    dwVersionNumber : u32;
+    usUsagePage     : u16;
+    usUsage         : u16;
+}
+
+RID_DEVICE_INFO :: struct {
+    cbSize : u32;
+    dwType : u32;
+    union {
+        mouse    : RID_DEVICE_INFO_MOUSE;
+        keyboard : RID_DEVICE_INFO_KEYBOARD;
+        hid      : RID_DEVICE_INFO_HID;
+    }
+}
+
+GetRawInputDeviceInfoW :: (
+    hDevice   : HANDLE,
+    uiCommand : u32,
+    pData     : *void,
+    pcbSize   : *u32
+) -> u32 #foreign user32;
+
+RIM_INPUT     : u8 : 0;
+RIM_INPUTSINK : u8 : 1;
+
+GET_RAWINPUT_CODE_WPARAM :: inline (wParam : WPARAM) -> u8 #no_context {
+    return cast,no_check(u8) (wParam & 0xFF);
+}
+
+RAWINPUTHEADER :: struct {
+    dwType  : u32;
+    dwSize  : u32;
+    hDevice : HANDLE;
+    wParam  : WPARAM;
+}
+
+MOUSE_MOVE_RELATIVE      : u16 : 0x00;
+MOUSE_MOVE_ABSOLUTE      : u16 : 0x01;
+MOUSE_VIRTUAL_DESKTOP    : u16 : 0x02;
+MOUSE_ATTRIBUTES_CHANGED : u16 : 0x04;
+MOUSE_MOVE_NOCOALESCE    : u16 : 0x08;
+
+RI_MOUSE_BUTTON_1_DOWN      : u16 : 0x0001;
+RI_MOUSE_BUTTON_1_UP        : u16 : 0x0002;
+RI_MOUSE_BUTTON_2_DOWN      : u16 : 0x0004;
+RI_MOUSE_BUTTON_2_UP        : u16 : 0x0008;
+RI_MOUSE_BUTTON_3_DOWN      : u16 : 0x0010;
+RI_MOUSE_BUTTON_3_UP        : u16 : 0x0020;
+RI_MOUSE_BUTTON_4_DOWN      : u16 : 0x0040;
+RI_MOUSE_BUTTON_4_UP        : u16 : 0x0080;
+RI_MOUSE_BUTTON_5_DOWN      : u16 : 0x0100;
+RI_MOUSE_BUTTON_5_UP        : u16 : 0x0200;
+RI_MOUSE_WHEEL              : u16 : 0x0400;
+RI_MOUSE_HWHEEL             : u16 : 0x0800;
+RI_MOUSE_LEFT_BUTTON_DOWN   :: RI_MOUSE_BUTTON_1_DOWN;
+RI_MOUSE_LEFT_BUTTON_UP     :: RI_MOUSE_BUTTON_1_UP;
+RI_MOUSE_RIGHT_BUTTON_DOWN  :: RI_MOUSE_BUTTON_2_DOWN;
+RI_MOUSE_RIGHT_BUTTON_UP    :: RI_MOUSE_BUTTON_2_UP;
+RI_MOUSE_MIDDLE_BUTTON_DOWN :: RI_MOUSE_BUTTON_3_DOWN;
+RI_MOUSE_MIDDLE_BUTTON_UP   :: RI_MOUSE_BUTTON_3_UP;
+
+WHEEL_DELTA : u16 : 120;
+
+RAWMOUSE :: struct {
+    usFlags : u16;
+    union {
+        ulButtons : u32;
+        struct {
+            usButtonFlags : u16;
+            usButtonData  : u16;
+        }
+    }
+    ulRawButtons       : u32;
+    lLastX             : s32;
+    lLastY             : s32;
+    ulExtraInformation : u32;
+}
+
+KEYBOARD_OVERRUN_MAKE_CODE : u16 : 0xFF;
+
+RI_KEY_MAKE  : u16 : 0;
+RI_KEY_BREAK : u16 : 1;
+RI_KEY_E0    : u16 : 2;
+RI_KEY_E1    : u16 : 4;
+
+RAWKEYBOARD :: struct {
+    MakeCode         : u16;
+    Flags            : u16;
+    Reserved         : u16;
+    VKey             : u16;
+    Message          : u32;
+    ExtraInformation : u32;
+}
+
+RAWHID :: struct {
+    dwSizeHid : u32;
+    dwCount   : u32;
+    bRawData  : [1] u8;
+}
+
+RAWINPUT :: struct {
+    header : RAWINPUTHEADER;
+    data   : union {
+        mouse    : RAWMOUSE;
+        keyboard : RAWKEYBOARD;
+        hid      : RAWHID;
+    };
+}
+
+GetRawInputBuffer :: (
+    pData        : *RAWINPUT,
+    pcbSize      : *u32,
+    cbSizeHeader : u32
+) -> u32 #foreign user32;
+
+RAWINPUT_ALIGN :: inline (x : *void) -> *void #no_context {
+    MASK :: size_of(*void) - 1;
+    return (x + MASK) & ~MASK;
+}
+
+NEXTRAWINPUTBLOCK :: inline (raw_input : *RAWINPUT) -> *RAWINPUT #no_context {
+    return RAWINPUT_ALIGN(cast(*void) raw_input + raw_input.header.dwSize);
+}
+
+RID_HEADER : u32 : 0x10000005;
+RID_INPUT  : u32 : 0x10000003;
+
+GetRawInputData :: (
+    hRawInput    : HRAWINPUT,
+    uiCommand    : u32,
+    pData        : *void,
+    pcbSize      : *u32,
+    cbSizeHeader : u32
+) -> u32 #foreign user32;
+
+//
+// Human Interface Devices
+//
+
+HidD_GetProductString :: (
+    HidDeviceObject : HANDLE,
+    Buffer          : *void,
+    BufferLength    : u32
+) -> BOOLEAN #foreign hid;
+
+HidD_GetManufacturerString :: (
+    HidDeviceObject : HANDLE,
+    Buffer          : *void,
+    BufferLength    : u32
+) -> BOOLEAN #foreign hid;
+
 #scope_file
 
 kernel32 :: #system_library "Kernel32";
 user32   :: #system_library "User32";
 dwmapi   :: #system_library "Dwmapi";
 advapi32 :: #system_library "Advapi32";
+hid      :: #system_library "Hid";

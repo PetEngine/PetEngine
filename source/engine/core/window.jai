@@ -103,6 +103,7 @@ processWindowEvents :: (window : *Window) -> bool {
     window.flags &= ~(.MOVED | .RESIZED | .MINIMIZED | .MAXIMIZED);
 
     #if OS == .WINDOWS {
+        processRawInput();
         processWin32WindowEvents(cast(*Win32Window) window);
     } else {
         notImplemented();

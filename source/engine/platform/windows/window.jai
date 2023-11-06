@@ -262,6 +262,20 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             // WM_SIZE and WM_MOVE are not sent if an application handles the WM_WINDOWPOSCHANGED without calling DefWindowProc
             result = DefWindowProcW(window_handle, message, wparam, lparam);
 
+        case WM_INPUT_DEVICE_CHANGE;
+            push_context window.manager.jai_context {
+                onRawInputDeviceChange(cast(HANDLE) lparam, wparam);
+            }
+
+        case WM_INPUT;
+            push_context window.manager.jai_context {
+                assert(GET_RAWINPUT_CODE_WPARAM(wparam) == RIM_INPUT, "Input sink is not supported");
+                onRawInput(cast(HRAWINPUT) lparam);
+            }
+
+            // The application must call DefWindowProc so the system can perform cleanup
+            result = DefWindowProcW(window_handle, message, wparam, lparam);
+
         case WM_MENUCHAR;
             // To suppress bip sound on Alt+Enter when there is no menu created
             if !lparam && (wparam & 0xFFFF) == #char "\n" {
