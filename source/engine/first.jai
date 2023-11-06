@@ -93,6 +93,8 @@ main :: () {
 
     while processWindowEvents(window) {
         if window.flags & .RESIZED {
+            if window.flags & .MINIMIZED continue;
+
             recreateSwapchain(device, window);
             resizeResolutionDependentTextures(device, texture_manager);
         }
