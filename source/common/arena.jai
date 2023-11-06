@@ -110,6 +110,45 @@ pushToArena :: inline (arena : *Arena, $type : Type, $$count := 1) -> *type #mus
     return memory;
 }
 
+Align :: enum_flags u8 {
+    SIZE;
+    POINTER;
+}
+
+pushToArenaAligned :: (arena : *Arena, bytes : s64, alignment : s64, $align : Align) -> *void #must {
+    #assert align != 0 "If you do not want to align anything, then just use pushToArena function";
+
+    assert(arena.memory && arena.capacity, "Initialize arena first");
+    assert(bytes > 0, "There is no sense in allocating <= 0 bytes");
+
+    #if align & .SIZE {
+        aligned_bytes := alignUpWithPowerOfTwo(bytes, alignment);
+    } else {
+        aligned_bytes := bytes;
+    }
+
+    #if align & .POINTER {
+        aligned_offset := alignUpWithPowerOfTwo(arena.occupied, alignment);
+    } else {
+        aligned_offset := arena.occupied;
+    }
+
+    assert(aligned_offset + aligned_bytes < arena.capacity,
+           "There is no enough space in \"%\" arena for % bytes. Occupied: % bytes, capacity: % bytes",
+           arena.name, aligned_bytes, aligned_offset, arena.capacity);
+
+    pointer := arena.memory + aligned_offset;
+    arena.occupied = aligned_offset + aligned_bytes;
+
+    #if DEBUG_BUILD {
+        if arena.occupied > arena.max_occupied {
+            arena.max_occupied = arena.occupied;
+        }
+    }
+
+    return pointer;
+}
+
 resetArena :: inline (arena : *Arena, $zero_memory := true) #no_context {
     #if zero_memory {
         memset(arena.memory, 0, arena.occupied);

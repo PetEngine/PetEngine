@@ -819,7 +819,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             layer_found := false;
 
             for available_layers {
-                if String.equal(to_string(cast(*u8) it.layerName.data), required_layer) {
+                if to_string(cast(*u8) it.layerName.data) == required_layer {
                     layer_found = true;
                     break;
                 }
@@ -836,7 +836,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             layer_found := false;
 
             for available_layers {
-                if String.equal(to_string(cast(*u8) it.layerName.data), optional_layer) {
+                if to_string(cast(*u8) it.layerName.data) == optional_layer {
                     layer_found = true;
                     break;
                 }
@@ -880,7 +880,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             extension_found := false;
 
             for available_extensions {
-                if String.equal(to_string(cast(*u8) it.extensionName.data), required_extension) {
+                if to_string(cast(*u8) it.extensionName.data) == required_extension {
                     extension_found = true;
                     break;
                 }
@@ -897,7 +897,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             extension_found := false;
 
             for available_extensions {
-                if String.equal(to_string(cast(*u8) it.extensionName.data), optional_extension) {
+                if to_string(cast(*u8) it.extensionName.data) == optional_extension {
                     extension_found = true;
                     break;
                 }
@@ -1389,7 +1389,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
             extension_found := false;
 
             for available_extensions {
-                if String.equal(to_string(cast(*u8) it.extensionName.data), required_extension) {
+                if to_string(cast(*u8) it.extensionName.data) == required_extension {
                     extension_found = true;
                     break;
                 }
@@ -1406,7 +1406,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
             extension_found := false;
 
             for available_extensions {
-                if String.equal(to_string(cast(*u8) it.extensionName.data), optional_extension) {
+                if to_string(cast(*u8) it.extensionName.data) == optional_extension {
                     extension_found = true;
                     break;
                 }

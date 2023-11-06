@@ -139,6 +139,23 @@ toView :: inline (data : *$T, count : s64) -> [] T #no_context {
     return result;
 }
 
+toView :: inline (data : *void, count : s64, $type : Type) -> [] type #no_context {
+    result : [] type = ---;
+    result.data  = data;
+    result.count = count;
+
+    return result;
+}
+
+formatHex :: inline (value : Any) -> Basic.FormatInt {
+    return .{
+        value            = value,
+        base             = 16,
+        digits_per_comma = 4,
+        comma_string     = "_",
+    };
+}
+
 #load "arena.jai";
 #load "debug.jai";
 #load "file.jai";
