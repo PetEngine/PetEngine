@@ -147,10 +147,11 @@ toView :: inline (data : *void, count : s64, $type : Type) -> [] type #no_contex
     return result;
 }
 
-formatHex :: inline (value : Any) -> Basic.FormatInt {
+formatHex :: inline (value : Any, minimum_digits := 1) -> Basic.FormatInt {
     return .{
         value            = value,
         base             = 16,
+        minimum_digits   = minimum_digits,
         digits_per_comma = 4,
         comma_string     = "_",
     };

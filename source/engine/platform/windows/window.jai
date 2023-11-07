@@ -168,7 +168,7 @@ createWin32Window :: (
     }
 
     use_dark_theme := cast(BOOL) manager.use_dark_theme;
-    debugCheckOSError(DwmSetWindowAttribute(window.handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
+    debugCheckHRESULT(DwmSetWindowAttribute(window.handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
 
     return window;
 }
@@ -234,7 +234,7 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
 
                 if was_using_dark_theme != window.manager.use_dark_theme {
                     use_dark_theme := cast(BOOL) window.manager.use_dark_theme;
-                    debugCheckOSError(DwmSetWindowAttribute(window_handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
+                    debugCheckHRESULT(DwmSetWindowAttribute(window_handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
                 }
             }
 
@@ -379,13 +379,13 @@ useDarkTheme :: () -> bool {
 
     apps_use_light_theme : u32;
     data_size            : u32 = size_of(u32);
-    debugCheckOSError(RegGetValueW(HKEY_CURRENT_USER,
-                      unicode_subkey.data,
-                      unicode_value.data,
-                      RRF_RT_REG_DWORD,
-                      null,
-                      *apps_use_light_theme,
-                      *data_size));
+    debugCheckHRESULT(RegGetValueW(HKEY_CURRENT_USER,
+                                   unicode_subkey.data,
+                                   unicode_value.data,
+                                   RRF_RT_REG_DWORD,
+                                   null,
+                                   *apps_use_light_theme,
+                                   *data_size));
 
     return !apps_use_light_theme;
 }

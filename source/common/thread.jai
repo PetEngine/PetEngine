@@ -49,7 +49,7 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
             wide_name : [name.count + 1] WCHAR = ---;
             asciiToWide(*wide_name, name, true);
 
-            debugCheckOSError(SetThreadDescription(thread.handle, wide_name.data));
+            debugCheckHRESULT(SetThreadDescription(thread.handle, wide_name.data));
         }
     } else {
         notImplemented();

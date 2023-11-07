@@ -55,7 +55,7 @@ debugCheck :: (
 }
 
 #if OS == .WINDOWS {
-    debugCheckOSError :: ($expression : Code, $strict := true, $location := #caller_location) #expand #no_debug {
+    debugCheckHRESULT :: ($expression : Code, $strict := true, $location := #caller_location) #expand #no_debug {
         #if DEBUG_BUILD {
             result := #insert expression;
 
@@ -69,7 +69,7 @@ debugCheck :: (
             }
 
             STR_EXPRESSION :: #run codeToString(expression);
-            format_result  := Basic.formatInt(result, base = 16, minimum_digits = 8, digits_per_comma = 4, comma_string = "_");
+            format_result  := formatHex(result, 8);
 
             assert(bool_result, "% returned 0x%", STR_EXPRESSION, format_result, print_sys_error = true, location = location);
 
@@ -86,10 +86,6 @@ debugCheck :: (
         } else {
             #insert expression;
         }
-    }
-} else {
-    debugCheckOSError :: ($expression : Code, $strict := true, $location := #caller_location) #expand #no_debug {
-        notImplemented();
     }
 }
 
