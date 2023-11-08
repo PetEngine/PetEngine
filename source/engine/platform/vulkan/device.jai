@@ -722,7 +722,7 @@ debugCheckVK :: ($code : Code, $strict := true, $location := #caller_location) #
         assert(success, "% returned %", STR_CODE, result, location = location);
 
         #if !strict {
-            if result != ERROR_SUCCESS {
+            if result != .VK_SUCCESS {
                 warningMessage("% returned % at %(%)",
                                STR_CODE,
                                result,
