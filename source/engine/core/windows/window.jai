@@ -270,7 +270,7 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
         case WM_INPUT;
             push_context window.manager.jai_context {
                 assert(GET_RAWINPUT_CODE_WPARAM(wparam) == RIM_INPUT, "Input sink is not supported");
-                onRawInput(cast(HRAWINPUT) lparam);
+                onRawInput(*window.input, cast(HRAWINPUT) lparam);
             }
 
             // The application must call DefWindowProc so the system can perform cleanup

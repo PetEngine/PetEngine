@@ -980,6 +980,19 @@ TryAcquireSRWLockShared :: (
     SRWLock : *SRWLOCK
 ) -> BOOLEAN #foreign kernel32;
 
+VK_CAPITAL     :: 0x14;
+VK_NUMLOCK     :: 0x90;
+VK_SCROLL      :: 0x91;
+VK_VOLUME_MUTE :: 0xAD;
+
+GetKeyState :: (
+    nVirtKey : s32
+) -> s16 #foreign user32;
+
+GetKeyboardState :: (
+    lpKeyState : *u8
+) -> BOOL #foreign user32;
+
 //
 // Raw input
 //
@@ -991,34 +1004,37 @@ GET_DEVICE_CHANGE_WPARAM :: inline (wparam : WPARAM) -> u8 #no_context {
     return cast(u8) (wparam & 0xFF);
 }
 
-HID_USAGE_PAGE_GENERIC : u16 : 0x01;
-HID_USAGE_PAGE_GAME    : u16 : 0x05;
-HID_USAGE_PAGE_LED     : u16 : 0x08;
-HID_USAGE_PAGE_BUTTON  : u16 : 0x09;
+HID_USAGE_PAGE :: enum u16 #specified {
+    UNDEFINED :: 0x0000;
+    GENERIC   :: 0x0001;
+    // We don't need any other
+    VENDOR_DEFINED_BEGIN :: 0xFF00;
+    VENDOR_DEFINED_END   :: 0xFFFF;
+}
 
-HID_USAGE_GENERIC_POINTER               : u16 : 0x01;
-HID_USAGE_GENERIC_MOUSE                 : u16 : 0x02;
-HID_USAGE_GENERIC_JOYSTICK              : u16 : 0x04;
-HID_USAGE_GENERIC_GAMEPAD               : u16 : 0x05;
-HID_USAGE_GENERIC_KEYBOARD              : u16 : 0x06;
-HID_USAGE_GENERIC_KEYPAD                : u16 : 0x07;
-HID_USAGE_GENERIC_MULTI_AXIS_CONTROLLER : u16 : 0x08;
+HID_USAGE :: enum u16 #specified {
+    GENERIC_MOUSE    :: 0x02;
+    GENERIC_KEYBOARD :: 0x06;
+    // We don't need any other
+}
 
-RIDEV_REMOVE       : u32 : 0x00000001;
-RIDEV_EXCLUDE      : u32 : 0x00000010;
-RIDEV_PAGEONLY     : u32 : 0x00000020;
-RIDEV_NOLEGACY     : u32 : 0x00000030;
-RIDEV_INPUTSINK    : u32 : 0x00000100;
-RIDEV_CAPTUREMOUSE : u32 : 0x00000200;
-RIDEV_NOHOTKEYS    : u32 : 0x00000200;
-RIDEV_APPKEYS      : u32 : 0x00000400;
-RIDEV_EXINPUTSINK  : u32 : 0x00001000;
-RIDEV_DEVNOTIFY    : u32 : 0x00002000;
+RIDEV :: enum_flags u32 #specified {
+    REMOVE       :: 0x00000001;
+    EXCLUDE      :: 0x00000010;
+    PAGEONLY     :: 0x00000020;
+    NOLEGACY     :: 0x00000030;
+    INPUTSINK    :: 0x00000100;
+    CAPTUREMOUSE :: 0x00000200;
+    NOHOTKEYS    :: 0x00000200;
+    APPKEYS      :: 0x00000400;
+    EXINPUTSINK  :: 0x00001000;
+    DEVNOTIFY    :: 0x00002000;
+}
 
 RAWINPUTDEVICE :: struct {
-    usUsagePage : u16;
-    usUsage     : u16;
-    dwFlags     : u32;
+    usUsagePage : HID_USAGE_PAGE;
+    usUsage     : HID_USAGE;
+    dwFlags     : RIDEV;
     hwndTarget  : HWND;
 }
 
@@ -1032,9 +1048,11 @@ RIDI_PREPARSEDDATA : u32 : 0x20000005;
 RIDI_DEVICENAME    : u32 : 0x20000007;
 RIDI_DEVICEINFO    : u32 : 0x2000000B;
 
-RIM_TYPEMOUSE    : u32 : 0;
-RIM_TYPEKEYBOARD : u32 : 1;
-RIM_TYPEHID      : u32 : 2;
+RIM :: enum u32 #specified {
+    TYPEMOUSE    :: 0;
+    TYPEKEYBOARD :: 1;
+    TYPEHID      :: 2;
+}
 
 MOUSE_HID_HARDWARE       : u32 : 0x0080;
 WHEELMOUSE_HID_HARDWARE  : u32 : 0x0100;
@@ -1060,13 +1078,13 @@ RID_DEVICE_INFO_HID :: struct {
     dwVendorId      : u32;
     dwProductId     : u32;
     dwVersionNumber : u32;
-    usUsagePage     : u16;
-    usUsage         : u16;
+    usUsagePage     : HID_USAGE_PAGE;
+    usUsage         : HID_USAGE;
 }
 
 RID_DEVICE_INFO :: struct {
     cbSize : u32;
-    dwType : u32;
+    dwType : RIM;
     union {
         mouse    : RID_DEVICE_INFO_MOUSE;
         keyboard : RID_DEVICE_INFO_KEYBOARD;
@@ -1089,45 +1107,49 @@ GET_RAWINPUT_CODE_WPARAM :: inline (wParam : WPARAM) -> u8 #no_context {
 }
 
 RAWINPUTHEADER :: struct {
-    dwType  : u32;
+    dwType  : RIM;
     dwSize  : u32;
     hDevice : HANDLE;
     wParam  : WPARAM;
 }
 
-MOUSE_MOVE_RELATIVE      : u16 : 0x00;
-MOUSE_MOVE_ABSOLUTE      : u16 : 0x01;
-MOUSE_VIRTUAL_DESKTOP    : u16 : 0x02;
-MOUSE_ATTRIBUTES_CHANGED : u16 : 0x04;
-MOUSE_MOVE_NOCOALESCE    : u16 : 0x08;
+MOUSE :: enum_flags u16 #specified {
+    MOVE_RELATIVE      :: 0x00;
+    MOVE_ABSOLUTE      :: 0x01;
+    VIRTUAL_DESKTOP    :: 0x02;
+    ATTRIBUTES_CHANGED :: 0x04;
+    MOVE_NOCOALESCE    :: 0x08;
+}
 
-RI_MOUSE_BUTTON_1_DOWN      : u16 : 0x0001;
-RI_MOUSE_BUTTON_1_UP        : u16 : 0x0002;
-RI_MOUSE_BUTTON_2_DOWN      : u16 : 0x0004;
-RI_MOUSE_BUTTON_2_UP        : u16 : 0x0008;
-RI_MOUSE_BUTTON_3_DOWN      : u16 : 0x0010;
-RI_MOUSE_BUTTON_3_UP        : u16 : 0x0020;
-RI_MOUSE_BUTTON_4_DOWN      : u16 : 0x0040;
-RI_MOUSE_BUTTON_4_UP        : u16 : 0x0080;
-RI_MOUSE_BUTTON_5_DOWN      : u16 : 0x0100;
-RI_MOUSE_BUTTON_5_UP        : u16 : 0x0200;
-RI_MOUSE_WHEEL              : u16 : 0x0400;
-RI_MOUSE_HWHEEL             : u16 : 0x0800;
-RI_MOUSE_LEFT_BUTTON_DOWN   :: RI_MOUSE_BUTTON_1_DOWN;
-RI_MOUSE_LEFT_BUTTON_UP     :: RI_MOUSE_BUTTON_1_UP;
-RI_MOUSE_RIGHT_BUTTON_DOWN  :: RI_MOUSE_BUTTON_2_DOWN;
-RI_MOUSE_RIGHT_BUTTON_UP    :: RI_MOUSE_BUTTON_2_UP;
-RI_MOUSE_MIDDLE_BUTTON_DOWN :: RI_MOUSE_BUTTON_3_DOWN;
-RI_MOUSE_MIDDLE_BUTTON_UP   :: RI_MOUSE_BUTTON_3_UP;
+RI_MOUSE :: enum_flags u16 #specified {
+    BUTTON_1_DOWN      :: 0x0001;
+    BUTTON_1_UP        :: 0x0002;
+    BUTTON_2_DOWN      :: 0x0004;
+    BUTTON_2_UP        :: 0x0008;
+    BUTTON_3_DOWN      :: 0x0010;
+    BUTTON_3_UP        :: 0x0020;
+    BUTTON_4_DOWN      :: 0x0040;
+    BUTTON_4_UP        :: 0x0080;
+    BUTTON_5_DOWN      :: 0x0100;
+    BUTTON_5_UP        :: 0x0200;
+    WHEEL              :: 0x0400;
+    HWHEEL             :: 0x0800;
+    LEFT_BUTTON_DOWN   :: BUTTON_1_DOWN;
+    LEFT_BUTTON_UP     :: BUTTON_1_UP;
+    RIGHT_BUTTON_DOWN  :: BUTTON_2_DOWN;
+    RIGHT_BUTTON_UP    :: BUTTON_2_UP;
+    MIDDLE_BUTTON_DOWN :: BUTTON_3_DOWN;
+    MIDDLE_BUTTON_UP   :: BUTTON_3_UP;
+}
 
 WHEEL_DELTA : u16 : 120;
 
 RAWMOUSE :: struct {
-    usFlags : u16;
+    usFlags : MOUSE;
     union {
         ulButtons : u32;
         struct {
-            usButtonFlags : u16;
+            usButtonFlags : RI_MOUSE;
             usButtonData  : u16;
         }
     }
@@ -1139,14 +1161,16 @@ RAWMOUSE :: struct {
 
 KEYBOARD_OVERRUN_MAKE_CODE : u16 : 0xFF;
 
-RI_KEY_MAKE  : u16 : 0;
-RI_KEY_BREAK : u16 : 1;
-RI_KEY_E0    : u16 : 2;
-RI_KEY_E1    : u16 : 4;
+RI :: enum_flags u16 #specified {
+    KEY_MAKE  :: 0;
+    KEY_BREAK :: 1;
+    KEY_E0    :: 2;
+    KEY_E1    :: 4;
+}
 
 RAWKEYBOARD :: struct {
     MakeCode         : u16;
-    Flags            : u16;
+    Flags            : RI;
     Reserved         : u16;
     VKey             : u16;
     Message          : u32;
@@ -1195,7 +1219,7 @@ GetRawInputData :: (
 ) -> u32 #foreign user32;
 
 //
-// Human Interface Devices
+// HID
 //
 
 HidD_GetProductString :: (

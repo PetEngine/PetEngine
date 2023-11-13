@@ -59,6 +59,8 @@ Window :: struct {
     dpi_scale : f32;
 
     flags : Flags;
+
+    input : Input;
 }
 
 createWindow :: (
@@ -101,9 +103,10 @@ showWindow :: (window : *Window) {
 processWindowEvents :: (window : *Window) -> bool {
     // Reset flags for a new frame.
     window.flags &= ~(.MOVED | .RESIZED | .MINIMIZED | .MAXIMIZED);
+    resetInput(*window.input);
 
     #if OS == .WINDOWS {
-        processRawInput();
+        processRawInput(*window.input);
         processWin32WindowEvents(cast(*Win32Window) window);
     } else {
         notImplemented();
@@ -115,7 +118,7 @@ processWindowEvents :: (window : *Window) -> bool {
 #scope_file
 
 #if OS == .WINDOWS {
-    #load "../platform/windows/window.jai";
+    #load "windows/window.jai";
 } else {
     notImplemented();
 }
