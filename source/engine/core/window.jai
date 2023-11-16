@@ -52,6 +52,8 @@ Window :: struct {
     };
 
     surface : struct {
+        x      : s16; // in screen space
+        y      : s16; // in screen space
         width  : u16;
         height : u16;
     };

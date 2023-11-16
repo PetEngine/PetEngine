@@ -53,7 +53,7 @@ createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *V
     initMessengerCallback(device);
     physical_device_api_version := selectPhysicalDevice(device);
 
-    device.api_version = Basic.min(instance_api_version, physical_device_api_version);
+    device.api_version = min(instance_api_version, physical_device_api_version);
     infoMessage("Using Vulkan API version: %.%.%.%",
                 VK_API_VERSION_VARIANT(device.api_version),
                 VK_API_VERSION_MAJOR(device.api_version),

@@ -72,12 +72,12 @@ ERROR_INVALID_USER_BUFFER :: 1784;
 
 STATUS_PENDING :: 0x00000103;
 
-SUCCEEDED :: inline ($$result : $T) -> bool {
+SUCCEEDED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
     return result >= ERROR_SUCCESS;
 }
 
-FAILED :: inline ($$result : $T) -> bool {
+FAILED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
     return result < ERROR_SUCCESS;
 }
@@ -1128,20 +1128,11 @@ VK :: enum u8 #specified {
     PAUSE            :: 0x13;
 }
 
-GetKeyState :: (
-    nVirtKey : s32
-) -> s16 #foreign user32;
-
 GetKeyboardState :: (
     lpKeyState : *u8
 ) -> BOOL #foreign user32;
 
 GetCursorPos :: (
-    lpPoint : *POINT
-) -> BOOL #foreign user32;
-
-ScreenToClient :: (
-    hWnd    : HWND,
     lpPoint : *POINT
 ) -> BOOL #foreign user32;
 

@@ -159,12 +159,6 @@ Input :: struct {
         screen_x : s16;
         screen_y : s16;
 
-        surface_x : s16;
-        surface_y : s16;
-
-        clamped_surface_x : s16;
-        clamped_surface_y : s16;
-
         dx : s16;
         dy : s16;
 
@@ -225,6 +219,11 @@ getNewKeyState :: inline (key_state : Input.KeyState, $down : bool) -> Input.Key
         }
     }
     return new_state;
+}
+
+getWindowSurfaceSpaceMousePosition :: (window : *Window) -> (x : s16, y : s16) #no_context {
+    return window.input.mouse.screen_x - window.surface.x,
+           window.input.mouse.screen_y - window.surface.y;
 }
 
 #scope_file

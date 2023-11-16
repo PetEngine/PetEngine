@@ -245,16 +245,8 @@ calcInitialMousePosition :: (window : *Win32Window) {
     mouse_position : POINT = ---;
     debugCheck(GetCursorPos(*mouse_position), print_sys_error = true);
 
-    window.input.mouse.screen_x = cast(s16) mouse_position.x;
-    window.input.mouse.screen_y = cast(s16) mouse_position.y;
-
-    debugCheck(ScreenToClient(window.handle, *mouse_position), print_sys_error = true);
-
-    window.input.mouse.surface_x = cast(s16) mouse_position.x;
-    window.input.mouse.surface_y = cast(s16) mouse_position.y;
-
-    window.input.mouse.clamped_surface_x = Basic.clamp(window.input.mouse.surface_x, 0, cast(s16) window.surface.width);
-    window.input.mouse.clamped_surface_y = Basic.clamp(window.input.mouse.surface_y, 0, cast(s16) window.surface.height);
+    window.input.mouse.screen_x = cast,trunc(s16) mouse_position.x;
+    window.input.mouse.screen_y = cast,trunc(s16) mouse_position.y;
 }
 
 #scope_file
@@ -325,34 +317,23 @@ processMouseRawInput :: (window : *Win32Window, raw_mouse : *RAWMOUSE) {
     /**/ if raw_mouse.usButtonFlags & .WHEEL  then window.input.mouse.dwheel            = cast(s16) (cast,trunc(s16) raw_mouse.usButtonData / cast(float) WHEEL_DELTA);
     else if raw_mouse.usButtonFlags & .HWHEEL then window.input.mouse.dwheel_horizontal = cast(s16) (cast,trunc(s16) raw_mouse.usButtonData / cast(float) WHEEL_DELTA);
 
-    if raw_mouse.lLastX || raw_mouse.lLastY {
-        if raw_mouse.usFlags & .MOVE_ABSOLUTE {
-            assert(!(raw_mouse.usFlags & .VIRTUAL_DESKTOP), "Virtual desktops are not supported for mosue input yet");
+    if raw_mouse.usFlags & .MOVE_ABSOLUTE {
+        assert(!(raw_mouse.usFlags & .VIRTUAL_DESKTOP), "Virtual desktops are not supported for mosue input yet");
 
-            window.input.mouse.dx = cast(s16) raw_mouse.lLastX - window.input.mouse.screen_x;
-            window.input.mouse.dy = cast(s16) raw_mouse.lLastY - window.input.mouse.screen_y;
+        window.input.mouse.dx = cast(s16) raw_mouse.lLastX - window.input.mouse.screen_x;
+        window.input.mouse.dy = cast(s16) raw_mouse.lLastY - window.input.mouse.screen_y;
 
-            window.input.mouse.screen_x = cast(s16) raw_mouse.lLastX;
-            window.input.mouse.screen_y = cast(s16) raw_mouse.lLastY;
-        } else {
-            window.input.mouse.dx = cast(s16) raw_mouse.lLastX;
-            window.input.mouse.dy = cast(s16) raw_mouse.lLastY;
+        window.input.mouse.screen_x = cast(s16) raw_mouse.lLastX;
+        window.input.mouse.screen_y = cast(s16) raw_mouse.lLastY;
+    } else if raw_mouse.lLastX || raw_mouse.lLastY {
+        window.input.mouse.dx = cast(s16) raw_mouse.lLastX;
+        window.input.mouse.dy = cast(s16) raw_mouse.lLastY;
 
-            window.input.mouse.screen_x += window.input.mouse.dx;
-            window.input.mouse.screen_y += window.input.mouse.dy;
+        window.input.mouse.screen_x += window.input.mouse.dx;
+        window.input.mouse.screen_y += window.input.mouse.dy;
 
-            window.input.mouse.screen_x = Basic.clamp(window.input.mouse.screen_x, 0, cast(s16) window.screen.width);
-            window.input.mouse.screen_y = Basic.clamp(window.input.mouse.screen_y, 0, cast(s16) window.screen.height);
-        }
-
-        surface_position := POINT.{ window.input.mouse.screen_x, window.input.mouse.screen_y };
-        debugCheck(ScreenToClient(window.handle, *surface_position), print_sys_error = true);
-
-        window.input.mouse.surface_x = cast(s16) surface_position.x;
-        window.input.mouse.surface_y = cast(s16) surface_position.y;
-
-        window.input.mouse.clamped_surface_x = Basic.clamp(window.input.mouse.surface_x, 0, cast(s16) window.surface.width);
-        window.input.mouse.clamped_surface_y = Basic.clamp(window.input.mouse.surface_y, 0, cast(s16) window.surface.height);
+        window.input.mouse.screen_x = clamp(window.input.mouse.screen_x, 0, cast(s16) window.screen.width);
+        window.input.mouse.screen_y = clamp(window.input.mouse.screen_y, 0, cast(s16) window.screen.height);
     }
 }
 

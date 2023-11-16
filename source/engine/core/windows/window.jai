@@ -222,6 +222,16 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
         case WM_MOVE;
             window.flags |= .MOVED;
 
+            window.surface.x = cast,trunc(s16) (lparam & 0xFFFF);
+            window.surface.y = cast,trunc(s16) (lparam >> 16);
+
+            // WM_SIZE is sent before WM_MOVE, so we handle it here
+            if window.flags & .CLOSED {
+                push_context window.manager.jai_context {
+                    calcInitialMousePosition(window);
+                }
+            }
+
         case WM_SIZE;
             window.flags |= .RESIZED;
 
@@ -232,12 +242,6 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
 
             window.surface.width  = cast(u16) (lparam & 0xFFFF);
             window.surface.height = cast(u16) (lparam >> 16);
-
-            if window.flags & .CLOSED {
-                push_context window.manager.jai_context {
-                    calcInitialMousePosition(window);
-                }
-            }
 
         case WM_CLOSE;
             window.flags |= .CLOSED;
@@ -266,8 +270,8 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
                 window.flags |= .MOVED;
             }
 
-            window.rect.x      = cast(s16) window_position.x;
-            window.rect.y      = cast(s16) window_position.y;
+            window.rect.x      = cast,trunc(s16) window_position.x;
+            window.rect.y      = cast,trunc(s16) window_position.y;
             window.rect.width  = cast(u16) window_position.cx;
             window.rect.height = cast(u16) window_position.cy;
 
