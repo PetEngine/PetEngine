@@ -1,6 +1,5 @@
 // @TODO: #Input.
 //     1. Multiple gamepad support.
-//     2. Mouse position
 
 Input :: struct {
     MAX_KEYS :: #run Basic.enum_highest_value(Key) + 1;
@@ -126,17 +125,17 @@ Input :: struct {
         RIGHT_WIN;
         CONTEXT_MENU;
 
-        COMMA;
-        DOT;
-        SLASH;
-        SEMICOLON;
-        APOSTROPHE;
-        BACK_SLASH;
-        LEFT_BRACKET;
-        RIGHT_BRACKET;
-        DASH;
-        EQUALS;
-        TILDE;
+        COMMA;         // ,<
+        DOT;           // .>
+        SLASH;         // /?
+        SEMICOLON;     // ;:
+        APOSTROPHE;    // '"
+        BACK_SLASH;    // \|
+        LEFT_BRACKET;  // [{
+        RIGHT_BRACKET; // ]}
+        DASH;          // -_
+        EQUALS;        // =+
+        TILDE;         // `~
 
         VOLUME_MUTE;
         VOLUME_DOWN;
@@ -151,12 +150,21 @@ Input :: struct {
 
         PRINT_SCREEN;
         BREAK;
-        // We do not support PAUSE key (win32 make code = 0xE11D45)
+        PAUSE;
 
-        UNDEFINED :: 0xFF;
+        UNDEFINED;
     }
 
     Mouse :: struct {
+        screen_x : s16;
+        screen_y : s16;
+
+        surface_x : s16;
+        surface_y : s16;
+
+        clamped_surface_x : s16;
+        clamped_surface_y : s16;
+
         dx : s16;
         dy : s16;
 

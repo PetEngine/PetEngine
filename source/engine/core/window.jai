@@ -56,6 +56,11 @@ Window :: struct {
         height : u16;
     };
 
+    screen : struct {
+        width  : u16;
+        height : u16;
+    };
+
     dpi_scale : f32;
 
     flags : Flags;
@@ -106,7 +111,7 @@ processWindowEvents :: (window : *Window) -> bool {
     resetInput(*window.input);
 
     #if OS == .WINDOWS {
-        processRawInput(*window.input);
+        processRawInput(cast(*Win32Window) window);
         processWin32WindowEvents(cast(*Win32Window) window);
     } else {
         notImplemented();

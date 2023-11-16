@@ -97,15 +97,22 @@ Win32Window :: struct {
     #as using public_data : Window;
 
     PlatformFlags :: enum_flags u8 {
+        // If we create a window with Window.OS_DEFAULT_SIZE we cannot apply dpi scaling on createWin32Window
+        // since we do not know the actual window rect yet, so we apply it on WM_WINDOWPOSCHANGED message
+        // when we get its rect for the first time.
         APPLY_DPI_SCALING_ON_SHOW;
-    }
 
-    platform_flags : PlatformFlags;
+        // Win32 MakeCode for Key.PAUSE is 0xE11D45, which is > 0xFFFF, so it's split in 2 reports: 0xE11D and 0x0045.
+        // We know that 0xE11D is used with Key.PAUSE only, so we just skip the second report assuming it == 0x0045.
+        HANDLING_KEY_PAUSE;
+    }
 
     handle : HWND;
 
     manager   : *Win32WindowManager;
     next_free : *Win32Window;
+
+    platform_flags : PlatformFlags;
 }
 
 createWin32Window :: (
@@ -160,6 +167,9 @@ createWin32Window :: (
 
     SetWindowLongPtrW(window.handle, GWLP_USERDATA, cast,no_check(LONG_PTR) window);
 
+    window.screen.width  = cast(u16) GetSystemMetrics(SM_CXSCREEN);
+    window.screen.height = cast(u16) GetSystemMetrics(SM_CYSCREEN);
+
     if window_rect_width != CW_USEDEFAULT && window_rect_height != CW_USEDEFAULT {
         window.dpi_scale = applyInitialDPIScalingToWindow(window.handle, cast(u16) window_rect_width, cast(u16) window_rect_height);
     } else {
@@ -209,6 +219,9 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
 
             result = DefWindowProcW(window_handle, message, wparam, lparam);
 
+        case WM_MOVE;
+            window.flags |= .MOVED;
+
         case WM_SIZE;
             window.flags |= .RESIZED;
 
@@ -219,6 +232,12 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
 
             window.surface.width  = cast(u16) (lparam & 0xFFFF);
             window.surface.height = cast(u16) (lparam >> 16);
+
+            if window.flags & .CLOSED {
+                push_context window.manager.jai_context {
+                    calcInitialMousePosition(window);
+                }
+            }
 
         case WM_CLOSE;
             window.flags |= .CLOSED;
@@ -262,6 +281,10 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             // WM_SIZE and WM_MOVE are not sent if an application handles the WM_WINDOWPOSCHANGED without calling DefWindowProc
             result = DefWindowProcW(window_handle, message, wparam, lparam);
 
+        case WM_DISPLAYCHANGE;
+            window.screen.width  = cast(u16) (lparam & 0xFFFF);
+            window.screen.height = cast(u16) (lparam >> 16);
+
         case WM_INPUT_DEVICE_CHANGE;
             push_context window.manager.jai_context {
                 onRawInputDeviceChange(cast(HANDLE) lparam, wparam);
@@ -270,7 +293,7 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
         case WM_INPUT;
             push_context window.manager.jai_context {
                 assert(GET_RAWINPUT_CODE_WPARAM(wparam) == RIM_INPUT, "Input sink is not supported");
-                onRawInput(*window.input, cast(HRAWINPUT) lparam);
+                onRawInput(window, cast(HRAWINPUT) lparam);
             }
 
             // The application must call DefWindowProc so the system can perform cleanup
