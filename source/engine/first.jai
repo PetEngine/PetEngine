@@ -95,9 +95,22 @@ main :: () {
     showWindow(window);
 
     while processWindowEvents(window) {
-        if window.flags & .RESIZED {
-            if window.flags & .MINIMIZED continue;
+        resetArena(*context.pet.per_frame_arena);
+        Basic.reset_temporary_storage();
 
+        //
+        // Update
+        //
+
+        //
+        // Render
+        //
+
+        if window.flags & .MINIMIZED {
+            continue;
+        }
+
+        if window.flags & .RESIZED {
             recreateSwapchain(device, window);
             resizeResolutionDependentTextures(device, texture_manager);
         }
@@ -106,9 +119,6 @@ main :: () {
         {
             // Reset
             {
-                resetArena(*context.pet.per_frame_arena);
-                Basic.reset_temporary_storage();
-
                 resetCommandBuffer(device, *command_buffer);
                 // @TODO: #PerFrameTextures. Delete unused per frame texture memory when number of swapchain buffers decreased.
                 resetTextureMemory(device, texture_manager, .PER_FRAME);

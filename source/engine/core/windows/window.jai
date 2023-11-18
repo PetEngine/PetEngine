@@ -227,6 +227,7 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
 
         case WM_SIZE;
             window.flags |= .RESIZED;
+            window.flags &= ~(.MINIMIZED | .MAXIMIZED);
 
             if wparam == {
                 case SIZE_MINIMIZED; window.flags |= .MINIMIZED;

@@ -109,7 +109,7 @@ showWindow :: (window : *Window) {
 
 processWindowEvents :: (window : *Window) -> bool {
     // Reset flags for a new frame.
-    window.flags &= ~(.MOVED | .RESIZED | .MINIMIZED | .MAXIMIZED);
+    window.flags &= ~(.MOVED | .RESIZED);
     resetInput(*window.input);
 
     #if OS == .WINDOWS {
