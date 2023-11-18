@@ -57,18 +57,19 @@ va_list :: *s8;
 
 INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 
-ERROR_SUCCESS             :: 0;
-ERROR_FILE_NOT_FOUND      :: 2;
-ERROR_PATH_NOT_FOUND      :: 3;
-ERROR_ACCESS_DENIED       :: 5;
-ERROR_NO_MORE_FILES       :: 18;
-ERROR_SHARING_VIOLATION   :: 32;
-ERROR_FILE_EXISTS         :: 80;
-ERROR_INSUFFICIENT_BUFFER :: 122;
-ERROR_ALREADY_EXISTS      :: 183;
-ERROR_OPERATION_ABORTED   :: 995;
-ERROR_NOT_FOUND           :: 1168;
-ERROR_INVALID_USER_BUFFER :: 1784;
+ERROR_SUCCESS              :: 0;
+ERROR_FILE_NOT_FOUND       :: 2;
+ERROR_PATH_NOT_FOUND       :: 3;
+ERROR_ACCESS_DENIED        :: 5;
+ERROR_NO_MORE_FILES        :: 18;
+ERROR_SHARING_VIOLATION    :: 32;
+ERROR_FILE_EXISTS          :: 80;
+ERROR_INSUFFICIENT_BUFFER  :: 122;
+ERROR_ALREADY_EXISTS       :: 183;
+ERROR_OPERATION_ABORTED    :: 995;
+ERROR_DEVICE_NOT_CONNECTED :: 1167;
+ERROR_NOT_FOUND            :: 1168;
+ERROR_INVALID_USER_BUFFER  :: 1784;
 
 STATUS_PENDING :: 0x00000103;
 
@@ -1384,10 +1385,53 @@ HidD_GetManufacturerString :: (
     BufferLength    : u32
 ) -> BOOLEAN #foreign hid;
 
+//
+// XInput
+//
+
+XINPUT_GAMEPAD_DPAD_UP        :: 0x0001;
+XINPUT_GAMEPAD_DPAD_DOWN      :: 0x0002;
+XINPUT_GAMEPAD_DPAD_LEFT      :: 0x0004;
+XINPUT_GAMEPAD_DPAD_RIGHT     :: 0x0008;
+XINPUT_GAMEPAD_START          :: 0x0010;
+XINPUT_GAMEPAD_BACK           :: 0x0020;
+XINPUT_GAMEPAD_LEFT_THUMB     :: 0x0040;
+XINPUT_GAMEPAD_RIGHT_THUMB    :: 0x0080;
+XINPUT_GAMEPAD_LEFT_SHOULDER  :: 0x0100;
+XINPUT_GAMEPAD_RIGHT_SHOULDER :: 0x0200;
+XINPUT_GAMEPAD_A              :: 0x1000;
+XINPUT_GAMEPAD_B              :: 0x2000;
+XINPUT_GAMEPAD_X              :: 0x4000;
+XINPUT_GAMEPAD_Y              :: 0x8000;
+
+XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE  :: 7849;
+XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE :: 8689;
+XINPUT_GAMEPAD_TRIGGER_THRESHOLD    :: 30;
+
+XINPUT_GAMEPAD :: struct {
+    wButtons      : u16;
+    bLeftTrigger  : u8;
+    bRightTrigger : u8;
+    sThumbLX      : s16;
+    sThumbLY      : s16;
+    sThumbRX      : s16;
+    sThumbRY      : s16;
+}
+
+XINPUT_STATE :: struct {
+    dwPacketNumber : u32;
+    Gamepad        : XINPUT_GAMEPAD;
+}
+
+PFN_XInputGetState :: #type (
+    dwUserIndex : u32,
+    pState      : *XINPUT_STATE
+) -> u32 #c_call;
+
 #scope_file
 
-kernel32 :: #system_library "Kernel32";
-user32   :: #system_library "User32";
-dwmapi   :: #system_library "Dwmapi";
-advapi32 :: #system_library "Advapi32";
-hid      :: #system_library "Hid";
+kernel32 :: #system_library "kernel32";
+user32   :: #system_library "user32";
+dwmapi   :: #system_library "dwmapi";
+advapi32 :: #system_library "advapi32";
+hid      :: #system_library "hid";

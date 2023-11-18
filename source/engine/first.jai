@@ -52,7 +52,8 @@ main :: () {
     window := createWindow(window_manager, surface_width = 960, surface_height = 540);
     defer destroyWindow(window);
 
-    registerInput(window);
+    createInput(window);
+    defer destroyInput();
 
     // @TODO: #Settings.
     //    - Get graphics API from settings.

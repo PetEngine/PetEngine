@@ -42,6 +42,23 @@ registerRawInput :: (window : *Win32Window) {
                print_sys_error = true);
 }
 
+loadXInput :: () {
+    if g_XInput return;
+
+    g_XInput = LoadLibraryA(cast(*s8) "XInput1_4.dll\0".data);
+    assert(g_XInput, print_sys_error = true);
+
+    g_XInputGetState = cast(PFN_XInputGetState) GetProcAddress(g_XInput, cast(*s8) "XInputGetState\0".data);
+    assert(g_XInputGetState, print_sys_error = true);
+}
+
+unloadXInput :: () {
+    if !g_XInput return;
+
+    debugCheck(FreeLibrary(g_XInput), print_sys_error = true);
+    g_XInput = null;
+}
+
 onRawInputDeviceChange :: (ri_device : HANDLE, wparam : WPARAM) {
     #if DEBUG_BUILD {
 DEVICE_CONNECTED_MESSAGE :: #string END
@@ -115,7 +132,71 @@ onRawInput :: (window : *Win32Window, ri_handle : HRAWINPUT) {
     }
 }
 
+processXInput :: (input : *Input) {
+    state : XINPUT_STATE = ---;
+
+    for * input.gamepads {
+        result := g_XInputGetState(cast(u32) it_index, *state);
+        assert(result == ERROR_SUCCESS || result == ERROR_DEVICE_NOT_CONNECTED,
+               "XInputGetState returned %",
+               result,
+               print_sys_error = true);
+
+        if result == ERROR_DEVICE_NOT_CONNECTED {
+            if it.connected {
+                infoMessage("Gamepad #% has been disconnected", it_index);
+                it.connected = false;
+            }
+            continue;
+        }
+
+        if !it.connected {
+            infoMessage("Gamepad #% has been connected", it_index);
+            it.connected = true;
+        }
+
+        it.button_a           = getNewDigitalButtonState(it.button_a,           cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_A));
+        it.button_b           = getNewDigitalButtonState(it.button_b,           cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_B));
+        it.button_x           = getNewDigitalButtonState(it.button_x,           cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_X));
+        it.button_y           = getNewDigitalButtonState(it.button_y,           cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_Y));
+        it.left_shoulder      = getNewDigitalButtonState(it.left_shoulder,      cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER));
+        it.right_shoulder     = getNewDigitalButtonState(it.right_shoulder,     cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER));
+        it.start              = getNewDigitalButtonState(it.start,              cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_START));
+        it.back               = getNewDigitalButtonState(it.back,               cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK));
+        it.dpad_up            = getNewDigitalButtonState(it.dpad_up,            cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP));
+        it.dpad_down          = getNewDigitalButtonState(it.dpad_down,          cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN));
+        it.dpad_left          = getNewDigitalButtonState(it.dpad_left,          cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT));
+        it.dpad_right         = getNewDigitalButtonState(it.dpad_right,         cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT));
+        it.left_thumb.button  = getNewDigitalButtonState(it.left_thumb.button,  cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB));
+        it.right_thumb.button = getNewDigitalButtonState(it.right_thumb.button, cast(bool) (state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB));
+
+        // [0; 255] -> [0; 1]
+        adaptTrigger :: inline (value : u8) -> f32 #no_context {
+            if value > XINPUT_GAMEPAD_TRIGGER_THRESHOLD return value / 255.0;
+            return 0.0;
+        }
+
+        it.left_trigger  = adaptTrigger(state.Gamepad.bLeftTrigger);
+        it.right_trigger = adaptTrigger(state.Gamepad.bRightTrigger);
+
+        // [-32768; 32767] -> [-1; 1]
+        adaptOffset :: inline (value : s16, $deadzone : s16) -> f32 #no_context {
+            if value < -deadzone return value / 32768.0;
+            if value >  deadzone return value / 32767.0;
+            return 0.0;
+        }
+
+        it.left_thumb.x  = adaptOffset(state.Gamepad.sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+        it.left_thumb.y  = adaptOffset(state.Gamepad.sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+        it.right_thumb.x = adaptOffset(state.Gamepad.sThumbRX, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
+        it.right_thumb.y = adaptOffset(state.Gamepad.sThumbRY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
+    }
+}
+
 #scope_file
+
+g_XInput         : HMODULE;
+g_XInputGetState : PFN_XInputGetState;
 
 calcInitialMousePosition :: (window : *Win32Window) {
     mouse_position : POINT = ---;

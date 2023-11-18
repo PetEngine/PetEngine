@@ -114,6 +114,7 @@ processWindowEvents :: (window : *Window) -> bool {
 
     #if OS == .WINDOWS {
         processRawInput(cast(*Win32Window) window);
+        processXInput(*window.input);
         processWin32WindowEvents(cast(*Win32Window) window);
     } else {
         notImplemented();
