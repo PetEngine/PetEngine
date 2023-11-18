@@ -63,15 +63,15 @@ debugCheck :: (
             result &= 0x87FF_FFFF;
 
             #if strict {
-                bool_result := result == ERROR_SUCCESS;
+                success := result == ERROR_SUCCESS;
             } else {
-                bool_result := SUCCEEDED(result);
+                success := SUCCEEDED(result);
             }
 
             STR_EXPRESSION :: #run codeToString(expression);
             format_result  := formatHex(result, 8);
 
-            assert(bool_result, "% returned 0x%", STR_EXPRESSION, format_result, print_sys_error = true, location = location);
+            assert(success, "% returned 0x%", STR_EXPRESSION, format_result, print_sys_error = true, location = location);
 
             #if !strict {
                 if result != ERROR_SUCCESS {
@@ -86,6 +86,34 @@ debugCheck :: (
         } else {
             #insert expression;
         }
+    }
+}
+
+debugCheckVK :: ($expression : Code, $strict := true, $location := #caller_location) #expand #no_debug {
+    #if DEBUG_BUILD {
+        result := #insert expression;
+
+        #if strict {
+            success := result == .VK_SUCCESS;
+        } else {
+            success := result >= .VK_SUCCESS;
+        }
+
+        STR_EXPRESSION :: #run codeToString(expression);
+
+        assert(success, "% returned %", STR_EXPRESSION, result, location = location);
+
+        #if !strict {
+            if result != .VK_SUCCESS {
+                warningMessage("% returned % at %(%)",
+                               STR_EXPRESSION,
+                               result,
+                               location.fully_pathed_filename,
+                               location.line_number);
+            }
+        }
+    } else {
+        #insert expression;
     }
 }
 

@@ -97,7 +97,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
                 case .RELEASE_WITH_DEBUG_INFO;
                     additional_linker_arguments[build_options.additional_linker_arguments.count + 3] = "/DEBUG:FULL"; // For RemedyBG
                 case;
-                    additional_linker_arguments[build_options.additional_linker_arguments.count + 3] = "";
+                    additional_linker_arguments[build_options.additional_linker_arguments.count + 3] = "/LTCG"; // For SPIRV-Reflect
             }
         } else {
             additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "--library-path=../third_party/vulkan";

@@ -707,34 +707,6 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
     }
 }
 
-debugCheckVK :: ($code : Code, $strict := true, $location := #caller_location) #expand #no_debug {
-    #if DEBUG_BUILD {
-        result := #insert code;
-
-        #if strict {
-            success := result == .VK_SUCCESS;
-        } else {
-            success := result >= .VK_SUCCESS;
-        }
-
-        STR_CODE :: #run codeToString(code);
-
-        assert(success, "% returned %", STR_CODE, result, location = location);
-
-        #if !strict {
-            if result != .VK_SUCCESS {
-                warningMessage("% returned % at %(%)",
-                               STR_CODE,
-                               result,
-                               location.fully_pathed_filename,
-                               location.line_number);
-            }
-        }
-    } else {
-        #insert code;
-    }
-}
-
 #scope_file
 
 Hash :: #import "Hash";
