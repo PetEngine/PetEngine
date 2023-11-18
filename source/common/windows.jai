@@ -15,6 +15,7 @@ HWND                  :: *HWND__;                  HWND__                  :: st
 HMENU                 :: *HMENU__;                 HMENU__                 :: struct { unused : s32; }
 DPI_AWARENESS_CONTEXT :: *DPI_AWARENESS_CONTEXT__; DPI_AWARENESS_CONTEXT__ :: struct { unused : s32; }
 HKEY                  :: *HKEY__;                  HKEY__                  :: struct { unused : s32; }
+HRAWINPUT             :: *HRAWINPUT__;             HRAWINPUT__             :: struct { unused : s32; }
 
 HMODULE :: HINSTANCE;
 HLOCAL  :: HANDLE;
@@ -56,24 +57,28 @@ va_list :: *s8;
 
 INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 
-ERROR_SUCCESS           :: 0;
-ERROR_FILE_NOT_FOUND    :: 2;
-ERROR_PATH_NOT_FOUND    :: 3;
-ERROR_NO_MORE_FILES     :: 18;
-ERROR_SHARING_VIOLATION :: 32;
-ERROR_FILE_EXISTS       :: 80;
-ERROR_ALREADY_EXISTS    :: 183;
-ERROR_OPERATION_ABORTED :: 995;
-ERROR_NOT_FOUND         :: 1168;
+ERROR_SUCCESS              :: 0;
+ERROR_FILE_NOT_FOUND       :: 2;
+ERROR_PATH_NOT_FOUND       :: 3;
+ERROR_ACCESS_DENIED        :: 5;
+ERROR_NO_MORE_FILES        :: 18;
+ERROR_SHARING_VIOLATION    :: 32;
+ERROR_FILE_EXISTS          :: 80;
+ERROR_INSUFFICIENT_BUFFER  :: 122;
+ERROR_ALREADY_EXISTS       :: 183;
+ERROR_OPERATION_ABORTED    :: 995;
+ERROR_DEVICE_NOT_CONNECTED :: 1167;
+ERROR_NOT_FOUND            :: 1168;
+ERROR_INVALID_USER_BUFFER  :: 1784;
 
 STATUS_PENDING :: 0x00000103;
 
-SUCCEEDED :: inline ($$result : $T) -> bool {
+SUCCEEDED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
     return result >= ERROR_SUCCESS;
 }
 
-FAILED :: inline ($$result : $T) -> bool {
+FAILED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
     return result < ERROR_SUCCESS;
 }
@@ -220,13 +225,17 @@ SetWindowLongPtrW :: (
     dwNewLong : LONG_PTR
 ) -> LONG_PTR #foreign user32;
 
-WM_DESTROY          : u32 : 0x0002;
-WM_SIZE             : u32 : 0x0005;
-WM_CLOSE            : u32 : 0x0010;
-WM_WININICHANGE     : u32 : 0x001A;
-WM_WINDOWPOSCHANGED : u32 : 0x0047;
-WM_MENUCHAR         : u32 : 0x0120;
-WM_DPICHANGED       : u32 : 0x02E0;
+WM_DESTROY             : u32 : 0x0002;
+WM_MOVE                : u32 : 0x0003;
+WM_SIZE                : u32 : 0x0005;
+WM_CLOSE               : u32 : 0x0010;
+WM_WININICHANGE        : u32 : 0x001A;
+WM_WINDOWPOSCHANGED    : u32 : 0x0047;
+WM_DISPLAYCHANGE       : u32 : 0x007E;
+WM_INPUT_DEVICE_CHANGE : u32 : 0x00FE;
+WM_INPUT               : u32 : 0x00FF;
+WM_MENUCHAR            : u32 : 0x0120;
+WM_DPICHANGED          : u32 : 0x02E0;
 
 DefWindowProcW :: (
     hWnd   : HWND,
@@ -647,10 +656,43 @@ CreateDirectoryW :: (
     lpSecurityAttributes : *SECURITY_ATTRIBUTES
 ) -> BOOL #foreign kernel32;
 
+DELETE                   : u32 : 0x00010000;
+READ_CONTROL             : u32 : 0x00020000;
+WRITE_DAC                : u32 : 0x00040000;
+WRITE_OWNER              : u32 : 0x00080000;
+SYNCHRONIZE              : u32 : 0x00100000;
+STANDARD_RIGHTS_REQUIRED : u32 : 0x000F0000;
+STANDARD_RIGHTS_READ     : u32 : READ_CONTROL;
+STANDARD_RIGHTS_WRITE    : u32 : READ_CONTROL;
+STANDARD_RIGHTS_EXECUTE  : u32 : READ_CONTROL;
+STANDARD_RIGHTS_ALL      : u32 : 0x001F0000;
+SPECIFIC_RIGHTS_ALL      : u32 : 0x0000FFFF;
+ACCESS_SYSTEM_SECURITY   : u32 : 0x01000000;
+MAXIMUM_ALLOWED          : u32 : 0x02000000;
+
 GENERIC_ALL     : u32 : 0x10000000;
 GENERIC_EXECUTE : u32 : 0x20000000;
 GENERIC_WRITE   : u32 : 0x40000000;
 GENERIC_READ    : u32 : 0x80000000;
+
+FILE_READ_DATA            : u32 : 0x0001; // file & pipe
+FILE_LIST_DIRECTORY       : u32 : 0x0001; // directory
+FILE_WRITE_DATA           : u32 : 0x0002; // file & pipe
+FILE_ADD_FILE             : u32 : 0x0002; // directory
+FILE_APPEND_DATA          : u32 : 0x0004; // file
+FILE_ADD_SUBDIRECTORY     : u32 : 0x0004; // directory
+FILE_CREATE_PIPE_INSTANCE : u32 : 0x0004; // named pipe
+FILE_READ_EA              : u32 : 0x0008; // file & directory
+FILE_WRITE_EA             : u32 : 0x0010; // file & directory
+FILE_EXECUTE              : u32 : 0x0020; // file
+FILE_TRAVERSE             : u32 : 0x0020; // directory
+FILE_DELETE_CHILD         : u32 : 0x0040; // directory
+FILE_READ_ATTRIBUTES      : u32 : 0x0080; // all
+FILE_WRITE_ATTRIBUTES     : u32 : 0x0100; // all
+FILE_ALL_ACCESS           : u32 : STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x1FF;
+FILE_GENERIC_READ         : u32 : STANDARD_RIGHTS_READ | FILE_READ_DATA | FILE_READ_ATTRIBUTES | FILE_READ_EA | SYNCHRONIZE;
+FILE_GENERIC_WRITE        : u32 : STANDARD_RIGHTS_WRITE | FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | FILE_APPEND_DATA | SYNCHRONIZE;
+FILE_GENERIC_EXECUTE      : u32 : STANDARD_RIGHTS_EXECUTE | FILE_READ_ATTRIBUTES | FILE_EXECUTE | SYNCHRONIZE;
 
 FILE_SHARE_READ   : u32 : 0x00000001;
 FILE_SHARE_WRITE  : u32 : 0x00000002;
@@ -941,9 +983,455 @@ TryAcquireSRWLockShared :: (
     SRWLock : *SRWLOCK
 ) -> BOOLEAN #foreign kernel32;
 
+VK :: enum u8 #specified {
+    BACK             :: 0x08;
+    TAB              :: 0x09;
+
+    RETURN           :: 0x0D;
+    ESCAPE           :: 0x1B;
+    SPACE            :: 0x20;
+
+    CAPITAL          :: 0x14;
+    NUMLOCK          :: 0x90;
+    SCROLL           :: 0x91;
+
+    PRIOR            :: 0x21; // Page Up
+    NEXT             :: 0x22; // Page Down
+    END              :: 0x23;
+    HOME             :: 0x24;
+    INSERT           :: 0x2D;
+    DELETE           :: 0x2E;
+
+    LEFT             :: 0x25;
+    UP               :: 0x26;
+    RIGHT            :: 0x27;
+    DOWN             :: 0x28;
+
+    NUMPAD0          :: 0x60;
+    NUMPAD1          :: 0x61;
+    NUMPAD2          :: 0x62;
+    NUMPAD3          :: 0x63;
+    NUMPAD4          :: 0x64;
+    NUMPAD5          :: 0x65;
+    NUMPAD6          :: 0x66;
+    NUMPAD7          :: 0x67;
+    NUMPAD8          :: 0x68;
+    NUMPAD9          :: 0x69;
+    DIVIDE           :: 0x6F;
+    MULTIPLY         :: 0x6A;
+    SUBTRACT         :: 0x6D;
+    ADD              :: 0x6B;
+// There is no NUM_ENTER
+    DECIMAL          :: 0x6E;
+
+    F1               :: 0x70;
+    F2               :: 0x71;
+    F3               :: 0x72;
+    F4               :: 0x73;
+    F5               :: 0x74;
+    F6               :: 0x75;
+    F7               :: 0x76;
+    F8               :: 0x77;
+    F9               :: 0x78;
+    F10              :: 0x79;
+    F11              :: 0x7A;
+    F12              :: 0x7B;
+    F13              :: 0x7C;
+    F14              :: 0x7D;
+    F15              :: 0x7E;
+    F16              :: 0x7F;
+    F17              :: 0x80;
+    F18              :: 0x81;
+    F19              :: 0x82;
+    F20              :: 0x83;
+    F21              :: 0x84;
+    F22              :: 0x85;
+    F23              :: 0x86;
+    F24              :: 0x87;
+
+    _0               :: #char "0";
+    _1               :: #char "1";
+    _2               :: #char "2";
+    _3               :: #char "3";
+    _4               :: #char "4";
+    _5               :: #char "5";
+    _6               :: #char "6";
+    _7               :: #char "7";
+    _8               :: #char "8";
+    _9               :: #char "9";
+
+    A                :: #char "A";
+    B                :: #char "B";
+    C                :: #char "C";
+    D                :: #char "D";
+    E                :: #char "E";
+    F                :: #char "F";
+    G                :: #char "G";
+    H                :: #char "H";
+    I                :: #char "I";
+    J                :: #char "J";
+    K                :: #char "K";
+    L                :: #char "L";
+    M                :: #char "M";
+    N                :: #char "N";
+    O                :: #char "O";
+    P                :: #char "P";
+    Q                :: #char "Q";
+    R                :: #char "R";
+    S                :: #char "S";
+    T                :: #char "T";
+    U                :: #char "U";
+    V                :: #char "V";
+    W                :: #char "W";
+    X                :: #char "X";
+    Y                :: #char "Y";
+    Z                :: #char "Z";
+
+    SHIFT            :: 0x10; // Left or right shift
+    CONTROL          :: 0x11; // Left or right ctrl
+    MENU             :: 0x12; // Left or right alt
+
+    LSHIFT           :: 0xA0;
+    RSHIFT           :: 0xA1;
+    LCONTROL         :: 0xA2;
+    RCONTROL         :: 0xA3;
+    LMENU            :: 0xA4; // Left alt
+    RMENU            :: 0xA5; // Right alt
+    LWIN             :: 0x5B;
+    RWIN             :: 0x5C;
+    APPS             :: 0x5D; // Context menu key
+
+    OEM_COMMA        :: 0xBC; // ,<
+    OEM_PERIOD       :: 0xBE; // .>
+    OEM_2            :: 0xBF; // /?
+    OEM_1            :: 0xBA; // ;:
+    OEM_7            :: 0xDE; // '"
+    OEM_5            :: 0xDC; // \|
+    OEM_4            :: 0xDB; // [{
+    OEM_6            :: 0xDD; // ]}
+    OEM_MINUS        :: 0xBD; // -_
+    OEM_PLUS         :: 0xBB; // =+
+    OEM_3            :: 0xC0; // `~
+
+    VOLUME_MUTE      :: 0xAD;
+    VOLUME_DOWN      :: 0xAE;
+    VOLUME_UP        :: 0xAF;
+
+    MEDIA_PREV_TRACK :: 0xB1;
+    MEDIA_NEXT_TRACK :: 0xB0;
+    MEDIA_PLAY_PAUSE :: 0xB3;
+    MEDIA_STOP       :: 0xB2;
+
+    OEM_102          :: 0xE2; // "<>" or "\|" on RT 102-key kbd.
+
+    PRINT            :: 0x2A;
+    CANCEL           :: 0x03; // Break
+    PAUSE            :: 0x13;
+}
+
+GetKeyState :: (
+    nVirtKey : s32
+) -> s16 #foreign user32;
+
+GetCursorPos :: (
+    lpPoint : *POINT
+) -> BOOL #foreign user32;
+
+SM_CXSCREEN : s32 : 0;
+SM_CYSCREEN : s32 : 1;
+
+GetSystemMetrics :: (
+    nIndex : s32
+) -> s32 #foreign user32;
+
+//
+// Raw input
+//
+
+GIDC_ARRIVAL : u8 : 1;
+GIDC_REMOVAL : u8 : 2;
+
+GET_DEVICE_CHANGE_WPARAM :: inline (wparam : WPARAM) -> u8 #no_context {
+    return cast(u8) (wparam & 0xFF);
+}
+
+HID_USAGE_PAGE :: enum u16 #specified {
+    UNDEFINED :: 0x0000;
+    GENERIC   :: 0x0001;
+    // We don't need any other
+    VENDOR_DEFINED_BEGIN :: 0xFF00;
+    VENDOR_DEFINED_END   :: 0xFFFF;
+}
+
+HID_USAGE :: enum u16 #specified {
+    GENERIC_MOUSE    :: 0x02;
+    GENERIC_KEYBOARD :: 0x06;
+    // We don't need any other
+}
+
+RIDEV :: enum_flags u32 #specified {
+    REMOVE       :: 0x00000001;
+    EXCLUDE      :: 0x00000010;
+    PAGEONLY     :: 0x00000020;
+    NOLEGACY     :: 0x00000030;
+    INPUTSINK    :: 0x00000100;
+    CAPTUREMOUSE :: 0x00000200;
+    NOHOTKEYS    :: 0x00000200;
+    APPKEYS      :: 0x00000400;
+    EXINPUTSINK  :: 0x00001000;
+    DEVNOTIFY    :: 0x00002000;
+}
+
+RAWINPUTDEVICE :: struct {
+    usUsagePage : HID_USAGE_PAGE;
+    usUsage     : HID_USAGE;
+    dwFlags     : RIDEV;
+    hwndTarget  : HWND;
+}
+
+RegisterRawInputDevices :: (
+    pRawInputDevices : *RAWINPUTDEVICE,
+    uiNumDevices     : u32,
+    cbSize           : u32
+) -> BOOL #foreign user32;
+
+RIDI_PREPARSEDDATA : u32 : 0x20000005;
+RIDI_DEVICENAME    : u32 : 0x20000007;
+RIDI_DEVICEINFO    : u32 : 0x2000000B;
+
+RIM :: enum u32 #specified {
+    TYPEMOUSE    :: 0;
+    TYPEKEYBOARD :: 1;
+    TYPEHID      :: 2;
+}
+
+MOUSE_HID_HARDWARE       : u32 : 0x0080;
+WHEELMOUSE_HID_HARDWARE  : u32 : 0x0100;
+HORIZONTAL_WHEEL_PRESENT : u32 : 0x8000;
+
+RID_DEVICE_INFO_MOUSE :: struct {
+    dwId                : u32;
+    dwNumberOfButtons   : u32;
+    dwSampleRate        : u32;
+    fHasHorizontalWheel : BOOL;
+}
+
+RID_DEVICE_INFO_KEYBOARD :: struct {
+    dwType                 : u32;
+    dwSubType              : u32;
+    dwKeyboardMode         : u32;
+    dwNumberOfFunctionKeys : u32;
+    dwNumberOfIndicators   : u32;
+    dwNumberOfKeysTotal    : u32;
+}
+
+RID_DEVICE_INFO_HID :: struct {
+    dwVendorId      : u32;
+    dwProductId     : u32;
+    dwVersionNumber : u32;
+    usUsagePage     : HID_USAGE_PAGE;
+    usUsage         : HID_USAGE;
+}
+
+RID_DEVICE_INFO :: struct {
+    cbSize : u32;
+    dwType : RIM;
+    union {
+        mouse    : RID_DEVICE_INFO_MOUSE;
+        keyboard : RID_DEVICE_INFO_KEYBOARD;
+        hid      : RID_DEVICE_INFO_HID;
+    }
+}
+
+GetRawInputDeviceInfoW :: (
+    hDevice   : HANDLE,
+    uiCommand : u32,
+    pData     : *void,
+    pcbSize   : *u32
+) -> u32 #foreign user32;
+
+RIM_INPUT     : u8 : 0;
+RIM_INPUTSINK : u8 : 1;
+
+GET_RAWINPUT_CODE_WPARAM :: inline (wParam : WPARAM) -> u8 #no_context {
+    return cast,no_check(u8) (wParam & 0xFF);
+}
+
+RAWINPUTHEADER :: struct {
+    dwType  : RIM;
+    dwSize  : u32;
+    hDevice : HANDLE;
+    wParam  : WPARAM;
+}
+
+MOUSE :: enum_flags u16 #specified {
+    MOVE_RELATIVE      :: 0x00;
+    MOVE_ABSOLUTE      :: 0x01;
+    VIRTUAL_DESKTOP    :: 0x02;
+    ATTRIBUTES_CHANGED :: 0x04;
+    MOVE_NOCOALESCE    :: 0x08;
+}
+
+RI_MOUSE :: enum_flags u16 #specified {
+    BUTTON_1_DOWN      :: 0x0001;
+    BUTTON_1_UP        :: 0x0002;
+    BUTTON_2_DOWN      :: 0x0004;
+    BUTTON_2_UP        :: 0x0008;
+    BUTTON_3_DOWN      :: 0x0010;
+    BUTTON_3_UP        :: 0x0020;
+    BUTTON_4_DOWN      :: 0x0040;
+    BUTTON_4_UP        :: 0x0080;
+    BUTTON_5_DOWN      :: 0x0100;
+    BUTTON_5_UP        :: 0x0200;
+    WHEEL              :: 0x0400;
+    HWHEEL             :: 0x0800;
+    LEFT_BUTTON_DOWN   :: BUTTON_1_DOWN;
+    LEFT_BUTTON_UP     :: BUTTON_1_UP;
+    RIGHT_BUTTON_DOWN  :: BUTTON_2_DOWN;
+    RIGHT_BUTTON_UP    :: BUTTON_2_UP;
+    MIDDLE_BUTTON_DOWN :: BUTTON_3_DOWN;
+    MIDDLE_BUTTON_UP   :: BUTTON_3_UP;
+}
+
+WHEEL_DELTA : u16 : 120;
+
+RAWMOUSE :: struct {
+    usFlags : MOUSE;
+    union {
+        ulButtons : u32;
+        struct {
+            usButtonFlags : RI_MOUSE;
+            usButtonData  : u16;
+        }
+    }
+    ulRawButtons       : u32;
+    lLastX             : s32;
+    lLastY             : s32;
+    ulExtraInformation : u32;
+}
+
+KEYBOARD_OVERRUN_MAKE_CODE : u16 : 0xFF;
+
+RI :: enum_flags u16 #specified {
+    KEY_MAKE  :: 0;
+    KEY_BREAK :: 1;
+    KEY_E0    :: 2;
+    KEY_E1    :: 4;
+}
+
+RAWKEYBOARD :: struct {
+    MakeCode         : u16;
+    Flags            : RI;
+    Reserved         : u16;
+    VKey             : u16;
+    Message          : u32;
+    ExtraInformation : u32;
+}
+
+RAWHID :: struct {
+    dwSizeHid : u32;
+    dwCount   : u32;
+    bRawData  : [1] u8;
+}
+
+RAWINPUT :: struct {
+    header : RAWINPUTHEADER;
+    data   : union {
+        mouse    : RAWMOUSE;
+        keyboard : RAWKEYBOARD;
+        hid      : RAWHID;
+    };
+}
+
+GetRawInputBuffer :: (
+    pData        : *RAWINPUT,
+    pcbSize      : *u32,
+    cbSizeHeader : u32
+) -> u32 #foreign user32;
+
+RAWINPUT_ALIGN :: inline (x : *void) -> *void #no_context {
+    MASK :: size_of(*void) - 1;
+    return (x + MASK) & ~MASK;
+}
+
+NEXTRAWINPUTBLOCK :: inline (raw_input : *RAWINPUT) -> *RAWINPUT #no_context {
+    return RAWINPUT_ALIGN(cast(*void) raw_input + raw_input.header.dwSize);
+}
+
+RID_HEADER : u32 : 0x10000005;
+RID_INPUT  : u32 : 0x10000003;
+
+GetRawInputData :: (
+    hRawInput    : HRAWINPUT,
+    uiCommand    : u32,
+    pData        : *void,
+    pcbSize      : *u32,
+    cbSizeHeader : u32
+) -> u32 #foreign user32;
+
+//
+// HID
+//
+
+HidD_GetProductString :: (
+    HidDeviceObject : HANDLE,
+    Buffer          : *void,
+    BufferLength    : u32
+) -> BOOLEAN #foreign hid;
+
+HidD_GetManufacturerString :: (
+    HidDeviceObject : HANDLE,
+    Buffer          : *void,
+    BufferLength    : u32
+) -> BOOLEAN #foreign hid;
+
+//
+// XInput
+//
+
+XINPUT_GAMEPAD_DPAD_UP        :: 0x0001;
+XINPUT_GAMEPAD_DPAD_DOWN      :: 0x0002;
+XINPUT_GAMEPAD_DPAD_LEFT      :: 0x0004;
+XINPUT_GAMEPAD_DPAD_RIGHT     :: 0x0008;
+XINPUT_GAMEPAD_START          :: 0x0010;
+XINPUT_GAMEPAD_BACK           :: 0x0020;
+XINPUT_GAMEPAD_LEFT_THUMB     :: 0x0040;
+XINPUT_GAMEPAD_RIGHT_THUMB    :: 0x0080;
+XINPUT_GAMEPAD_LEFT_SHOULDER  :: 0x0100;
+XINPUT_GAMEPAD_RIGHT_SHOULDER :: 0x0200;
+XINPUT_GAMEPAD_A              :: 0x1000;
+XINPUT_GAMEPAD_B              :: 0x2000;
+XINPUT_GAMEPAD_X              :: 0x4000;
+XINPUT_GAMEPAD_Y              :: 0x8000;
+
+XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE  :: 7849;
+XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE :: 8689;
+XINPUT_GAMEPAD_TRIGGER_THRESHOLD    :: 30;
+
+XINPUT_GAMEPAD :: struct {
+    wButtons      : u16;
+    bLeftTrigger  : u8;
+    bRightTrigger : u8;
+    sThumbLX      : s16;
+    sThumbLY      : s16;
+    sThumbRX      : s16;
+    sThumbRY      : s16;
+}
+
+XINPUT_STATE :: struct {
+    dwPacketNumber : u32;
+    Gamepad        : XINPUT_GAMEPAD;
+}
+
+PFN_XInputGetState :: #type (
+    dwUserIndex : u32,
+    pState      : *XINPUT_STATE
+) -> u32 #c_call;
+
 #scope_file
 
-kernel32 :: #system_library "Kernel32";
-user32   :: #system_library "User32";
-dwmapi   :: #system_library "Dwmapi";
-advapi32 :: #system_library "Advapi32";
+kernel32 :: #system_library "kernel32";
+user32   :: #system_library "user32";
+dwmapi   :: #system_library "dwmapi";
+advapi32 :: #system_library "advapi32";
+hid      :: #system_library "hid";

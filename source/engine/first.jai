@@ -52,6 +52,9 @@ main :: () {
     window := createWindow(window_manager, surface_width = 960, surface_height = 540);
     defer destroyWindow(window);
 
+    createInput(window);
+    defer destroyInput();
+
     // @TODO: #Settings.
     //    - Get graphics API from settings.
     //    - Get buffering value from settings.
@@ -161,6 +164,7 @@ DEBUG_BUILD :: #run -> bool {
 
 #import "common"()(DEBUG_BUILD = DEBUG_BUILD);
 
+#load "core/input.jai";
 #load "core/window.jai";
 #load "render/device.jai";
 #load "render/command_buffer.jai";
