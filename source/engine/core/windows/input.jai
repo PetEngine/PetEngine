@@ -7,140 +7,14 @@
 #scope_module
 
 setupInitialInputState :: (window : *Win32Window) {
-    win32_keyboard_state : [256] u8;
-    debugCheck(GetKeyboardState(win32_keyboard_state.data), print_sys_error = true);
+    // Not all virtual key states report correct state of the keys, so we don't check them at all.
+    // We only care about CAPS_LOCK, NUM_LOCK and SCROLL_LOCK toggle state.
 
-    window.input.keyboard[Input.Key.BACKSPACE]        = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.BACK]             >> 7);
-    window.input.keyboard[Input.Key.TAB]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.TAB]              >> 7);
-    window.input.keyboard[Input.Key.ESCAPE]           = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.ESCAPE]           >> 7);
-    window.input.keyboard[Input.Key.SPACE]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.SPACE]            >> 7);
-    window.input.keyboard[Input.Key.CAPS_LOCK]        = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.CAPITAL]          >> 7);
-    window.input.keyboard[Input.Key.NUM_LOCK]         = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMLOCK]          >> 7);
-    window.input.keyboard[Input.Key.SCROLL_LOCK]      = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.SCROLL]           >> 7);
-    window.input.keyboard[Input.Key.PAGE_UP]          = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.PRIOR]            >> 7);
-    window.input.keyboard[Input.Key.PAGE_DOWN]        = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NEXT]             >> 7);
-    window.input.keyboard[Input.Key.END]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.END]              >> 7);
-    window.input.keyboard[Input.Key.HOME]             = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.HOME]             >> 7);
-    window.input.keyboard[Input.Key.INSERT]           = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.INSERT]           >> 7);
-    window.input.keyboard[Input.Key.DELETE]           = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.DELETE]           >> 7);
-    window.input.keyboard[Input.Key.LEFT]             = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.LEFT]             >> 7);
-    window.input.keyboard[Input.Key.UP]               = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.UP]               >> 7);
-    window.input.keyboard[Input.Key.RIGHT]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.RIGHT]            >> 7);
-    window.input.keyboard[Input.Key.DOWN]             = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.DOWN]             >> 7);
-    window.input.keyboard[Input.Key.NUM_0]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMPAD0]          >> 7);
-    window.input.keyboard[Input.Key.NUM_1]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMPAD1]          >> 7);
-    window.input.keyboard[Input.Key.NUM_2]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMPAD2]          >> 7);
-    window.input.keyboard[Input.Key.NUM_3]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMPAD3]          >> 7);
-    window.input.keyboard[Input.Key.NUM_4]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMPAD4]          >> 7);
-    window.input.keyboard[Input.Key.NUM_5]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMPAD5]          >> 7);
-    window.input.keyboard[Input.Key.NUM_6]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMPAD6]          >> 7);
-    window.input.keyboard[Input.Key.NUM_7]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMPAD7]          >> 7);
-    window.input.keyboard[Input.Key.NUM_8]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMPAD8]          >> 7);
-    window.input.keyboard[Input.Key.NUM_9]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.NUMPAD9]          >> 7);
-    window.input.keyboard[Input.Key.NUM_DIV]          = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.DIVIDE]           >> 7);
-    window.input.keyboard[Input.Key.NUM_MUL]          = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.MULTIPLY]         >> 7);
-    window.input.keyboard[Input.Key.NUM_SUB]          = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.SUBTRACT]         >> 7);
-    window.input.keyboard[Input.Key.NUM_ADD]          = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.ADD]              >> 7);
-    window.input.keyboard[Input.Key.NUM_DOT]          = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.DECIMAL]          >> 7);
-    window.input.keyboard[Input.Key.F1]               = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F1]               >> 7);
-    window.input.keyboard[Input.Key.F2]               = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F2]               >> 7);
-    window.input.keyboard[Input.Key.F3]               = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F3]               >> 7);
-    window.input.keyboard[Input.Key.F4]               = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F4]               >> 7);
-    window.input.keyboard[Input.Key.F5]               = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F5]               >> 7);
-    window.input.keyboard[Input.Key.F6]               = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F6]               >> 7);
-    window.input.keyboard[Input.Key.F7]               = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F7]               >> 7);
-    window.input.keyboard[Input.Key.F8]               = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F8]               >> 7);
-    window.input.keyboard[Input.Key.F9]               = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F9]               >> 7);
-    window.input.keyboard[Input.Key.F10]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F10]              >> 7);
-    window.input.keyboard[Input.Key.F11]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F11]              >> 7);
-    window.input.keyboard[Input.Key.F12]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F12]              >> 7);
-    window.input.keyboard[Input.Key.F13]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F13]              >> 7);
-    window.input.keyboard[Input.Key.F14]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F14]              >> 7);
-    window.input.keyboard[Input.Key.F15]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F15]              >> 7);
-    window.input.keyboard[Input.Key.F16]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F16]              >> 7);
-    window.input.keyboard[Input.Key.F17]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F17]              >> 7);
-    window.input.keyboard[Input.Key.F18]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F18]              >> 7);
-    window.input.keyboard[Input.Key.F19]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F19]              >> 7);
-    window.input.keyboard[Input.Key.F20]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F20]              >> 7);
-    window.input.keyboard[Input.Key.F21]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F21]              >> 7);
-    window.input.keyboard[Input.Key.F22]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F22]              >> 7);
-    window.input.keyboard[Input.Key.F23]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F23]              >> 7);
-    window.input.keyboard[Input.Key.F24]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F24]              >> 7);
-    window.input.keyboard[Input.Key.KEY_0]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK._0]               >> 7);
-    window.input.keyboard[Input.Key.KEY_1]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK._1]               >> 7);
-    window.input.keyboard[Input.Key.KEY_2]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK._2]               >> 7);
-    window.input.keyboard[Input.Key.KEY_3]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK._3]               >> 7);
-    window.input.keyboard[Input.Key.KEY_4]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK._4]               >> 7);
-    window.input.keyboard[Input.Key.KEY_5]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK._5]               >> 7);
-    window.input.keyboard[Input.Key.KEY_6]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK._6]               >> 7);
-    window.input.keyboard[Input.Key.KEY_7]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK._7]               >> 7);
-    window.input.keyboard[Input.Key.KEY_8]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK._8]               >> 7);
-    window.input.keyboard[Input.Key.KEY_9]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK._9]               >> 7);
-    window.input.keyboard[Input.Key.A]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.A]                >> 7);
-    window.input.keyboard[Input.Key.B]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.B]                >> 7);
-    window.input.keyboard[Input.Key.C]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.C]                >> 7);
-    window.input.keyboard[Input.Key.D]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.D]                >> 7);
-    window.input.keyboard[Input.Key.E]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.E]                >> 7);
-    window.input.keyboard[Input.Key.F]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.F]                >> 7);
-    window.input.keyboard[Input.Key.G]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.G]                >> 7);
-    window.input.keyboard[Input.Key.H]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.H]                >> 7);
-    window.input.keyboard[Input.Key.I]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.I]                >> 7);
-    window.input.keyboard[Input.Key.J]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.J]                >> 7);
-    window.input.keyboard[Input.Key.K]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.K]                >> 7);
-    window.input.keyboard[Input.Key.L]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.L]                >> 7);
-    window.input.keyboard[Input.Key.M]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.M]                >> 7);
-    window.input.keyboard[Input.Key.N]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.N]                >> 7);
-    window.input.keyboard[Input.Key.O]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.O]                >> 7);
-    window.input.keyboard[Input.Key.P]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.P]                >> 7);
-    window.input.keyboard[Input.Key.Q]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.Q]                >> 7);
-    window.input.keyboard[Input.Key.R]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.R]                >> 7);
-    window.input.keyboard[Input.Key.S]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.S]                >> 7);
-    window.input.keyboard[Input.Key.T]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.T]                >> 7);
-    window.input.keyboard[Input.Key.U]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.U]                >> 7);
-    window.input.keyboard[Input.Key.V]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.V]                >> 7);
-    window.input.keyboard[Input.Key.W]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.W]                >> 7);
-    window.input.keyboard[Input.Key.X]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.X]                >> 7);
-    window.input.keyboard[Input.Key.Y]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.Y]                >> 7);
-    window.input.keyboard[Input.Key.Z]                = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.Z]                >> 7);
-    window.input.keyboard[Input.Key.LEFT_SHIFT]       = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.LSHIFT]           >> 7);
-    window.input.keyboard[Input.Key.RIGHT_SHIFT]      = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.RSHIFT]           >> 7);
-    window.input.keyboard[Input.Key.LEFT_CTRL]        = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.LCONTROL]         >> 7);
-    window.input.keyboard[Input.Key.RIGHT_CTRL]       = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.RCONTROL]         >> 7);
-    window.input.keyboard[Input.Key.LEFT_ALT]         = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.LMENU]            >> 7);
-    window.input.keyboard[Input.Key.RIGHT_ALT]        = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.RMENU]            >> 7);
-    window.input.keyboard[Input.Key.LEFT_WIN]         = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.LWIN]             >> 7);
-    window.input.keyboard[Input.Key.RIGHT_WIN]        = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.RWIN]             >> 7);
-    window.input.keyboard[Input.Key.CONTEXT_MENU]     = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.APPS]             >> 7);
-    window.input.keyboard[Input.Key.COMMA]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_COMMA]        >> 7);
-    window.input.keyboard[Input.Key.DOT]              = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_PERIOD]       >> 7);
-    window.input.keyboard[Input.Key.SLASH]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_2]            >> 7);
-    window.input.keyboard[Input.Key.SEMICOLON]        = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_1]            >> 7);
-    window.input.keyboard[Input.Key.APOSTROPHE]       = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_7]            >> 7);
-    window.input.keyboard[Input.Key.BACK_SLASH]       = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_5]            >> 7);
-    window.input.keyboard[Input.Key.LEFT_BRACKET]     = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_4]            >> 7);
-    window.input.keyboard[Input.Key.RIGHT_BRACKET]    = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_6]            >> 7);
-    window.input.keyboard[Input.Key.DASH]             = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_MINUS]        >> 7);
-    window.input.keyboard[Input.Key.EQUALS]           = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_PLUS]         >> 7);
-    window.input.keyboard[Input.Key.TILDE]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_3]            >> 7);
-    window.input.keyboard[Input.Key.VOLUME_MUTE]      = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.VOLUME_MUTE]      >> 7);
-    window.input.keyboard[Input.Key.VOLUME_DOWN]      = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.VOLUME_DOWN]      >> 7);
-    window.input.keyboard[Input.Key.VOLUME_UP]        = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.VOLUME_UP]        >> 7);
-    window.input.keyboard[Input.Key.MEDIA_PREV]       = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.MEDIA_PREV_TRACK] >> 7);
-    window.input.keyboard[Input.Key.MEDIA_NEXT]       = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.MEDIA_NEXT_TRACK] >> 7);
-    window.input.keyboard[Input.Key.MEDIA_PLAY_PAUSE] = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.MEDIA_PLAY_PAUSE] >> 7);
-    window.input.keyboard[Input.Key.MEDIA_STOP]       = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.MEDIA_STOP]       >> 7);
-    window.input.keyboard[Input.Key.OEM_102]          = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.OEM_102]          >> 7);
-    window.input.keyboard[Input.Key.PRINT_SCREEN]     = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.PRINT]            >> 7);
-    window.input.keyboard[Input.Key.BREAK]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.CANCEL]           >> 7);
-    window.input.keyboard[Input.Key.PAUSE]            = .DOWN * cast(Input.KeyState) (win32_keyboard_state[VK.PAUSE]            >> 7);
+    window.input.keyboard[Input.Key.CAPS_LOCK]   |= .ON * cast(Input.KeyState) (GetKeyState(cast(s32) VK.CAPITAL) & 1);
+    window.input.keyboard[Input.Key.NUM_LOCK]    |= .ON * cast(Input.KeyState) (GetKeyState(cast(s32) VK.NUMLOCK) & 1);
+    window.input.keyboard[Input.Key.SCROLL_LOCK] |= .ON * cast(Input.KeyState) (GetKeyState(cast(s32) VK.SCROLL)  & 1);
 
-    window.input.keyboard[Input.Key.CAPS_LOCK]   |= .ON * cast(Input.KeyState) (win32_keyboard_state[VK.CAPITAL] & 1);
-    window.input.keyboard[Input.Key.NUM_LOCK]    |= .ON * cast(Input.KeyState) (win32_keyboard_state[VK.NUMLOCK] & 1);
-    window.input.keyboard[Input.Key.SCROLL_LOCK] |= .ON * cast(Input.KeyState) (win32_keyboard_state[VK.SCROLL]  & 1);
-
-    if !(window.flags & .CLOSED) {
-        calcInitialMousePosition(window);
-    }
+    calcInitialMousePosition(window);
 }
 
 registerRawInput :: (window : *Win32Window) {
@@ -241,6 +115,8 @@ onRawInput :: (window : *Win32Window, ri_handle : HRAWINPUT) {
     }
 }
 
+#scope_file
+
 calcInitialMousePosition :: (window : *Win32Window) {
     mouse_position : POINT = ---;
     debugCheck(GetCursorPos(*mouse_position), print_sys_error = true);
@@ -248,8 +124,6 @@ calcInitialMousePosition :: (window : *Win32Window) {
     window.input.mouse.screen_x = cast,trunc(s16) mouse_position.x;
     window.input.mouse.screen_y = cast,trunc(s16) mouse_position.y;
 }
-
-#scope_file
 
 getRawInputDeviceNames :: (ri_device : HANDLE) -> (device_name : string, manufacturer : string, product_name : string) {
     device_wide_name   : [MAX_PATH] WCHAR;

@@ -1128,9 +1128,9 @@ VK :: enum u8 #specified {
     PAUSE            :: 0x13;
 }
 
-GetKeyboardState :: (
-    lpKeyState : *u8
-) -> BOOL #foreign user32;
+GetKeyState :: (
+    nVirtKey : s32
+) -> s16 #foreign user32;
 
 GetCursorPos :: (
     lpPoint : *POINT
