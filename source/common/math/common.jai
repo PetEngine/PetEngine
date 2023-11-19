@@ -87,7 +87,7 @@ clamp :: inline (v : $T, a : T, b : T) -> T #no_context {
     return min(max(v, a), b);
 }
 
-saturate :: inline (v : $T) -> T #no_context {
+saturate :: inline (v : $T/Type.[s8, s16, s32, s64, u8, u16, u32, u64, f32, f64]) -> T #no_context {
     return min(max(v, 0), 1);
 }
 

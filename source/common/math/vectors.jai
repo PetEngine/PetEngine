@@ -154,9 +154,9 @@ operator / :: inline (a : type_of(T.x), b : $T/Type.[v2f, v2s, v2u]) -> T #no_co
 operator / :: inline (a : type_of(T.x), b : $T/Type.[v3f, v3s, v3u]) -> T #no_context { return .{ a / b.x, a / b.y, a / b.z }; }
 operator / :: inline (a : type_of(T.x), b : $T/Type.[v4f, v4s, v4u]) -> T #no_context { return .{ a / b.x, a / b.y, a / b.z, a / b.w }; }
 
-dot :: inline (a : $T/Type.[v2f, v2s, v2u], b : type_of(T.x)) -> type_of(T.x) #no_context { return a.x * b.x + a.y * b.y; }
-dot :: inline (a : $T/Type.[v3f, v3s, v3u], b : type_of(T.x)) -> type_of(T.x) #no_context { return a.x * b.x + a.y * b.y + a.z * b.z; }
-dot :: inline (a : $T/Type.[v4f, v4s, v4u], b : type_of(T.x)) -> type_of(T.x) #no_context { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+dot :: inline (a : $T/Type.[v2f, v2s, v2u], b : T) -> type_of(T.x) #no_context { return a.x * b.x + a.y * b.y; }
+dot :: inline (a : $T/Type.[v3f, v3s, v3u], b : T) -> type_of(T.x) #no_context { return a.x * b.x + a.y * b.y + a.z * b.z; }
+dot :: inline (a : $T/Type.[v4f, v4s, v4u], b : T) -> type_of(T.x) #no_context { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
 
 // We cannot make them #no_context because Math.sqrt uses context for some reason
 distance :: inline (a : $T/Type.[v2f, v3f, v4f], b : T) -> f32 { return Math.sqrt(dot(a, b)); }
@@ -179,6 +179,18 @@ min :: inline (a : $T/Type.[v4f, v4s, v4u], b : T) -> T #no_context { return .{ 
 max :: inline (a : $T/Type.[v2f, v2s, v2u], b : T) -> T #no_context { return .{ max(a.x, b.x), max(a.y, b.y) }; }
 max :: inline (a : $T/Type.[v3f, v3s, v3u], b : T) -> T #no_context { return .{ max(a.x, b.x), max(a.y, b.y), max(a.z, b.z) }; }
 max :: inline (a : $T/Type.[v4f, v4s, v4u], b : T) -> T #no_context { return .{ max(a.x, b.x), max(a.y, b.y), max(a.z, b.z), max(a.w, b.w) }; }
+
+lerp :: inline (a : v2f, b : v2f, t : f32) -> v2f #no_context { return .{ lerp(a.x, b.x, t), lerp(a.y, b.y, t) }; }
+lerp :: inline (a : v3f, b : v3f, t : f32) -> v3f #no_context { return .{ lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t) }; }
+lerp :: inline (a : v4f, b : v4f, t : f32) -> v4f #no_context { return .{ lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t), lerp(a.w, b.w, t) }; }
+
+clamp :: inline (v : $T/Type.[v2f, v2s, v2u], a : type_of(T.x), b : type_of(T.x)) -> T #no_context { va := T.{ a, a };       vb := T.{ b, b };       return min(max(v, va), vb); }
+clamp :: inline (v : $T/Type.[v3f, v3s, v3u], a : type_of(T.x), b : type_of(T.x)) -> T #no_context { va := T.{ a, a, a };    vb := T.{ b, b, b };    return min(max(v, va), vb); }
+clamp :: inline (v : $T/Type.[v4f, v4s, v4u], a : type_of(T.x), b : type_of(T.x)) -> T #no_context { va := T.{ a, a, a, a }; vb := T.{ b, b, b, b }; return min(max(v, va), vb); }
+
+saturate :: inline (v : $T/Type.[v2f, v2s, v2u]) -> T #no_context { v0 : T; v1 := T.{ 1, 1 };       return min(max(v, v0), v1); }
+saturate :: inline (v : $T/Type.[v3f, v3s, v3u]) -> T #no_context { v0 : T; v1 := T.{ 1, 1, 1 };    return min(max(v, v0), v1); }
+saturate :: inline (v : $T/Type.[v4f, v4s, v4u]) -> T #no_context { v0 : T; v1 := T.{ 1, 1, 1, 1 }; return min(max(v, v0), v1); }
 
 #scope_file
 
