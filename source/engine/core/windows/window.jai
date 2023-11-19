@@ -1,7 +1,5 @@
 #assert OS == .WINDOWS "This file should not be used anywhere except Windows builds";
 
-#scope_module
-
 //
 // Win32 window manager
 //

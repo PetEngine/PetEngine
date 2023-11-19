@@ -4,8 +4,6 @@
 //    1. In a multimonitor system, MOUSE.MOVE_ABSOLUTE coordinates map to the primary monitor
 //    2. MOUSE.VIRTUAL_DESKTOP
 
-#scope_module
-
 setupInitialInputState :: (window : *Win32Window) {
     // Not all virtual key states report correct state of the keys, so we don't check them at all.
     // We only care about CAPS_LOCK, NUM_LOCK and SCROLL_LOCK toggle state.
