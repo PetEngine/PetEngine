@@ -160,7 +160,8 @@ formatHex :: inline (value : Any, minimum_digits := 1) -> Basic.FormatInt {
 #load "arena.jai";
 #load "debug.jai";
 #load "file.jai";
-#load "math.jai";
+#load "math/common.jai";
+#load "math/vectors.jai";
 #load "mutex.jai";
 #load "static_array.jai";
 #load "thread.jai";

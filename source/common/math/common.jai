@@ -63,21 +63,21 @@ sign :: inline (value : $T/Type.[u8, u16, u32, u64]) -> T #no_context {
     return value != 0;
 }
 
-min :: inline (a : $T, b : T) -> T #no_context {
+min :: inline (a : $T, b : T) -> T #no_context #modify { return rejectVectors(T); } {
     return ifx a < b then a else b;
 }
 
-min :: inline (first : $T, rest : ..T) -> T #no_context {
+min :: inline (first : $T, rest : ..T) -> T #no_context #modify { return rejectVectors(T); } {
     result := first;
     for rest if it < result then result = it;
     return result;
 }
 
-max :: inline (a : $T, b : T) -> T #no_context {
+max :: inline (a : $T, b : T) -> T #no_context #modify { return rejectVectors(T); } {
     return ifx a > b then a else b;
 }
 
-max :: inline (first : $T, rest : ..T) -> T #no_context {
+max :: inline (first : $T, rest : ..T) -> T #no_context #modify { return rejectVectors(T); } {
     result := first;
     for rest if it > result then result = it;
     return result;
@@ -109,4 +109,12 @@ remap :: inline (old_a : T, old_b : T, old_v : $T/Type.[f32, f64], new_a : T, ne
 
 saturatedRemap :: inline (old_a : T, old_b : T, old_v : $T/Type.[f32, f64], new_a : T, new_b : T) -> T #no_context {
     return lerp(new_a, new_b, saturate(invLerp(old_a, old_b, old_v)));
+}
+
+#scope_file
+
+rejectVectors :: inline (T : Type) -> bool #no_context {
+    return T != v2f && T != v2s && T != v2u
+        && T != v3f && T != v3s && T != v3u
+        && T != v4f && T != v4s && T != v4u;
 }
