@@ -160,7 +160,11 @@ dot :: inline (a : $T/Type.[v4f, v4s, v4u], b : T) -> type_of(T.x) #no_context {
 
 // We cannot make them #no_context because Math.sqrt uses context for some reason
 distance :: inline (a : $T/Type.[v2f, v3f, v4f], b : T) -> f32 { return Math.sqrt(dot(a, b)); }
-length   :: inline (a : $T/Type.[v2f, v3f, v4f]) -> f32 { return Math.sqrt(dot(a, a)); }
+length   :: inline (v : $T/Type.[v2f, v3f, v4f]) -> f32 { return Math.sqrt(dot(v, v)); }
+
+normalize :: inline (v : $T/Type.[v2f, v3f, v4f]) -> T { l := length(v); return ifx l then v / l else .{}; }
+
+isNormal :: inline (v : $T/Type.[v2f, v3f, v4f]) -> bool #no_context { return dot(v, v) == 1.0; }
 
 cross :: inline (a : v3f, b : v3f) -> v3f #no_context { return .{ a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
 
