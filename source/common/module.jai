@@ -161,7 +161,7 @@ formatHex :: inline (value : Any, minimum_digits := 1) -> Basic.FormatInt {
 #load "debug.jai";
 #load "file.jai";
 #load "math/common.jai";
-#load "math/matricies.jai";
+#load "math/matrices.jai";
 #load "math/vectors.jai";
 #load "mutex.jai";
 #load "static_array.jai";
@@ -176,3 +176,4 @@ formatHex :: inline (value : Any, minimum_digits := 1) -> Basic.FormatInt {
 Basic         :: #import "Basic";
 Compiler      :: #import "Compiler";
 Program_Print :: #import "Program_Print";
+Math          :: #import "Math";

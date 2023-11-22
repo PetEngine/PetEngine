@@ -418,5 +418,3 @@ useDarkTheme :: () -> bool {
 
     return !apps_use_light_theme;
 }
-
-Math  :: #import "Math";

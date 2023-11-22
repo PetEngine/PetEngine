@@ -63,21 +63,21 @@ sign :: inline (value : $T/Type.[u8, u16, u32, u64]) -> T #no_context {
     return value != 0;
 }
 
-min :: inline (a : $T, b : T) -> T #no_context #modify { return rejectVectors(T) && rejectMatricies(T); } {
+min :: inline (a : $T, b : T) -> T #no_context #modify { return rejectVectors(T) && rejectMatrices(T); } {
     return ifx a < b then a else b;
 }
 
-min :: inline (first : $T, rest : ..T) -> T #no_context #modify { return rejectVectors(T) && rejectMatricies(T); } {
+min :: inline (first : $T, rest : ..T) -> T #no_context #modify { return rejectVectors(T) && rejectMatrices(T); } {
     result := first;
     for rest if it < result then result = it;
     return result;
 }
 
-max :: inline (a : $T, b : T) -> T #no_context #modify { return rejectVectors(T) && rejectMatricies(T); } {
+max :: inline (a : $T, b : T) -> T #no_context #modify { return rejectVectors(T) && rejectMatrices(T); } {
     return ifx a > b then a else b;
 }
 
-max :: inline (first : $T, rest : ..T) -> T #no_context #modify { return rejectVectors(T) && rejectMatricies(T); } {
+max :: inline (first : $T, rest : ..T) -> T #no_context #modify { return rejectVectors(T) && rejectMatrices(T); } {
     result := first;
     for rest if it > result then result = it;
     return result;
@@ -119,6 +119,6 @@ rejectVectors :: inline (T : Type) -> bool #no_context {
         && T != v4f && T != v4s && T != v4u;
 }
 
-rejectMatricies :: inline (T : Type) -> bool #no_context {
+rejectMatrices :: inline (T : Type) -> bool #no_context {
     return T != m2x2 && T != m3x3 && T != m3x4 && T != m4x3 && T != m4x4;
 }

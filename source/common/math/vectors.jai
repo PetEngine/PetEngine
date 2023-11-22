@@ -195,7 +195,3 @@ clamp :: inline (v : $T/Type.[v4f, v4s, v4u], a : type_of(T.x), b : type_of(T.x)
 saturate :: inline (v : $T/Type.[v2f, v2s, v2u]) -> T #no_context { v0 : T; v1 := T.{ 1, 1 };       return min(max(v, v0), v1); }
 saturate :: inline (v : $T/Type.[v3f, v3s, v3u]) -> T #no_context { v0 : T; v1 := T.{ 1, 1, 1 };    return min(max(v, v0), v1); }
 saturate :: inline (v : $T/Type.[v4f, v4s, v4u]) -> T #no_context { v0 : T; v1 := T.{ 1, 1, 1, 1 }; return min(max(v, v0), v1); }
-
-#scope_file
-
-Math :: #import "Math";

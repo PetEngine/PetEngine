@@ -231,10 +231,11 @@ determinant :: inline (m : m4x4) -> f32 #no_context {
 }
 
 // Left handed
-viewMatrix :: (camera : v3f, target : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x4 {
+lookAtMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x4 {
     assert(isNormal(world_up), "world_up vector should be normal");
+    assert(isNormal(direction), "direction vector should be normal");
 
-    axis_z := normalize(target - camera);
+    axis_z := direction;
     axis_x := cross(world_up, axis_z);
     axis_y := cross(axis_z, axis_x);
 
@@ -247,10 +248,11 @@ viewMatrix :: (camera : v3f, target : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x
 }
 
 // Left handed
-viewMatrixAndItsInverse :: (camera : v3f, target : v3f, world_up : v3f = .{ 0, 1, 0 }) -> (view : m4x4, view_inverse : m4x4) {
-    assert(isNormal(world_up) == 1.0, "world_up vector should be normal");
+lookAtMatrixAndItsInverse :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> (view : m4x4, inv_view : m4x4) {
+    assert(isNormal(world_up), "world_up vector should be normal");
+    assert(isNormal(direction), "direction vector should be normal");
 
-    axis_z := normalize(target - camera);
+    axis_z := direction;
     axis_x := cross(world_up, axis_z);
     axis_y := cross(axis_z, axis_x);
 
@@ -268,7 +270,18 @@ viewMatrixAndItsInverse :: (camera : v3f, target : v3f, world_up : v3f = .{ 0, 1
 }
 
 // Left handed
-perspectiveProjectionMatrix :: inline (aspect_ratio : f32, fov : f32, near : f32, far : f32, $reverse_z := true) -> m4x4 {
+lookAtMatrixFromTarget :: inline (camera : v3f, target : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x4 {
+    return lookAtMatrix(camera, normalize(target - camera), world_up);
+}
+
+// Left handed
+lookAtMatrixFromTargetAndItsInverse :: inline (camera : v3f, target : v3f, world_up : v3f = .{ 0, 1, 0 }) -> (view : m4x4, inverse_view : m4x4) {
+    view, inverse_view := lookAtMatrixAndItsInverse(camera, normalize(target - camera), world_up);
+    return view, inverse_view;
+}
+
+// Left handed
+perspectiveProjectionMatrixFromFov :: (aspect_ratio : f32, fov : f32, near : f32, far : f32, $reverse_z := true) -> m4x4 {
     t      := Math.tan(0.5 * fov);
     neg_nf := -(near * far);
 
@@ -294,7 +307,7 @@ perspectiveProjectionMatrix :: inline (aspect_ratio : f32, fov : f32, near : f32
 }
 
 // Left handed
-perspectiveProjectionMatrixAndItsInverse :: inline (aspect_ratio : f32, fov : f32, near : f32, far : f32, $reverse_z := true) -> (projection : m4x4, inverse_projection : m4x4) {
+perspectiveProjectionMatrixFromFovAndItsInverse :: (aspect_ratio : f32, fov : f32, near : f32, far : f32, $reverse_z := true) -> (projection : m4x4, inverse_projection : m4x4) {
     t      := Math.tan(0.5 * fov);
     neg_nf := -(near * far);
     at     := aspect_ratio * t;
@@ -333,7 +346,7 @@ perspectiveProjectionMatrixAndItsInverse :: inline (aspect_ratio : f32, fov : f3
 }
 
 // Left handed
-perspectiveProjectionMatrix :: inline (width : f32, heigt : f32, near : f32, far : f32, $reverse_z := true) -> m4x4 #no_context {
+perspectiveProjectionMatrix :: (width : f32, heigt : f32, near : f32, far : f32, $reverse_z := true) -> m4x4 #no_context {
     _2n    := 2.0 * near;
     neg_nf := -(near * far);
 
@@ -359,7 +372,7 @@ perspectiveProjectionMatrix :: inline (width : f32, heigt : f32, near : f32, far
 }
 
 // Left handed
-perspectiveProjectionMatrixAndItsInverse :: inline (width : f32, heigt : f32, near : f32, far : f32, $reverse_z := true) -> (projection : m4x4, inverse_projection : m4x4) #no_context {
+perspectiveProjectionMatrixAndItsInverse :: (width : f32, heigt : f32, near : f32, far : f32, $reverse_z := true) -> (projection : m4x4, inverse_projection : m4x4) #no_context {
     _2n    := 2.0 * near;
     neg_nf := -(near * far);
 
@@ -368,11 +381,17 @@ perspectiveProjectionMatrixAndItsInverse :: inline (width : f32, heigt : f32, ne
 
         e22 := near   / depth;
         e23 := neg_nf / depth;
+
+        inv_e32 := depth / neg_nf;
+        inv_e33 := 1.0   / far;
     } else {
         depth := far - near;
 
         e22 := far    / depth;
         e23 := neg_nf / depth;
+
+        inv_e32 := depth / neg_nf;
+        inv_e33 := 1.0   / near;
     }
 
     return .{
@@ -389,7 +408,3 @@ perspectiveProjectionMatrixAndItsInverse :: inline (width : f32, heigt : f32, ne
         e33 = inv_e33
     };
 }
-
-#scope_file
-
-Math :: #import "Math";
