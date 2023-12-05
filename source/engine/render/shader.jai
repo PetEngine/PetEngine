@@ -151,4 +151,4 @@ reloadShader :: (device : *Device, manager : *ShaderManager, shader : *Shader) {
 
 #scope_file
 
-#load "../platform/vulkan/shader.jai";
+#load "vulkan/shader.jai";

@@ -290,4 +290,4 @@ PipelineBindPoint :: enum u8 {
     RAY_TRACING;
 }
 
-#load "../platform/vulkan/command_buffer.jai";
+#load "vulkan/command_buffer.jai";

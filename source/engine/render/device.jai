@@ -122,5 +122,5 @@ getBackBuffer :: (device : *Device) -> *Texture {
 
 #scope_file
 
-#load "../platform/vulkan/loader.jai";
-#load "../platform/vulkan/device.jai";
+#load "vulkan/loader.jai";
+#load "vulkan/device.jai";
