@@ -267,7 +267,7 @@ VkPhysicalDeviceProperties :: struct {
 
 // Provided by VK_VERSION_1_1
 VkPhysicalDeviceProperties2 :: struct {
-    sType      : VkStructureType;
+    sType      : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     pNext      : *void;
     properties : VkPhysicalDeviceProperties;
 }

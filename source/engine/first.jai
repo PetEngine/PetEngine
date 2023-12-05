@@ -27,6 +27,20 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
     per_frame_arena  : Arena;
 };
 
+PerViewUniform :: struct {
+    camera_pos : v3f;
+/*
+    view_matrix     : m3x4;
+    inv_view_matrix : m3x4;
+
+    proj_matrix     : m4x4;
+    inv_proj_matrix : m4x4;
+
+    view_proj_matrix     : m4x4;
+    inv_view_proj_matrix : m4x4;
+*/
+}
+
 main :: () {
     {
         context.print_style.default_format_struct.use_long_form_if_more_than_this_many_members = -1;
@@ -61,8 +75,8 @@ main :: () {
     device := createDevice(.VULKAN, window, 2);
     defer destroyDevice(device);
 
-    texture_manager := createTextureManager(device);
-    defer destroyTextureManager(device, texture_manager);
+    resource_manager := createResourceManager(device);
+    defer destroyResourceManager(device, resource_manager);
 
     shader_manager := createShaderManager(device);
     defer destroyShaderManager(device, shader_manager);
@@ -71,8 +85,10 @@ main :: () {
     initShadersHotReload(*shaders_hot_reload, device, shader_manager);
     defer destroyShadersHotReload(*shaders_hot_reload);
 
+    per_view_uniform_buffer := createBuffer(device, resource_manager, size_of(PerViewUniform), .UNIFORM, name = "Per view", .PERSISTENT);
+
     depth_buffer := createTexture(device,
-                                  texture_manager,
+                                  resource_manager,
                                   .D32,
                                   window.surface.width,
                                   window.surface.height,
@@ -80,13 +96,13 @@ main :: () {
                                   "Depth buffer",
                                   .PERSISTENT_RESOLUTION_DEPENDENT);
 
-    // Create persistent textures here...
+    // Create persistent buffers and textures here...
 
-    commitTextureMemory(device, texture_manager, .PERSISTENT);
-    defer resetTextureMemory(device, texture_manager, .PERSISTENT);
+    commitResourceMemory(device, resource_manager, .PERSISTENT);
+    defer resetResourceMemory(device, resource_manager, .PERSISTENT);
 
-    commitTextureMemory(device, texture_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
-    defer resetTextureMemory(device, texture_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
+    commitResourceMemory(device, resource_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
+    defer resetResourceMemory(device, resource_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
 
     triangle_shader := createShader(device, shader_manager, "triangle");
 
@@ -112,7 +128,7 @@ main :: () {
 
         if window.flags & .RESIZED {
             recreateSwapchain(device, window);
-            resizeResolutionDependentTextures(device, texture_manager);
+            resizeResolutionDependentTextures(device, resource_manager);
         }
 
         beginFrame(device);
@@ -120,19 +136,21 @@ main :: () {
             // Reset
             {
                 resetCommandBuffer(device, *command_buffer);
-                // @TODO: #PerFrameTextures. Delete unused per frame texture memory when number of swapchain buffers decreased.
-                resetTextureMemory(device, texture_manager, .PER_FRAME);
-
+                // @TODO: #PerFrameResources. Delete unused per frame resources memory when number of swapchain buffers is decreased.
+                resetResourceMemory(device, resource_manager, .PER_FRAME);
                 resetShaderManager(device, shader_manager);
             }
 
-            // Create per frame textures here...
+            // Create per frame buffers and textures here...
 
-            // @TODO: #PerFrameTextures. Should we be able to upload data to per frame textures?
-            //        Maybe we want to restrict to upload data to per frame textures?
-            //        Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame textures
-            //        since we do not want tot release memory which is in use by async queues.
-            commitTextureMemory(device, texture_manager, .PER_FRAME);
+            // Commit
+            {
+                // @TODO: #PerFrameResources. Should we be able to upload data to per frame resources?
+                //        Maybe we want to restrict it?
+                //        Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame resources
+                //        since we do not want to release memory which is in use by async queues.
+                commitResourceMemory(device, resource_manager, .PER_FRAME);
+            }
 
             back_buffer := getBackBuffer(device);
 
@@ -178,7 +196,7 @@ DEBUG_BUILD :: #run -> bool {
 #load "core/window.jai";
 #load "render/device.jai";
 #load "render/command_buffer.jai";
-#load "render/texture.jai";
+#load "render/resource_manager.jai";
 #load "render/shader.jai";
 #load "shader_compiler/compiler.jai";
 #load "shader_compiler/hot_reload.jai";

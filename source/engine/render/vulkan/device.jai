@@ -29,8 +29,9 @@ VulkanDevice :: struct {
 
     loader : VulkanLoader;
 
-    properties12 : VkPhysicalDeviceVulkan12Properties;
-    limits       : VkPhysicalDeviceLimits;
+    properties12      : VkPhysicalDeviceVulkan12Properties;
+    limits            : VkPhysicalDeviceLimits;
+    memory_properties : VkPhysicalDeviceMemoryProperties2;
 }
 
 createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *VulkanDevice #must {
@@ -59,6 +60,8 @@ createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *V
                 VK_API_VERSION_MAJOR(device.api_version),
                 VK_API_VERSION_MINOR(device.api_version),
                 VK_API_VERSION_PATCH(device.api_version));
+
+    vkGetPhysicalDeviceMemoryProperties2(device.physical_device, *device.memory_properties);
 
     gatherQueuesInfo(device);
     createDevice(device, *enabled_device_extensions);
@@ -544,9 +547,9 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
             it.depth                 = 0;
             it.samples_count         = 1;
             it.mips_count            = 1;
-            it.possible_owners_count = 1;
-            it.possible_owners[0]    = .GRAPHICS;
             it.current_owner         = .GRAPHICS;
+            it.possible_owners.count = 1;
+            it.possible_owners[0]    = .GRAPHICS;
             it.image                 = swapchain_images_it.*;
             it.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -1054,10 +1057,7 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
     physical_devices.data = pushToArena(*context.pet.per_frame_arena, VkPhysicalDevice, physical_devices.count);
     debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, physical_devices.data));
 
-    physical_device_properties := VkPhysicalDeviceProperties2.{
-        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
-        pNext = null
-    };
+    physical_device_properties : VkPhysicalDeviceProperties2;
     properties := *physical_device_properties.properties;
 
     COMPATIBLE_PHYSICAL_DEVICE_TYPES :: VkPhysicalDeviceType.[
@@ -1065,10 +1065,7 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
         .VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU
     ];
 
-    memory_properties := VkPhysicalDeviceMemoryProperties2.{
-        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
-        pNext = null
-    };
+    memory_properties : VkPhysicalDeviceMemoryProperties2;
 
     available_device_memory : VkDeviceSize;
 

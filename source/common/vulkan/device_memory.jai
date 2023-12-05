@@ -60,7 +60,7 @@ VkPhysicalDeviceMemoryProperties :: struct {
 
 // Provided by VK_VERSION_1_1
 VkPhysicalDeviceMemoryProperties2 :: struct {
-    sType            : VkStructureType;
+    sType            : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
     pNext            : *void;
     memoryProperties : VkPhysicalDeviceMemoryProperties;
 }

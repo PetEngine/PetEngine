@@ -4,6 +4,9 @@
 VkImage :: *VkImage_T; VkImage_T :: struct {}
 
 // Provided by VK_VERSION_1_0
+VkImageView :: *VkImageView_T; VkImageView_T :: struct {}
+
+// Provided by VK_VERSION_1_0
 VK_REMAINING_ARRAY_LAYERS : u32 : 0xFFFF_FFFF;
 
 // Provided by VK_VERSION_1_0
@@ -289,7 +292,7 @@ VkSubresourceLayout :: struct {
 
 // Provided by VK_VERSION_1_1
 VkBindImageMemoryInfo :: struct {
-    sType        : VkStructureType;
+    sType        : VkStructureType = .VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
     pNext        : *void;
     image        : VkImage;
     memory       : VkDeviceMemory;
@@ -298,23 +301,9 @@ VkBindImageMemoryInfo :: struct {
 
 // Provided by VK_VERSION_1_1
 VkImageMemoryRequirementsInfo2 :: struct {
-    sType : VkStructureType;
+    sType : VkStructureType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2;
     pNext : *void;
     image : VkImage;
-}
-
-// Provided by VK_VERSION_1_0
-VkMemoryRequirements :: struct {
-    size           : VkDeviceSize;
-    alignment      : VkDeviceSize;
-    memoryTypeBits : u32;
-}
-
-// Provided by VK_VERSION_1_1
-VkMemoryRequirements2 :: struct {
-    sType              : VkStructureType;
-    pNext              : *void;
-    memoryRequirements : VkMemoryRequirements;
 }
 
 // Provided by VK_VERSION_1_1
@@ -386,14 +375,6 @@ vkGetImageSubresourceLayout :: (
     pSubresource : *VkImageSubresource,
     pLayout      : *VkSubresourceLayout
 ) #foreign vulkan;
-
-// Provided by VK_VERSION_1_0
-vkBindImageMemory :: (
-    device       : VkDevice,
-    image        : VkImage,
-    memory       : VkDeviceMemory,
-    memoryOffset : VkDeviceSize
-) -> VkResult #foreign vulkan;
 
 // Provided by VK_VERSION_1_1
 vkBindImageMemory2 :: (

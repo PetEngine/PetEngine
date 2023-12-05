@@ -1,54 +1,3 @@
-TextureManager :: struct {
-    MemoryKind :: enum u8 {
-        PERSISTENT;
-        PERSISTENT_RESOLUTION_DEPENDENT;
-
-        PER_LEVEL;
-        PER_LEVEL_RESOLUTION_DEPENDENT;
-
-        PER_FRAME;
-    }
-}
-
-createTextureManager :: (device : *Device) -> *TextureManager #must {
-    manager : *TextureManager;
-
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            manager = createVulkanTextureManager(cast(*VulkanDevice) device);
-    }
-
-    return manager;
-}
-
-destroyTextureManager :: (device : *Device, manager : *TextureManager) {
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            destroyVulkanTextureManager(cast(*VulkanDevice) device, cast(*VulkanTextureManager) manager);
-    }
-}
-
-commitTextureMemory :: (device : *Device, manager : *TextureManager, $memory_kind : TextureManager.MemoryKind) {
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            commitVulkanTextureMemory(cast(*VulkanDevice) device, cast(*VulkanTextureManager) manager, memory_kind);
-    }
-}
-
-resetTextureMemory :: (device : *Device, manager : *TextureManager, $memory_kind : TextureManager.MemoryKind) {
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            resetVulkanTextureMemory(cast(*VulkanDevice) device, cast(*VulkanTextureManager) manager, memory_kind);
-    }
-}
-
-resizeResolutionDependentTextures :: (device : *Device, manager : *TextureManager) {
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            resizeResolutionDependentVulkanTextures(cast(*VulkanDevice) device, cast(*VulkanTextureManager) manager);
-    }
-}
-
 Texture :: struct {
     ALL_MIPS : u8 : 0xFF;
 
@@ -131,14 +80,13 @@ Texture :: struct {
     samples_count         : u8;
     mips_count            : u8;
     name                  : string;
-    possible_owners_count : u32;
-    possible_owners       : [#run Basic.enum_highest_value(QueueType) + 1] QueueType;
     current_owner         : QueueType;
+    possible_owners       : StaticArray(QueueType, #run Basic.enum_highest_value(QueueType) + 1);
 }
 
 createTexture :: (
     device              : *Device,
-    manager             : *TextureManager,
+    manager             : *ResourceManager,
     format              : Texture.Format,
     width               : u16,
     height              : u16           = 0,
@@ -148,10 +96,9 @@ createTexture :: (
     flags               : Texture.Flags = 0,
     usage               : Texture.Usage,
     name                : string,
-    $memory_kind        : TextureManager.MemoryKind,
+    $memory_kind        : ResourceManager.MemoryKind,
     possible_owners     : ..QueueType = .[ .GRAPHICS ]
 ) -> *Texture #must {
-    assert(width > 0);
     assert(!(flags & .SWAPCHAIN),
            "You cannot explicitly set SWAPCHAIN flag");
     assert(!(flags & .RESOLUTION_DEPENDENT),
@@ -173,7 +120,7 @@ createTexture :: (
 
     // @TODO: Validate usage
 
-    #if memory_kind == .PERSISTENT_RESOLUTION_DEPENDENT || memory_kind == .PER_LEVEL_RESOLUTION_DEPENDENT {
+    #if memory_kind == .PERSISTENT_RESOLUTION_DEPENDENT || memory_kind == .PER_SCENE_RESOLUTION_DEPENDENT {
         assert(!(flags & .CUBE),
                "Cube textures cannot be resolution dependent");
         assert(mips_count == 1,
@@ -186,6 +133,7 @@ createTexture :: (
         width  = back_buffer.width;
         height = back_buffer.height;
     } else {
+        assert(width > 0);
         assert(width == height || !(flags & .CUBE),
                "Cube textures must have identical width and height");
 
@@ -200,27 +148,31 @@ createTexture :: (
         }
     }
 
-    texture : *Texture;
+    dimension : Texture.Dimension = ---;
+    /**/ if flags & .ARRAY          then dimension = ifx height > 0 then ._2D else ._1D;
+    else if depth_or_array_size > 0 then dimension = ._3D;
+    else if height > 0              then dimension = ._2D;
+    else                                 dimension = ._1D;
+    assert((dimension == ._2D) || !(flags & .RESOLUTION_DEPENDENT), "Only 2D textures can be resolution dependent");
+    assert((dimension != ._3D) || !(flags & .ARRAY), "Texture arrays cannot consist of 3D textures");
 
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            texture = createVulkanTexture(cast(*VulkanDevice) device,
-                                          cast(*VulkanTextureManager) manager,
-                                          format,
-                                          width,
-                                          height,
-                                          depth_or_array_size,
-                                          samples_count,
-                                          mips_count,
-                                          flags,
-                                          usage,
-                                          name,
-                                          memory_kind,
-                                          ..possible_owners);
-    }
+    texture := manager.pushPlatformTexture(device, manager, memory_kind);
 
-    assert((texture.dimension != ._3D) || !(texture.flags & .ARRAY),
-           "Texture arrays cannot consist of 3D textures");
+    texture.dimension             = dimension;
+    texture.format                = format;
+    texture.flags                 = flags;
+    texture.usage                 = usage;
+    texture.width                 = width;
+    texture.height                = height;
+    texture.depth                 = depth_or_array_size;
+    texture.samples_count         = samples_count;
+    texture.mips_count            = mips_count;
+    texture.name                  = name;
+    texture.current_owner         = possible_owners[0];
+    texture.possible_owners.count = cast(u32) possible_owners.count;
+    memcpy(texture.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
+
+    manager.createPlatformTexture(device, manager, texture);
 
     return texture;
 }

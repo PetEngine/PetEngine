@@ -143,6 +143,8 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO                       :: 5;
     VK_STRUCTURE_TYPE_FENCE_CREATE_INFO                          :: 8;
     VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO                      :: 9;
+    VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO                         :: 12;
+    VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO                    :: 13;
     VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO                          :: 14;
     VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO                     :: 15;
     VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO                  :: 16;
@@ -197,9 +199,13 @@ VkStructureType :: enum VkEnum #specified {
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2                        :: 1000145003;
     // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2          :: 1000146000;
+    // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2           :: 1000146001;
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2                      :: 1000146003;
+    // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO                    :: 1000157000;
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO                     :: 1000157001;
     // Provided by VK_VERSION_1_2
@@ -341,16 +347,28 @@ VkRect2D :: struct {
     extent : VkExtent2D;
 }
 
+// Provided by VK_VERSION_1_0
+VkMemoryRequirements :: struct {
+    size           : VkDeviceSize;
+    alignment      : VkDeviceSize;
+    memoryTypeBits : u32;
+}
+
+// Provided by VK_VERSION_1_1
+VkMemoryRequirements2 :: struct {
+    sType              : VkStructureType = .VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
+    pNext              : *void;
+    memoryRequirements : VkMemoryRequirements;
+}
+
 // @Cleanup: Move to their own files
 VK_ATTACHMENT_UNUSED : u32 : 0xFFFF_FFFF;
 VK_SUBPASS_EXTERNAL  : u32 : 0xFFFF_FFFF;
 VK_WHOLE_SIZE        : u64 : 0xFFFF_FFFF_FFFF_FFFF;
 
 // @Cleanup: Move to their own files
-VkImageView           :: *VkImageView_T;           VkImageView_T           :: struct {}
 VkRenderPass          :: *VkRenderPass_T;          VkRenderPass_T          :: struct {}
 VkFramebuffer         :: *VkFramebuffer_T;         VkFramebuffer_T         :: struct {}
-VkBuffer              :: *VkBuffer_T;              VkBuffer_T              :: struct {}
 VkDescriptorSetLayout :: *VkDescriptorSetLayout_T; VkDescriptorSetLayout_T :: struct {}
 
 #scope_module
@@ -367,6 +385,7 @@ VkDescriptorSetLayout :: *VkDescriptorSetLayout_T; VkDescriptorSetLayout_T :: st
 #load "image.jai";
 #load "barriers.jai";
 #load "pipeline.jai";
+#load "buffer.jai";
 
 #if OS == .WINDOWS {
     vulkan :: #system_library "vulkan-1";
