@@ -171,6 +171,62 @@ destroyVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceMa
 }
 
 commitVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.Memory, memory_kind : ResourceManager.MemoryKind) {
+    assert(memory.device_memory == VK_NULL_HANDLE);
+    if memory.buffers.count <= 0 return;
+
+    memory_type_index : u32 = 0xFFFF_FFFF;
+
+    for toView(device.memory_properties.memoryProperties.memoryTypes.data, device.memory_properties.memoryProperties.memoryTypeCount) {
+        if it.propertyFlags & .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT {
+            memory_type_index = cast(u32) it_index;
+            break;
+        }
+    }
+    assert(memory_type_index != 0xFFFF_FFFF, "Device local memory is not supported on this device");
+
+    allocate_info := VkMemoryAllocateInfo.{
+        sType           = .VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        pNext           = null,
+        allocationSize  = 0, // Will be set in the loop
+        memoryTypeIndex = memory_type_index
+    };
+
+    bind_infos    := pushToArena(*context.pet.per_frame_arena, VkBindBufferMemoryInfo, memory.textures.count);
+    bind_infos_it := bind_infos;
+
+    memory_requirements_info : VkBufferMemoryRequirementsInfo2;
+    memory_requirements      : VkMemoryRequirements2;
+    memory_offset            : VkDeviceSize;
+
+    for memory.buffers {
+        bind_infos_it.buffer       = it.buffer;
+        bind_infos_it.memoryOffset = memory_offset;
+
+        memory_requirements_info.buffer = it.buffer;
+        vkGetBufferMemoryRequirements2(device.device, *memory_requirements_info, *memory_requirements);
+
+        requirements := *memory_requirements.memoryRequirements;
+        allocate_info.allocationSize = alignUpWithPowerOfTwo(requirements.size, requirements.alignment);
+
+        memory_offset += allocate_info.allocationSize;
+
+        bind_infos_it += 1;
+    }
+
+    // @TODO: VkAllocationCallbacks
+    debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory.device_memory));
+
+    setVulkanObjectName(device, memory.device_memory, "% device buffer memory", memory_kind);
+
+    bind_infos_it = bind_infos;
+    for 0 .. memory.buffers.count - 1 {
+        bind_infos_it.memory = memory.device_memory;
+        bind_infos_it += 1;
+    }
+
+    debugCheckVK(vkBindBufferMemory2(device.device, cast(u32) memory.buffers.count, bind_infos));
+
+    // @TODO: #Views
 }
 
 resetVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.Memory) {
@@ -265,7 +321,7 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceMa
     // @TODO: VkAllocationCallbacks
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory.device_memory));
 
-    setVulkanObjectName(device, memory.device_memory, "% device memory", memory_kind);
+    setVulkanObjectName(device, memory.device_memory, "% device texture memory", memory_kind);
 
     bind_infos_it = bind_infos;
     for 0 .. memory.textures.count - 1 {
