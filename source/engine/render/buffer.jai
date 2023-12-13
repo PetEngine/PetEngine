@@ -23,10 +23,10 @@ createBuffer :: (
     manager         : *ResourceManager,
     bytes           : u32,
     usage           : Buffer.Usage,
-    flags           : Buffer.Flags     = 0,
+    flags           : Buffer.Flags = 0,
     name            : string,
     $memory_kind    : ResourceManager.MemoryKind,
-    possible_owners : ..QueueType      = .[ .GRAPHICS ]
+    possible_owners : ..QueueType  = .[ .GRAPHICS ]
 ) -> *Buffer #must {
     buffer := manager.pushPlatformBuffer(device, manager, memory_kind);
 

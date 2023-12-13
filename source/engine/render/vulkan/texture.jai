@@ -10,17 +10,16 @@ pushVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, memory_kin
     device  := cast(*VulkanDevice)          device_;
     manager := cast(*VulkanResourceManager) manager_;
 
-    memory : *VulkanResourceManager.Memory;
+    texture : *VulkanTexture;
     if #complete memory_kind == {
-        case .PERSISTENT;                      memory = *manager.texture_memory.persistent;
-        case .PERSISTENT_RESOLUTION_DEPENDENT; memory = *manager.texture_memory.persistent_resolution_dependent;
-        case .PER_SCENE;                       memory = *manager.texture_memory.per_scene;
-        case .PER_SCENE_RESOLUTION_DEPENDENT;  memory = *manager.texture_memory.per_scene_resolution_dependent;
-        case .PER_FRAME;                       memory = *manager.texture_memory.per_frame[device.frame_index];
+        case .PERSISTENT;                      texture = pushBack(*manager.texture_memory.persistent.textures);
+        case .PERSISTENT_RESOLUTION_DEPENDENT; texture = pushBack(*manager.texture_memory.persistent_resolution_dependent.textures);
+        case .PER_SCENE;                       texture = pushBack(*manager.texture_memory.per_scene.textures);
+        case .PER_SCENE_RESOLUTION_DEPENDENT;  texture = pushBack(*manager.texture_memory.per_scene_resolution_dependent.textures);
+        case .PER_FRAME;                       texture = pushBack(*manager.texture_memory.per_frame[device.frame_index].textures);
     }
-    assert(memory);
 
-    return pushBack(*memory.textures);
+    return texture;
 }
 
 createVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, texture_ : *Texture) {

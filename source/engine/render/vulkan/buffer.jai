@@ -11,16 +11,16 @@ pushVulkanBuffer :: (device_ : *Device, manager_ : *ResourceManager, memory_kind
     device  := cast(*VulkanDevice)          device_;
     manager := cast(*VulkanResourceManager) manager_;
 
-    memory : *VulkanResourceManager.Memory = ---;
+    buffer : *VulkanBuffer;
     if #complete memory_kind == {
-        case .PERSISTENT;                      memory = *manager.buffer_memory.persistent;
+        case .PERSISTENT;                      buffer = pushBack(*manager.buffer_memory.persistent.buffers);
         case .PERSISTENT_RESOLUTION_DEPENDENT; assertMessage("Resolution dependent memory is not supported for buffers");
-        case .PER_SCENE;                       memory = *manager.buffer_memory.per_scene;
+        case .PER_SCENE;                       buffer = pushBack(*manager.buffer_memory.per_scene.buffers);
         case .PER_SCENE_RESOLUTION_DEPENDENT;  assertMessage("Resolution dependent memory is not supported for buffers");
-        case .PER_FRAME;                       memory = *manager.buffer_memory.per_frame[device.frame_index];
+        case .PER_FRAME;                       buffer = pushBack(*manager.buffer_memory.per_frame[device.frame_index].buffers);
     }
 
-    return pushBack(*memory.buffers);
+    return buffer;
 }
 
 createVulkanBuffer :: (device_ : *Device, manager_ : *ResourceManager, buffer_ : *Buffer) {
