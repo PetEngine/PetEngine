@@ -93,7 +93,7 @@ main :: () {
                                   window.surface.width,
                                   window.surface.height,
                                   usage = .DEPTH_TARGET | .SHADER_READ,
-                                  "Depth buffer",
+                                  "Depth",
                                   .PERSISTENT_RESOLUTION_DEPENDENT);
 
     // Create persistent buffers and textures here...
@@ -201,7 +201,8 @@ DEBUG_BUILD :: #run -> bool {
 #load "shader_compiler/compiler.jai";
 #load "shader_compiler/hot_reload.jai";
 
-String :: #import "String";
+String     :: #import "String";
+Reflection :: #import "Reflection";
 
 #scope_file
 

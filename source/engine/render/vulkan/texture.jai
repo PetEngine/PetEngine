@@ -22,7 +22,7 @@ pushVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, memory_kin
     return texture;
 }
 
-createVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, texture_ : *Texture) {
+createVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, texture_ : *Texture, name : string, memory_kind : ResourceManager.MemoryKind) {
     device  := cast(*VulkanDevice)          device_;
     manager := cast(*VulkanResourceManager) manager_;
     texture := cast(*VulkanTexture)         texture_;
@@ -89,6 +89,14 @@ createVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, texture_
 
     // @TODO: #VkAllocationCallbacks
     debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
+
+    if #complete memory_kind == {
+        case .PERSISTENT;                      composeTextureName(*manager.texture_memory.persistent,                      texture, name);
+        case .PERSISTENT_RESOLUTION_DEPENDENT; composeTextureName(*manager.texture_memory.persistent_resolution_dependent, texture, name);
+        case .PER_SCENE;                       composeTextureName(*manager.texture_memory.per_scene,                       texture, name);
+        case .PER_SCENE_RESOLUTION_DEPENDENT;  composeTextureName(*manager.texture_memory.per_scene_resolution_dependent,  texture, name);
+        case .PER_FRAME;                       composeTextureName(*manager.texture_memory.per_frame[device.frame_index],   texture, name);
+    }
 
     setVulkanObjectName(device, texture.image, texture.name);
 }
@@ -355,4 +363,24 @@ checkImageProperties :: (device : *VulkanDevice, texture : *VulkanTexture, creat
                       create_info.samples,
                       image_format_properties.imageFormatProperties.sampleCounts);
     }
+}
+
+composeTextureName :: (memory : *VulkanResourceManager.Memory, texture : *Texture, name : string) {
+    memory_kind_name := Reflection.enum_value_to_name(memory.kind);
+    assert(memory_kind_name);
+
+    full_name_length := "Texture/".count
+                      + memory_kind_name.count + "/".count
+                      + name.count;
+
+    assert(full_name_length <= ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH,
+           "Texture full name length (%) > ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH (%)",
+           full_name_length,
+           ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH);
+
+    texture.name.data = pushToArena(*memory.names_subarena, full_name_length);
+
+    appendToString(*texture.name, full_name_length, "Texture/", memory_kind_name, "/", name);
+
+    assert(texture.name.count == full_name_length, "full_name.count (%) != full_name_length (%)", texture.name.count, full_name_length);
 }

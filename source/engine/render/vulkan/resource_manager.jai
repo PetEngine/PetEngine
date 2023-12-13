@@ -17,6 +17,8 @@ VulkanResourceManager :: struct {
             buffers  : StaticArray(VulkanBuffer, MAX_BUFFERS);
             textures : StaticArray(VulkanTexture, MAX_TEXTURES);
         }
+
+        names_subarena : Arena;
     }
 
     buffer_memory : struct {
@@ -32,6 +34,8 @@ VulkanResourceManager :: struct {
         per_scene_resolution_dependent  : Memory(.PER_SCENE_RESOLUTION_DEPENDENT);
         per_frame                       : StaticArray(Memory(.PER_FRAME), Device.MAX_FRAME_BUFFERING);
     }
+
+    names_arena : Arena;
 }
 
 createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManager #must {
@@ -47,6 +51,30 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
 
     manager.pushPlatformTexture   = pushVulkanTexture;
     manager.createPlatformTexture = createVulkanTexture;
+
+    manager.buffer_memory.per_frame.count  = manager.buffer_memory.per_frame.capacity;
+    manager.texture_memory.per_frame.count = manager.texture_memory.per_frame.capacity;
+
+    BUFFER_SUBARENA_CAPACITY  :: ResourceManager.MAX_BUFFERS  * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
+    TEXTURE_SUBARENA_CAPACITY :: ResourceManager.MAX_TEXTURES * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
+    MANAGER_ARENA_CAPACITY :: (2 + manager.buffer_memory.per_frame.capacity)  * BUFFER_SUBARENA_CAPACITY
+                            + (4 + manager.texture_memory.per_frame.capacity) * TEXTURE_SUBARENA_CAPACITY;
+
+    createArena(*manager.names_arena, MANAGER_ARENA_CAPACITY, "VulkanResourceManager names");
+
+    createSubarena(*manager.names_arena, *manager.buffer_memory.persistent.names_subarena, BUFFER_SUBARENA_CAPACITY, "Persistent buffers names");
+    createSubarena(*manager.names_arena, *manager.buffer_memory.per_scene.names_subarena, BUFFER_SUBARENA_CAPACITY, "PerScene buffers names");
+    for * manager.buffer_memory.per_frame {
+        createSubarena(*manager.names_arena, *it.names_subarena, BUFFER_SUBARENA_CAPACITY, "Frame #% buffers names", it_index);
+    }
+
+    createSubarena(*manager.names_arena, *manager.texture_memory.persistent.names_subarena,                      TEXTURE_SUBARENA_CAPACITY, "Persistent textures names");
+    createSubarena(*manager.names_arena, *manager.texture_memory.persistent_resolution_dependent.names_subarena, TEXTURE_SUBARENA_CAPACITY, "Persistent resolution dependent textures names");
+    createSubarena(*manager.names_arena, *manager.texture_memory.per_scene.names_subarena,                       TEXTURE_SUBARENA_CAPACITY, "Per scene textures names");
+    createSubarena(*manager.names_arena, *manager.texture_memory.per_scene_resolution_dependent.names_subarena,  TEXTURE_SUBARENA_CAPACITY, "Per scene resolution dependent textures names");
+    for * manager.texture_memory.per_frame {
+        createSubarena(*manager.names_arena, *it.names_subarena, TEXTURE_SUBARENA_CAPACITY, "Frame #% textures names", it_index);
+    }
 
     manager.buffer_memory.per_frame.count  = cast,no_check(s64) device.frame_buffering;
     manager.texture_memory.per_frame.count = cast,no_check(s64) device.frame_buffering;
@@ -73,6 +101,8 @@ destroyVulkanResourceManager :: (device_ : *Device, manager_ : *ResourceManager)
     for * manager.texture_memory.per_frame {
         destroyVulkanTextureMemory(device, it);
     }
+
+    destroyArena(*manager.names_arena);
 }
 
 commitVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, memory_kind : ResourceManager.MemoryKind) {
@@ -164,6 +194,8 @@ destroyVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceMa
         vkFreeMemory(device.device, memory.device_memory, null);
         memory.device_memory = VK_NULL_HANDLE;
     }
+
+    destroySubarena(*memory.names_subarena);
 }
 
 commitVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.Memory) {
@@ -212,7 +244,7 @@ commitVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceMan
     // @TODO: VkAllocationCallbacks
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory.device_memory));
 
-    setVulkanObjectName(device, memory.device_memory, "% device buffer memory", memory.kind);
+    setVulkanObjectName(device, memory.device_memory, "Memory/Buffers/%", memory.kind);
 
     bind_infos_it = bind_infos;
     for 0 .. memory.buffers.count - 1 {
@@ -238,6 +270,8 @@ resetVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceMana
         vkFreeMemory(device.device, memory.device_memory, null);
         memory.device_memory = VK_NULL_HANDLE;
     }
+
+    resetArena(*memory.names_subarena);
 }
 
 //
@@ -260,6 +294,8 @@ destroyVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceM
         vkFreeMemory(device.device, memory.device_memory, null);
         memory.device_memory = VK_NULL_HANDLE;
     }
+
+    destroySubarena(*memory.names_subarena);
 }
 
 // @TODO: VkPhysicalDeviceVulkan11Properties::maxMemoryAllocationSize
@@ -317,7 +353,7 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceMa
     // @TODO: VkAllocationCallbacks
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory.device_memory));
 
-    setVulkanObjectName(device, memory.device_memory, "% device texture memory", memory.kind);
+    setVulkanObjectName(device, memory.device_memory, "Memory/Textures/%", memory.kind);
 
     bind_infos_it = bind_infos;
     for 0 .. memory.textures.count - 1 {
@@ -379,7 +415,7 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceMa
         // @TODO: VkAllocationCallbacks
         debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
 
-        setVulkanObjectName(device, it.view, it.name);
+        setVulkanObjectName(device, it.view, "% view", it.name);
     }
 }
 
@@ -400,6 +436,8 @@ resetVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceMan
         vkFreeMemory(device.device, memory.device_memory, null);
         memory.device_memory = VK_NULL_HANDLE;
     }
+
+    resetArena(*memory.names_subarena);
 }
 
 resizeVulkanResolutionDependentTextures :: (device : *VulkanDevice, memory : *VulkanResourceManager.Memory) {
@@ -453,7 +491,7 @@ resizeVulkanResolutionDependentTextures :: (device : *VulkanDevice, memory : *Vu
         // @TODO: VkAllocationCallbacks
         debugCheckVK(vkCreateImage(device.device, *create_info, null, *it.image));
 
-        setVulkanObjectName(device, it.image, it.name);
+        setVulkanObjectName(device, it.image, "% view", it.name);
     }
 
     if memory.device_memory {

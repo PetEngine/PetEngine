@@ -131,6 +131,17 @@ toString :: inline (data : *void, bytes : s64) -> string #no_context {
     return result;
 }
 
+appendToString :: (dest : *string, dest_capacity : s64, to_append : ..string) {
+    for to_append {
+        assert(dest.count + it.count <= dest_capacity,
+               "String overflow: occupied: %, requested to append: %, capacity: %",
+               dest.count, it.count, dest_capacity);
+
+        memcpy(dest.data + dest.count, it.data, it.count);
+        dest.count += it.count;
+    }
+}
+
 toView :: inline (data : *$T, count : s64) -> [] T #no_context {
     result : [] T = ---;
     result.data  = data;

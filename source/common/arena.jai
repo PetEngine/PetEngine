@@ -1,5 +1,10 @@
 #scope_export
 
+// @TODO:
+//     1. Place arena name in front of arena itself:
+//              memory   = [name|memory]
+//              capacity = name.count + capacity
+
 Arena :: struct {
     memory       : *void;
     occupied     : s64;
@@ -11,16 +16,15 @@ Arena :: struct {
 }
 }
 
-createArena :: (arena : *Arena, capacity : s64, name : string) {
+createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) {
     assert(capacity > 0);
 
-    {
-        builder : Basic.String_Builder;
-        builder.allocator = Basic.temporary_allocator;
+    builder : Basic.String_Builder;
+    builder.allocator = Basic.temporary_allocator;
 
-        Basic.print_to_builder(*builder, "% thread %", context.pet.thread_name, name);
-        arena.name = Basic.builder_to_string(*builder, context.allocator);
-    }
+    Basic.print_to_builder(*builder, "% thread ", context.pet.thread_name);
+    Basic.print_to_builder(*builder, format, ..args);
+    arena.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use builder.allocator
 
     #if OS == .WINDOWS {
         system_info : SYSTEM_INFO = ---;
@@ -55,6 +59,18 @@ createArena :: (arena : *Arena, capacity : s64, name : string) {
     assert(arena.memory != null, print_sys_error = true);
 }
 
+createSubarena :: (arena : *Arena, subarena : *Arena, subarena_capacity : s64, $format : string, args : ..Any) {
+    builder : Basic.String_Builder;
+    builder.allocator = Basic.temporary_allocator;
+
+    Basic.print_to_builder(*builder, "% arena / ", arena.name);
+    Basic.print_to_builder(*builder, format, ..args);
+    subarena.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use builder.allocator
+
+    subarena.memory   = pushToArena(arena, subarena_capacity);
+    subarena.capacity = subarena_capacity;
+}
+
 destroyArena :: (arena : *Arena) {
     assert(arena.memory != null, "Initialize arena first");
 
@@ -71,17 +87,27 @@ destroyArena :: (arena : *Arena) {
 
     Basic.free(arena.name);
 
-    arena.memory   = null;
-    arena.occupied = 0;
-    arena.capacity = 0;
-    arena.marker   = 0;
+    memset(arena, 0, size_of(Arena));
+}
+
+destroySubarena :: (subarena : *Arena) {
+    assert(subarena.memory != null, "Initialize subarena first");
+
+    #if DEBUG_BUILD {
+        debugMessage("% subarena: max occupied bytes: % / %", subarena.name, subarena.max_occupied, subarena.capacity);
+        subarena.max_occupied = 0;
+    }
+
+    Basic.free(subarena.name);
+
+    memset(subarena, 0, size_of(Arena));
 }
 
 pushToArena :: (arena : *Arena, bytes : s64) -> *void #must {
     assert(arena.memory && arena.capacity, "Initialize arena first");
     assert(bytes > 0, "There is no sense in allocating <= 0 bytes");
 
-    assert(arena.occupied + bytes < arena.capacity,
+    assert(arena.occupied + bytes <= arena.capacity,
            "There is no enough space in \"%\" arena for % bytes. Occupied: % bytes, capacity: % bytes",
            arena.name, bytes, arena.occupied, arena.capacity);
 
@@ -166,6 +192,6 @@ resetArenaToMarker :: inline (arena : *Arena, $zero_memory := true) #no_context 
     arena.occupied = arena.marker;
 }
 
-setMarkerInArena :: inline (arena : *Arena) #no_context {
+setArenaMarker :: inline (arena : *Arena) #no_context {
     arena.marker = arena.occupied;
 }

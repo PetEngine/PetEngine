@@ -596,7 +596,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                 // @TODO: VkAllocationCallbacks
                 debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
 
-                setVulkanObjectName(device, it.view, it.name);
+                setVulkanObjectName(device, it.view, "% view", it.name);
             }
 
             swapchain_images_it += 1;

@@ -1,14 +1,12 @@
 // @TODO: Get rid of resolution dependent memory kinds. Leave it just as a texture flag and translate it to real device memory in backends.
 //        Also, it seems like after that it will be better to rename MemoryKind to Lifetime.
 
-// @TODO, @Continue: #Naming.
-//    Memory/Kind
-//    Buffer/Usage/Name
-//    Texture/Name
-
 ResourceManager :: struct {
     MAX_BUFFERS  :: 64; // For each memory kind (except resolution dependent)
     MAX_TEXTURES :: 64; // For each memory kind
+
+    MAX_RESOURCE_NAME_LENGTH      :: 512;
+    MAX_RESOURCE_FULL_NAME_LENGTH :: 2 * MAX_RESOURCE_NAME_LENGTH;
 
     MemoryKind :: enum u8 {
         PERSISTENT;
@@ -34,10 +32,10 @@ ResourceManager :: struct {
     resizePlatformResolutionDependentTextures : (device : *Device, manager : *ResourceManager);
 
     pushPlatformBuffer   : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind) -> *Buffer #must;
-    createPlatformBuffer : (device : *Device, manager : *ResourceManager, buffer : *Buffer);
+    createPlatformBuffer : (device : *Device, manager : *ResourceManager, buffer : *Buffer, name : string, memory_kind : MemoryKind);
 
     pushPlatformTexture   : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind) -> *Texture #must;
-    createPlatformTexture : (device : *Device, manager : *ResourceManager, texture : *Texture);
+    createPlatformTexture : (device : *Device, manager : *ResourceManager, texture : *Texture, name : string, memory_kind : MemoryKind);
 }
 
 createResourceManager :: (device : *Device) -> *ResourceManager #must {

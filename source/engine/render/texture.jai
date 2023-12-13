@@ -156,6 +156,10 @@ createTexture :: (
     assert((dimension == ._2D) || !(flags & .RESOLUTION_DEPENDENT), "Only 2D textures can be resolution dependent");
     assert((dimension != ._3D) || !(flags & .ARRAY), "Texture arrays cannot consist of 3D textures");
 
+    assert(name.count <= ResourceManager.MAX_RESOURCE_NAME_LENGTH,
+           "Max texture name length (%) > ResourceManager.MAX_RESOURCE_NAME_LENGTH (%)",
+           name.count, ResourceManager.MAX_RESOURCE_NAME_LENGTH);
+
     texture := manager.pushPlatformTexture(device, manager, memory_kind);
 
     texture.dimension             = dimension;
@@ -167,12 +171,11 @@ createTexture :: (
     texture.depth                 = depth_or_array_size;
     texture.samples_count         = samples_count;
     texture.mips_count            = mips_count;
-    texture.name                  = name;
     texture.current_owner         = possible_owners[0];
     texture.possible_owners.count = cast(u32) possible_owners.count;
     memcpy(texture.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
 
-    manager.createPlatformTexture(device, manager, texture);
+    manager.createPlatformTexture(device, manager, texture, name, memory_kind);
 
     return texture;
 }

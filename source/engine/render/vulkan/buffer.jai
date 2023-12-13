@@ -23,7 +23,7 @@ pushVulkanBuffer :: (device_ : *Device, manager_ : *ResourceManager, memory_kind
     return buffer;
 }
 
-createVulkanBuffer :: (device_ : *Device, manager_ : *ResourceManager, buffer_ : *Buffer) {
+createVulkanBuffer :: (device_ : *Device, manager_ : *ResourceManager, buffer_ : *Buffer, name : string, memory_kind : ResourceManager.MemoryKind) {
     device  := cast(*VulkanDevice)          device_;
     manager := cast(*VulkanResourceManager) manager_;
     buffer  := cast(*VulkanBuffer)          buffer_;
@@ -49,6 +49,12 @@ createVulkanBuffer :: (device_ : *Device, manager_ : *ResourceManager, buffer_ :
     // @TODO: #VkAllocationCallbacks
     debugCheckVK(vkCreateBuffer(device.device, *create_info, null, *buffer.buffer));
 
+    if memory_kind == {
+        case .PERSISTENT; composeBufferName(*manager.buffer_memory.persistent, buffer, name);
+        case .PER_SCENE;  composeBufferName(*manager.buffer_memory.per_scene, buffer, name);
+        case .PER_FRAME;  composeBufferName(*manager.buffer_memory.per_frame[device.frame_index], buffer, name);
+    }
+
     setVulkanObjectName(device, buffer.buffer, buffer.name);
 }
 
@@ -65,4 +71,28 @@ bufferUsageToVkBufferUsageFlags :: inline (usage : Buffer.Usage) -> VkBufferUsag
     }
 
     return usage_flags;
+}
+
+composeBufferName :: (memory : *VulkanResourceManager.Memory, buffer : *Buffer, name : string) {
+    memory_kind_name := Reflection.enum_value_to_name(memory.kind);
+    assert(memory_kind_name);
+
+    usage_name := Reflection.enum_value_to_name(buffer.usage);
+    assert(usage_name);
+
+    full_name_length := "Buffer/".count
+                      + memory_kind_name.count + "/".count
+                      + usage_name.count + "/".count
+                      + name.count;
+
+    assert(full_name_length <= ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH,
+           "Buffer full name length (%) > ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH (%)",
+           full_name_length,
+           ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH);
+
+    buffer.name.data = pushToArena(*memory.names_subarena, full_name_length);
+
+    appendToString(*buffer.name, full_name_length, "Buffer/", memory_kind_name, "/", usage_name, "/", name);
+
+    assert(buffer.name.count == full_name_length, "full_name.count (%) != full_name_length (%)", buffer.name.count, full_name_length);
 }
