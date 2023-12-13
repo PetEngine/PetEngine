@@ -276,7 +276,7 @@ message :: (
         }
         Basic.exit(1);
     }
-}
+} @PrintLike
 
 formatOrExpression :: ($format : string, $expression : Code) -> string {
     Basic.assert(#compile_time, "This function should be run only in compile time");

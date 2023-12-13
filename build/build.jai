@@ -4,6 +4,7 @@
 #import "Basic";
 #import "String";
 #import "File";
+#import "Check";
 
 Configuration :: enum u8 {
     DEBUG;
@@ -74,36 +75,38 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     output_path       := join(project_folder, "/output/",        workspace_name, allocator = temporary_allocator);
     build_filename    := join(project_folder, "/source/engine/first.jai",        allocator = temporary_allocator);
 
-    import_paths : [1 /* build_options.import_path.count */ + 1] string = ---;
+    import_paths : [..] string;
     {
-        for build_options.import_path {
-            import_paths[it_index] = it;
-        }
-        import_paths[build_options.import_path.count + 0] = "../source";
+        import_paths.allocator = temporary_allocator;
+        array_add(*import_paths, ..build_options.import_path);
+        array_add(*import_paths, "../source");
     }
 
-    additional_linker_arguments : [0 /* build_options.additional_linker_arguments.count */ + 4] string = ---;
+    additional_linker_arguments : [..] string;
     {
-        for build_options.additional_linker_arguments {
-            additional_linker_arguments[it_index] = it;
-        }
+        additional_linker_arguments.allocator = temporary_allocator;
+        array_add(*additional_linker_arguments, ..build_options.additional_linker_arguments);
 
         #if OS == .WINDOWS {
-            additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "/LIBPATH:../third_party/vulkan";
-            additional_linker_arguments[build_options.additional_linker_arguments.count + 1] = "/LIBPATH:../third_party/shaderc";
-            additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "/LIBPATH:../third_party/spirv_reflect";
-            if build_arguments.configuration == {
-                case .DEBUG; #through;
+            array_add(*additional_linker_arguments,
+                      "/LIBPATH:../third_party/vulkan",
+                      "/LIBPATH:../third_party/shaderc",
+                      "/LIBPATH:../third_party/spirv_reflect");
+
+            if #complete build_arguments.configuration == {
+                case .DEBUG;
+                    array_add(*additional_linker_arguments, "/DEBUG:FULL"); // For RemedyBG
+                case .RELEASE;
+                    array_add(*additional_linker_arguments, "/LTCG");       // For SPIRV-Reflect
                 case .RELEASE_WITH_DEBUG_INFO;
-                    additional_linker_arguments[build_options.additional_linker_arguments.count + 3] = "/DEBUG:FULL"; // For RemedyBG
-                case;
-                    additional_linker_arguments[build_options.additional_linker_arguments.count + 3] = "/LTCG"; // For SPIRV-Reflect
+                    array_add(*additional_linker_arguments, "/DEBUG:FULL"); // For RemedyBG
+                    array_add(*additional_linker_arguments, "/LTCG");       // For SPIRV-Reflect
             }
         } else {
-            additional_linker_arguments[build_options.additional_linker_arguments.count + 0] = "--library-path=../third_party/vulkan";
-            additional_linker_arguments[build_options.additional_linker_arguments.count + 1] = "--library-path=../third_party/shaderc";
-            additional_linker_arguments[build_options.additional_linker_arguments.count + 2] = "--library-path=../third_party/spirv_reflect";
-            additional_linker_arguments[build_options.additional_linker_arguments.count + 3] = "";
+            array_add(*additional_linker_arguments,
+                      "--library-path=../third_party/vulkan",
+                      "--library-path=../third_party/shaderc",
+                      "--library-path=../third_party/spirv_reflect");
         }
     }
 
@@ -160,5 +163,26 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     defer compiler_destroy_workspace(workspace);
 
     set_build_options(build_options, workspace);
-    add_build_file(build_filename, workspace);
+
+    compiler_begin_intercept(workspace);
+    {
+        add_build_file(build_filename, workspace);
+
+        while loop := true {
+            message := compiler_wait_for_message();
+            if message.kind == {
+                case .TYPECHECKED;
+                    do_error_checking(null, message);
+
+                case .COMPLETE;
+                    complete := cast(*Message_Complete) message;
+                    if complete.error_code == {
+                        case .NONE;               write_string("\nCompilation succeeded\n");
+                        case .COMPILATION_FAILED; write_string("\nCompilation failed\n");
+                    }
+                    break loop;
+            }
+        }
+    }
+    compiler_end_intercept(workspace);
 }
