@@ -282,7 +282,7 @@ VkConformanceVersion :: struct {
 
 // Provided by VK_VERSION_1_2
 VkPhysicalDeviceDriverProperties :: struct {
-    sType              : VkStructureType;
+    sType              : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
     pNext              : *void;
     driverID           : VkDriverId;
     driverName         : [VK_MAX_DRIVER_NAME_SIZE] s8;
@@ -300,7 +300,7 @@ VkQueueFamilyProperties :: struct {
 
 // Provided by VK_VERSION_1_2
 VkPhysicalDeviceVulkan12Properties :: struct {
-    sType                                                : VkStructureType;
+    sType                                                : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES;
     pNext                                                : *void;
     driverID                                             : VkDriverId;
     driverName                                           : [VK_MAX_DRIVER_NAME_SIZE] s8;
@@ -358,7 +358,7 @@ VkPhysicalDeviceVulkan12Properties :: struct {
 
 // Provided by VK_VERSION_1_1
 VkQueueFamilyProperties2 :: struct {
-    sType                 : VkStructureType;
+    sType                 : VkStructureType = .VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
     pNext                 : *void;
     queueFamilyProperties : VkQueueFamilyProperties;
 }
@@ -424,14 +424,14 @@ VkPhysicalDeviceFeatures :: struct {
 
 // Provided by VK_VERSION_1_1
 VkPhysicalDeviceFeatures2 :: struct {
-    sType    : VkStructureType;
+    sType    : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     pNext    : *void;
     features : VkPhysicalDeviceFeatures;
 }
 
 // Provided by VK_VERSION_1_2
 VkPhysicalDeviceVulkan11Features :: struct {
-    sType                              : VkStructureType;
+    sType                              : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
     pNext                              : *void;
     storageBuffer16BitAccess           : VkBool32;
     uniformAndStorageBuffer16BitAccess : VkBool32;
@@ -449,7 +449,7 @@ VkPhysicalDeviceVulkan11Features :: struct {
 
 // Provided by VK_VERSION_1_2
 VkPhysicalDeviceVulkan12Features :: struct {
-    sType                                              : VkStructureType;
+    sType                                              : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     pNext                                              : *void;
     samplerMirrorClampToEdge                           : VkBool32;
     drawIndirectCount                                  : VkBool32;
@@ -502,7 +502,7 @@ VkPhysicalDeviceVulkan12Features :: struct {
 
 // Provided by VK_VERSION_1_3
 VkPhysicalDeviceVulkan13Features :: struct {
-    sType                                              : VkStructureType;
+    sType                                              : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     pNext                                              : *void;
     robustImageAccess                                  : VkBool32;
     inlineUniformBlock                                 : VkBool32;
@@ -523,7 +523,7 @@ VkPhysicalDeviceVulkan13Features :: struct {
 
 // Provided by VK_VERSION_1_3
 VkPhysicalDeviceDynamicRenderingFeatures :: struct {
-    sType            : VkStructureType;
+    sType            : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
     pNext            : *void;
     dynamicRendering : VkBool32;
 }

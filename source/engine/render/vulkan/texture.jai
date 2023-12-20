@@ -35,8 +35,6 @@ createVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, texture_
     }
 
     create_info := VkImageCreateInfo.{
-        sType                 = .VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        pNext                 = null,
         format                = textureFormatToVulkanFormat(texture.format),
         mipLevels             = texture.mips_count,
         arrayLayers           = 1,
@@ -305,8 +303,6 @@ checkCreateInfoLimits :: (device : *VulkanDevice, create_info : *VkImageCreateIn
 
 checkImageProperties :: (device : *VulkanDevice, texture : *VulkanTexture, create_info : *VkImageCreateInfo) {
     image_format_info := VkPhysicalDeviceImageFormatInfo2.{
-        sType  = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
-        pNext  = null,
         format = create_info.format,
         type   = create_info.imageType,
         tiling = create_info.tiling,
@@ -314,10 +310,7 @@ checkImageProperties :: (device : *VulkanDevice, texture : *VulkanTexture, creat
         flags  = create_info.flags
     };
 
-    image_format_properties := VkImageFormatProperties2.{
-        sType = .VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2,
-        pNext = null
-    };
+    image_format_properties : VkImageFormatProperties2;
 
     result := vkGetPhysicalDeviceImageFormatProperties2(device.physical_device, *image_format_info, *image_format_properties);
 

@@ -67,7 +67,7 @@ VkPhysicalDeviceMemoryProperties2 :: struct {
 
 // Provided by VK_VERSION_1_0
 VkMemoryAllocateInfo :: struct {
-    sType           : VkStructureType;
+    sType           : VkStructureType = .VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     pNext           : *void;
     allocationSize  : VkDeviceSize;
     memoryTypeIndex : u32;

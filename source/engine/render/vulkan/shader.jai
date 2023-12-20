@@ -24,13 +24,7 @@ createVulkanShaderManager :: (device : *VulkanDevice) -> *VulkanShaderManager #m
     manager.per_frame_reset_data.count = cast,no_check(s64) device.frame_buffering;
 
     // @TODO: #PipelineCache. Initial data.
-    create_info := VkPipelineCacheCreateInfo.{
-        sType           = .VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
-        pNext           = null,
-        flags           = 0,
-        initialDataSize = 0,
-        pInitialData    = null,
-    };
+    create_info : VkPipelineCacheCreateInfo;
 
     // @TODO: #VkAllocationCallbacks
     debugCheckVK(vkCreatePipelineCache(device.device, *create_info, null, *manager.pipeline_cache));
@@ -149,13 +143,7 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
         ranges : [ShaderCompiler.MAX_STAGES] VkPushConstantRange;
 
         create_info := VkPipelineLayoutCreateInfo.{
-            sType                  = .VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-            pNext                  = null,
-            flags                  = 0,
-            setLayoutCount         = 0,
-            pSetLayouts            = null,
-            pushConstantRangeCount = 0,
-            pPushConstantRanges    = ranges.data,
+            pPushConstantRanges = ranges.data,
         };
 
         initPushConstantRanges(*create_info, *shader.binding_table);
@@ -212,8 +200,6 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
 
     // #Hardcoded
     pipeline_rendering_create_info := VkPipelineRenderingCreateInfo.{
-        sType                   = .VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-        pNext                   = null,
         viewMask                = 0,
         colorAttachmentCount    = color_blend_state.attachmentCount,
         pColorAttachmentFormats = VkFormat.[ .VK_FORMAT_B8G8R8A8_UNORM ].data,
@@ -222,7 +208,6 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
     };
 
     create_info := VkGraphicsPipelineCreateInfo.{
-        sType               = .VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         pNext               = *pipeline_rendering_create_info,
         flags               = CREATE_FLAGS,
         stageCount          = cast(u32) stage_create_infos.count,
@@ -277,9 +262,6 @@ shaderStageToVulkanStage :: inline (stage : ShaderStage) -> VkShaderStageFlags #
 
 createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStage, shader_name : string) -> VkShaderModule #must {
     create_info := VkShaderModuleCreateInfo.{
-        sType    = .VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        pNext    = null,
-        flags    = 0,
         codeSize = cast(size_t) spirv.count,
         pCode    = cast(*u32)   spirv.data,
     };

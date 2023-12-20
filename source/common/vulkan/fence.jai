@@ -10,7 +10,7 @@ VkFenceCreateFlags :: enum_flags VkFlags #specified {
 
 // Provided by VK_VERSION_1_0
 VkFenceCreateInfo :: struct {
-    sType : VkStructureType;
+    sType : VkStructureType = .VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     pNext : *void;
     flags : VkFenceCreateFlags;
 }

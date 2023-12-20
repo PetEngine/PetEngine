@@ -18,7 +18,7 @@ VkCommandPoolResetFlags :: enum_flags VkFlags #specified {
 
 // Provided by VK_VERSION_1_0
 VkCommandPoolCreateInfo :: struct {
-    sType            : VkStructureType;
+    sType            : VkStructureType = .VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     pNext            : *void;
     flags            : VkCommandPoolCreateFlags;
     queueFamilyIndex : u32;

@@ -623,7 +623,7 @@ VkShaderModuleCreateFlags :: enum_flags VkFlags #specified {
 
 // Provided by VK_VERSION_1_0
 VkPipelineCacheCreateInfo :: struct {
-    sType           : VkStructureType;
+    sType           : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
     pNext           : *void;
     flags           : VkPipelineCacheCreateFlags;
     initialDataSize : size_t;
@@ -639,7 +639,7 @@ VkPushConstantRange :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineLayoutCreateInfo :: struct {
-    sType                  : VkStructureType;
+    sType                  : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pNext                  : *void;
     flags                  : VkPipelineLayoutCreateFlags;
     setLayoutCount         : u32;
@@ -665,7 +665,7 @@ VkSpecializationInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineShaderStageCreateInfo :: struct {
-    sType               : VkStructureType;
+    sType               : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     pNext               : *void;
     flags               : VkPipelineShaderStageCreateFlags;
     stage               : VkShaderStageFlags;
@@ -691,7 +691,7 @@ VkVertexInputAttributeDescription :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineVertexInputStateCreateInfo :: struct {
-    sType                           : VkStructureType;
+    sType                           : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     pNext                           : *void;
     flags                           : VkPipelineVertexInputStateCreateFlags;
     vertexBindingDescriptionCount   : u32;
@@ -702,7 +702,7 @@ VkPipelineVertexInputStateCreateInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineInputAssemblyStateCreateInfo :: struct {
-    sType                  : VkStructureType;
+    sType                  : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     pNext                  : *void;
     flags                  : VkPipelineInputAssemblyStateCreateFlags;
     topology               : VkPrimitiveTopology;
@@ -711,7 +711,7 @@ VkPipelineInputAssemblyStateCreateInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineTessellationStateCreateInfo :: struct {
-    sType              : VkStructureType;
+    sType              : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
     pNext              : *void;
     flags              : VkPipelineTessellationStateCreateFlags;
     patchControlPoints : u32;
@@ -729,7 +729,7 @@ VkViewport :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineViewportStateCreateInfo :: struct {
-    sType         : VkStructureType;
+    sType         : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     pNext         : *void;
     flags         : VkPipelineViewportStateCreateFlags;
     viewportCount : u32;
@@ -740,7 +740,7 @@ VkPipelineViewportStateCreateInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineRasterizationStateCreateInfo :: struct {
-    sType                   : VkStructureType;
+    sType                   : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     pNext                   : *void;
     flags                   : VkPipelineRasterizationStateCreateFlags;
     depthClampEnable        : VkBool32;
@@ -757,7 +757,7 @@ VkPipelineRasterizationStateCreateInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineMultisampleStateCreateInfo :: struct {
-    sType                 : VkStructureType;
+    sType                 : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     pNext                 : *void;
     flags                 : VkPipelineMultisampleStateCreateFlags;
     rasterizationSamples  : VkSampleCountFlags;
@@ -781,7 +781,7 @@ VkStencilOpState :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineDepthStencilStateCreateInfo :: struct {
-    sType                 : VkStructureType;
+    sType                 : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     pNext                 : *void;
     flags                 : VkPipelineDepthStencilStateCreateFlags;
     depthTestEnable       : VkBool32;
@@ -809,7 +809,7 @@ VkPipelineColorBlendAttachmentState :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineColorBlendStateCreateInfo :: struct {
-    sType           : VkStructureType;
+    sType           : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     pNext           : *void;
     flags           : VkPipelineColorBlendStateCreateFlags;
     logicOpEnable   : VkBool32;
@@ -821,7 +821,7 @@ VkPipelineColorBlendStateCreateInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkPipelineDynamicStateCreateInfo :: struct {
-    sType             : VkStructureType;
+    sType             : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     pNext             : *void;
     flags             : VkPipelineDynamicStateCreateFlags;
     dynamicStateCount : u32;
@@ -830,7 +830,7 @@ VkPipelineDynamicStateCreateInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkGraphicsPipelineCreateInfo :: struct {
-    sType               : VkStructureType;
+    sType               : VkStructureType = .VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pNext               : *void;
     flags               : VkPipelineCreateFlags;
     stageCount          : u32;
@@ -853,7 +853,7 @@ VkGraphicsPipelineCreateInfo :: struct {
 
 // Provided by VK_VERSION_1_3
 VkPipelineRenderingCreateInfo :: struct {
-    sType                   : VkStructureType;
+    sType                   : VkStructureType = .VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     pNext                   : *void;
     viewMask                : u32;
     colorAttachmentCount    : u32;
@@ -864,7 +864,7 @@ VkPipelineRenderingCreateInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkShaderModuleCreateInfo :: struct {
-    sType    : VkStructureType;
+    sType    : VkStructureType = .VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     pNext    : *void;
     flags    : VkShaderModuleCreateFlags;
     codeSize : size_t;

@@ -257,7 +257,7 @@ VkImageSubresourceRange :: struct {
 
 // Provided by VK_VERSION_1_0
 VkImageCreateInfo :: struct {
-    sType                 : VkStructureType;
+    sType                 : VkStructureType = .VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     pNext                 : *void;
     flags                 : VkImageCreateFlags;
     imageType             : VkImageType;
@@ -308,7 +308,7 @@ VkImageMemoryRequirementsInfo2 :: struct {
 
 // Provided by VK_VERSION_1_1
 VkPhysicalDeviceImageFormatInfo2 :: struct {
-    sType  : VkStructureType;
+    sType  : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2;
     pNext  : *void;
     format : VkFormat;
     type   : VkImageType;
@@ -328,7 +328,7 @@ VkImageFormatProperties :: struct {
 
 // Provided by VK_VERSION_1_1
 VkImageFormatProperties2 :: struct {
-    sType                 : VkStructureType;
+    sType                 : VkStructureType = .VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2;
     pNext                 : *void;
     imageFormatProperties : VkImageFormatProperties;
 }
@@ -343,7 +343,7 @@ VkComponentMapping :: struct {
 
 // Provided by VK_VERSION_1_0
 VkImageViewCreateInfo :: struct {
-    sType            : VkStructureType;
+    sType            : VkStructureType = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     pNext            : *void;
     flags            : VkImageViewCreateFlags;
     image            : VkImage;

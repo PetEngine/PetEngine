@@ -103,7 +103,7 @@ VkResolveModeFlags :: enum_flags VkFlags #specified {
 
 // Provided by VK_VERSION_1_0
 VkCommandBufferAllocateInfo :: struct {
-    sType              : VkStructureType;
+    sType              : VkStructureType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     pNext              : *void;
     commandPool        : VkCommandPool;
     level              : VkCommandBufferLevel;
@@ -112,7 +112,7 @@ VkCommandBufferAllocateInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkCommandBufferInheritanceInfo :: struct {
-    sType                : VkStructureType;
+    sType                : VkStructureType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
     pNext                : *void;
     renderPass           : VkRenderPass;
     subpass              : u32;
@@ -124,7 +124,7 @@ VkCommandBufferInheritanceInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkCommandBufferBeginInfo :: struct {
-    sType            : VkStructureType;
+    sType            : VkStructureType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     pNext            : *void;
     flags            : VkCommandBufferUsageFlags;
     pInheritanceInfo : *VkCommandBufferInheritanceInfo;
@@ -151,7 +151,7 @@ VkClearValue :: union {
 
 // Provided by VK_VERSION_1_3
 VkRenderingAttachmentInfo :: struct {
-    sType              : VkStructureType;
+    sType              : VkStructureType = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     pNext              : *void;
     imageView          : VkImageView;
     imageLayout        : VkImageLayout;
@@ -165,7 +165,7 @@ VkRenderingAttachmentInfo :: struct {
 
 // Provided by VK_VERSION_1_3
 VkRenderingInfo :: struct {
-    sType                : VkStructureType;
+    sType                : VkStructureType = .VK_STRUCTURE_TYPE_RENDERING_INFO;
     pNext                : *void;
     flags                : VkRenderingFlags;
     renderArea           : VkRect2D;

@@ -31,7 +31,7 @@ VkInstanceCreateFlags :: enum_flags VkFlags #specified {
 
 // Provided by VK_VERSION_1_0
 VkApplicationInfo :: struct {
-    sType              : VkStructureType;
+    sType              : VkStructureType = .VK_STRUCTURE_TYPE_APPLICATION_INFO;
     pNext              : *void;
     pApplicationName   : *s8;
     applicationVersion : u32;
@@ -42,7 +42,7 @@ VkApplicationInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkInstanceCreateInfo :: struct {
-    sType                   : VkStructureType;
+    sType                   : VkStructureType = .VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     pNext                   : *void;
     flags                   : VkInstanceCreateFlags;
     pApplicationInfo        : *VkApplicationInfo;
@@ -183,14 +183,14 @@ VkDebugUtilsMessengerCreateFlagsEXT :: enum_flags VkFlags #specified {
 }
 
 VkDebugUtilsLabelEXT :: struct {
-    sType      : VkStructureType;
+    sType      : VkStructureType = .VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
     pNext      : *void;
     pLabelName : *s8;
     color      : [4] f32;
 }
 
 VkDebugUtilsObjectNameInfoEXT :: struct {
-    sType        : VkStructureType;
+    sType        : VkStructureType = .VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
     pNext        : *void;
     objectType   : VkObjectType;
     objectHandle : u64;
@@ -198,7 +198,7 @@ VkDebugUtilsObjectNameInfoEXT :: struct {
 }
 
 VkDebugUtilsMessengerCallbackDataEXT :: struct {
-    sType            : VkStructureType;
+    sType            : VkStructureType = .VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CALLBACK_DATA_EXT;
     pNext            : *void;
     flags            : VkDebugUtilsMessengerCallbackDataFlagsEXT;
     pMessageIdName   : *s8;
@@ -213,7 +213,7 @@ VkDebugUtilsMessengerCallbackDataEXT :: struct {
 }
 
 VkDebugUtilsMessengerCreateInfoEXT :: struct {
-    sType           : VkStructureType;
+    sType           : VkStructureType = .VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     pNext           : *void;
     flags           : VkDebugUtilsMessengerCreateFlagsEXT;
     messageSeverity : VkDebugUtilsMessageSeverityFlagsEXT;
@@ -399,7 +399,7 @@ VkWin32SurfaceCreateFlagsKHR :: enum_flags VkFlags #specified {
 };
 
 VkWin32SurfaceCreateInfoKHR :: struct {
-    sType     : VkStructureType;
+    sType     : VkStructureType = .VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     pNext     : *void;
     flags     : VkWin32SurfaceCreateFlagsKHR;
     hinstance : HINSTANCE;

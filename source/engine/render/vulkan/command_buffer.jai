@@ -18,8 +18,6 @@ changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *Vulka
     }
 
     image_barrier := VkImageMemoryBarrier.{
-        sType               = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        pNext               = null,
         srcAccessMask       = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
         dstAccessMask       = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
         oldLayout           = texture.current_layout,
@@ -141,8 +139,6 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         texture := cast(*VulkanTexture) it.texture;
 
         if texture.current_layout != .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL {
-            barriers_it.sType                           = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            barriers_it.pNext                           = null;
             barriers_it.srcAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
             barriers_it.dstAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
             barriers_it.oldLayout                       = texture.current_layout;
@@ -161,8 +157,6 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
             barriers_it += 1;
         }
 
-        color_attachments_it.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        color_attachments_it.pNext              = null;
         color_attachments_it.imageView          = texture.view;
         color_attachments_it.imageLayout        = texture.current_layout;
         color_attachments_it.resolveMode        = .VK_RESOLVE_MODE_NONE;
@@ -185,8 +179,6 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
     }
 
     rendering_info := VkRenderingInfo.{
-        sType                = .VK_STRUCTURE_TYPE_RENDERING_INFO,
-        pNext                = null,
         flags                = 0,
         renderArea           = .{
             offset = .{ 0, 0 },
@@ -234,8 +226,6 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         }
 
         {
-            barriers_it.sType                           = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            barriers_it.pNext                           = null;
             barriers_it.srcAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
             barriers_it.dstAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
             barriers_it.oldLayout                       = texture.current_layout;
@@ -255,8 +245,6 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         }
 
         if format_flags & .DEPTH {
-            depth_attachment.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-            depth_attachment.pNext              = null;
             depth_attachment.imageView          = texture.view;
             depth_attachment.imageLayout        = texture.current_layout;
             depth_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
@@ -272,8 +260,6 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         }
 
         if format_flags & .STENCIL {
-            stencil_attachment.sType              = .VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-            stencil_attachment.pNext              = null;
             stencil_attachment.imageView          = texture.view;
             stencil_attachment.imageLayout        = texture.current_layout;
             stencil_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;

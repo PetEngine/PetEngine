@@ -147,8 +147,6 @@ beginVulkanFrame :: (device : *VulkanDevice) {
     //
     {
         acquire_info := VkAcquireNextImageInfoKHR.{
-            sType      = .VK_STRUCTURE_TYPE_ACQUIRE_NEXT_IMAGE_INFO_KHR,
-            pNext      = null,
             swapchain  = device.swapchain,
             timeout    = 0xFFFF_FFFF_FFFF_FFFF,
             semaphore  = device.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
@@ -179,9 +177,6 @@ beginVulkanFrame :: (device : *VulkanDevice) {
     //
     {
         begin_info := VkCommandBufferBeginInfo.{
-            sType            = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            pNext            = null,
-            flags            = 0,
             pInheritanceInfo = null // Ignored for primary command buffers
         };
 
@@ -233,10 +228,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
     // Submit frame job
     //
     {
-        submit_info := VkSubmitInfo.{
-            sType = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            // Everything else will be set in the loop
-        };
+        submit_info : VkSubmitInfo;
 
         WHICH_STAGE_WILL_WAIT_FOR_THE_SEMAPHORE :: VkPipelineStageFlags.[
             .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | .VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -290,9 +282,6 @@ endVulkanFrame :: (device : *VulkanDevice) {
         fence_to_signal           := frame_data.fences[QueueType.GRAPHICS];
 
         begin_info := VkCommandBufferBeginInfo.{
-            sType            = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            pNext            = null,
-            flags            = 0,
             pInheritanceInfo = null // Ignored for primary command buffers
         };
         debugCheckVK(vkBeginCommandBuffer(post_frame_command_buffer, *begin_info));
@@ -305,8 +294,6 @@ endVulkanFrame :: (device : *VulkanDevice) {
         debugCheckVK(vkResetFences(device.device, 1, *fence_to_signal));
 
         submit_info := VkSubmitInfo.{
-            sType                = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            pNext                = null,
             waitSemaphoreCount   = 1,
             pWaitSemaphores      = ifx  frame_data.command_buffers_used[QueueType.GRAPHICS] > 0
                                    then *device.semaphores[SemaphoreKind.GRAPHICS_DONE]
@@ -329,8 +316,6 @@ endVulkanFrame :: (device : *VulkanDevice) {
         ];
 
         present_info := VkPresentInfoKHR.{
-            sType              = .VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-            pNext              = null,
             waitSemaphoreCount = 1,
             pWaitSemaphores    = *device.semaphores[SemaphoreKind.POST_FRAME],
             swapchainCount     = 1,
@@ -477,8 +462,6 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     }
 
     create_info := VkSwapchainCreateInfoKHR.{
-        sType                 = .VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        pNext                 = null,
         flags                 = 0,
         surface               = device.surface,
         minImageCount         = requested_swapchain_buffers_count,
@@ -572,8 +555,6 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                 }
 
                 view_create_info := VkImageViewCreateInfo.{
-                    sType            = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                    pNext            = null,
                     flags            = 0,
                     image            = it.image,
                     viewType         = .VK_IMAGE_VIEW_TYPE_2D,
@@ -647,8 +628,6 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
             memcpy(object_name, name.data, name.count);
 
             name_info := VkDebugUtilsObjectNameInfoEXT.{
-                sType        = .VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                pNext        = null,
                 objectType   = OBJECT_TYPE,
                 objectHandle = cast(u64) object,
                 pObjectName  = object_name
@@ -698,8 +677,6 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
             object_name := Basic.builder_to_string(*builder, builder.allocator);
 
             name_info := VkDebugUtilsObjectNameInfoEXT.{
-                sType        = .VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                pNext        = null,
                 objectType   = OBJECT_TYPE,
                 objectHandle = cast(u64) object,
                 pObjectName  = cast(*s8) object_name.data
@@ -897,8 +874,6 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     memcpy(nt_engine_name.data, ENGINE_NAME.data, ENGINE_NAME.count);
 
     application_info := VkApplicationInfo.{
-        sType              = .VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        pNext              = null,
         pApplicationName   = null, // @TODO: window.title or something, don't know
         applicationVersion = 0,
         pEngineName        = nt_engine_name.data,
@@ -907,8 +882,6 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     };
 
     instance_create_info := VkInstanceCreateInfo.{
-        sType                   = .VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        pNext                   = null,
         flags                   = 0,
         pApplicationInfo        = *application_info,
         enabledLayerCount       = cast(u32) layers_to_apply.count,
@@ -1026,8 +999,6 @@ END;
 initMessengerCallback :: (device : *VulkanDevice) {
     if device.loader.extensions.instance.optional.vkCreateDebugUtilsMessengerEXT {
         create_info := VkDebugUtilsMessengerCreateInfoEXT.{
-            sType           = .VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-            pNext           = null,
             flags           = 0,
             messageSeverity = VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
 //                          | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
@@ -1157,8 +1128,6 @@ END;
                 s8_array_to_string(properties.deviceName),
                 new_line = false);
 
-    device.properties12.sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES;
-
     physical_device_properties.pNext = *device.properties12;
 
     vkGetPhysicalDeviceProperties2(device.physical_device, *physical_device_properties);
@@ -1208,7 +1177,6 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
     vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, cast(*u32) *queue_family_properties.count, null);
 
     queue_family_properties.data = pushToArena(*context.pet.per_frame_arena, VkQueueFamilyProperties2, queue_family_properties.count);
-    for * queue_family_properties  it.sType = .VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
     vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, cast(*u32) *queue_family_properties.count, queue_family_properties.data);
 
     defer Basic.reset_temporary_storage();
@@ -1396,19 +1364,10 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
     }
 
-    dynamic_rendering_features := VkPhysicalDeviceDynamicRenderingFeatures.{
-        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES
-    };
+    dynamic_rendering_features : VkPhysicalDeviceDynamicRenderingFeatures;
 
-    features_to_enable := VkPhysicalDeviceFeatures2.{
-        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        pNext = *dynamic_rendering_features,
-    };
-
-    available_features := VkPhysicalDeviceFeatures2.{
-        sType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        pNext = *dynamic_rendering_features,
-    };
+    features_to_enable := VkPhysicalDeviceFeatures2.{ pNext = *dynamic_rendering_features };
+    available_features := VkPhysicalDeviceFeatures2.{ pNext = *dynamic_rendering_features };
 
     vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
     assert(dynamic_rendering_features.dynamicRendering == VK_TRUE);
@@ -1416,7 +1375,6 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     // @TODO: #Features. define optional and required features and validate it.
 
     device_create_info := VkDeviceCreateInfo.{
-        sType                   = .VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         pNext                   = *features_to_enable,
         flags                   = 0,
         queueCreateInfoCount    = queue_create_infos_count,
@@ -1436,8 +1394,6 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 getQueues :: (device : *VulkanDevice) {
     for device.queues {
         queue_info := VkDeviceQueueInfo2.{
-            sType            = .VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2,
-            pNext            = null,
             flags            = 0,
             queueFamilyIndex = it.family_index,
             queueIndex       = it.index_in_family
@@ -1455,8 +1411,6 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
         win32_window := cast(*Win32Window) window;
 
         create_info := VkWin32SurfaceCreateInfoKHR.{
-            sType     = .VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-            pNext     = null,
             flags     = 0,
             hinstance = win32_window.manager.app_instance,
             hwnd      = win32_window.handle
@@ -1490,11 +1444,7 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
 }
 
 createSemaphores :: (device : *VulkanDevice) {
-    create_info := VkSemaphoreCreateInfo.{
-        sType = .VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        pNext = null,
-        flags = 0
-    };
+    create_info : VkSemaphoreCreateInfo;
 
     for * device.semaphores {
         // @TODO: VkAllocationCallbacks
@@ -1506,8 +1456,6 @@ createSemaphores :: (device : *VulkanDevice) {
 
 createFences :: (device : *VulkanDevice) {
     create_info := VkFenceCreateInfo.{
-        sType = .VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        pNext = null,
         flags = .VK_FENCE_CREATE_SIGNALED_BIT,
     };
 
@@ -1527,8 +1475,6 @@ createFences :: (device : *VulkanDevice) {
 // @TODO: #NotExistedQueues
 createCommandPools :: (device : *VulkanDevice) {
     create_info := VkCommandPoolCreateInfo.{
-        sType            = .VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        pNext            = null,
         flags            = .VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         queueFamilyIndex = VK_QUEUE_FAMILY_IGNORED // Will be set in a loop
     };
@@ -1551,8 +1497,6 @@ createCommandPools :: (device : *VulkanDevice) {
 
 createCommandBuffers :: (device : *VulkanDevice) {
     allocation_info := VkCommandBufferAllocateInfo.{
-        sType              = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        pNext              = null,
         commandPool        = null, // Will be set in a loop
         level              = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         commandBufferCount = cast(u32) Device.MAX_COMMAND_BUFFERS
@@ -1588,8 +1532,6 @@ createCommandBuffers :: (device : *VulkanDevice) {
 
 createSystemCommandBuffers :: (device : *VulkanDevice) {
     allocation_info := VkCommandBufferAllocateInfo.{
-        sType              = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        pNext              = null,
         commandPool        = null, // Will be set in a loop
         level              = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         commandBufferCount = FrameData.system_command_buffers.count

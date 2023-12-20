@@ -123,7 +123,7 @@ VkAccessFlags :: enum_flags VkFlags #specified {
 
 // Provided by VK_VERSION_1_3
 VkMemoryBarrier :: struct {
-    sType         : VkStructureType;
+    sType         : VkStructureType = .VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     pNext         : *void;
     srcAccessMask : VkAccessFlags;
     dstAccessMask : VkAccessFlags;
@@ -131,7 +131,7 @@ VkMemoryBarrier :: struct {
 
 // Provided by VK_VERSION_1_0
 VkBufferMemoryBarrier :: struct {
-    sType               : VkStructureType;
+    sType               : VkStructureType = .VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
     pNext               : *void;
     srcAccessMask       : VkAccessFlags;
     dstAccessMask       : VkAccessFlags;
@@ -144,7 +144,7 @@ VkBufferMemoryBarrier :: struct {
 
 // Provided by VK_VERSION_1_0
 VkImageMemoryBarrier :: struct {
-    sType               : VkStructureType;
+    sType               : VkStructureType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     pNext               : *void;
     srcAccessMask       : VkAccessFlags;
     dstAccessMask       : VkAccessFlags;

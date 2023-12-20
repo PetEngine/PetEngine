@@ -213,8 +213,6 @@ commitVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceMan
     assert(memory_type_index != 0xFFFF_FFFF, "Device local memory is not supported on this device");
 
     allocate_info := VkMemoryAllocateInfo.{
-        sType           = .VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        pNext           = null,
         allocationSize  = 0, // Will be set in the loop
         memoryTypeIndex = memory_type_index
     };
@@ -322,8 +320,6 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceMa
     assert(memory_type_index != 0xFFFF_FFFF, "Device local memory is not supported on this device");
 
     allocate_info := VkMemoryAllocateInfo.{
-        sType           = .VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        pNext           = null,
         allocationSize  = 0, // Will be set in the loop
         memoryTypeIndex = memory_type_index
     };
@@ -370,8 +366,6 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceMa
 
     for * memory.textures {
         view_create_info := VkImageViewCreateInfo.{
-            sType            = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            pNext            = null,
             flags            = 0,
             image            = it.image,
             format           = textureFormatToVulkanFormat(it.format),
@@ -448,8 +442,6 @@ resizeVulkanResolutionDependentTextures :: (device : *VulkanDevice, memory : *Vu
     queue_family_indices : [Texture.possible_owners.capacity] u32;
 
     create_info := VkImageCreateInfo.{
-        sType               = .VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        pNext               = null,
         flags               = 0,
         imageType           = .VK_IMAGE_TYPE_2D,
         extent              = .{ back_buffer.width, back_buffer.height, 1 },

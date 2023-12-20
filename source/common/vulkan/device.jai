@@ -21,7 +21,7 @@ VkDeviceQueueCreateFlags :: enum_flags VkFlags #specified {
 
 // Provided by VK_VERSION_1_0
 VkDeviceQueueCreateInfo :: struct {
-    sType            : VkStructureType;
+    sType            : VkStructureType = .VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     pNext            : *void;
     flags            : VkDeviceQueueCreateFlags;
     queueFamilyIndex : u32;
@@ -31,7 +31,7 @@ VkDeviceQueueCreateInfo :: struct {
 
 // Provided by VK_VERSION_1_0
 VkDeviceCreateInfo :: struct {
-    sType                   : VkStructureType;
+    sType                   : VkStructureType = .VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     pNext                   : *void;
     flags                   : VkDeviceCreateFlags;
     queueCreateInfoCount    : u32;
@@ -101,7 +101,7 @@ VkSwapchainCreateFlagsKHR :: enum_flags VkFlags #specified {
 }
 
 VkSwapchainCreateInfoKHR :: struct {
-    sType                 : VkStructureType;
+    sType                 : VkStructureType = .VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     pNext                 : *void;
     flags                 : VkSwapchainCreateFlagsKHR;
     surface               : VkSurfaceKHR;
@@ -122,7 +122,7 @@ VkSwapchainCreateInfoKHR :: struct {
 }
 
 VkAcquireNextImageInfoKHR :: struct {
-    sType       : VkStructureType;
+    sType       : VkStructureType = .VK_STRUCTURE_TYPE_ACQUIRE_NEXT_IMAGE_INFO_KHR;
     pNext       : *void;
     swapchain   : VkSwapchainKHR;
     timeout     : u64;
@@ -132,7 +132,7 @@ VkAcquireNextImageInfoKHR :: struct {
 }
 
 VkPresentInfoKHR :: struct {
-    sType              : VkStructureType;
+    sType              : VkStructureType = .VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     pNext              : *void;
     waitSemaphoreCount : u32;
     pWaitSemaphores    : *VkSemaphore;

@@ -8,7 +8,7 @@ VK_QUEUE_FAMILY_IGNORED : u32 : 0xFFFF_FFFF;
 
 // Provided by VK_VERSION_1_1
 VkDeviceQueueInfo2 :: struct {
-    sType            : VkStructureType;
+    sType            : VkStructureType = .VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2;
     pNext            : *void;
     flags            : VkDeviceQueueCreateFlags;
     queueFamilyIndex : u32;
@@ -17,7 +17,7 @@ VkDeviceQueueInfo2 :: struct {
 
 // Provided by VK_VERSION_1_0
 VkSubmitInfo :: struct {
-    sType                : VkStructureType;
+    sType                : VkStructureType = .VK_STRUCTURE_TYPE_SUBMIT_INFO;
     pNext                : *void;
     waitSemaphoreCount   : u32;
     pWaitSemaphores      : *VkSemaphore;

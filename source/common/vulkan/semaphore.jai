@@ -24,14 +24,14 @@ VkSemaphoreCreateFlags :: enum_flags VkFlags #specified {
 
 // Provided by VK_VERSION_1_0
 VkSemaphoreCreateInfo :: struct {
-    sType : VkStructureType;
+    sType : VkStructureType = .VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     pNext : *void;
     flags : VkSemaphoreCreateFlags;
 }
 
 // Provided by VK_VERSION_1_2
 VkSemaphoreTypeCreateInfo :: struct {
-    sType         : VkStructureType;
+    sType         : VkStructureType = .VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
     pNext         : *void;
     semaphoreType : VkSemaphoreType;
     initialValue  : u64;
@@ -39,7 +39,7 @@ VkSemaphoreTypeCreateInfo :: struct {
 
 // Provided by VK_VERSION_1_2
 VkSemaphoreWaitInfo :: struct {
-    sType          : VkStructureType;
+    sType          : VkStructureType = .VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
     pNext          : *void;
     flags          : VkSemaphoreWaitFlags;
     semaphoreCount : u32;
