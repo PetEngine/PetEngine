@@ -124,11 +124,11 @@ pushToArena :: (arena : *Arena, bytes : s64) -> *void #must {
 }
 
 pushToArena :: inline (arena : *Arena, $type : Type, count := 1) -> *type #must {
-    memory := pushToArena(arena, size_of(type) * count);
+    memory : *type = pushToArena(arena, size_of(type) * count);
 
     init :: initializer_of(type);
     #if init {
-        for 0..count-1 {
+        for 0 .. count - 1 {
             init(memory + it);
         }
     }
