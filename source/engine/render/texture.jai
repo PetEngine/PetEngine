@@ -7,17 +7,17 @@ Texture :: struct {
         _3D;
     }
 
-    // Order: xyzw
+    // Order: uncompressed: host-endian
+    //        packed:       from the least-significant to the most-significant
     Format :: enum u8 {
         UNKNOWN :: 0;
 
         // Uncompressed
-        RGB8_UNORM;
-        RGB8_SNORM;
-        BGR8_UNORM;
-        BGR8_SNORM;
-        RGBA8_UNORM;
         BGRA8_UNORM;
+        BGRA8_SNORM;
+        BGRA8_SRGB;
+
+        // Packed
         RGB10A2_UNORM;
 
         // Depth/stencil
@@ -26,6 +26,7 @@ Texture :: struct {
 
         // Compressed
         BC7_UNORM;
+        BC7_SRGB;
 
         // @TODO: Planar
     }
@@ -50,10 +51,12 @@ Texture :: struct {
     FormatFlags :: enum_flags u8 {
         UNCOMPRESSED;
         COMPRESSED;
+        PACKED;
         COLOR;
         DEPTH;
         STENCIL;
         INTEGER;
+        SRGB;
     }
 
     // @TODO: #Math. Make it vector
@@ -183,16 +186,14 @@ createTexture :: (
 textureFormatFlags :: (format : Texture.Format) -> Texture.FormatFlags #no_context {
     if #complete format == {
         case .UNKNOWN;       return 0;
-        case .RGB8_UNORM;    return .UNCOMPRESSED | .COLOR;
-        case .RGB8_SNORM;    return .UNCOMPRESSED | .COLOR;
-        case .BGR8_UNORM;    return .UNCOMPRESSED | .COLOR;
-        case .BGR8_SNORM;    return .UNCOMPRESSED | .COLOR;
-        case .RGBA8_UNORM;   return .UNCOMPRESSED | .COLOR;
         case .BGRA8_UNORM;   return .UNCOMPRESSED | .COLOR;
-        case .RGB10A2_UNORM; return .UNCOMPRESSED | .COLOR;
+        case .BGRA8_SNORM;   return .UNCOMPRESSED | .COLOR;
+        case .BGRA8_SRGB;    return .UNCOMPRESSED | .COLOR   | .SRGB;
+        case .RGB10A2_UNORM; return .UNCOMPRESSED | .COLOR   | .PACKED;
         case .D32;           return .UNCOMPRESSED | .DEPTH;
         case .S8;            return .UNCOMPRESSED | .STENCIL | .INTEGER;
         case .BC7_UNORM;     return .COMPRESSED   | .COLOR;
+        case .BC7_SRGB;      return .COMPRESSED   | .COLOR   | .SRGB;
     }
     return 0;
 }

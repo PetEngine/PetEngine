@@ -26,7 +26,7 @@ changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *Vulka
         dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         image               = texture.image,
         subresourceRange    = .{
-            aspectMask     = getVulkanImageAspectFlags(texture),
+            aspectMask     = getVulkanImageAspectFlags(texture.format),
             baseMipLevel   = 0,
             levelCount     = 1,
             baseArrayLayer = 0,

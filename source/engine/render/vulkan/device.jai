@@ -348,6 +348,18 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                                                                                                  cast(*u32) *surface_formats.count,
                                                                                                  surface_formats.data));
 
+    {
+        builder : Basic.String_Builder;
+        builder.allocator = Basic.temporary_allocator;
+
+        Basic.append(*builder, "Available surface formats:");
+        for surface_formats {
+            Basic.print_to_builder(*builder, "\n    Format: %, space: %", it.format, it.colorSpace);
+        }
+
+        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator));
+    }
+
     present_modes : [] VkPresentModeKHR;
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
                                                                                                       device.surface,
@@ -382,7 +394,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     infoMessage("Requested swapchain buffers count: %", requested_swapchain_buffers_count);
 
     // @TODO: #HDR. Hardware HDR support
-    REQUESTED_SURFACE_FORMAT :: VkFormat.VK_FORMAT_B8G8R8A8_UNORM;
+    REQUESTED_SURFACE_FORMAT :: VkFormat.VK_FORMAT_B8G8R8A8_SRGB;
     allowed_surface_format : *VkSurfaceFormatKHR;
 
     for * surface_formats {
@@ -392,7 +404,9 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         }
     }
 
-    if !allowed_surface_format {
+    if allowed_surface_format {
+        infoMessage("Using surface format: %, space: %", allowed_surface_format.format, allowed_surface_format.colorSpace);
+    } else {
         assertMessage("Chosen surface format (%) is not supported on this device", REQUESTED_SURFACE_FORMAT);
     }
 

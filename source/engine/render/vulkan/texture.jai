@@ -102,16 +102,14 @@ createVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, texture_
 textureFormatToVulkanFormat :: inline (format : Texture.Format) -> VkFormat #no_context {
     if #complete format == {
         case .UNKNOWN;       return .VK_FORMAT_UNDEFINED;
-        case .RGB8_UNORM;    return .VK_FORMAT_R8G8B8_UNORM;
-        case .RGB8_SNORM;    return .VK_FORMAT_R8G8B8_SNORM;
-        case .BGR8_UNORM;    return .VK_FORMAT_B8G8R8_UNORM;
-        case .BGR8_SNORM;    return .VK_FORMAT_B8G8R8_SNORM;
-        case .RGBA8_UNORM;   return .VK_FORMAT_R8G8B8A8_UNORM;
         case .BGRA8_UNORM;   return .VK_FORMAT_B8G8R8A8_UNORM;
+        case .BGRA8_SNORM;   return .VK_FORMAT_B8G8R8A8_SNORM;
+        case .BGRA8_SRGB;    return .VK_FORMAT_B8G8R8A8_SRGB;
         case .RGB10A2_UNORM; return .VK_FORMAT_A2B10G10R10_UNORM_PACK32;
         case .D32;           return .VK_FORMAT_D32_SFLOAT;
         case .S8;            return .VK_FORMAT_S8_UINT;
         case .BC7_UNORM;     return .VK_FORMAT_BC7_UNORM_BLOCK;
+        case .BC7_SRGB;      return .VK_FORMAT_BC7_SRGB_BLOCK;
     }
     return .VK_FORMAT_UNDEFINED;
 }
@@ -119,16 +117,14 @@ textureFormatToVulkanFormat :: inline (format : Texture.Format) -> VkFormat #no_
 vulkanFormatToTextureFormat :: inline (format : VkFormat) -> Texture.Format #no_context {
     if #complete format == {
         case .VK_FORMAT_UNDEFINED;                return .UNKNOWN;
-        case .VK_FORMAT_R8G8B8_UNORM;             return .RGB8_UNORM;
-        case .VK_FORMAT_R8G8B8_SNORM;             return .RGB8_SNORM;
-        case .VK_FORMAT_B8G8R8_UNORM;             return .BGR8_UNORM;
-        case .VK_FORMAT_B8G8R8_SNORM;             return .BGR8_SNORM;
-        case .VK_FORMAT_R8G8B8A8_UNORM;           return .RGBA8_UNORM;
         case .VK_FORMAT_B8G8R8A8_UNORM;           return .BGRA8_UNORM;
+        case .VK_FORMAT_B8G8R8A8_SNORM;           return .BGRA8_SNORM;
+        case .VK_FORMAT_B8G8R8A8_SRGB;            return .BGRA8_SRGB;
         case .VK_FORMAT_A2B10G10R10_UNORM_PACK32; return .RGB10A2_UNORM;
         case .VK_FORMAT_D32_SFLOAT;               return .D32;
         case .VK_FORMAT_S8_UINT;                  return .S8;
         case .VK_FORMAT_BC7_UNORM_BLOCK;          return .BC7_UNORM;
+        case .VK_FORMAT_BC7_SRGB_BLOCK;           return .BC7_SRGB;
     }
     return .UNKNOWN;
 }
@@ -169,18 +165,16 @@ samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleC
     return .VK_SAMPLE_COUNT_1_BIT;
 }
 
-getVulkanImageAspectFlags :: inline (texture : *VulkanTexture) -> VkImageAspectFlags #no_context {
-    if #complete texture.format == {
+getVulkanImageAspectFlags :: inline (format : Texture.Format) -> VkImageAspectFlags #no_context {
+    if #complete format == {
         case .UNKNOWN;
             return .VK_IMAGE_ASPECT_NONE;
-        case .RGB8_UNORM;    #through;
-        case .RGB8_SNORM;    #through;
-        case .BGR8_UNORM;    #through;
-        case .BGR8_SNORM;    #through;
-        case .RGBA8_UNORM;   #through;
         case .BGRA8_UNORM;   #through;
+        case .BGRA8_SNORM;   #through;
+        case .BGRA8_SRGB;    #through;
         case .RGB10A2_UNORM; #through;
-        case .BC7_UNORM;
+        case .BC7_UNORM;     #through;
+        case .BC7_SRGB;
             return .VK_IMAGE_ASPECT_COLOR_BIT;
         case .D32;
             return .VK_IMAGE_ASPECT_DEPTH_BIT;

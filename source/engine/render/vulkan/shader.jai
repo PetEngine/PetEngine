@@ -202,7 +202,7 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
     pipeline_rendering_create_info := VkPipelineRenderingCreateInfo.{
         viewMask                = 0,
         colorAttachmentCount    = color_blend_state.attachmentCount,
-        pColorAttachmentFormats = VkFormat.[ .VK_FORMAT_B8G8R8A8_UNORM ].data,
+        pColorAttachmentFormats = VkFormat.[ textureFormatToVulkanFormat(device.swapchain_textures[0].format) ].data,
         depthAttachmentFormat   = .VK_FORMAT_UNDEFINED,
         stencilAttachmentFormat = .VK_FORMAT_UNDEFINED,
     };

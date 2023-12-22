@@ -376,7 +376,7 @@ commitVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceMa
                 a = .VK_COMPONENT_SWIZZLE_A,
             },
             subresourceRange = .{
-                aspectMask     = getVulkanImageAspectFlags(it),
+                aspectMask     = getVulkanImageAspectFlags(it.format),
                 baseMipLevel   = 0,
                 levelCount     = VK_REMAINING_MIP_LEVELS,
                 baseArrayLayer = 0,

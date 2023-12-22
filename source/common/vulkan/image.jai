@@ -18,16 +18,14 @@ VK_LOD_CLAMP_NONE : f32 : 1000.0;
 // Provided by VK_VERSION_1_0
 VkFormat :: enum VkEnum #specified {
     VK_FORMAT_UNDEFINED                :: 0;
-    VK_FORMAT_R8G8B8_UNORM             :: 23;
-    VK_FORMAT_R8G8B8_SNORM             :: 24;
-    VK_FORMAT_B8G8R8_UNORM             :: 30;
-    VK_FORMAT_B8G8R8_SNORM             :: 31;
-    VK_FORMAT_R8G8B8A8_UNORM           :: 37;
     VK_FORMAT_B8G8R8A8_UNORM           :: 44;
+    VK_FORMAT_B8G8R8A8_SNORM           :: 45;
+    VK_FORMAT_B8G8R8A8_SRGB            :: 50;
     VK_FORMAT_A2B10G10R10_UNORM_PACK32 :: 64;
     VK_FORMAT_D32_SFLOAT               :: 126;
     VK_FORMAT_S8_UINT                  :: 127;
     VK_FORMAT_BC7_UNORM_BLOCK          :: 145;
+    VK_FORMAT_BC7_SRGB_BLOCK           :: 146;
 }
 
 // Provided by VK_VERSION_1_0
