@@ -10,9 +10,10 @@ struct Vertex {
 };
 
 const Vertex g_Vertices[] = {
-    { { -0.5, -0.5, 0.0, 1.0 }, { 1.0, 0.0, 0.0, 1.0 } },
-    { {  0.0,  0.5, 0.0, 1.0 }, { 0.0, 1.0, 0.0, 1.0 } },
-    { {  0.5, -0.5, 0.0, 1.0 }, { 0.0, 0.0, 1.0, 1.0 } },
+    { { -0.5,  0.5, 0.0, 1.0 }, { 1.0, 0.0, 0.0, 1.0 } },
+    { {  0.5,  0.5, 0.0, 1.0 }, { 0.0, 1.0, 0.0, 1.0 } },
+    { { -0.5, -0.5, 0.0, 1.0 }, { 0.0, 0.0, 1.0, 1.0 } },
+    { {  0.5, -0.5, 0.0, 1.0 }, { 1.0, 1.0, 1.0, 1.0 } },
 };
 
 out VertexOutput vs_output;
@@ -40,9 +41,9 @@ void main() {
 
 #pipeline_state
 
-PrimitiveTopology                  = TRIANGLE_LIST;
+PrimitiveTopology                  = TRIANGLE_STRIP;
 FillMode                           = FILL;
-CullMode                           = BACK_FACE;
+CullMode                           = NONE;
 FrontFace                          = CLOCKWISE;
 DepthBiasEnable                    = false;
 DepthBiasConstantFactor            = 0.0;

@@ -177,7 +177,7 @@ main :: () {
                 time := cast(f32) Basic.get_time();
                 setPushConstants(device, *command_buffer, .FRAGMENT, *time);
 
-                drawPrimitives(device, *command_buffer, 3);
+                drawPrimitives(device, *command_buffer, 4);
             }
             endRendering(device, *command_buffer);
         }
