@@ -398,7 +398,8 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     allowed_surface_format : *VkSurfaceFormatKHR;
 
     for * surface_formats {
-        if it.format == REQUESTED_SURFACE_FORMAT {
+        // @TODO: #HDR. Hardware HDR support
+        if it.format == REQUESTED_SURFACE_FORMAT && it.colorSpace == .VK_COLOR_SPACE_SRGB_NONLINEAR_KHR {
             allowed_surface_format = it;
             break;
         }
