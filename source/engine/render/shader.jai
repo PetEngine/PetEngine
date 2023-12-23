@@ -42,9 +42,20 @@ Shader :: struct {
     name : string;
 
     binding_table : ShaderCompiler.BindingTable;
+
+    color_target_formats : StaticArray(Texture.Format, ShaderCompiler.MAX_COLOR_TARGETS);
+    depth_target_format  : Texture.Format;
 }
 
-createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *Shader #must {
+createShader :: (
+    device               : *Device,
+    manager              : *ShaderManager,
+    name                 : string,
+    color_target_formats : [] Texture.Format,
+    depth_target_format  : Texture.Format = .UNKNOWN
+) -> *Shader #must {
+    assert(color_target_formats.count <= Shader.color_target_formats.capacity);
+
     shader : *Shader;
 
     if #complete device.graphics_api == {
@@ -52,7 +63,9 @@ createShader :: (device : *Device, manager : *ShaderManager, name : string) -> *
             shader = pushVulkanShader(cast(*VulkanShaderManager) manager);
     }
 
-    shader.name = name;
+    shader.name                = name;
+    pushBack(*shader.color_target_formats, color_target_formats);
+    shader.depth_target_format = depth_target_format;
 
     shader_file_data, file_error := readEntireFile(makeBinaryShaderFilename(shader.name), pushToArena, *context.pet.per_frame_arena);
     if file_error != .NONE {
@@ -96,21 +109,6 @@ findShader :: (device : *Device, manager : *ShaderManager, name : string) -> *Sh
     if #complete device.graphics_api == {
         case .VULKAN;
            shader = findVulkanShader(cast(*VulkanShaderManager) manager, name);
-    }
-
-    return shader;
-}
-
-findOrCreateShader :: (device : *Device, manager : *ShaderManager, name : string) -> *Shader #must {
-    shader : *Shader;
-
-    if #complete device.graphics_api == {
-        case .VULKAN;
-           shader = findVulkanShader(cast(*VulkanShaderManager) manager, name);
-    }
-
-    if !shader {
-        shader = createShader(device, manager, name);
     }
 
     return shader;

@@ -122,7 +122,6 @@ setVulkanShader :: inline (command_buffer : VkCommandBuffer, shader : *VulkanSha
     }
 }
 
-// @Speed: Load/store actions
 // @TODO: #MSAA. Resolve attachments
 //        Mip selection
 //        VkPhysicalDeviceLimits::maxColorAttachments

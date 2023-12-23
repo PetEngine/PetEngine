@@ -49,7 +49,7 @@ operator []= :: inline (array : *StaticArray, index : s64, value : array.T) #no_
     array.data[index] = value;
 }
 
-pushBack :: inline (array : *StaticArray) -> *array.T #must {
+pushBack :: inline (array : *StaticArray) -> *array.T #must #no_context {
     #if DEBUG_BUILD {
         if array.count >= array.capacity {
             write_string("[ASSERT]: StaticArray overflow\n", true);
@@ -63,6 +63,21 @@ pushBack :: inline (array : *StaticArray) -> *array.T #must {
     new := *array.data[array.count];
     array.count += 1;
     return new;
+}
+
+pushBack :: inline (array : *StaticArray, data : [] array.T) #no_context {
+    #if DEBUG_BUILD {
+        if array.count + data.count >= array.capacity {
+            write_string("[ASSERT]: StaticArray overflow\n", true);
+            if IsDebuggerPresent() {
+                debug_break();
+            }
+            exit(1);
+        }
+    }
+
+    memcpy(array.data.data + array.count, data.data, data.count * size_of(array.T));
+    array.count += data.count;
 }
 
 for_expansion :: (array : *StaticArray, body : Code, flags : For_Flags) #expand {

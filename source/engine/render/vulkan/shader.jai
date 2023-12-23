@@ -194,17 +194,26 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
 
     color_blend_state : VkPipelineColorBlendStateCreateInfo = ---;
     initColorBlendState(*color_blend_state, graphics_pipeline_state);
+    assert(color_blend_state.attachmentCount == shader.color_target_formats.count);
 
     dynamic_state : VkPipelineDynamicStateCreateInfo = ---;
     initDynamicStates(*dynamic_state);
 
-    // #Hardcoded
+    color_target_vk_formats : StaticArray(VkFormat, Shader.color_target_formats.capacity);
+    color_target_vk_formats.count = shader.color_target_formats.count;
+    for shader.color_target_formats {
+        color_target_vk_formats[it_index] = textureFormatToVulkanFormat(it);
+    }
+
+    depth_target_format_flags := textureFormatFlags(shader.depth_target_format);
+    depth_target_vk_format    := textureFormatToVulkanFormat(shader.depth_target_format);
+
     pipeline_rendering_create_info := VkPipelineRenderingCreateInfo.{
         viewMask                = 0,
-        colorAttachmentCount    = color_blend_state.attachmentCount,
-        pColorAttachmentFormats = VkFormat.[ textureFormatToVulkanFormat(device.swapchain_textures[0].format) ].data,
-        depthAttachmentFormat   = .VK_FORMAT_UNDEFINED,
-        stencilAttachmentFormat = .VK_FORMAT_UNDEFINED,
+        colorAttachmentCount    = cast(u32) color_target_vk_formats.count,
+        pColorAttachmentFormats = color_target_vk_formats.data.data,
+        depthAttachmentFormat   = ifx depth_target_format_flags & .DEPTH   then depth_target_vk_format else .VK_FORMAT_UNDEFINED,
+        stencilAttachmentFormat = ifx depth_target_format_flags & .STENCIL then depth_target_vk_format else .VK_FORMAT_UNDEFINED,
     };
 
     create_info := VkGraphicsPipelineCreateInfo.{

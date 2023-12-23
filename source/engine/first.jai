@@ -105,7 +105,7 @@ main :: () {
     commitResourceMemory(device, resource_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
     defer resetResourceMemory(device, resource_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
 
-    triangle_shader := createShader(device, shader_manager, "triangle");
+    triangle_shader := createShader(device, shader_manager, "triangle", .[ getBackBuffer(device).format ]);
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 
