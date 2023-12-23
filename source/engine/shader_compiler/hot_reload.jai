@@ -13,6 +13,11 @@ ShadersHotReload :: struct {
 }
 
 initShadersHotReload :: (hot_reload : *ShadersHotReload, device : *Device, shader_manager : *ShaderManager) {
+    if !fileExists(ShaderCompiler.SOURCE_SHADERS_FOLDER) {
+        #if DEBUG_BUILD warningMessage("Source shaders folder is not found: %", ShaderCompiler.SOURCE_SHADERS_FOLDER);
+        return;
+    }
+
     createThread(*hot_reload.thread, hotReloadProc, hot_reload, "Shaders Hot Reload", .SHADERS_HOT_RELOAD);
 
     #if OS == .WINDOWS {
@@ -56,6 +61,10 @@ initShadersHotReload :: (hot_reload : *ShadersHotReload, device : *Device, shade
 }
 
 destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
+    if !fileExists(ShaderCompiler.SOURCE_SHADERS_FOLDER) {
+        return;
+    }
+
     #if OS == .WINDOWS {
         debugCheck(SetEvent(hot_reload.stop_thread_event), print_sys_error = true);
 

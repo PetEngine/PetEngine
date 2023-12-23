@@ -938,6 +938,10 @@ GetFileAttributesExW :: (
     lpFileInformation : *void
 ) -> BOOL #foreign kernel32;
 
+PathFileExistsW :: (
+    pszPath : LPCWSTR
+) -> BOOL #foreign shlwapi;
+
 CREATE_EVENT_MANUAL_RESET : u32 : 0x00000001;
 CREATE_EVENT_INITIAL_SET  : u32 : 0x00000002;
 
@@ -1435,3 +1439,4 @@ user32   :: #system_library "user32";
 dwmapi   :: #system_library "dwmapi";
 advapi32 :: #system_library "advapi32";
 hid      :: #system_library "hid";
+shlwapi  :: #system_library "shlwapi";

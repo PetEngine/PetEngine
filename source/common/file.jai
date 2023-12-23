@@ -250,6 +250,18 @@ getFileInfo :: (filename : string) -> (FileInfo, File.Error) {
     return file_info, .NONE;
 }
 
+fileExists :: (filename : string) -> bool {
+    #if OS == .WINDOWS {
+        wide_filename : [] WCHAR;
+        wide_filename.data = pushToArena(*context.pet.per_frame_arena, WCHAR, filename.count + 1);
+        asciiToWide(*wide_filename, filename, true);
+
+        return PathFileExistsW(wide_filename.data) == TRUE;
+    } else {
+        notImplemented();
+    }
+}
+
 #scope_file
 
 #if OS == .WINDOWS {
