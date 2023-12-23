@@ -176,9 +176,7 @@ beginVulkanFrame :: (device : *VulkanDevice) {
     // Begin used command buffers
     //
     {
-        begin_info := VkCommandBufferBeginInfo.{
-            pInheritanceInfo = null // Ignored for primary command buffers
-        };
+        begin_info : VkCommandBufferBeginInfo;
 
         command_buffers_used_it := frame_data.command_buffers_used.data;
         command_buffers_it      := frame_data.command_buffers.data;
@@ -281,9 +279,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
         back_buffer               := *device.swapchain_textures[device.back_buffer_index];
         fence_to_signal           := frame_data.fences[QueueType.GRAPHICS];
 
-        begin_info := VkCommandBufferBeginInfo.{
-            pInheritanceInfo = null // Ignored for primary command buffers
-        };
+        begin_info : VkCommandBufferBeginInfo;
         debugCheckVK(vkBeginCommandBuffer(post_frame_command_buffer, *begin_info));
         {
             assert(back_buffer.current_owner == .GRAPHICS);

@@ -18,11 +18,16 @@ const Vertex g_Vertices[] = {
 
 out VertexOutput vs_output;
 
+layout(push_constant) uniform PushConstants {
+    float time;
+};
+
 void main() {
     Vertex vertex = g_Vertices[gl_VertexIndex];
     gl_Position   = vertex.position;
 
-    vs_output.color = vertex.color;
+    const float alpha = cos(1.5 * time) * 0.5 + 0.5;
+    vs_output.color = vertex.color * alpha;
 }
 
 #fragment_shader
@@ -30,13 +35,8 @@ void main() {
 in  VertexOutput fs_input;
 out vec4         fs_output_color;
 
-layout(push_constant) uniform PushConstants {
-    float time;
-};
-
 void main() {
-    const float alpha = sin(1.5 * time) * 0.5 + 0.5;
-    fs_output_color = fs_input.color * alpha;
+    fs_output_color = fs_input.color;
 }
 
 #pipeline_state
