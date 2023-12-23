@@ -81,6 +81,7 @@ Texture :: struct {
     };
     samples_count         : u8;
     mips_count            : u8;
+    clear_value           : ClearValue;
     name                  : string;
     current_owner         : QueueType;
     possible_owners       : StaticArray(QueueType, #run Basic.enum_highest_value(QueueType) + 1);
@@ -91,11 +92,12 @@ createTexture :: (
     manager             : *ResourceManager,
     format              : Texture.Format,
     width               : u16,
-    height              : u16           = 0,
-    depth_or_array_size : u16           = 0,
-    samples_count       : u8            = 1,
-    mips_count          : u8            = 1,
-    flags               : Texture.Flags = 0,
+    height              : u16                = 0,
+    depth_or_array_size : u16                = 0,
+    samples_count       : u8                 = 1,
+    mips_count          : u8                 = 1,
+    flags               : Texture.Flags      = 0,
+    clear_value         : Texture.ClearValue = .{},
     usage               : Texture.Usage,
     name                : string,
     $memory_kind        : ResourceManager.MemoryKind,
@@ -173,6 +175,7 @@ createTexture :: (
     texture.depth                 = depth_or_array_size;
     texture.samples_count         = samples_count;
     texture.mips_count            = mips_count;
+    texture.clear_value           = clear_value;
     texture.current_owner         = possible_owners[0];
     texture.possible_owners.count = cast(u32) possible_owners.count;
     memcpy(texture.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));

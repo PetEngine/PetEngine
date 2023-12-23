@@ -92,7 +92,8 @@ main :: () {
                                   .D32,
                                   window.surface.width,
                                   window.surface.height,
-                                  usage = .DEPTH_TARGET | .SHADER_READ,
+                                  clear_value = .{ depth = 1.0 },
+                                  .DEPTH_TARGET | .SHADER_READ,
                                   "Depth",
                                   .PERSISTENT_RESOLUTION_DEPENDENT);
 
@@ -107,8 +108,6 @@ main :: () {
     triangle_shader := createShader(device, shader_manager, "triangle");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
-
-    grey := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
 
     showWindow(window);
     while processWindowEvents(window) {
@@ -155,15 +154,13 @@ main :: () {
 
             back_buffer := getBackBuffer(device);
 
-            clearTexture(device, *command_buffer, depth_buffer, .{ depth = 1.0 });
+            clearTexture(device, *command_buffer, depth_buffer);
 
-            // @TODO: #Settings. Get back buffer clear color from settings.
             beginRendering(device, *command_buffer, .[
                 .{
                     texture      = back_buffer,
                     load_action  = .CLEAR,
                     store_action = .STORE,
-                    clear_value  = .{ as_f32 = grey }
                 },
             ]);
             {

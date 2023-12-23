@@ -528,6 +528,9 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
         swapchain_images_it := swapchain_images.data;
 
+        // @TODO: #Settings. Get back buffer clear color from settings.
+        clear_color := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
+
         // @Important: Should be with default allocator
         builder : Basic.String_Builder;
 
@@ -541,6 +544,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
             it.depth                 = 0;
             it.samples_count         = 1;
             it.mips_count            = 1;
+            it.clear_value.color_f32 = clear_color;
             it.current_owner         = .GRAPHICS;
             it.possible_owners.count = 1;
             it.possible_owners[0]    = .GRAPHICS;

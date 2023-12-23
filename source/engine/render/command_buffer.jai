@@ -42,11 +42,6 @@ ColorTargetDesc :: struct {
 
     load_action  : TargetLoadAction;
     store_action : TargetStoreAction;
-    clear_value  : union {
-        as_f32 : v4f;
-        as_u32 : v4u;
-        as_s32 : v4s;
-    };
 }
 
 DepthTargetDesc :: struct {
@@ -54,11 +49,9 @@ DepthTargetDesc :: struct {
 
     depth_load_action  : TargetLoadAction;
     depth_store_action : TargetStoreAction;
-    depth_clear_value  : f32;
 
     stencil_load_action  : TargetLoadAction;
     stencil_store_action : TargetStoreAction;
-    stencil_clear_value  : u32;
 }
 
 // @TODO: Per-frame command buffers
@@ -96,7 +89,7 @@ resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer) {
     }
 }
 
-clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *Texture, clear_value : Texture.ClearValue) {
+clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *Texture) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can clear textures";
 
     assert(texture.current_owner == command_buffer.usage,
@@ -107,9 +100,7 @@ clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *T
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            clearVulkanTexture(command_buffer.handles[device.frame_index],
-                               cast(*VulkanTexture) texture,
-                               clear_value);
+            clearVulkanTexture(command_buffer.handles[device.frame_index], cast(*VulkanTexture) texture);
     }
 }
 

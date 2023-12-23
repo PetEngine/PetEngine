@@ -46,7 +46,7 @@ changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *Vulka
 }
 
 // @TODO: #VulkanTexture. MIPs, layers.
-clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, clear_value : Texture.ClearValue) {
+clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture) {
     if texture.current_layout != .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL {
         changeVulkanTextureLayout(command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     }
@@ -65,7 +65,7 @@ clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTextur
         range.aspectMask |= .VK_IMAGE_ASPECT_COLOR_BIT;
 
         vk_clear_value := VkClearColorValue.{
-            float32_ = clear_value.color_f32.e
+            float32_ = texture.clear_value.color_f32.e
         };
 
         vkCmdClearColorImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
@@ -74,8 +74,8 @@ clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTextur
         if format_flags & .STENCIL then range.aspectMask |= .VK_IMAGE_ASPECT_STENCIL_BIT;
 
         vk_clear_value := VkClearDepthStencilValue.{
-            depth   = clear_value.depth,
-            stencil = clear_value.stencil
+            depth   = texture.clear_value.depth,
+            stencil = texture.clear_value.stencil
         };
 
         vkCmdClearDepthStencilImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
@@ -157,25 +157,25 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
             barriers_it += 1;
         }
 
-        color_attachments_it.imageView          = texture.view;
-        color_attachments_it.imageLayout        = texture.current_layout;
-        color_attachments_it.resolveMode        = .VK_RESOLVE_MODE_NONE;
-        color_attachments_it.resolveImageView   = VK_NULL_HANDLE;
-        color_attachments_it.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-        color_attachments_it.loadOp             = loadActionToVulkanLoadOp(it.load_action);
-        color_attachments_it.storeOp            = storeActionToVulkanStoreOp(it.store_action);
-        color_attachments_it.clearValue         = .{
-            color = .{ float32_ = it.clear_value.as_f32.e }
-        };
+        color_attachments_it.imageView                 = texture.view;
+        color_attachments_it.imageLayout               = texture.current_layout;
+        color_attachments_it.resolveMode               = .VK_RESOLVE_MODE_NONE;
+        color_attachments_it.resolveImageView          = VK_NULL_HANDLE;
+        color_attachments_it.resolveImageLayout        = .VK_IMAGE_LAYOUT_UNDEFINED;
+        color_attachments_it.loadOp                    = loadActionToVulkanLoadOp(it.load_action);
+        color_attachments_it.storeOp                   = storeActionToVulkanStoreOp(it.store_action);
+        color_attachments_it.clearValue.color.float32_ = texture.clear_value.color_f32.e;
 
         color_attachments_it += 1;
     }
 
     rendering_extent : VkExtent2D = ---;
     if color_targets.count > 0 {
-        rendering_extent = .{ color_targets[0].texture.width, color_targets[0].texture.height };
+        rendering_extent.width  = color_targets[0].texture.width;
+        rendering_extent.height = color_targets[0].texture.height;
     } else {
-        rendering_extent = .{ depth_target.texture.width, depth_target.texture.height };
+        rendering_extent.width  = depth_target.texture.width;
+        rendering_extent.height = depth_target.texture.height;
     }
 
     rendering_info := VkRenderingInfo.{
@@ -245,31 +245,27 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         }
 
         if format_flags & .DEPTH {
-            depth_attachment.imageView          = texture.view;
-            depth_attachment.imageLayout        = texture.current_layout;
-            depth_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
-            depth_attachment.resolveImageView   = VK_NULL_HANDLE;
-            depth_attachment.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-            depth_attachment.loadOp             = loadActionToVulkanLoadOp(depth_target.depth_load_action);
-            depth_attachment.storeOp            = storeActionToVulkanStoreOp(depth_target.depth_store_action);
-            depth_attachment.clearValue         = .{
-                depthStencil = .{ depth = depth_target.depth_clear_value }
-            };
+            depth_attachment.imageView                     = texture.view;
+            depth_attachment.imageLayout                   = texture.current_layout;
+            depth_attachment.resolveMode                   = .VK_RESOLVE_MODE_NONE;
+            depth_attachment.resolveImageView              = VK_NULL_HANDLE;
+            depth_attachment.resolveImageLayout            = .VK_IMAGE_LAYOUT_UNDEFINED;
+            depth_attachment.loadOp                        = loadActionToVulkanLoadOp(depth_target.depth_load_action);
+            depth_attachment.storeOp                       = storeActionToVulkanStoreOp(depth_target.depth_store_action);
+            depth_attachment.clearValue.depthStencil.depth = texture.clear_value.depth;
 
             rendering_info.pDepthAttachment = *depth_attachment;
         }
 
         if format_flags & .STENCIL {
-            stencil_attachment.imageView          = texture.view;
-            stencil_attachment.imageLayout        = texture.current_layout;
-            stencil_attachment.resolveMode        = .VK_RESOLVE_MODE_NONE;
-            stencil_attachment.resolveImageView   = VK_NULL_HANDLE;
-            stencil_attachment.resolveImageLayout = .VK_IMAGE_LAYOUT_UNDEFINED;
-            stencil_attachment.loadOp             = loadActionToVulkanLoadOp(depth_target.stencil_load_action);
-            stencil_attachment.storeOp            = storeActionToVulkanStoreOp(depth_target.stencil_store_action);
-            stencil_attachment.clearValue         = .{
-                depthStencil = .{ stencil = depth_target.stencil_clear_value }
-            };
+            stencil_attachment.imageView                       = texture.view;
+            stencil_attachment.imageLayout                     = texture.current_layout;
+            stencil_attachment.resolveMode                     = .VK_RESOLVE_MODE_NONE;
+            stencil_attachment.resolveImageView                = VK_NULL_HANDLE;
+            stencil_attachment.resolveImageLayout              = .VK_IMAGE_LAYOUT_UNDEFINED;
+            stencil_attachment.loadOp                          = loadActionToVulkanLoadOp(depth_target.stencil_load_action);
+            stencil_attachment.storeOp                         = storeActionToVulkanStoreOp(depth_target.stencil_store_action);
+            stencil_attachment.clearValue.depthStencil.stencil = texture.clear_value.stencil;
 
             rendering_info.pStencilAttachment = *stencil_attachment;
         }
