@@ -111,6 +111,14 @@ saturatedRemap :: inline (old_a : T, old_b : T, old_v : $T/Type.[f32, f64], new_
     return lerp(new_a, new_b, saturate(invLerp(old_a, old_b, old_v)));
 }
 
+linearToGamma :: inline (value : $T/Type.[f32, f64], gamma : T = 2.2) {
+    return Math.pow(value, 1.0 / gamma);
+}
+
+gammaToLinear :: inline (value : $T/Type.[f32, f64], gamma : T = 2.2) {
+    return Math.pow(value, gamma);
+}
+
 #scope_file
 
 rejectVectors :: inline (T : Type) -> bool #no_context {

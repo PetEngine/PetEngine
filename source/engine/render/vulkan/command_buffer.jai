@@ -65,7 +65,7 @@ clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTextur
         range.aspectMask |= .VK_IMAGE_ASPECT_COLOR_BIT;
 
         vk_clear_value := VkClearColorValue.{
-            float32_ = clear_value.color_f32
+            float32_ = clear_value.color_f32.e
         };
 
         vkCmdClearColorImage(command_buffer, texture.image, texture.current_layout, *vk_clear_value, 1, *range);
@@ -165,7 +165,7 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         color_attachments_it.loadOp             = loadActionToVulkanLoadOp(it.load_action);
         color_attachments_it.storeOp            = storeActionToVulkanStoreOp(it.store_action);
         color_attachments_it.clearValue         = .{
-            color = .{ float32_ = it.clear_value.as_f32 }
+            color = .{ float32_ = it.clear_value.as_f32.e }
         };
 
         color_attachments_it += 1;

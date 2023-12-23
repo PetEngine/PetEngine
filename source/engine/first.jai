@@ -156,12 +156,16 @@ main :: () {
 
             clearTexture(device, *command_buffer, depth_buffer, .{ depth = 1.0 });
 
+            grey := v4f.{ 0.3, 0.3, 0.3, 0.0 };
+            grey = gammaToLinear(grey);
+
+            // @TODO: #Settings. Get back buffer clear color from settings.
             beginRendering(device, *command_buffer, .[
                 .{
                     texture      = back_buffer,
                     load_action  = .CLEAR,
                     store_action = .STORE,
-                    clear_value  = .{ as_f32 = .[ 0.3, 0.3, 0.3, 0.0 ] } // @TODO: #Settings. Get back buffer clear color from settings.
+                    clear_value  = .{ as_f32 = grey }
                 },
             ]);
             {

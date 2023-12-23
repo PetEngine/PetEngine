@@ -43,9 +43,9 @@ ColorTargetDesc :: struct {
     load_action  : TargetLoadAction;
     store_action : TargetStoreAction;
     clear_value  : union {
-        as_f32 : [4] f32;
-        as_u32 : [4] u32;
-        as_s32 : [4] s32;
+        as_f32 : v4f;
+        as_u32 : v4u;
+        as_s32 : v4s;
     };
 }
 

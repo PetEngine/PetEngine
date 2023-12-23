@@ -195,3 +195,11 @@ clamp :: inline (v : $T/Type.[v4f, v4s, v4u], a : type_of(T.x), b : type_of(T.x)
 saturate :: inline (v : $T/Type.[v2f, v2s, v2u]) -> T #no_context { v0 : T; v1 := T.{ 1, 1 };       return min(max(v, v0), v1); }
 saturate :: inline (v : $T/Type.[v3f, v3s, v3u]) -> T #no_context { v0 : T; v1 := T.{ 1, 1, 1 };    return min(max(v, v0), v1); }
 saturate :: inline (v : $T/Type.[v4f, v4s, v4u]) -> T #no_context { v0 : T; v1 := T.{ 1, 1, 1, 1 }; return min(max(v, v0), v1); }
+
+gammaToLinear :: inline (v : v2f, gamma : f32 = 2.2) -> v2f { return .{ Math.pow(v.x, gamma), Math.pow(v.y, gamma) }; }
+gammaToLinear :: inline (v : v3f, gamma : f32 = 2.2) -> v3f { return .{ Math.pow(v.x, gamma), Math.pow(v.y, gamma), Math.pow(v.z, gamma) }; }
+gammaToLinear :: inline (v : v4f, gamma : f32 = 2.2) -> v4f { return .{ Math.pow(v.x, gamma), Math.pow(v.y, gamma), Math.pow(v.z, gamma), v.w }; }
+
+linearToGamma :: inline (v : v2f, gamma : f32 = 2.2) -> v2f { return .{ Math.pow(v.x, 1.0 / gamma), Math.pow(v.y, 1.0 / gamma) }; }
+linearToGamma :: inline (v : v3f, gamma : f32 = 2.2) -> v3f { return .{ Math.pow(v.x, 1.0 / gamma), Math.pow(v.y, 1.0 / gamma), Math.pow(v.z, 1.0 / gamma) }; }
+linearToGamma :: inline (v : v4f, gamma : f32 = 2.2) -> v4f { return .{ Math.pow(v.x, 1.0 / gamma), Math.pow(v.y, 1.0 / gamma), Math.pow(v.z, 1.0 / gamma), v.w }; }

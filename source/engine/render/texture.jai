@@ -59,11 +59,10 @@ Texture :: struct {
         SRGB;
     }
 
-    // @TODO: #Math. Make it vector
     ClearValue :: union {
-        color_f32 : [4] f32;
-        color_u32 : [4] u32;
-        color_s32 : [4] s32;
+        color_f32 : v4f;
+        color_u32 : v4u;
+        color_s32 : v4s;
         struct {
             depth   : f32;
             stencil : u32;
