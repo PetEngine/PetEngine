@@ -137,7 +137,11 @@ g_next_thread_index : u32 = 1;
 getThreadIndex :: inline () -> u32 #no_context {
     thread_index : u32 = 1;
     next_thread_index := *g_next_thread_index;
-    #asm { lock_xadd [next_thread_index], thread_index; }
+    #if CPU == .X64 {
+        #asm { lock_xadd [next_thread_index], thread_index; }
+    } else {
+        notImplemented();
+    }
     return thread_index;
 }
 

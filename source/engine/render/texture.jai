@@ -208,6 +208,10 @@ textureFormatFlags :: (format : Texture.Format) -> Texture.FormatFlags #no_conte
 maxMipsCount :: (width : u16, height : u16, depth : u16) -> u8 #no_context {
     all_bits := width | height | depth;
     max_mips : u16 = 0;
-    #asm { bsr.w max_mips, all_bits; }
+    #if CPU == .X64 {
+        #asm { bsr.w max_mips, all_bits; }
+    } else {
+        notImplemented();
+    }
     return cast,no_check(u8) max_mips;
 }
