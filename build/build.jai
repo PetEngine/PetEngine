@@ -4,7 +4,15 @@
 #import "Basic";
 #import "String";
 #import "File";
+#import "File_Utilities";
 #import "Check";
+#if OS == .WINDOWS {
+    #import "Windows";
+} else if OS == .POSIX {
+    #import "POSIX";
+} else {
+    #assert false "Not implemented";
+}
 
 Configuration :: enum u8 {
     DEBUG;
@@ -36,6 +44,8 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
 }
 
 #run {
+    context.print_style.default_format_struct.use_newlines_if_long_form = true;
+
     build_options := get_build_options();
 
     //
@@ -82,6 +92,9 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         array_add(*import_paths, "../source");
     }
 
+    vk_sdk_path := getVulkanSDKPath();
+    print("Vulkan SDK path: \"%\"\n", vk_sdk_path);
+
     additional_linker_arguments : [..] string;
     {
         additional_linker_arguments.allocator = temporary_allocator;
@@ -89,8 +102,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
 
         #if OS == .WINDOWS {
             array_add(*additional_linker_arguments,
-                      "/LIBPATH:../third_party/vulkan",
-                      "/LIBPATH:../third_party/shaderc",
+                      join("/LIBPATH:", vk_sdk_path, "/Lib", allocator = temporary_allocator),
                       "/LIBPATH:../third_party/spirv_reflect");
 
             if #complete build_arguments.configuration == {
@@ -104,8 +116,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
             }
         } else {
             array_add(*additional_linker_arguments,
-                      "--library-path=../third_party/vulkan",
-                      "--library-path=../third_party/shaderc",
+                      join("--library-path=", vk_sdk_path, "/Lib", allocator = temporary_allocator),
                       "--library-path=../third_party/spirv_reflect");
         }
     }
@@ -185,4 +196,34 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         }
     }
     compiler_end_intercept(workspace);
+
+    //
+    // Post-build compies
+    //
+
+    if build_arguments.configuration == .DEBUG {
+        copy_file(join(vk_sdk_path, "/Bin/shaderc_sharedd.dll", allocator = temporary_allocator),
+                  join(output_path,     "/shaderc_sharedd.dll", allocator = temporary_allocator));
+    } else {
+        copy_file(join(vk_sdk_path, "/Bin/shaderc_shared.dll", allocator = temporary_allocator),
+                  join(output_path,     "/shaderc_shared.dll", allocator = temporary_allocator));
+    }
+}
+
+getVulkanSDKPath :: () -> string {
+    path := to_string(getenv("VULKAN_SDK"));
+    if !path {
+        path = to_string(getenv("VK_SDK_PATH"));
+        if !path {
+            compiler_report("Neither VULKAN_SDK nor VK_SDK_PATH environment variables were found. Install Vulkan SDK first.");
+        }
+    }
+
+    for 0 .. path.count - 1 {
+        if path[it] == #char "\\" {
+            path[it] = #char "/";
+        }
+    }
+
+    return path;
 }
