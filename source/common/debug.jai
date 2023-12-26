@@ -139,6 +139,19 @@ codeToString :: ($code : Code) -> string {
     return Basic.builder_to_string(*builder, builder.allocator);
 }
 
+debuggerPresent :: inline () -> bool #no_context {
+    #if OS == .WINDOWS {
+        return IsDebuggerPresent() != FALSE;
+    } else {
+        notImplemented();
+        return false;
+    }
+}
+
+debugBreakIfDebugging :: () #expand #no_debug {
+    if debuggerPresent() then debug_break();
+}
+
 #scope_file
 
 File_CLEANUP :: #import "File";
@@ -271,9 +284,7 @@ message :: (
     unlock(*g_mutex);
 
     #if priority == .ASSERT {
-        if IsDebuggerPresent() {
-            debug_break();
-        }
+        debugBreakIfDebugging();
         Basic.exit(1);
     }
 } @PrintLike

@@ -73,13 +73,8 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         assert(project_folder.count != -1);
     }
 
-    workspace_name : string = ---;
-    {
-        builder : String_Builder;
-        print_to_builder(*builder, "%/%", OS, build_arguments.configuration);
-        workspace_name = builder_to_string(*builder);
-        to_lower_in_place(workspace_name);
-    }
+    workspace_name := tprint("%/%", OS, build_arguments.configuration);
+    to_lower_in_place(workspace_name);
 
     intermediate_path := join(project_folder, "/intermediates/", workspace_name, allocator = temporary_allocator);
     output_path       := join(project_folder, "/output/",        workspace_name, allocator = temporary_allocator);
@@ -198,7 +193,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     compiler_end_intercept(workspace);
 
     //
-    // Post-build compies
+    // Post-build copies
     //
 
     if build_arguments.configuration == .DEBUG {
