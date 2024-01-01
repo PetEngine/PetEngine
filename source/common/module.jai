@@ -5,14 +5,6 @@
 f32 :: float32;
 f64 :: float64;
 
-s8_array_to_string :: inline (array : [] s8) -> string #no_context {
-    str : string = ---;
-    str.data  = cast(*u8) array.data;
-    str.count = array.count;
-
-    return str;
-}
-
 #if OS == .WINDOWS {
     asciiToWide :: (wide_string : *[] WCHAR, ascii_string : string, $null_terminated : bool) #no_context {
         wide_string.count = ascii_string.count;
@@ -57,9 +49,7 @@ s8_array_to_string :: inline (array : [] s8) -> string #no_context {
         allocate    : (user_data : *$T, bytes : s64) -> *void,
         user_data   : *T
     ) -> string {
-        ascii_string : string = ---;
-        ascii_string.count = length;
-        ascii_string.data  = allocate(user_data, ascii_string.count);
+        ascii_string := string.{ length, allocate(user_data, length) };
 
         for 0 .. ascii_string.count - 1 {
             ascii_string[it] = cast(u8) wide_string[it];

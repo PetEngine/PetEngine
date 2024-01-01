@@ -256,7 +256,9 @@ fileExists :: (filename : string) -> bool {
         wide_filename.data = pushToArena(*context.pet.per_frame_arena, WCHAR, filename.count + 1);
         asciiToWide(*wide_filename, filename, true);
 
-        return PathFileExistsW(wide_filename.data) == TRUE;
+        // PathFileExists just does "return GetFileAttributes(filename) != INVALID_FILE_ATTRIBUTES;",
+        // so we won't use it as it requires one more library to link
+        return GetFileAttributesW(wide_filename.data) != INVALID_FILE_ATTRIBUTES;
     } else {
         notImplemented();
     }
@@ -410,9 +412,7 @@ fileExists :: (filename : string) -> bool {
             file_info.name.count += directory.count + 1;
             #no_abc { file_info.name[directory.count] = #char "/"; }
 
-            relative_name : string = ---;
-            relative_name.data  = *file_info.name[directory.count + 1];
-            relative_name.count = file_info.name.count - (directory.count + 1);
+            relative_name := string.{ file_info.name.count - (directory.count + 1), *file_info.name[directory.count + 1] };
 
             if find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY {
                 if relative_name != "." && relative_name != ".." {

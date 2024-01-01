@@ -727,6 +727,7 @@ FILE_ATTRIBUTE_PINNED                : u32 : 0x00080000;
 FILE_ATTRIBUTE_UNPINNED              : u32 : 0x00100000;
 FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS : u32 : 0x00400000;
 FILE_ATTRIBUTE_STRICTLY_SEQUENTIAL   : u32 : 0x20000000;
+INVALID_FILE_ATTRIBUTES              : u32 : 0xFFFFFFFF;
 
 FILE_FLAG_OPEN_REQUIRING_OPLOCK : u32 : 0x00040000;
 FILE_FLAG_FIRST_PIPE_INSTANCE   : u32 : 0x00080000;
@@ -938,9 +939,9 @@ GetFileAttributesExW :: (
     lpFileInformation : *void
 ) -> BOOL #foreign kernel32;
 
-PathFileExistsW :: (
-    pszPath : LPCWSTR
-) -> BOOL #foreign shlwapi;
+GetFileAttributesW :: (
+    lpFileName : LPCWSTR
+) -> u32 #foreign kernel32;
 
 CREATE_EVENT_MANUAL_RESET : u32 : 0x00000001;
 CREATE_EVENT_INITIAL_SET  : u32 : 0x00000002;
@@ -1439,4 +1440,3 @@ user32   :: #system_library "user32";
 dwmapi   :: #system_library "dwmapi";
 advapi32 :: #system_library "advapi32";
 hid      :: #system_library "hid";
-shlwapi  :: #system_library "shlwapi";

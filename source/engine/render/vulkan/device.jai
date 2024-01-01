@@ -944,9 +944,7 @@ messengerCallback :: (
             }
             vuid_end += 1;
 
-            vuid_string : string = ---;
-            vuid_string.data  = vuid_start;
-            vuid_string.count = vuid_end - vuid_start;
+            vuid_string := string.{ vuid_end - vuid_start, vuid_start };
 
             hash := Hash.get_hash(vuid_string);
 
@@ -967,10 +965,7 @@ messengerCallback :: (
                     builder : Basic.String_Builder;
                     builder.allocator = Basic.temp;
 
-                    severity_and_vuid : string = ---;
-                    severity_and_vuid.data  = message.data;
-                    severity_and_vuid.count = index;
-
+                    severity_and_vuid := string.{ index, message.data };
                     Basic.append(*builder, severity_and_vuid);
 
                     advance(*message, index);
@@ -1140,7 +1135,7 @@ END;
                 Basic.formatInt(properties.vendorID, base = 16),
                 Basic.formatInt(properties.deviceID, base = 16),
                 properties.deviceType,
-                s8_array_to_string(properties.deviceName),
+                cast(string) properties.deviceName,
                 new_line = false);
 
     physical_device_properties.pNext = *device.properties12;
@@ -1157,8 +1152,8 @@ END;
 
     infoMessage(DRIVER_INFO_MESSAGE,
                 device.properties12.driverID,
-                s8_array_to_string(device.properties12.driverName),
-                s8_array_to_string(device.properties12.driverInfo),
+                cast(string) device.properties12.driverName,
+                cast(string) device.properties12.driverInfo,
                 device.properties12.conformanceVersion.major,
                 device.properties12.conformanceVersion.minor,
                 device.properties12.conformanceVersion.subminor,

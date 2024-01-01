@@ -309,9 +309,7 @@ compileShader :: (name : string) -> bool {
             full_length += common_code.count + SEPARATOR.count;
         }
 
-        code : string = ---;
-        code.count = 0;
-        code.data  = pushToArena(*context.pet.per_frame_arena, u8, full_length);
+        code := string.{ data = pushToArena(*context.pet.per_frame_arena, u8, full_length) };
 
         if common_code {
             memcpy(code.data + code.count, common_code.data, common_code.count);
@@ -425,7 +423,12 @@ compileShader :: (name : string) -> bool {
 }
 
 makeBinaryShaderFilename :: inline (name : string) -> string {
-    return String.join(OUTPUT_SHADERS_FOLDER, "/", name, ".shader_bin",, allocator = Basic.temp);
+    capacity := OUTPUT_SHADERS_FOLDER.count + "/".count + name.count + ".shader_bin".count;
+
+    filename := string.{ data = pushToArena(*context.pet.per_frame_arena, capacity) };
+    appendToString(*filename, capacity, OUTPUT_SHADERS_FOLDER, "/", name, ".shader_bin");
+
+    return filename;
 }
 
 #scope_file
@@ -436,9 +439,7 @@ makeBinaryShaderFilename :: inline (name : string) -> string {
 using ShaderCompiler;
 
 getLine :: (stream : *string) -> string {
-    line : string = ---;
-    line.data  = stream.data;
-    line.count = 0;
+    line := string.{ data = stream.data };
 
     while stream.* && stream.*[0] != #char "\n" {
         advance(stream);
@@ -457,9 +458,7 @@ getLine :: (stream : *string) -> string {
 getShaderStageCode :: (stream : *string) -> string {
     stream.* = String.trim_left(stream.*);
 
-    stage_code : string = ---;
-    stage_code.data  = stream.data;
-    stage_code.count = 0;
+    stage_code := string.{ data = stream.data };
 
     STAGE_KEYWORDS :: string.[
         "#vertex_shader",
@@ -684,10 +683,7 @@ handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) -> bool {
             advance(*flag_name_end);
         }
 
-        flag_name : string = ---;
-        flag_name.data  = flag_names_it.data;
-        flag_name.count = cast(s64) (flag_name_end.data - flag_names_it.data);
-
+        flag_name := string.{ cast(s64) (flag_name_end.data - flag_names_it.data), flag_names_it.data };
         flag_name = String.trim_right(flag_name);
 
         found : bool;

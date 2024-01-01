@@ -12,10 +12,10 @@ ShadersHotReload :: struct {
     shader_manager : *ShaderManager;
 }
 
-initShadersHotReload :: (hot_reload : *ShadersHotReload, device : *Device, shader_manager : *ShaderManager) {
+createShadersHotReload :: (hot_reload : *ShadersHotReload, device : *Device, shader_manager : *ShaderManager) -> bool {
     if !fileExists(ShaderCompiler.SOURCE_SHADERS_FOLDER) {
         #if DEBUG_BUILD warningMessage("Source shaders folder is not found: %", ShaderCompiler.SOURCE_SHADERS_FOLDER);
-        return;
+        return false;
     }
 
     createThread(*hot_reload.thread, hotReloadProc, hot_reload, "Shaders Hot Reload", .SHADERS_HOT_RELOAD);
@@ -58,12 +58,13 @@ initShadersHotReload :: (hot_reload : *ShadersHotReload, device : *Device, shade
 
     recompileOutOfDateShaders(hot_reload);
     startThread(*hot_reload.thread);
+
+    return true;
 }
 
-destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
-    if !fileExists(ShaderCompiler.SOURCE_SHADERS_FOLDER) {
-        return;
-    }
+// @Hack: Figure out better way than was_created
+destroyShadersHotReload :: (hot_reload : *ShadersHotReload, was_created : bool) {
+    if !was_created return;
 
     #if OS == .WINDOWS {
         debugCheck(SetEvent(hot_reload.stop_thread_event), print_sys_error = true);
@@ -160,15 +161,16 @@ reloadShader :: inline (device : *Device, manager : *ShaderManager, name : strin
     }
 }
 
-recompileOutOfDateShaders :: (hot_reload : *ShadersHotReload) {
+recompileOutOfDateShaders :: inline (hot_reload : *ShadersHotReload) {
     enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, file_info : *FileInfo) -> EnumerateFilesCallbackResult {
         if String.path_extension(file_info.name) != "shader" {
             return .CONTINUE;
         }
 
-        shader_name : string = ---;
-        shader_name.data  = file_info.name.data  + (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1);
-        shader_name.count = file_info.name.count - (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1) - ".shader".count;
+        shader_name := string.{
+            file_info.name.count - (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1) - ".shader".count,
+            file_info.name.data  + (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1)
+        };
 
         binary_filename := makeBinaryShaderFilename(shader_name);
 

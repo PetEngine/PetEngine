@@ -127,9 +127,7 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
             }
         }
 
-        spirv : string = ---;
-        spirv.count = next_stage_offset - this_stage_offset;
-        spirv.data  = *shader_file_data[this_stage_offset];
+        spirv := string.{ next_stage_offset - this_stage_offset, *shader_file_data[this_stage_offset] };
 
         it.* = createShaderStage(device, spirv, cast(ShaderStage) it_index, shader.name);
     }

@@ -82,8 +82,8 @@ main :: () {
     defer destroyShaderManager(device, shader_manager);
 
     shaders_hot_reload : ShadersHotReload;
-    initShadersHotReload(*shaders_hot_reload, device, shader_manager);
-    defer destroyShadersHotReload(*shaders_hot_reload);
+    success := createShadersHotReload(*shaders_hot_reload, device, shader_manager);
+    defer destroyShadersHotReload(*shaders_hot_reload, success);
 
     per_view_uniform_buffer := createBuffer(device, resource_manager, size_of(PerViewUniform), .UNIFORM, name = "Per view", .PERSISTENT);
 
