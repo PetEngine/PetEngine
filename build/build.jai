@@ -36,20 +36,26 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
             case "release_with_debug_info";
                 arguments.configuration = .RELEASE_WITH_DEBUG_INFO;
             case;
-                compiler_report(join("Unknown command line argument: ", it, allocator = temporary_allocator));
+                compiler_report(join("Unknown command line argument: ", it,, allocator = temp));
         }
     }
 
     return arguments;
 }
 
-#run {
+#run,stallable {
     context.print_style.default_format_struct.use_newlines_if_long_form = true;
+
+    compiler_version : Version_Info = ---;
+    compiler_version_str := compiler_get_version_info(*compiler_version);
+    if compareCompilerVersions(compiler_version, .{ 0, 1, 81 }) < 0 {
+        compiler_report(join("Compiler version you are using is ", compiler_version_str, ", minimal supported is 0.1.081",, allocator = temp));
+    }
 
     build_options := get_build_options();
 
     //
-    // First of all, let's disable output for the current (build) workspace
+    // Disable output for the current (build) workspace
     //
 
     set_build_options_dc(.{ do_output = false });
@@ -76,13 +82,13 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     workspace_name := tprint("%/%", OS, build_arguments.configuration);
     to_lower_in_place(workspace_name);
 
-    intermediate_path := join(project_folder, "/intermediates/", workspace_name, allocator = temporary_allocator);
-    output_path       := join(project_folder, "/output/",        workspace_name, allocator = temporary_allocator);
-    build_filename    := join(project_folder, "/source/engine/first.jai",        allocator = temporary_allocator);
+    intermediate_path := join(project_folder, "/intermediates/", workspace_name,, allocator = temp);
+    output_path       := join(project_folder, "/output/",        workspace_name,, allocator = temp);
+    build_filename    := join(project_folder, "/source/engine/first.jai",,        allocator = temp);
 
     import_paths : [..] string;
     {
-        import_paths.allocator = temporary_allocator;
+        import_paths.allocator = temp;
         array_add(*import_paths, ..build_options.import_path);
         array_add(*import_paths, "../source");
     }
@@ -92,12 +98,12 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
 
     additional_linker_arguments : [..] string;
     {
-        additional_linker_arguments.allocator = temporary_allocator;
+        additional_linker_arguments.allocator = temp;
         array_add(*additional_linker_arguments, ..build_options.additional_linker_arguments);
 
         #if OS == .WINDOWS {
             array_add(*additional_linker_arguments,
-                      join("/LIBPATH:", vk_sdk_path, "/Lib", allocator = temporary_allocator),
+                      join("/LIBPATH:", vk_sdk_path, "/Lib",, allocator = temp),
                       "/LIBPATH:../third_party/spirv_reflect");
 
             if #complete build_arguments.configuration == {
@@ -111,7 +117,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
             }
         } else {
             array_add(*additional_linker_arguments,
-                      join("--library-path=", vk_sdk_path, "/Lib", allocator = temporary_allocator),
+                      join("--library-path=", vk_sdk_path, "/Lib",, allocator = temp),
                       "--library-path=../third_party/spirv_reflect");
         }
     }
@@ -130,18 +136,18 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     // Common build options
     //
 
-    build_options.output_type                      = .EXECUTABLE;
-    build_options.use_visual_studio_message_format = true;
-    build_options.dead_code_elimination            = .ALL;
-    build_options.backtrace_on_crash               = .OFF;
-    build_options.info_flags                       = .POLYMORPH_DEDUPLICATE; // | .POLYMORPH_MATCH;
-    build_options.text_output_flags                = .OUTPUT_TIMING_INFO;    // | .OUTPUT_LINK_LINE;
-    build_options.output_executable_name           = "engine";
-    build_options.output_path                      = output_path;
-    build_options.intermediate_path                = intermediate_path;
-    build_options.entry_point_name                 = "main";
-    build_options.import_path                      = import_paths;
-    build_options.additional_linker_arguments      = additional_linker_arguments;
+    build_options.use_visual_studio_message_format        = true;
+    build_options.dead_code_elimination                   = .ALL;
+    build_options.backtrace_on_crash                      = .OFF;
+//  build_options.prevent_compile_time_calls_from_runtime = true; // Does not work properly yet
+    build_options.info_flags                              = .POLYMORPH_DEDUPLICATE; // | .POLYMORPH_MATCH;
+    build_options.text_output_flags                       = .OUTPUT_TIMING_INFO;    // | .OUTPUT_LINK_LINE;
+    build_options.output_executable_name                  = "engine";
+    build_options.output_path                             = output_path;
+    build_options.intermediate_path                       = intermediate_path;
+    build_options.entry_point_name                        = "main";
+    build_options.import_path                             = import_paths;
+    build_options.additional_linker_arguments             = additional_linker_arguments;
 
     //
     // Configuration specific options
@@ -197,11 +203,11 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     //
 
     if build_arguments.configuration == .DEBUG {
-        copy_file(join(vk_sdk_path, "/Bin/shaderc_sharedd.dll", allocator = temporary_allocator),
-                  join(output_path,     "/shaderc_sharedd.dll", allocator = temporary_allocator));
+        copy_file(join(vk_sdk_path, "/Bin/shaderc_sharedd.dll",, allocator = temp),
+                  join(output_path,     "/shaderc_sharedd.dll",, allocator = temp));
     } else {
-        copy_file(join(vk_sdk_path, "/Bin/shaderc_shared.dll", allocator = temporary_allocator),
-                  join(output_path,     "/shaderc_shared.dll", allocator = temporary_allocator));
+        copy_file(join(vk_sdk_path, "/Bin/shaderc_shared.dll",, allocator = temp),
+                  join(output_path,     "/shaderc_shared.dll",, allocator = temp));
     }
 }
 
@@ -221,4 +227,14 @@ getVulkanSDKPath :: () -> string {
     }
 
     return path;
+}
+
+compareCompilerVersions :: (left : Version_Info, right : Version_Info) -> s8 {
+    if left.major < right.major return -1;
+    if left.major > right.major return  1;
+    if left.minor < right.minor return -1;
+    if left.minor > right.minor return  1;
+    if left.micro < right.micro return -1;
+    if left.micro > right.micro return  1;
+    return 0;
 }

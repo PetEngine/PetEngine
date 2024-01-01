@@ -57,7 +57,7 @@ VulkanLoader :: struct {
 // @TODO: #PerFrameArena
 gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
     required_layers : [..] string;
-    required_layers.allocator = Basic.temporary_allocator;
+    required_layers.allocator = Basic.temp;
 
     struct_info := type_info(type_of(VulkanLoader.layers.required));
 
@@ -83,7 +83,7 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
     }
 
     optional_layers : [..] string;
-    optional_layers.allocator = Basic.temporary_allocator;
+    optional_layers.allocator = Basic.temp;
 
     struct_info = type_info(type_of(VulkanLoader.layers.optional));
 
@@ -114,7 +114,7 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
 // @TODO: #PerFrameArena
 gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] string) {
     required_extensions : [..] string;
-    required_extensions.allocator = Basic.temporary_allocator;
+    required_extensions.allocator = Basic.temp;
 
     struct_info := type_info(type_of(VulkanLoader.extensions.instance.required));
 
@@ -140,7 +140,7 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
     }
 
     optional_extensions : [..] string;
-    optional_extensions.allocator = Basic.temporary_allocator;
+    optional_extensions.allocator = Basic.temp;
 
     struct_info = type_info(type_of(VulkanLoader.extensions.instance.optional));
 
@@ -171,7 +171,7 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
 // @TODO: #PerFrameArena
 gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] string) {
     required_extensions : [..] string;
-    required_extensions.allocator = Basic.temporary_allocator;
+    required_extensions.allocator = Basic.temp;
 
     struct_info := type_info(type_of(VulkanLoader.extensions.device.required));
 
@@ -198,7 +198,7 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
 
 
     optional_extensions : [..] string;
-    optional_extensions.allocator = Basic.temporary_allocator;
+    optional_extensions.allocator = Basic.temp;
 
     struct_info = type_info(type_of(VulkanLoader.extensions.device.optional));
 

@@ -129,14 +129,17 @@ notImplemented :: ($assert_in_run_time := false) #expand #no_debug {
     }
 }
 
-codeToString :: ($code : Code) -> string {
+codeToString :: ($code : Code) -> string #compile_time {
+    // @TODO: Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
+    Basic.assert(#compile_time, "This function should be run only in compile time");
+
     builder : Basic.String_Builder;
-    builder.allocator = Basic.temporary_allocator;
+    builder.allocator = Basic.temp;
 
     root := Compiler.compiler_get_nodes(code);
     Program_Print.print_expression(*builder, root);
 
-    return Basic.builder_to_string(*builder, builder.allocator);
+    return Basic.builder_to_string(*builder,, allocator = Basic.temp);
 }
 
 debuggerPresent :: inline () -> bool #no_context {
@@ -182,7 +185,7 @@ message :: (
     }
 
     builder: Basic.String_Builder;
-    builder.allocator = Basic.temporary_allocator;
+    builder.allocator = Basic.temp;
 
     Basic.print_to_builder(*builder, "[%]: ", priority);
 
@@ -242,7 +245,7 @@ message :: (
         // @TODO: Stack trace
     }
 
-    message := Basic.builder_to_string(*builder, builder.allocator);
+    message := Basic.builder_to_string(*builder,, allocator = Basic.temp);
 
     lock(*g_mutex);
 
@@ -287,9 +290,10 @@ message :: (
         debugBreakIfDebugging();
         Basic.exit(1);
     }
-} @PrintLike
+}
 
-formatOrExpression :: ($format : string, $expression : Code) -> string {
+formatOrExpression :: ($format : string, $expression : Code) -> string #compile_time {
+    // @TODO: Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
     Basic.assert(#compile_time, "This function should be run only in compile time");
 
     #if format.count > 0 {

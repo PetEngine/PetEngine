@@ -346,14 +346,14 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
     {
         builder : Basic.String_Builder;
-        builder.allocator = Basic.temporary_allocator;
+        builder.allocator = Basic.temp;
 
         Basic.append(*builder, "Available surface formats:");
         for surface_formats {
             Basic.print_to_builder(*builder, "\n    Format: %, space: %", it.format, it.colorSpace);
         }
 
-        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator));
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
     present_modes : [] VkPresentModeKHR;
@@ -557,7 +557,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
             if !it.name {
                 Basic.print_to_builder(*builder, "Swapchain image #%", it_index);
-                it.name = Basic.builder_to_string(*builder, builder.allocator);
+                it.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
             }
 
             setVulkanObjectName(device, it.image, it.name);
@@ -657,7 +657,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
             builder : Basic.String_Builder;
-            builder.allocator = Basic.temporary_allocator;
+            builder.allocator = Basic.temp;
 
             Basic.print_to_builder(*builder, format, ..args);
             Basic.append(*builder, "\0");
@@ -689,7 +689,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
                 #assert false "Unhandled Vk* type";
             }
 
-            object_name := Basic.builder_to_string(*builder, builder.allocator);
+            object_name := Basic.builder_to_string(*builder,, allocator = Basic.temp);
 
             name_info := VkDebugUtilsObjectNameInfoEXT.{
                 objectType   = OBJECT_TYPE,
@@ -760,10 +760,10 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
     defer Basic.reset_temporary_storage();
 
     builder : Basic.String_Builder;
-    builder.allocator = Basic.temporary_allocator;
+    builder.allocator = Basic.temp;
 
     layers_to_apply : [..] *s8;
-    layers_to_apply.allocator = Basic.temporary_allocator;
+    layers_to_apply.allocator = Basic.temp;
 
     {
         available_layers : [] VkLayerProperties;
@@ -777,7 +777,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             for available_layers {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.layerName.data));
             }
-            debugMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
+            debugMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
 
         REQUIRED_LAYERS, OPTIONAL_LAYERS :: #run gatherVulkanLayers();
@@ -820,11 +820,11 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         for layers_to_apply {
             Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it));
         }
-        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     extensions_to_apply : [..] *s8;
-    extensions_to_apply.allocator = Basic.temporary_allocator;
+    extensions_to_apply.allocator = Basic.temp;
 
     {
         available_extensions : [] VkExtensionProperties;
@@ -838,7 +838,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             for available_extensions {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
-            debugMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
+            debugMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanInstanceExtensions();
@@ -882,7 +882,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             Basic.array_add(*extensions_to_apply, cast(*s8) it.data);
             Basic.print_to_builder(*builder, "    %\n", it);
         }
-        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     nt_engine_name : [ENGINE_NAME.count + 1] s8;
@@ -965,7 +965,7 @@ messengerCallback :: (
                 index := String.find_index_from_left(message, "Object");
                 if index != -1 {
                     builder : Basic.String_Builder;
-                    builder.allocator = Basic.temporary_allocator;
+                    builder.allocator = Basic.temp;
 
                     severity_and_vuid : string = ---;
                     severity_and_vuid.data  = message.data;
@@ -987,7 +987,7 @@ messengerCallback :: (
 
                     Basic.append(*builder, message);
 
-                    message = Basic.builder_to_string(*builder, builder.allocator);
+                    message = Basic.builder_to_string(*builder,, allocator = Basic.temp);
                 }
             }
 
@@ -1199,7 +1199,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
     // Print info about available queue families
     {
         builder : Basic.String_Builder;
-        builder.allocator = Basic.temporary_allocator;
+        builder.allocator = Basic.temp;
 
         Basic.print_to_builder(*builder, "Available queue families (%):\n", queue_family_properties.count);
 
@@ -1216,7 +1216,7 @@ END;
                                    it.queueFamilyProperties.queueCount);
         }
 
-        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     QUEUE_TYPE_TO_VK_QUEUE_FLAGS :: VkQueueFlags.[
@@ -1257,7 +1257,7 @@ END;
     // Print info about queues
     {
         builder : Basic.String_Builder;
-        builder.allocator = Basic.temporary_allocator;
+        builder.allocator = Basic.temp;
 
         Basic.append(*builder, "Queues info:\n");
 
@@ -1277,7 +1277,7 @@ END;
                                    it.index_in_family);
         }
 
-        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 }
 
@@ -1315,10 +1315,10 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     defer Basic.reset_temporary_storage();
 
     builder : Basic.String_Builder;
-    builder.allocator = Basic.temporary_allocator;
+    builder.allocator = Basic.temp;
 
     extensions_to_apply : [..] *s8;
-    extensions_to_apply.allocator = Basic.temporary_allocator;
+    extensions_to_apply.allocator = Basic.temp;
 
     {
         available_extensions : [] VkExtensionProperties;
@@ -1332,7 +1332,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
             for available_extensions {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
-            debugMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
+            debugMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanDeviceExtensions();
@@ -1376,7 +1376,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
             Basic.array_add(*extensions_to_apply, cast(*s8) it.data);
             Basic.print_to_builder(*builder, "    %\n", it);
         }
-        infoMessage("%", Basic.builder_to_string(*builder, builder.allocator), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     dynamic_rendering_features : VkPhysicalDeviceDynamicRenderingFeatures;

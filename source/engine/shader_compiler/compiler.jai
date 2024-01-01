@@ -182,7 +182,7 @@ ShaderStage :: enum u8 {
 compileShader :: (name : string) -> bool {
     infoMessage("Compiling shader \"%\"...", name);
 
-    source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader", allocator = Basic.temporary_allocator);
+    source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader",, allocator = Basic.temp);
 
     source     : string     = ---;
     file_error : File.Error = .SHARED_ACCESS_VIOLATION;
@@ -424,8 +424,8 @@ compileShader :: (name : string) -> bool {
     return true;
 }
 
-makeBinaryShaderFilename :: inline (name : string, allocator := Basic.temporary_allocator) -> string {
-    return String.join(OUTPUT_SHADERS_FOLDER, "/", name, ".shader_bin", allocator = allocator);
+makeBinaryShaderFilename :: inline (name : string) -> string {
+    return String.join(OUTPUT_SHADERS_FOLDER, "/", name, ".shader_bin",, allocator = Basic.temp);
 }
 
 #scope_file
@@ -512,7 +512,7 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
 
             line = Basic.eat_spaces(line);
             if !line || line[0] != #char "." {
-                errorMessage("Compilation failed: Expected '.', got '%'", ifx line then toString(line.data, 1) else "<EOL>");
+                errorMessage("Compilation failed: Expected '.', got '%'", ifx line then string.{ 1, line.data } else "<EOL>");
                 return false;
             }
             advance(*line);
@@ -614,7 +614,7 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string, succe
         }
 
         if !name_end || name_end[0] != #char "=" {
-            errorMessage("Compilation failed: Expected '=', got '%'", ifx name_end then toString(name_end.data, 1) else "<EOL>");
+            errorMessage("Compilation failed: Expected '=', got '%'", ifx name_end then string.{ 1, name_end.data } else "<EOL>");
             return "", "", false;
         }
 
@@ -639,7 +639,7 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string, succe
         }
 
         if !value_end || value_end[0] != #char ";" {
-            errorMessage("Compilation failed: Expected ';', got '%'", ifx value_end then toString(value_end.data, 1) else "<EOL>");
+            errorMessage("Compilation failed: Expected ';', got '%'", ifx value_end then string.{ 1, value_end.data } else "<EOL>");
             return "", "", false;
         }
 
@@ -745,7 +745,7 @@ handleFloatValue :: inline (float_value : *f32, value : string) -> bool {
 getColorTargetIndex :: (line_ : string) -> (index : u8, line : string) {
     line := Basic.eat_spaces(line_);
     if !line || line[0] != #char "[" {
-        errorMessage("Compilation failed: Expected '[', got '%'", ifx line then toString(line.data, 1) else "<EOL>");
+        errorMessage("Compilation failed: Expected '[', got '%'", ifx line then string.{ 1, line.data } else "<EOL>");
         return INVALID_COLOR_TARGET_INDEX, line;
     }
     advance(*line);
@@ -763,7 +763,7 @@ getColorTargetIndex :: (line_ : string) -> (index : u8, line : string) {
 
     line = Basic.eat_spaces(line);
     if !line || line[0] != #char "]" {
-        errorMessage("Compilation failed: Expected ']', got '%'", ifx line then toString(line.data, 1) else "<EOL>");
+        errorMessage("Compilation failed: Expected ']', got '%'", ifx line then string.{ 1, line.data } else "<EOL>");
         return INVALID_COLOR_TARGET_INDEX, line;
     }
     advance(*line);

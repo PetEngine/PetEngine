@@ -123,14 +123,6 @@ substring :: inline (source : string, offset : s64, $$count : s64 = -1) -> strin
     return substr;
 }
 
-toString :: inline (data : *void, bytes : s64) -> string #no_context {
-    result : string = ---;
-    result.data  = data;
-    result.count = bytes;
-
-    return result;
-}
-
 appendToString :: (dest : *string, dest_capacity : s64, to_append : ..string) {
     for to_append {
         assert(dest.count + it.count <= dest_capacity,
