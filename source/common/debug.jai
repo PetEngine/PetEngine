@@ -157,7 +157,9 @@ debugBreakIfDebugging :: () #expand #no_debug {
 
 #scope_file
 
-File_CLEANUP :: #import "File";
+Compiler      :: #import "Compiler";
+Program_Print :: #import "Program_Print";
+File_CLEANUP  :: #import "File";
 
 g_mutex : Mutex;
 

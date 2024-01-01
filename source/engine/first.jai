@@ -182,13 +182,6 @@ main :: () {
     waitDeviceIdle(device);
 }
 
-DEBUG_BUILD :: #run -> bool {
-    llvm_options := Compiler.get_build_options().llvm_options;
-
-    return llvm_options.bitcode_optimization_setting == .O0
-        || llvm_options.bitcode_optimization_setting == .O1;
-};
-
 #import "common"()(DEBUG_BUILD = DEBUG_BUILD);
 
 #load "core/input.jai";
@@ -200,10 +193,6 @@ DEBUG_BUILD :: #run -> bool {
 #load "shader_compiler/compiler.jai";
 #load "shader_compiler/hot_reload.jai";
 
+Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
 String     :: #import "String";
 Reflection :: #import "Reflection";
-
-#scope_file
-
-Basic    :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
-Compiler :: #import "Compiler";

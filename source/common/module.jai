@@ -1,5 +1,7 @@
 #module_parameters(VK_ENABLE_BETA_EXTENSIONS := false)(DEBUG_BUILD : bool);
 
+#scope_export
+
 f32 :: float32;
 f64 :: float64;
 
@@ -176,7 +178,7 @@ formatHex :: inline (value : Any, minimum_digits := 1) -> Basic.FormatInt {
     notImplemented();
 }
 
-Basic         :: #import "Basic";
-Compiler      :: #import "Compiler";
-Program_Print :: #import "Program_Print";
-Math          :: #import "Math";
+#scope_module
+
+Basic :: #import "Basic";
+Math  :: #import "Math";

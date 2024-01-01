@@ -24,25 +24,6 @@ BuildArguments :: struct {
     configuration : Configuration = .DEBUG;
 }
 
-gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
-    arguments : BuildArguments;
-
-    for build_options.compile_time_command_line {
-        if it == {
-            case "debug";
-                arguments.configuration = .DEBUG;
-            case "release";
-                arguments.configuration = .RELEASE;
-            case "release_with_debug_info";
-                arguments.configuration = .RELEASE_WITH_DEBUG_INFO;
-            case;
-                compiler_report(join("Unknown command line argument: ", it,, allocator = temp));
-        }
-    }
-
-    return arguments;
-}
-
 #run,stallable {
     context.print_style.default_format_struct.use_newlines_if_long_form = true;
 
@@ -178,6 +159,7 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
 
     compiler_begin_intercept(workspace);
     {
+        add_build_string(tprint("DEBUG_BUILD :: %;", build_arguments.configuration == .DEBUG), workspace);
         add_build_file(build_filename, workspace);
 
         while loop := true {
@@ -209,6 +191,25 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
         copy_file(join(vk_sdk_path, "/Bin/shaderc_shared.dll",, allocator = temp),
                   join(output_path,     "/shaderc_shared.dll",, allocator = temp));
     }
+}
+
+gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
+    arguments : BuildArguments;
+
+    for build_options.compile_time_command_line {
+        if it == {
+            case "debug";
+                arguments.configuration = .DEBUG;
+            case "release";
+                arguments.configuration = .RELEASE;
+            case "release_with_debug_info";
+                arguments.configuration = .RELEASE_WITH_DEBUG_INFO;
+            case;
+                compiler_report(join("Unknown command line argument: ", it,, allocator = temp));
+        }
+    }
+
+    return arguments;
 }
 
 getVulkanSDKPath :: () -> string {

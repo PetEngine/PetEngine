@@ -205,6 +205,8 @@ processWin32WindowEvents :: (window : *Win32Window) {
 
 #scope_file
 
+Math :: #import "Math";
+
 windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, lparam : LPARAM) -> LRESULT #c_call {
     result : LRESULT = 0;
     window := cast,no_check(*Win32Window) GetWindowLongPtrW(window_handle, GWLP_USERDATA);
