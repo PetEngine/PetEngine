@@ -54,12 +54,12 @@ VulkanLoader :: struct {
     };
 }
 
-// @TODO: #PerFrameArena
 gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
     required_layers : [..] string;
     required_layers.allocator = Basic.temp;
 
     struct_info := type_info(type_of(VulkanLoader.layers.required));
+    assert(struct_info.type == .STRUCT);
 
     if struct_info.members.count > 0 {
         Basic.array_reserve(*required_layers, struct_info.members.count);
@@ -67,18 +67,10 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
         for struct_info.members {
             layer_name := it.notes[0];
 
-            already_added := false;
-            for required_layers {
-                if String.equal(it, layer_name) {
-                    already_added = true;
-                    break;
-                }
-            }
+            assert(layer_name);
+            assert(layer_name.count < VK_MAX_EXTENSION_NAME_SIZE);
 
-            if !already_added {
-                assert(layer_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-                Basic.array_add(*required_layers, layer_name);
-            }
+            Basic.array_add_if_unique(*required_layers, layer_name);
         }
     }
 
@@ -86,6 +78,7 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
     optional_layers.allocator = Basic.temp;
 
     struct_info = type_info(type_of(VulkanLoader.layers.optional));
+    assert(struct_info.type == .STRUCT);
 
     if struct_info.members.count > 0 {
         Basic.array_reserve(*optional_layers, struct_info.members.count);
@@ -93,30 +86,22 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
         for struct_info.members {
             layer_name := it.notes[0];
 
-            already_added := false;
-            for optional_layers {
-                if String.equal(it, layer_name) {
-                    already_added = true;
-                    break;
-                }
-            }
+            assert(layer_name);
+            assert(layer_name.count < VK_MAX_EXTENSION_NAME_SIZE);
 
-            if !already_added {
-                assert(layer_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-                Basic.array_add(*optional_layers, layer_name);
-            }
+            Basic.array_add_if_unique(*optional_layers, layer_name);
         }
     }
 
     return required_layers, optional_layers;
 }
 
-// @TODO: #PerFrameArena
 gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] string) {
     required_extensions : [..] string;
     required_extensions.allocator = Basic.temp;
 
     struct_info := type_info(type_of(VulkanLoader.extensions.instance.required));
+    assert(struct_info.type == .STRUCT);
 
     if struct_info.members.count > 0 {
         Basic.array_reserve(*required_extensions, struct_info.members.count);
@@ -124,18 +109,10 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
         for struct_info.members {
             extension_name := it.notes[0];
 
-            already_added := false;
-            for required_extensions {
-                if String.equal(it, extension_name) {
-                    already_added = true;
-                    break;
-                }
-            }
+            assert(extension_name);
+            assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
 
-            if !already_added {
-                assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-                Basic.array_add(*required_extensions, extension_name);
-            }
+            Basic.array_add_if_unique(*required_extensions, extension_name);
         }
     }
 
@@ -143,6 +120,7 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
     optional_extensions.allocator = Basic.temp;
 
     struct_info = type_info(type_of(VulkanLoader.extensions.instance.optional));
+    assert(struct_info.type == .STRUCT);
 
     if struct_info.members.count > 0 {
         Basic.array_reserve(*optional_extensions, struct_info.members.count);
@@ -150,30 +128,22 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
         for struct_info.members {
             extension_name := it.notes[0];
 
-            already_added := false;
-            for optional_extensions {
-                if String.equal(it, extension_name) {
-                    already_added = true;
-                    break;
-                }
-            }
+            assert(extension_name);
+            assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
 
-            if !already_added {
-                assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-                Basic.array_add(*optional_extensions, extension_name);
-            }
+            Basic.array_add_if_unique(*optional_extensions, extension_name);
         }
     }
 
     return required_extensions, optional_extensions;
 }
 
-// @TODO: #PerFrameArena
 gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] string) {
     required_extensions : [..] string;
     required_extensions.allocator = Basic.temp;
 
     struct_info := type_info(type_of(VulkanLoader.extensions.device.required));
+    assert(struct_info.type == .STRUCT);
 
     if struct_info.members.count > 0 {
         Basic.array_reserve(*required_extensions, struct_info.members.count);
@@ -181,18 +151,10 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
         for struct_info.members {
             extension_name := it.notes[0];
 
-            already_added := false;
-            for required_extensions {
-                if String.equal(it, extension_name) {
-                    already_added = true;
-                    break;
-                }
-            }
+            assert(extension_name);
+            assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
 
-            if !already_added {
-                assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-                Basic.array_add(*required_extensions, extension_name);
-            }
+            Basic.array_add_if_unique(*required_extensions, extension_name);
         }
     }
 
@@ -201,6 +163,7 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
     optional_extensions.allocator = Basic.temp;
 
     struct_info = type_info(type_of(VulkanLoader.extensions.device.optional));
+    assert(struct_info.type == .STRUCT);
 
     if struct_info.members.count > 0 {
         Basic.array_reserve(*optional_extensions, struct_info.members.count);
@@ -208,18 +171,10 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
         for struct_info.members {
             extension_name := it.notes[0];
 
-            already_added := false;
-            for optional_extensions {
-                if String.equal(it, extension_name) {
-                    already_added = true;
-                    break;
-                }
-            }
+            assert(extension_name);
+            assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
 
-            if !already_added {
-                assert(extension_name.count < VK_MAX_EXTENSION_NAME_SIZE);
-                Basic.array_add(*optional_extensions, extension_name);
-            }
+            Basic.array_add_if_unique(*optional_extensions, extension_name);
         }
     }
 
@@ -229,7 +184,10 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
 loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkInstance, enabled_instance_extensions : *[..] string) {
     base_address := cast(*void) *loader.extensions.instance.required;
 
-    for type_info(type_of(loader.extensions.instance.required)).members {
+    struct_info := type_info(type_of(loader.extensions.instance.required));
+    assert(struct_info.type == .STRUCT);
+
+    for struct_info.members {
         function := vkGetInstanceProcAddr(instance, cast(*s8) it.name.data);
         if function == null {
             assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled", it.name, it.notes[0]);
@@ -241,19 +199,19 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
 
     base_address = cast(*void) *loader.extensions.instance.optional;
 
-    for members_it : type_info(type_of(loader.extensions.instance.optional)).members {
-        memeber_extension_name := members_it.notes[0];
-        function               := vkGetInstanceProcAddr(instance, cast(*s8) members_it.name.data);
+    struct_info = type_info(type_of(loader.extensions.instance.optional));
+    assert(struct_info.type == .STRUCT);
 
-        for enabled_instance_extensions.* {
-            if String.equal(it, memeber_extension_name) {
-                if function == null {
-                    assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled",
-                                  members_it.name,
-                                  memeber_extension_name);
-                }
-                break;
-            }
+    for members_it : struct_info.members {
+        member_extension_name := members_it.notes[0];
+
+        if !Basic.array_find(enabled_instance_extensions.*, member_extension_name) {
+            continue;
+        }
+
+        function := vkGetInstanceProcAddr(instance, cast(*s8) members_it.name.data);
+        if function == null {
+            assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled", members_it.name, member_extension_name);
         }
 
         member_address   := cast(**void) (base_address + members_it.offset_in_bytes);
@@ -264,7 +222,10 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
 loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevice, enabled_device_extensions : *[..] string) {
     base_address := cast(*void) *loader.extensions.device.required;
 
-    for type_info(type_of(loader.extensions.device.required)).members {
+    struct_info := type_info(type_of(loader.extensions.device.required));
+    assert(struct_info.type == .STRUCT);
+
+    for struct_info.members {
         function := vkGetDeviceProcAddr(device, cast(*s8) it.name.data);
         if function == null {
             assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled", it.name, it.notes[0]);
@@ -276,18 +237,19 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
 
     base_address = cast(*void) *loader.extensions.device.optional;
 
-    for members_it : type_info(type_of(loader.extensions.device.optional)).members {
-        memeber_extension_name := members_it.notes[0];
-        function               := vkGetDeviceProcAddr(device, cast(*s8) members_it.name.data);
+    struct_info = type_info(type_of(loader.extensions.device.optional));
+    assert(struct_info.type == .STRUCT);
 
-        for enabled_device_extensions.* {
-            if String.equal(it, memeber_extension_name) {
-                if function == null {
-                    assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled",
-                                  members_it.name, memeber_extension_name);
-                }
-                break;
-            }
+    for members_it : struct_info.members {
+        member_extension_name := members_it.notes[0];
+
+        if !Basic.array_find(enabled_device_extensions.*, member_extension_name) {
+            continue;
+        }
+
+        function := vkGetDeviceProcAddr(device, cast(*s8) members_it.name.data);
+        if function == null {
+            assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled", members_it.name, member_extension_name);
         }
 
         member_address   := cast(**void) (base_address + members_it.offset_in_bytes);

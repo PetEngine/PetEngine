@@ -182,7 +182,7 @@ main :: () {
     waitDeviceIdle(device);
 }
 
-#import "common"()(DEBUG_BUILD = DEBUG_BUILD);
+#import "common"()(DEBUG_BUILD = DEBUG_BUILD, PRINT_VERBOSE_MESSAGES = PRINT_VERBOSE_MESSAGES);
 
 #load "core/input.jai";
 #load "core/window.jai";

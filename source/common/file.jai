@@ -50,7 +50,7 @@ openFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exi
     #if OS == .WINDOWS {
         assert(filename.count < MAX_PATH, "Too long filename (length = %), max allowed: %", filename.count, MAX_PATH - 1);
 
-        wide_filename : [] WCHAR;
+        wide_filename : [] WCHAR = ---;
         wide_filename.data = pushToArena(*context.pet.per_frame_arena, WCHAR, filename.count + 1);
         asciiToWide(*wide_filename, filename, true);
 
@@ -252,7 +252,7 @@ getFileInfo :: (filename : string) -> (FileInfo, File.Error) {
 
 fileExists :: (filename : string) -> bool {
     #if OS == .WINDOWS {
-        wide_filename : [] WCHAR;
+        wide_filename : [] WCHAR = ---;
         wide_filename.data = pushToArena(*context.pet.per_frame_arena, WCHAR, filename.count + 1);
         asciiToWide(*wide_filename, filename, true);
 
@@ -378,7 +378,7 @@ fileExists :: (filename : string) -> bool {
             wide_wildcard : [directory.count + "/*\0".count] WCHAR;
             asciiToWide(*wide_wildcard, directory, false);
         } else {
-            wide_wildcard : [] WCHAR;
+            wide_wildcard : [] WCHAR = ---;
             wide_wildcard.data = pushToArena(*context.pet.per_frame_arena, WCHAR, directory.count + "/*\0".count);
             asciiToWide(*wide_wildcard, directory, false);
 

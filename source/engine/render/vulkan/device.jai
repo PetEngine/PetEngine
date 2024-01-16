@@ -327,10 +327,9 @@ endVulkanFrame :: (device : *VulkanDevice) {
 recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     assertThreadKind(.MAIN);
 
-    surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
-    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
-                                                                                                      device.surface,
-                                                                                                      *surface_capabilities));
+    //
+    // Surface formats
+    //
 
     surface_formats : [] VkSurfaceFormatKHR;
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
@@ -356,39 +355,6 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
-    present_modes : [] VkPresentModeKHR;
-    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
-                                                                                                      device.surface,
-                                                                                                      cast(*u32) *present_modes.count,
-                                                                                                      null));
-
-    present_modes.data = pushToArena(*context.pet.per_frame_arena, VkPresentModeKHR, present_modes.count);
-    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
-                                                                                                      device.surface,
-                                                                                                      cast(*u32) *present_modes.count,
-                                                                                                      present_modes.data));
-
-    requested_swapchain_buffers_count := cast,no_check(u32) device.frame_buffering;
-    if requested_swapchain_buffers_count < surface_capabilities.minImageCount {
-        warningMessage("Requested number of swapchain buffers is %, but surface supports at least % of them. % will be used",
-                       requested_swapchain_buffers_count,
-                       surface_capabilities.minImageCount,
-                       surface_capabilities.minImageCount);
-        requested_swapchain_buffers_count = surface_capabilities.minImageCount;
-    } else if requested_swapchain_buffers_count > surface_capabilities.maxImageCount && surface_capabilities.maxImageCount > 0 {
-        warningMessage("Requested number of swapchain buffers is %, but surface supports maximum % of them. % will be used",
-                       requested_swapchain_buffers_count,
-                       surface_capabilities.maxImageCount,
-                       surface_capabilities.maxImageCount);
-        requested_swapchain_buffers_count = surface_capabilities.maxImageCount;
-    }
-    if requested_swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
-        assertMessage("You want too many swapchain buffers: %. If you really need that much you can increase Device.MAX_SWAPCHAIN_BUFFERS",
-                      requested_swapchain_buffers_count);
-    }
-
-    infoMessage("Requested swapchain buffers count: %", requested_swapchain_buffers_count);
-
     // @TODO: #HDR. Hardware HDR support
     REQUESTED_SURFACE_FORMAT :: VkFormat.VK_FORMAT_B8G8R8A8_SRGB;
     allowed_surface_format : *VkSurfaceFormatKHR;
@@ -405,6 +371,35 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         infoMessage("Using surface format: %, space: %", allowed_surface_format.format, allowed_surface_format.colorSpace);
     } else {
         assertMessage("Chosen surface format (%) is not supported on this device", REQUESTED_SURFACE_FORMAT);
+    }
+
+    //
+    // Surface capabilities
+    //
+
+    surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
+                                                                                                      device.surface,
+                                                                                                      *surface_capabilities));
+
+    requested_swapchain_buffers_count := cast,no_check(u32) device.frame_buffering;
+    if requested_swapchain_buffers_count < surface_capabilities.minImageCount {
+        warningMessage("Requested number of swapchain buffers is %, but surface supports at least % of them. % will be used",
+                       requested_swapchain_buffers_count,
+                       surface_capabilities.minImageCount,
+                       surface_capabilities.minImageCount);
+        requested_swapchain_buffers_count = surface_capabilities.minImageCount;
+    } else if requested_swapchain_buffers_count > surface_capabilities.maxImageCount && surface_capabilities.maxImageCount > 0 {
+        warningMessage("Requested number of swapchain buffers is %, but surface supports maximum % of them. % will be used",
+                       requested_swapchain_buffers_count,
+                       surface_capabilities.maxImageCount,
+                       surface_capabilities.maxImageCount);
+        requested_swapchain_buffers_count = surface_capabilities.maxImageCount;
+    }
+
+    if requested_swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
+        assertMessage("You want too many swapchain buffers: %. If you really need that much you can increase Device.MAX_SWAPCHAIN_BUFFERS",
+                      requested_swapchain_buffers_count);
     }
 
     surface_extent := VkExtent2D.{
@@ -442,10 +437,6 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                       ~allowed_usage_flags & REQUESTED_USAGE_FLAGS);
     }
 
-    queue_families_having_access_to_swapchain_images := u32.[
-        device.queues[QueueType.GRAPHICS].family_index
-    ];
-
     if !(surface_capabilities.supportedTransforms & .VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
         assertMessage("For some reason monitor does not support landscape mode");
     }
@@ -460,7 +451,27 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         assertMessage("Surface does not support opaque alpha mode");
     }
 
-    // @TODO: #Settings. Vsync (fifo), allow tearing (immediate), vsync + allow tearing (fifo_relaxed)
+    //
+    // Present mode
+    //
+
+    present_modes : [] VkPresentModeKHR;
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
+                                                                                                      device.surface,
+                                                                                                      cast(*u32) *present_modes.count,
+                                                                                                      null));
+
+    present_modes.data = pushToArena(*context.pet.per_frame_arena, VkPresentModeKHR, present_modes.count);
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
+                                                                                                      device.surface,
+                                                                                                      cast(*u32) *present_modes.count,
+                                                                                                      present_modes.data));
+
+    // @TODO: #Settings.
+    //     Vsync off, allow tearing off: VK_PRESENT_MODE_MAILBOX_KHR
+    //     Vsync off, allow tearing on:  VK_PRESENT_MODE_IMMEDIATE_KHR
+    //     Vsync on,  allow tearing off: VK_PRESENT_MODE_FIFO_KHR
+    //     Vsync on,  allow tearing on:  VK_PRESENT_MODE_FIFO_RELAXED_KHR
     REQUESTED_PRESENT_MODE :: VkPresentModeKHR.VK_PRESENT_MODE_MAILBOX_KHR;
 
     present_mode : VkPresentModeKHR = ---;
@@ -471,6 +482,10 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         present_mode = .VK_PRESENT_MODE_FIFO_KHR;
         warningMessage("Requested present mode (%) is not supported, % will be used", REQUESTED_PRESENT_MODE, present_mode);
     }
+
+    queue_families_having_access_to_swapchain_images := u32.[
+        device.queues[QueueType.GRAPHICS].family_index
+    ];
 
     create_info := VkSwapchainCreateInfoKHR.{
         flags                 = 0,
@@ -499,104 +514,105 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, create_info.oldSwapchain, null);
     }
 
+    //
     // Initialize swapchain images
-    {
-        swapchain_buffers_count : u32 = ---;
-        device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
-                                                                         device.swapchain,
-                                                                         *swapchain_buffers_count,
-                                                                         null);
-        device.swapchain_buffers_count = cast,no_check(u8) swapchain_buffers_count;
-        assert(device.swapchain_buffers_count > 0);
+    //
 
-        if device.swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
-            assertMessage("Swapchain buffers overflow: %/%. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
-                          device.swapchain_buffers_count,
-                          VulkanDevice.swapchain_textures.capacity);
+    swapchain_buffers_count : u32 = ---;
+    device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
+                                                                     device.swapchain,
+                                                                     *swapchain_buffers_count,
+                                                                     null);
+    device.swapchain_buffers_count = cast,no_check(u8) swapchain_buffers_count;
+    assert(device.swapchain_buffers_count > 0);
+
+    if device.swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
+        assertMessage("Swapchain buffers overflow: %/%. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
+                      device.swapchain_buffers_count,
+                      VulkanDevice.swapchain_textures.capacity);
+    }
+
+    infoMessage("Requested swapchain images: %, got: %", requested_swapchain_buffers_count, device.swapchain_buffers_count);
+
+    swapchain_images : [VulkanDevice.swapchain_textures.capacity] VkImage;
+    device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
+                                                                     device.swapchain,
+                                                                     *swapchain_buffers_count,
+                                                                     swapchain_images.data);
+    assert(swapchain_buffers_count == device.swapchain_buffers_count);
+
+    device.swapchain_textures.count = device.swapchain_buffers_count;
+
+    swapchain_images_it := swapchain_images.data;
+
+    // @TODO: #Settings. Get back buffer clear color from settings.
+    clear_color := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
+
+    // @Important: Should be with default allocator
+    builder : Basic.String_Builder;
+
+    // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to texture manager
+    for * device.swapchain_textures {
+        it.dimension             = ._2D;
+        it.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
+        it.flags                 = .SWAPCHAIN | .RESOLUTION_DEPENDENT;
+        it.width                 = cast(u16) surface_extent.width;
+        it.height                = cast(u16) surface_extent.height;
+        it.depth                 = 0;
+        it.samples_count         = 1;
+        it.mips_count            = 1;
+        it.clear_value.color_f32 = clear_color;
+        it.current_owner         = .GRAPHICS;
+        it.possible_owners.count = 1;
+        it.possible_owners[0]    = .GRAPHICS;
+        it.image                 = swapchain_images_it.*;
+        it.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
+
+        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then it.usage |= .SHADER_READ;
+        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then it.usage |= .SHADER_WRITE;
+        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then it.usage |= .COLOR_TARGET;
+
+        if !it.name {
+            Basic.print_to_builder(*builder, "Swapchain image #%", it_index);
+            it.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
         }
 
-        infoMessage("Actual swapchain buffers count: %", device.swapchain_buffers_count);
+        setVulkanObjectName(device, it.image, it.name);
 
-        swapchain_images : [VulkanDevice.swapchain_textures.capacity] VkImage;
-        device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
-                                                                         device.swapchain,
-                                                                         *swapchain_buffers_count,
-                                                                         swapchain_images.data);
-        assert(swapchain_buffers_count == device.swapchain_buffers_count);
-
-        device.swapchain_textures.count = device.swapchain_buffers_count;
-
-        swapchain_images_it := swapchain_images.data;
-
-        // @TODO: #Settings. Get back buffer clear color from settings.
-        clear_color := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
-
-        // @Important: Should be with default allocator
-        builder : Basic.String_Builder;
-
-        // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to texture manager
-        for * device.swapchain_textures {
-            it.dimension             = ._2D;
-            it.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
-            it.flags                 = .SWAPCHAIN | .RESOLUTION_DEPENDENT;
-            it.width                 = cast(u16) surface_extent.width;
-            it.height                = cast(u16) surface_extent.height;
-            it.depth                 = 0;
-            it.samples_count         = 1;
-            it.mips_count            = 1;
-            it.clear_value.color_f32 = clear_color;
-            it.current_owner         = .GRAPHICS;
-            it.possible_owners.count = 1;
-            it.possible_owners[0]    = .GRAPHICS;
-            it.image                 = swapchain_images_it.*;
-            it.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
-
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then it.usage |= .SHADER_READ;
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then it.usage |= .SHADER_WRITE;
-            #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then it.usage |= .COLOR_TARGET;
-
-            if !it.name {
-                Basic.print_to_builder(*builder, "Swapchain image #%", it_index);
-                it.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
-            }
-
-            setVulkanObjectName(device, it.image, it.name);
-
-            // @TODO: #Views.
-            {
-                if it.view {
-                    // @TODO: VkAllocationCallbacks
-                    vkDestroyImageView(device.device, it.view, null);
-                }
-
-                view_create_info := VkImageViewCreateInfo.{
-                    flags            = 0,
-                    image            = it.image,
-                    viewType         = .VK_IMAGE_VIEW_TYPE_2D,
-                    format           = allowed_surface_format.format,
-                    components       = .{
-                        r = .VK_COMPONENT_SWIZZLE_R,
-                        g = .VK_COMPONENT_SWIZZLE_G,
-                        b = .VK_COMPONENT_SWIZZLE_B,
-                        a = .VK_COMPONENT_SWIZZLE_A,
-                    },
-                    subresourceRange = .{
-                        aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
-                        baseMipLevel   = 0,
-                        levelCount     = 1,
-                        baseArrayLayer = 0,
-                        layerCount     = 1,
-                    },
-                };
-
+        // @TODO: #Views.
+        {
+            if it.view {
                 // @TODO: VkAllocationCallbacks
-                debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
-
-                setVulkanObjectName(device, it.view, "% view", it.name);
+                vkDestroyImageView(device.device, it.view, null);
             }
 
-            swapchain_images_it += 1;
+            view_create_info := VkImageViewCreateInfo.{
+                flags            = 0,
+                image            = it.image,
+                viewType         = .VK_IMAGE_VIEW_TYPE_2D,
+                format           = allowed_surface_format.format,
+                components       = .{
+                    r = .VK_COMPONENT_SWIZZLE_R,
+                    g = .VK_COMPONENT_SWIZZLE_G,
+                    b = .VK_COMPONENT_SWIZZLE_B,
+                    a = .VK_COMPONENT_SWIZZLE_A,
+                },
+                subresourceRange = .{
+                    aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
+                    baseMipLevel   = 0,
+                    levelCount     = 1,
+                    baseArrayLayer = 0,
+                    layerCount     = 1,
+                },
+            };
+
+            // @TODO: VkAllocationCallbacks
+            debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
+
+            setVulkanObjectName(device, it.view, "% view", it.name);
         }
+
+        swapchain_images_it += 1;
     }
 }
 
@@ -759,8 +775,10 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
     defer Basic.reset_temporary_storage();
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    #if PRINT_VERBOSE_MESSAGES {
+        builder : Basic.String_Builder;
+        builder.allocator = Basic.temp;
+    }
 
     layers_to_apply : [..] *s8;
     layers_to_apply.allocator = Basic.temp;
@@ -772,12 +790,12 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         available_layers.data = pushToArena(*context.pet.per_frame_arena, VkLayerProperties, available_layers.count);
         debugCheckVK(vkEnumerateInstanceLayerProperties(cast(*u32) *available_layers.count, available_layers.data));
 
-        #if DEBUG_BUILD {
+        #if PRINT_VERBOSE_MESSAGES {
             Basic.print_to_builder(*builder, "Available instance layers (%):\n", available_layers.count);
             for available_layers {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.layerName.data));
             }
-            debugMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
 
         REQUIRED_LAYERS, OPTIONAL_LAYERS :: #run gatherVulkanLayers();
@@ -816,11 +834,13 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             }
         }
 
-        Basic.print_to_builder(*builder, "Applying instance layers (%):\n", layers_to_apply.count);
-        for layers_to_apply {
-            Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it));
+        #if PRINT_VERBOSE_MESSAGES {
+            Basic.print_to_builder(*builder, "Applying instance layers (%):\n", layers_to_apply.count);
+            for layers_to_apply {
+                Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it));
+            }
+            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
-        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     extensions_to_apply : [..] *s8;
@@ -833,12 +853,12 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         available_extensions.data = pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, available_extensions.count);
         debugCheckVK(vkEnumerateInstanceExtensionProperties(null, cast(*u32) *available_extensions.count, available_extensions.data));
 
-        #if DEBUG_BUILD {
+        #if PRINT_VERBOSE_MESSAGES {
             Basic.print_to_builder(*builder, "Available instance extensions (%):\n", available_extensions.count);
             for available_extensions {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
-            debugMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanInstanceExtensions();
@@ -855,8 +875,9 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
             if extension_found {
                 Basic.array_add(enabled_instance_extensions, required_extension);
+                Basic.array_add(*extensions_to_apply, cast(*s8) required_extension.data);
             } else {
-                assertMessage("Required extension \"%\" has not been found in available extensions", required_extension);
+                assertMessage("Required instance extension \"%\" has not been found in available instance extensions", required_extension);
             }
         }
 
@@ -872,17 +893,19 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
             if extension_found {
                 Basic.array_add(enabled_instance_extensions, optional_extension);
+                Basic.array_add(*extensions_to_apply, cast(*s8) optional_extension.data);
             } else {
-                warningMessage("Optional extension \"%\" has not been found in available extensions", optional_extension);
+                warningMessage("Optional instance extension \"%\" has not been found in available instance extensions", optional_extension);
             }
         }
 
-        Basic.print_to_builder(*builder, "Applying instance extensions (%):\n", enabled_instance_extensions.count);
-        for enabled_instance_extensions.* {
-            Basic.array_add(*extensions_to_apply, cast(*s8) it.data);
-            Basic.print_to_builder(*builder, "    %\n", it);
+        #if PRINT_VERBOSE_MESSAGES {
+            Basic.print_to_builder(*builder, "Applying instance extensions (%):\n", enabled_instance_extensions.count);
+            for enabled_instance_extensions.* {
+                Basic.print_to_builder(*builder, "    %\n", it);
+            }
+            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
-        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     nt_engine_name : [ENGINE_NAME.count + 1] s8;
@@ -996,7 +1019,7 @@ END;
             } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT {
                 warningMessage(MESSAGE_FORMAT, message, new_line = false);
             } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT {
-                debugMessage(MESSAGE_FORMAT, message, new_line = false);
+                verboseMessage(MESSAGE_FORMAT, message, new_line = false);
             } else {
                 infoMessage(MESSAGE_FORMAT, message, new_line = false);
             }
@@ -1008,13 +1031,18 @@ END;
 
 initMessengerCallback :: (device : *VulkanDevice) {
     if device.loader.extensions.instance.optional.vkCreateDebugUtilsMessengerEXT {
+        severities : VkDebugUtilsMessageSeverityFlagsEXT = .VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
+                                                         | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+                                                         | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+
+        #if PRINT_VERBOSE_MESSAGES {
+            severities |= .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+        }
+
         create_info := VkDebugUtilsMessengerCreateInfoEXT.{
             flags           = 0,
-            messageSeverity = VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
-//                          | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
-                            | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-                            | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-            messageType     = VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+            messageSeverity = severities,
+            messageType     = .VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
                             | .VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
                             | .VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
                             | .VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT,
@@ -1059,9 +1087,8 @@ selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
             if properties.deviceType == type {
                 vkGetPhysicalDeviceMemoryProperties2(it, *memory_properties);
 
-                memory_heaps : [] VkMemoryHeap;
-                memory_heaps.data  = memory_properties.memoryProperties.memoryHeaps.data;
-                memory_heaps.count = memory_properties.memoryProperties.memoryHeapCount;
+                memory_heaps := toView(memory_properties.memoryProperties.memoryHeaps.data,
+                                       memory_properties.memoryProperties.memoryHeapCount);
 
                 memory_size : VkDeviceSize;
                 if type == {
@@ -1166,7 +1193,7 @@ END;
 }
 
 findQueueFamily :: ($condition : Code) #expand {
-    queues_in_family_used_it := `queues_in_family_used.data;
+    queues_in_family_used_it := `queues_in_family_used;
 
     for `queue_family_properties {
         queue_family_flags := it.queueFamilyProperties.queueFlags;
@@ -1175,6 +1202,15 @@ findQueueFamily :: ($condition : Code) #expand {
             `queue_it.family_index      = cast(u32) it_index;
             `queue_it.index_in_family   = queues_in_family_used_it.*;
             queues_in_family_used_it.* += 1;
+
+            assert(queues_in_family_used_it.* <= it.queueFamilyProperties.queueCount,
+                   "You are trying to use too many queues from the same family: %/%. Queue family flags: %, queue family index: %. Requested queue type: %",
+                   queues_in_family_used_it.*,
+                   it.queueFamilyProperties.queueCount,
+                   it.queueFamilyProperties.queueFlags,
+                   it_index,
+                   `queue_type);
+
             break;
         }
 
@@ -1220,29 +1256,25 @@ END;
         .VK_QUEUE_TRANSFER_BIT,
     ];
 
-    queues_in_family_used : [] u32;
-    queues_in_family_used.count = queue_family_properties.count;
-    queues_in_family_used.data  = pushToArena(*context.pet.per_frame_arena, u32, queues_in_family_used.count);
+    queues_in_family_used := pushToArena(*context.pet.per_frame_arena, u32, queue_family_properties.count);
 
     // Find queue family indices
     for * queue_it : device.queues {
         queue_type := cast(QueueType) it_index;
 
-        vk_queue_type        := QUEUE_TYPE_TO_VK_QUEUE_FLAGS[queue_type];
-        vk_queue_other_types := (.VK_QUEUE_GRAPHICS_BIT | .VK_QUEUE_COMPUTE_BIT) & ~vk_queue_type;
+        vk_queue_flags       := QUEUE_TYPE_TO_VK_QUEUE_FLAGS[queue_type];
+        vk_queue_other_flags := (.VK_QUEUE_GRAPHICS_BIT | .VK_QUEUE_COMPUTE_BIT) & ~vk_queue_flags;
 
-        // 1. We are trying to find a queue family that supports ONLY concrete queue type (ideal situation).
-        // 2. We are trying to find a queue family that supports needed queue type, but may support several queue types (ok situation).
-
-        findQueueFamily(#code (queue_family_flags & `vk_queue_type) && !(queue_family_flags & `vk_queue_other_types));
+        // 1. We are trying to find a queue family that supports only concrete queue type (ideal situation).
+        findQueueFamily(#code (queue_family_flags & `vk_queue_flags) && !(queue_family_flags & `vk_queue_other_flags));
 
         if queue_it.family_index == 0xFFFF_FFFF {
-            findQueueFamily(#code queue_family_flags & `vk_queue_type);
+            // 2. We are trying to find a queue family that supports needed queue type, but may support several queue types (ok situation).
+            findQueueFamily(#code queue_family_flags & `vk_queue_flags);
 
-            if queue_it.family_index == 0xFFFF_FFFF && queue_type == .ASYNC_TRANSFER {
+            if queue_type == .ASYNC_TRANSFER && queue_it.family_index == 0xFFFF_FFFF {
                 // According to vulkan spec, declaring transfer queue capability is optional.
-                FLAGS :: VkQueueFlags.VK_QUEUE_GRAPHICS_BIT | .VK_QUEUE_COMPUTE_BIT;
-                findQueueFamily(#code queue_family_flags & `FLAGS);
+                findQueueFamily(#code queue_family_flags & (.VK_QUEUE_GRAPHICS_BIT | .VK_QUEUE_COMPUTE_BIT));
             }
         }
 
@@ -1322,12 +1354,12 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         available_extensions.data = pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, available_extensions.count);
         debugCheckVK(vkEnumerateDeviceExtensionProperties(device.physical_device, null, cast(*u32) *available_extensions.count, available_extensions.data));
 
-        #if DEBUG_BUILD {
+        #if PRINT_VERBOSE_MESSAGES {
             Basic.print_to_builder(*builder, "Available device extensions (%):\n", available_extensions.count);
             for available_extensions {
                 Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
-            debugMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanDeviceExtensions();
@@ -1344,6 +1376,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 
             if extension_found {
                 Basic.array_add(enabled_device_extensions, required_extension);
+                Basic.array_add(*extensions_to_apply, cast(*s8) required_extension.data);
             } else {
                 assertMessage("Required device extension \"%\" has not been found in available device extensions", required_extension);
             }
@@ -1361,17 +1394,19 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 
             if extension_found {
                 Basic.array_add(enabled_device_extensions, optional_extension);
+                Basic.array_add(*extensions_to_apply, cast(*s8) optional_extension.data);
             } else {
                 warningMessage("Optional device extension \"%\" has not been found in available device extensions", optional_extension);
             }
         }
 
-        Basic.print_to_builder(*builder, "Applying device extensions (%):\n", enabled_device_extensions.count);
-        for enabled_device_extensions.* {
-            Basic.array_add(*extensions_to_apply, cast(*s8) it.data);
-            Basic.print_to_builder(*builder, "    %\n", it);
+        #if PRINT_VERBOSE_MESSAGES {
+            Basic.print_to_builder(*builder, "Applying device extensions (%):\n", enabled_device_extensions.count);
+            for enabled_device_extensions.* {
+                Basic.print_to_builder(*builder, "    %\n", it);
+            }
+            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
-        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     dynamic_rendering_features : VkPhysicalDeviceDynamicRenderingFeatures;

@@ -36,11 +36,7 @@ destroyVulkanShaderManager :: (device : *VulkanDevice, manager : *VulkanShaderMa
     // @TODO: #VkAllocationCallbacks
     vkDestroyPipelineCache(device.device, manager.pipeline_cache, null);
 
-    shaders : [] VulkanShader;
-    shaders.data  = manager.shaders_storage.data;
-    shaders.count = manager.shaders_count;
-
-    for shaders {
+    for toView(manager.shaders_storage.data, manager.shaders_count) {
         // @TODO: #VkAllocationCallbacks
         vkDestroyPipeline(device.device, it.pipeline, null);
 
@@ -441,14 +437,10 @@ initColorBlendState :: inline (this : *VkPipelineColorBlendStateCreateInfo, stat
 
     this.blendConstants  = .[ 0.0, 0.0, 0.0, 0.0 ];
     this.attachmentCount = state.color_targets_count;
-    if state.color_targets_count {
+    if this.attachmentCount {
         this.pAttachments = pushToArena(*context.pet.per_frame_arena, VkPipelineColorBlendAttachmentState, this.attachmentCount);
 
-        attachment_states : [] VkPipelineColorBlendAttachmentState;
-        attachment_states.count = this.attachmentCount;
-        attachment_states.data  = this.pAttachments;
-
-        for * attachment_states {
+        for * toView(this.pAttachments, this.attachmentCount) {
             color_target := *state.color_targets[it_index];
 
             it.blendEnable = cast,no_check(VkBool32) color_target.blend_enable;

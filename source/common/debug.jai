@@ -1,6 +1,7 @@
 #scope_export
 
 MessagePriority :: enum u8 {
+    VERBOSE;
     DEBUG;
     INFO;
     WARNING;
@@ -8,54 +9,70 @@ MessagePriority :: enum u8 {
     ASSERT;
 }
 
+verboseMessage :: #bake_arguments message(priority = .VERBOSE);
 debugMessage   :: #bake_arguments message(priority = .DEBUG);
 infoMessage    :: #bake_arguments message(priority = .INFO);
 warningMessage :: #bake_arguments message(priority = .WARNING);
 errorMessage   :: #bake_arguments message(priority = .ERROR);
 assertMessage  :: #bake_arguments message(priority = .ASSERT);
 
-assert :: (
-    $expression      : Code,
-    $format          := "",
-    args             : ..Any,
-    $dot             := false,
-    $new_line        := true,
-    $print_sys_error := false,
-    $location        := #caller_location
-) #expand #no_debug {
-    #if DEBUG_BUILD {
+#if DEBUG_BUILD {
+    assert :: (
+        expression       : Code,
+        $format          := "",
+        args             : ..Any,
+        $new_line        := true,
+        $print_sys_error := false,
+        location         := #caller_location
+    ) #expand #no_debug {
         #if is_constant(#insert expression) {
             #if !(#insert expression) {
                 FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-                assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+                assertMessage(FORMAT_OR_EXPRESSION, ..args, new_line = new_line, print_sys_error = print_sys_error, location = location);
             }
         } else {
             if !(#insert expression) {
                 FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-                assertMessage(FORMAT_OR_EXPRESSION, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
+                assertMessage(FORMAT_OR_EXPRESSION, ..args, new_line = new_line, print_sys_error = print_sys_error, location = location);
             }
         }
     }
-}
 
-debugCheck :: (
-    $expression      : Code,
-    $format          := "",
-    args             : ..Any,
-    $dot             := false,
-    $new_line        := true,
-    $print_sys_error := false,
-    $location        := #caller_location
-) #expand #no_debug {
-    #if DEBUG_BUILD {
-        assert(expression, format, ..args, dot = dot, new_line = new_line, print_sys_error = print_sys_error, location = location);
-    } else {
+    debugCheck :: (
+        expression       : Code,
+        $format          := "",
+        args             : ..Any,
+        $new_line        := true,
+        $print_sys_error := false,
+        location         := #caller_location
+    ) #expand #no_debug {
+        assert(expression, format, ..args, new_line = new_line, print_sys_error = print_sys_error, location = location);
+    }
+} else {
+    assert :: (
+        #discard expression      : Code,
+        #discard format          := "",
+        #discard args            : ..Any,
+        #discard new_line        := true,
+        #discard print_sys_error := false,
+        #discard location        := #caller_location
+    ) #expand #no_debug {
+    }
+
+    debugCheck :: (
+        expression               : Code,
+        #discard format          := "",
+        #discard args            : ..Any,
+        #discard new_line        := true,
+        #discard print_sys_error := false,
+        #discard location        := #caller_location
+    ) #expand #no_debug {
         #insert expression;
     }
 }
 
 #if OS == .WINDOWS {
-    debugCheckHRESULT :: ($expression : Code, $strict := true, $location := #caller_location) #expand #no_debug {
+    debugCheckHRESULT :: (expression : Code, $strict := true, location := #caller_location) #expand #no_debug {
         #if DEBUG_BUILD {
             result := #insert expression;
 
@@ -89,7 +106,7 @@ debugCheck :: (
     }
 }
 
-debugCheckVK :: ($expression : Code, $strict := true, $location := #caller_location) #expand #no_debug {
+debugCheckVK :: (expression : Code, $strict := true, location := #caller_location) #expand #no_debug {
     #if DEBUG_BUILD {
         result := #insert expression;
 
@@ -117,19 +134,19 @@ debugCheckVK :: ($expression : Code, $strict := true, $location := #caller_locat
     }
 }
 
-assertThreadKind :: (kind : ThreadKind, procedure_name := #procedure_name()) #expand #no_debug {
-    assert(context.pet.thread_kind == kind, "% can be called only from % thread kind", procedure_name, kind);
+assertThreadKind :: (kind : ThreadKind, procedure_name := #procedure_name(), location := #caller_location) #expand #no_debug {
+    assert(context.pet.thread_kind == kind, "% can be called only from % thread kind", procedure_name, kind, location = location);
 }
 
-notImplemented :: ($assert_in_run_time := false) #expand #no_debug {
+notImplemented :: ($assert_in_run_time := false, location := #caller_location) #expand #no_debug {
     #if assert_in_run_time {
-        assertMessage("Not implemented");
+        assertMessage("Not implemented", location = location);
     } else {
         #assert false "Not implemented";
     }
 }
 
-codeToString :: ($code : Code) -> string #compile_time {
+codeToString :: (code : Code) -> string #compile_time {
     // @TODO: Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
     Basic.assert(#compile_time, "This function should be run only in compile time");
 
@@ -167,14 +184,12 @@ message :: (
     $priority        : MessagePriority,
     $format          : string,
     args             : ..Any,
-    $dot             := false,
     $new_line        := true,
     $print_sys_error := false,
-    $location        := #caller_location
+    location         := #caller_location
 ) {
-    #if priority == .DEBUG && !DEBUG_BUILD {
-        return;
-    }
+    #if priority == .DEBUG   && !DEBUG_BUILD            return;
+    #if priority == .VERBOSE && !PRINT_VERBOSE_MESSAGES return;
 
     sys_error_code : u32 = 0;
 
@@ -240,8 +255,9 @@ message :: (
         }
     }
 
-    #if dot      Basic.append(*builder, ".");
-    #if new_line Basic.append(*builder, "\n");
+    #if new_line {
+        Basic.append(*builder, "\n");
+    }
 
     #if priority == .ASSERT {
         // @TODO: Stack trace
@@ -252,9 +268,8 @@ message :: (
     lock(*g_mutex);
 
     #if OS == .WINDOWS {
-        #if priority != .INFO {
-            c_string := Basic.temp_c_string(message);
-            OutputDebugStringA(c_string);
+        #if priority != .VERBOSE && priority != .INFO {
+            OutputDebugStringA(Basic.temp_c_string(message));
         }
 
         console_handle : HANDLE = ---;
@@ -266,18 +281,23 @@ message :: (
         if GetConsoleMode(console_handle, *console_mode) {
             success : BOOL;
 
-                 #if priority == .DEBUG   success = SetConsoleTextAttribute(console_handle, 0x09);
-            else #if priority == .INFO    success = SetConsoleTextAttribute(console_handle, 0x0A);
-            else #if priority == .WARNING success = SetConsoleTextAttribute(console_handle, 0x06);
-            else #if priority >= .ERROR   success = SetConsoleTextAttribute(console_handle, 0x04);
-            else                          #assert false "Unhandled message priority";
-            Basic.assert(success != FALSE);
+            // We do not change to color for verbose messages
+            #if priority != .VERBOSE {
+                     #if priority == .DEBUG   success = SetConsoleTextAttribute(console_handle, 0x09);
+                else #if priority == .INFO    success = SetConsoleTextAttribute(console_handle, 0x0A);
+                else #if priority == .WARNING success = SetConsoleTextAttribute(console_handle, 0x06);
+                else #if priority >= .ERROR   success = SetConsoleTextAttribute(console_handle, 0x04);
+                else                          #assert false "Unhandled message priority";
+                Basic.assert(success != FALSE);
+            }
 
             success = WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
             Basic.assert(success != FALSE);
 
-            success = SetConsoleTextAttribute(console_handle, 0x07);
-            Basic.assert(success != FALSE);
+            #if priority != .VERBOSE {
+                success = SetConsoleTextAttribute(console_handle, 0x07);
+                Basic.assert(success != FALSE);
+            }
         } else {
             success := WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
             Basic.assert(success != FALSE);
@@ -294,7 +314,7 @@ message :: (
     }
 }
 
-formatOrExpression :: ($format : string, $expression : Code) -> string #compile_time {
+formatOrExpression :: ($format : string, expression : Code) -> string #compile_time {
     // @TODO: Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
     Basic.assert(#compile_time, "This function should be run only in compile time");
 

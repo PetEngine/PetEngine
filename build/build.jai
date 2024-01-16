@@ -14,17 +14,13 @@
     #assert false "Not implemented";
 }
 
-Configuration :: enum u8 {
-    DEBUG;
-    RELEASE;
-    RELEASE_WITH_DEBUG_INFO;
-}
-
 BuildArguments :: struct {
-    configuration : Configuration = .DEBUG;
+    optimized  : bool;
+    debug_info : bool;
+    verbose    : bool;
 }
 
-#run,stallable {
+#run {
     context.print_style.default_format_struct.use_newlines_if_long_form = true;
 
     compiler_version : Version_Info = ---;
@@ -60,7 +56,7 @@ BuildArguments :: struct {
         assert(project_folder.count != -1);
     }
 
-    workspace_name := tprint("%/%", OS, build_arguments.configuration);
+    workspace_name := tprint("%/%", OS, ifx build_arguments.optimized then "optimized" else "debug");
     to_lower_in_place(workspace_name);
 
     intermediate_path := join(project_folder, "/intermediates/", workspace_name,, allocator = temp);
@@ -87,14 +83,12 @@ BuildArguments :: struct {
                       join("/LIBPATH:", vk_sdk_path, "/Lib",, allocator = temp),
                       "/LIBPATH:../third_party/spirv_reflect");
 
-            if #complete build_arguments.configuration == {
-                case .DEBUG;
-                    array_add(*additional_linker_arguments, "/DEBUG:FULL"); // For RemedyBG
-                case .RELEASE;
-                    array_add(*additional_linker_arguments, "/LTCG");       // For SPIRV-Reflect
-                case .RELEASE_WITH_DEBUG_INFO;
-                    array_add(*additional_linker_arguments, "/DEBUG:FULL"); // For RemedyBG
-                    array_add(*additional_linker_arguments, "/LTCG");       // For SPIRV-Reflect
+            if build_arguments.optimized {
+                array_add(*additional_linker_arguments, "/LTCG"); // For SPIRV-Reflect
+            }
+
+            if !build_arguments.optimized || build_arguments.debug_info {
+                array_add(*additional_linker_arguments, "/DEBUG:FULL"); // For RemedyBG
             }
         } else {
             array_add(*additional_linker_arguments,
@@ -134,18 +128,12 @@ BuildArguments :: struct {
     // Configuration specific options
     //
 
-    if #complete build_arguments.configuration == {
-        case .DEBUG;
-            set_optimization(*build_options, .VERY_DEBUG, true);
-            build_options.arithmetic_overflow_check = .FATAL;
-
-        case .RELEASE;
-            set_optimization(*build_options, .VERY_OPTIMIZED, false);
-            build_options.backend = .LLVM;
-
-        case .RELEASE_WITH_DEBUG_INFO;
-            set_optimization(*build_options, .VERY_OPTIMIZED, true);
-            build_options.backend = .LLVM;
+    if build_arguments.optimized {
+        set_optimization(*build_options, .VERY_OPTIMIZED, build_arguments.debug_info);
+        build_options.backend = .LLVM;
+    } else {
+        set_optimization(*build_options, .VERY_DEBUG, true);
+        build_options.arithmetic_overflow_check = .FATAL;
     }
 
     //
@@ -159,22 +147,19 @@ BuildArguments :: struct {
 
     compiler_begin_intercept(workspace);
     {
-        add_build_string(tprint("DEBUG_BUILD :: %;", build_arguments.configuration == .DEBUG), workspace);
+        add_build_string(tprint("DEBUG_BUILD            :: %;", !build_arguments.optimized), workspace);
+        add_build_string(tprint("PRINT_VERBOSE_MESSAGES :: %;", build_arguments.verbose),    workspace);
         add_build_file(build_filename, workspace);
 
-        while loop := true {
+        while true {
             message := compiler_wait_for_message();
+
             if message.kind == {
                 case .TYPECHECKED;
                     do_error_checking(null, message);
 
                 case .COMPLETE;
-                    complete := cast(*Message_Complete) message;
-                    if complete.error_code == {
-                        case .NONE;               write_string("\nCompilation succeeded\n");
-                        case .COMPILATION_FAILED; write_string("\nCompilation failed\n");
-                    }
-                    break loop;
+                    break;
             }
         }
     }
@@ -184,28 +169,38 @@ BuildArguments :: struct {
     // Post-build copies
     //
 
-    if build_arguments.configuration == .DEBUG {
-        copy_file(join(vk_sdk_path, "/Bin/shaderc_sharedd.dll",, allocator = temp),
-                  join(output_path,     "/shaderc_sharedd.dll",, allocator = temp));
-    } else {
+    if build_arguments.optimized {
         copy_file(join(vk_sdk_path, "/Bin/shaderc_shared.dll",, allocator = temp),
                   join(output_path,     "/shaderc_shared.dll",, allocator = temp));
+    } else {
+        copy_file(join(vk_sdk_path, "/Bin/shaderc_sharedd.dll",, allocator = temp),
+                  join(output_path,     "/shaderc_sharedd.dll",, allocator = temp));
     }
 }
 
 gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     arguments : BuildArguments;
 
-    for build_options.compile_time_command_line {
-        if it == {
-            case "debug";
-                arguments.configuration = .DEBUG;
-            case "release";
-                arguments.configuration = .RELEASE;
-            case "release_with_debug_info";
-                arguments.configuration = .RELEASE_WITH_DEBUG_INFO;
+    for command_line_argument : build_options.compile_time_command_line {
+        if command_line_argument == {
+            // @TODO: Use #insert when it will be supported inside 'if == {' block
+            case "optimized";  arguments.optimized  = true;
+            case "debug_info"; arguments.debug_info = true;
+            case "verbose";    arguments.verbose    = true;
             case;
-                compiler_report(join("Unknown command line argument: ", it,, allocator = temp));
+                unhandled : bool;
+                for type_info(BuildArguments).members {
+                    if it.name == command_line_argument {
+                        unhandled = true;
+                        break;
+                    }
+                }
+
+                if unhandled {
+                    compiler_report(join("Unhandled command line argument (found in BuildArguments): ", command_line_argument,, allocator = temp));
+                } else {
+                    compiler_report(join("Unknown command line argument: ", command_line_argument,, allocator = temp));
+                }
         }
     }
 

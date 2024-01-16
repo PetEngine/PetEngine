@@ -1,5 +1,5 @@
-// @TODO: Get rid of resolution dependent memory kinds. Leave it just as a texture flag and translate it to real device memory in backends.
-//        Also, it seems like after that it will be better to rename MemoryKind to Lifetime.
+// @TODO:
+//     - Get rid of resolution dependent memory kinds. Just make N render resolutions and choose between them.
 
 ResourceManager :: struct {
     MAX_BUFFERS  :: 64; // For each memory kind (except resolution dependent)

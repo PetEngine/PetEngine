@@ -18,8 +18,8 @@ setupInitialInputState :: (window : *Win32Window) {
 registerRawInput :: (window : *Win32Window) {
     assert(window, "Input sink is not supported");
 
-    #if DEBUG_BUILD then NOTIFY_FLAG : RIDEV : .DEVNOTIFY;
-                    else NOTIFY_FLAG : RIDEV : 0;
+    #if PRINT_VERBOSE_MESSAGES then NOTIFY_FLAG : RIDEV : .DEVNOTIFY;
+                               else NOTIFY_FLAG : RIDEV : 0;
 
     raw_input_devices := RAWINPUTDEVICE.[
         .{
@@ -58,7 +58,7 @@ unloadXInput :: () {
 }
 
 onRawInputDeviceChange :: (ri_device : HANDLE, wparam : WPARAM) {
-    #if DEBUG_BUILD {
+    #if PRINT_VERBOSE_MESSAGES {
 DEVICE_CONNECTED_MESSAGE :: #string END
 Input device is connected:
     Handle:       0x%
@@ -75,10 +75,10 @@ END;
         if GET_DEVICE_CHANGE_WPARAM(wparam) == {
             case GIDC_ARRIVAL;
                 device_name, manufacturer, product := getRawInputDeviceNames(ri_device);
-                debugMessage(DEVICE_CONNECTED_MESSAGE, ri_device, device_name, manufacturer, product, new_line = false);
+                verboseMessage(DEVICE_CONNECTED_MESSAGE, ri_device, device_name, manufacturer, product, new_line = false);
 
             case GIDC_REMOVAL;
-                debugMessage(DEVICE_DISCONNECTED_MESSAGE, ri_device, new_line = false);
+                verboseMessage(DEVICE_DISCONNECTED_MESSAGE, ri_device, new_line = false);
         }
     }
 }

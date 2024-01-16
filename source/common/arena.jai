@@ -138,7 +138,9 @@ pushToArena :: inline (arena : *Arena, $type : Type, count := 1) -> *type #must 
 
 Align :: enum_flags u8 {
     SIZE;
-    POINTER;
+    ADDRESS;
+
+    ALL :: SIZE | ADDRESS;
 }
 
 pushToArenaAligned :: (arena : *Arena, bytes : s64, alignment : s64, $align : Align) -> *void #must {
@@ -153,14 +155,14 @@ pushToArenaAligned :: (arena : *Arena, bytes : s64, alignment : s64, $align : Al
         aligned_bytes := bytes;
     }
 
-    #if align & .POINTER {
+    #if align & .ADDRESS {
         aligned_offset := alignUpWithPowerOfTwo(arena.occupied, alignment);
     } else {
         aligned_offset := arena.occupied;
     }
 
     assert(aligned_offset + aligned_bytes < arena.capacity,
-           "There is no enough space in \"%\" arena for % bytes. Occupied: % bytes, capacity: % bytes",
+           "There is not enough space in \"%\" arena for % bytes. Occupied: % bytes, capacity: % bytes",
            arena.name, aligned_bytes, aligned_offset, arena.capacity);
 
     pointer := arena.memory + aligned_offset;
