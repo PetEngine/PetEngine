@@ -12,11 +12,9 @@ pushVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, memory_kin
 
     texture : *VulkanTexture;
     if #complete memory_kind == {
-        case .PERSISTENT;                      texture = pushBack(*manager.texture_memory.persistent.textures);
-        case .PERSISTENT_RESOLUTION_DEPENDENT; texture = pushBack(*manager.texture_memory.persistent_resolution_dependent.textures);
-        case .PER_SCENE;                       texture = pushBack(*manager.texture_memory.per_scene.textures);
-        case .PER_SCENE_RESOLUTION_DEPENDENT;  texture = pushBack(*manager.texture_memory.per_scene_resolution_dependent.textures);
-        case .PER_FRAME;                       texture = pushBack(*manager.texture_memory.per_frame[device.frame_index].textures);
+        case .PERSISTENT; texture = pushBack(*manager.texture_memory.persistent.textures);
+        case .PER_SCENE;  texture = pushBack(*manager.texture_memory.per_scene.textures);
+        case .PER_FRAME;  texture = pushBack(*manager.texture_memory.per_frame[device.frame_index].textures);
     }
 
     return texture;
@@ -89,11 +87,9 @@ createVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, texture_
     debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
 
     if #complete memory_kind == {
-        case .PERSISTENT;                      composeTextureName(*manager.texture_memory.persistent,                      texture, name);
-        case .PERSISTENT_RESOLUTION_DEPENDENT; composeTextureName(*manager.texture_memory.persistent_resolution_dependent, texture, name);
-        case .PER_SCENE;                       composeTextureName(*manager.texture_memory.per_scene,                       texture, name);
-        case .PER_SCENE_RESOLUTION_DEPENDENT;  composeTextureName(*manager.texture_memory.per_scene_resolution_dependent,  texture, name);
-        case .PER_FRAME;                       composeTextureName(*manager.texture_memory.per_frame[device.frame_index],   texture, name);
+        case .PERSISTENT; composeTextureName(*manager.texture_memory.persistent,                    texture, name);
+        case .PER_SCENE;  composeTextureName(*manager.texture_memory.per_scene,                     texture, name);
+        case .PER_FRAME;  composeTextureName(*manager.texture_memory.per_frame[device.frame_index], texture, name);
     }
 
     setVulkanObjectName(device, texture.image, texture.name);

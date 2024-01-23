@@ -1,6 +1,4 @@
 // @TODO: #VulkanTexture.
-//    - Abstract image and view(s) creation to not to write it several times
-//      in createVulkanTexture and in resizeResolutionDependentVulkanTextures.
 //    - #Views. Image view(s) creation, maybe with usages to be more consistent with other graphics APIs.
 //    - #SwapchainBuffers. Make a function for swapchain buffers initialization.
 //    - #Resizable.
@@ -28,11 +26,9 @@ VulkanResourceManager :: struct {
     }
 
     texture_memory : struct {
-        persistent                      : Memory(.PERSISTENT);
-        persistent_resolution_dependent : Memory(.PERSISTENT_RESOLUTION_DEPENDENT);
-        per_scene                       : Memory(.PER_SCENE);
-        per_scene_resolution_dependent  : Memory(.PER_SCENE_RESOLUTION_DEPENDENT);
-        per_frame                       : StaticArray(Memory(.PER_FRAME), Device.MAX_FRAME_BUFFERING);
+        persistent : Memory(.PERSISTENT);
+        per_scene  : Memory(.PER_SCENE);
+        per_frame  : StaticArray(Memory(.PER_FRAME), Device.MAX_FRAME_BUFFERING);
     }
 
     names_arena : Arena;
@@ -41,10 +37,9 @@ VulkanResourceManager :: struct {
 createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManager #must {
     manager := pushToArena(*context.pet.persistent_arena, VulkanResourceManager);
 
-    manager.destroyPlatformResourceManager            = destroyVulkanResourceManager;
-    manager.commitPlatformResourceMemory              = commitVulkanResourceMemory;
-    manager.resetPlatformResourceMemory               = resetVulkanResourceMemory;
-    manager.resizePlatformResolutionDependentTextures = resizeVulkanResolutionDependentTextures;
+    manager.destroyPlatformResourceManager = destroyVulkanResourceManager;
+    manager.commitPlatformResourceMemory   = commitVulkanResourceMemory;
+    manager.resetPlatformResourceMemory    = resetVulkanResourceMemory;
 
     manager.pushPlatformBuffer   = pushVulkanBuffer;
     manager.createPlatformBuffer = createVulkanBuffer;
@@ -57,8 +52,8 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
 
     BUFFER_SUBARENA_CAPACITY  :: ResourceManager.MAX_BUFFERS  * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
     TEXTURE_SUBARENA_CAPACITY :: ResourceManager.MAX_TEXTURES * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
-    MANAGER_ARENA_CAPACITY :: (2 + manager.buffer_memory.per_frame.capacity)  * BUFFER_SUBARENA_CAPACITY
-                            + (4 + manager.texture_memory.per_frame.capacity) * TEXTURE_SUBARENA_CAPACITY;
+    MANAGER_ARENA_CAPACITY :: (2 + VulkanResourceManager.buffer_memory.per_frame.capacity)  * BUFFER_SUBARENA_CAPACITY
+                            + (4 + VulkanResourceManager.texture_memory.per_frame.capacity) * TEXTURE_SUBARENA_CAPACITY;
 
     createArena(*manager.names_arena, MANAGER_ARENA_CAPACITY, "VulkanResourceManager names");
 
@@ -68,10 +63,8 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
         createSubarena(*manager.names_arena, *it.names_subarena, BUFFER_SUBARENA_CAPACITY, "Frame #% buffers names", it_index);
     }
 
-    createSubarena(*manager.names_arena, *manager.texture_memory.persistent.names_subarena,                      TEXTURE_SUBARENA_CAPACITY, "Persistent textures names");
-    createSubarena(*manager.names_arena, *manager.texture_memory.persistent_resolution_dependent.names_subarena, TEXTURE_SUBARENA_CAPACITY, "Persistent resolution dependent textures names");
-    createSubarena(*manager.names_arena, *manager.texture_memory.per_scene.names_subarena,                       TEXTURE_SUBARENA_CAPACITY, "Per scene textures names");
-    createSubarena(*manager.names_arena, *manager.texture_memory.per_scene_resolution_dependent.names_subarena,  TEXTURE_SUBARENA_CAPACITY, "Per scene resolution dependent textures names");
+    createSubarena(*manager.names_arena, *manager.texture_memory.persistent.names_subarena, TEXTURE_SUBARENA_CAPACITY, "Persistent textures names");
+    createSubarena(*manager.names_arena, *manager.texture_memory.per_scene.names_subarena,  TEXTURE_SUBARENA_CAPACITY, "Per scene textures names");
     for * manager.texture_memory.per_frame {
         createSubarena(*manager.names_arena, *it.names_subarena, TEXTURE_SUBARENA_CAPACITY, "Frame #% textures names", it_index);
     }
@@ -95,9 +88,7 @@ destroyVulkanResourceManager :: (device_ : *Device, manager_ : *ResourceManager)
     }
 
     destroyVulkanTextureMemory(device, *manager.texture_memory.persistent);
-    destroyVulkanTextureMemory(device, *manager.texture_memory.persistent_resolution_dependent);
     destroyVulkanTextureMemory(device, *manager.texture_memory.per_scene);
-    destroyVulkanTextureMemory(device, *manager.texture_memory.per_scene_resolution_dependent);
     for * manager.texture_memory.per_frame {
         destroyVulkanTextureMemory(device, it);
     }
@@ -114,15 +105,9 @@ commitVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, m
             commitVulkanBufferMemory(device, *manager.buffer_memory.persistent);
             commitVulkanTextureMemory(device, *manager.texture_memory.persistent);
 
-        case .PERSISTENT_RESOLUTION_DEPENDENT;
-            commitVulkanTextureMemory(device, *manager.texture_memory.persistent_resolution_dependent);
-
         case .PER_SCENE;
             commitVulkanBufferMemory(device, *manager.buffer_memory.per_scene);
             commitVulkanTextureMemory(device, *manager.texture_memory.per_scene);
-
-        case .PER_SCENE_RESOLUTION_DEPENDENT;
-            commitVulkanTextureMemory(device, *manager.texture_memory.per_scene_resolution_dependent);
 
         case .PER_FRAME;
             commitVulkanBufferMemory(device, *manager.buffer_memory.per_frame[device.frame_index]);
@@ -139,15 +124,9 @@ resetVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, me
             resetVulkanBufferMemory(device, *manager.buffer_memory.persistent);
             resetVulkanTextureMemory(device, *manager.texture_memory.persistent);
 
-        case .PERSISTENT_RESOLUTION_DEPENDENT;
-            resetVulkanTextureMemory(device, *manager.texture_memory.persistent_resolution_dependent);
-
         case .PER_SCENE;
             resetVulkanBufferMemory(device, *manager.buffer_memory.per_scene);
             resetVulkanTextureMemory(device, *manager.texture_memory.per_scene);
-
-        case .PER_SCENE_RESOLUTION_DEPENDENT;
-            resetVulkanTextureMemory(device, *manager.texture_memory.per_scene_resolution_dependent);
 
         case .PER_FRAME;
             // @TODO: #PerFrameTextures. #PerFrameBuffers. #FrameBuffering.
@@ -162,18 +141,6 @@ resetVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, me
             resetVulkanBufferMemory(device, *manager.buffer_memory.per_frame[device.frame_index]);
             resetVulkanTextureMemory(device, *manager.texture_memory.per_frame[device.frame_index]);
     }
-}
-
-resizeVulkanResolutionDependentTextures :: (device_ : *Device, manager_ : *ResourceManager) {
-    device  := cast(*VulkanDevice)          device_;
-    manager := cast(*VulkanResourceManager) manager_;
-
-    // We will not resize our window every frame, so maybe fuck it and just wait for textures not being in use?
-    // @Speed: Anyway, if I will figure out some better solution it will be awesome.
-    waitDeviceIdle(device);
-
-    resizeVulkanResolutionDependentTextures(device, *manager.texture_memory.persistent_resolution_dependent);
-    resizeVulkanResolutionDependentTextures(device, *manager.texture_memory.per_scene_resolution_dependent);
 }
 
 //
@@ -432,65 +399,4 @@ resetVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceMan
     }
 
     resetArena(*memory.names_subarena);
-}
-
-resizeVulkanResolutionDependentTextures :: (device : *VulkanDevice, memory : *VulkanResourceManager.Memory) {
-    if memory.textures.count <= 0 return;
-
-    back_buffer := getBackBuffer(device);
-
-    queue_family_indices : [Texture.possible_owners.capacity] u32;
-
-    create_info := VkImageCreateInfo.{
-        flags               = 0,
-        imageType           = .VK_IMAGE_TYPE_2D,
-        extent              = .{ back_buffer.width, back_buffer.height, 1 },
-        mipLevels           = 1,
-        arrayLayers         = 1,
-        tiling              = .VK_IMAGE_TILING_OPTIMAL,
-        pQueueFamilyIndices = queue_family_indices.data,
-        initialLayout       = .VK_IMAGE_LAYOUT_UNDEFINED // initialLayout must be VK_IMAGE_LAYOUT_UNDEFINED or VK_IMAGE_LAYOUT_PREINITIALIZED
-        // Everything else will be set in the loop
-    };
-
-    for * memory.textures {
-        for it.possible_owners {
-            queue_family_indices[it_index] = device.queues[it].family_index;
-        }
-
-        create_info.format                = textureFormatToVulkanFormat(it.format);
-        create_info.samples               = samplesCountToVulkanSampleCountFlags(it.samples_count);
-        create_info.usage                 = textureUsageToVulkanUsageFlags(it.usage);
-        create_info.queueFamilyIndexCount = cast(u32) it.possible_owners.count;
-
-        if it.possible_owners.count > 1 {
-            create_info.sharingMode = .VK_SHARING_MODE_CONCURRENT;
-        } else {
-            create_info.sharingMode = .VK_SHARING_MODE_EXCLUSIVE;
-        }
-
-        it.width          = back_buffer.width;
-        it.height         = back_buffer.height;
-        it.current_layout = .VK_IMAGE_LAYOUT_UNDEFINED;
-        it.current_owner  = it.possible_owners[0];
-
-        // @TODO: VkAllocationCallbacks
-        vkDestroyImageView(device.device, it.view, null);
-
-        // @TODO: VkAllocationCallbacks
-        vkDestroyImage(device.device, it.image, null);
-
-        // @TODO: VkAllocationCallbacks
-        debugCheckVK(vkCreateImage(device.device, *create_info, null, *it.image));
-
-        setVulkanObjectName(device, it.image, "% view", it.name);
-    }
-
-    if memory.device_memory {
-        // @TODO: VkAllocationCallbacks
-        vkFreeMemory(device.device, memory.device_memory, null);
-        memory.device_memory = VK_NULL_HANDLE;
-    }
-
-    commitVulkanTextureMemory(device, memory);
 }

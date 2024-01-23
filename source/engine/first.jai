@@ -71,8 +71,9 @@ main :: () {
 
     // @TODO: #Settings.
     //    - Get graphics API from settings.
-    //    - Get buffering value from settings.
-    device := createDevice(.VULKAN, window, 2);
+    //    - Get buffering from settings.
+    //    - Get render resolution from settings.
+    device := createDevice(.VULKAN, window, .DOUBLE, .P_NATIVE);
     defer destroyDevice(device);
 
     resource_manager := createResourceManager(device);
@@ -90,20 +91,17 @@ main :: () {
     depth_buffer := createTexture(device,
                                   resource_manager,
                                   .D32,
-                                  window.surface.width,
-                                  window.surface.height,
+                                  device.render_resolution.width,
+                                  device.render_resolution.height,
                                   clear_value = .{ depth = 1.0 },
                                   .DEPTH_TARGET | .SHADER_READ,
                                   "Depth",
-                                  .PERSISTENT_RESOLUTION_DEPENDENT);
+                                  .PERSISTENT);
 
     // Create persistent buffers and textures here...
 
     commitResourceMemory(device, resource_manager, .PERSISTENT);
     defer resetResourceMemory(device, resource_manager, .PERSISTENT);
-
-    commitResourceMemory(device, resource_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
-    defer resetResourceMemory(device, resource_manager, .PERSISTENT_RESOLUTION_DEPENDENT);
 
     triangle_shader := createShader(device, shader_manager, "triangle", .[ getBackBuffer(device).format ]);
 
@@ -126,9 +124,9 @@ main :: () {
             continue;
         }
 
+        // @Cleanup: Get rid of recreateSwapchain on high level, recreate it in a back-end when driver wants to.
         if window.flags & .RESIZED {
             recreateSwapchain(device, window);
-            resizeResolutionDependentTextures(device, resource_manager);
         }
 
         beginFrame(device);

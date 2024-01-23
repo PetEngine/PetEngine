@@ -555,7 +555,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     for * device.swapchain_textures {
         it.dimension             = ._2D;
         it.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
-        it.flags                 = .SWAPCHAIN | .RESOLUTION_DEPENDENT;
+        it.flags                 = .SWAPCHAIN;
         it.width                 = cast(u16) surface_extent.width;
         it.height                = cast(u16) surface_extent.height;
         it.depth                 = 0;

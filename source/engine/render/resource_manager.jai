@@ -10,9 +10,7 @@ ResourceManager :: struct {
 
     MemoryKind :: enum u8 {
         PERSISTENT;
-        PERSISTENT_RESOLUTION_DEPENDENT; // For textures only
         PER_SCENE;
-        PER_SCENE_RESOLUTION_DEPENDENT;  // For textures only
         PER_FRAME;
     }
 
@@ -26,10 +24,9 @@ ResourceManager :: struct {
     // VTable
     //
 
-    destroyPlatformResourceManager            : (device : *Device, manager : *ResourceManager);
-    commitPlatformResourceMemory              : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind);
-    resetPlatformResourceMemory               : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind);
-    resizePlatformResolutionDependentTextures : (device : *Device, manager : *ResourceManager);
+    destroyPlatformResourceManager : (device : *Device, manager : *ResourceManager);
+    commitPlatformResourceMemory   : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind);
+    resetPlatformResourceMemory    : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind);
 
     pushPlatformBuffer   : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind) -> *Buffer #must;
     createPlatformBuffer : (device : *Device, manager : *ResourceManager, buffer : *Buffer, name : string, memory_kind : MemoryKind);
@@ -59,10 +56,6 @@ commitResourceMemory :: inline (device : *Device, manager : *ResourceManager, me
 
 resetResourceMemory :: inline (device : *Device, manager : *ResourceManager, memory_kind : ResourceManager.MemoryKind) {
     manager.resetPlatformResourceMemory(device, manager, memory_kind);
-}
-
-resizeResolutionDependentTextures :: inline (device : *Device, manager : *ResourceManager) {
-    manager.resizePlatformResolutionDependentTextures(device, manager);
 }
 
 #load "buffer.jai";

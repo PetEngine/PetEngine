@@ -37,7 +37,6 @@ Texture :: struct {
 
         // Not explicitly settable
         SWAPCHAIN;
-        RESOLUTION_DEPENDENT;
     }
 
     Usage :: enum_flags u8 {
@@ -105,8 +104,6 @@ createTexture :: (
 ) -> *Texture #must {
     assert(!(flags & .SWAPCHAIN),
            "You cannot explicitly set SWAPCHAIN flag");
-    assert(!(flags & .RESOLUTION_DEPENDENT),
-           "You cannot explicitly set RESOLUTION_DEPENDENT flag. You can set it by passing appropriate memory kind");
     assert(depth_or_array_size > 0 || !(flags & .ARRAY),
            "Number of elements in array of textures cannot be 0"); // @TODO: Dynamic arrays?
     assert((usage & (.COLOR_TARGET | .DEPTH_TARGET)) != (.COLOR_TARGET | .DEPTH_TARGET),
@@ -124,32 +121,18 @@ createTexture :: (
 
     // @TODO: Validate usage
 
-    #if memory_kind == .PERSISTENT_RESOLUTION_DEPENDENT || memory_kind == .PER_SCENE_RESOLUTION_DEPENDENT {
-        assert(!(flags & .CUBE),
-               "Cube textures cannot be resolution dependent");
-        assert(mips_count == 1,
-               "Resolution dependent textures can only have 1 mip level since there are some uncertainty in how we should handle mip levels count > 1 in some cases. e.g. on resize");
+    assert(width > 0);
+    assert(width == height || !(flags & .CUBE),
+           "Cube textures must have identical width and height");
 
-        flags |= .RESOLUTION_DEPENDENT;
-
-        back_buffer := getBackBuffer(device);
-
-        width  = back_buffer.width;
-        height = back_buffer.height;
+    max_mips_count := maxMipsCount(width, height, depth_or_array_size * cast,no_check(u16) (flags & .ARRAY));
+    if mips_count == Texture.ALL_MIPS {
+        mips_count = max_mips_count;
     } else {
-        assert(width > 0);
-        assert(width == height || !(flags & .CUBE),
-               "Cube textures must have identical width and height");
-
-        max_mips_count := maxMipsCount(width, height, depth_or_array_size * cast,no_check(u16) (flags & .ARRAY));
-        if mips_count == Texture.ALL_MIPS {
-            mips_count = max_mips_count;
-        } else {
-            assert(0 < mips_count && mips_count <= max_mips_count,
-                   "Too many MIP levels requested: %, maximum allowed: %",
-                   mips_count,
-                   max_mips_count);
-        }
+        assert(0 < mips_count && mips_count <= max_mips_count,
+               "Too many MIP levels requested: %, maximum allowed: %",
+               mips_count,
+               max_mips_count);
     }
 
     dimension : Texture.Dimension = ---;
@@ -157,7 +140,6 @@ createTexture :: (
     else if depth_or_array_size > 0 then dimension = ._3D;
     else if height > 0              then dimension = ._2D;
     else                                 dimension = ._1D;
-    assert((dimension == ._2D) || !(flags & .RESOLUTION_DEPENDENT), "Only 2D textures can be resolution dependent");
     assert((dimension != ._3D) || !(flags & .ARRAY), "Texture arrays cannot consist of 3D textures");
 
     assert(name.count <= ResourceManager.MAX_RESOURCE_NAME_LENGTH,
