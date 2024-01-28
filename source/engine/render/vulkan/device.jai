@@ -407,7 +407,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         height = window.surface.height
     };
 
-    if !memcmp(*surface_capabilities.maxImageExtent, *VkExtent2D.{0, 0}, size_of(VkExtent2D)) {
+    if !memcmp(*surface_capabilities.maxImageExtent, *(VkExtent2D.{}), size_of(VkExtent2D)) {
         assertMessage("There is no way to create swapchain while window is minimized");
     } else if memcmp(*surface_extent, *surface_capabilities.maxImageExtent, size_of(VkExtent2D)) > 0 {
         warningMessage("Requested surface extent for swapchain (% x %) is too big. Will be adjusted to % x %",

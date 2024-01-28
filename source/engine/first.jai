@@ -162,8 +162,8 @@ main :: () {
                 },
             ]);
             {
-                setViewport(device, *command_buffer, *Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }, back_buffer.height);
-                setScissorRect(device, *command_buffer, *ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height });
+                setViewport(device, *command_buffer, *(Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }), back_buffer.height);
+                setScissorRect(device, *command_buffer, *(ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height }));
 
                 setShader(device, *command_buffer, triangle_shader);
 
