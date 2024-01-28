@@ -68,17 +68,13 @@ operator []= :: inline (m : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], index : int
 }
 
 identity :: inline ($T : Type) -> T #no_context {
-    #if T == m2x2 {
-        return .{ e00 = 1, e11 = 1 };
-    } else #if T == m3x3 {
-        return .{ e00 = 1, e11 = 1, e22 = 1 };
-    } else #if T == m3x4 {
-        return .{ e00 = 1, e11 = 1, e22 = 1 };
-    } else #if T == m4x3 {
-        return .{ e00 = 1, e11 = 1, e22 = 1 };
-    } else {
-        #assert T == m4x4;
-        return .{ e00 = 1, e11 = 1, e22 = 1, e33 = 1 };
+    #if T == {
+        case m2x2; return .{ e00 = 1, e11 = 1 };
+        case m3x3; return .{ e00 = 1, e11 = 1, e22 = 1 };
+        case m3x4; return .{ e00 = 1, e11 = 1, e22 = 1 };
+        case m4x3; return .{ e00 = 1, e11 = 1, e22 = 1 };
+        case m4x4; return .{ e00 = 1, e11 = 1, e22 = 1, e33 = 1 };
+        case;      #assert false "Unhandled type";
     }
 }
 

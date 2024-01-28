@@ -281,7 +281,7 @@ message :: (
         if GetConsoleMode(console_handle, *console_mode) {
             success : BOOL;
 
-            // We do not change to color for verbose messages
+            // We do not change a color for verbose messages
             #if priority != .VERBOSE {
                      #if priority == .DEBUG   success = SetConsoleTextAttribute(console_handle, 0x09);
                 else #if priority == .INFO    success = SetConsoleTextAttribute(console_handle, 0x0A);

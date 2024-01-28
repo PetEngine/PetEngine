@@ -156,5 +156,5 @@ getThreadIndex :: inline () -> u32 #no_context {
         thrdaddr      : *u32
     ) -> u64 #foreign msvcrt;
 
-    msvcrt :: #system_library "msvcrt";
+    msvcrt :: #library,system "msvcrt";
 }

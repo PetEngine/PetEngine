@@ -25,7 +25,7 @@ BuildArguments :: struct {
 
     compiler_version : Version_Info = ---;
     compiler_version_str := compiler_get_version_info(*compiler_version);
-    if compareCompilerVersions(compiler_version, .{ 0, 1, 81 }) < 0 {
+    if compareCompilerVersions(compiler_version, .{ 0, 1, 84 }) < 0 {
         compiler_report(join("Compiler version you are using is ", compiler_version_str, ", minimal supported is 0.1.081",, allocator = temp));
     }
 

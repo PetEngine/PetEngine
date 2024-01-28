@@ -628,31 +628,31 @@ getVulkanSwapchainTexture :: inline (device : *VulkanDevice, swapchain_buffer_in
 setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
-                   #if T == VkInstance {               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_INSTANCE;
-            } else #if T == VkPhysicalDevice {         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PHYSICAL_DEVICE;
-            } else #if T == VkDevice {                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE;
-            } else #if T == VkQueue {                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_QUEUE;
-            } else #if T == VkSemaphore {              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SEMAPHORE;
-            } else #if T == VkCommandBuffer {          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_BUFFER;
-            } else #if T == VkFence {                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FENCE;
-            } else #if T == VkDeviceMemory {           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE_MEMORY;
-            } else #if T == VkBuffer {                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER;
-            } else #if T == VkImage {                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE;
-            } else #if T == VkImageView {              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE_VIEW;
-            } else #if T == VkShaderModule {           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SHADER_MODULE;
-            } else #if T == VkPipelineCache {          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_CACHE;
-            } else #if T == VkPipelineLayout {         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_LAYOUT;
-            } else #if T == VkRenderPass {             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_RENDER_PASS;
-            } else #if T == VkPipeline {               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
-            } else #if T == VkDescriptorSetLayout {    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
-            } else #if T == VkFramebuffer {            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
-            } else #if T == VkCommandPool {            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
-            } else #if T == VkSurfaceKHR {             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
-            } else #if T == VkSwapchainKHR {           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SWAPCHAIN_KHR;
-            } else #if T == VkDebugUtilsMessengerEXT { OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT;
-            } else {
-                OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_UNKNOWN;
-                #assert false "Unhandled Vk* type";
+            #if T == {
+                case VkInstance;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_INSTANCE;
+                case VkPhysicalDevice;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PHYSICAL_DEVICE;
+                case VkDevice;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE;
+                case VkQueue;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_QUEUE;
+                case VkSemaphore;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SEMAPHORE;
+                case VkCommandBuffer;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_BUFFER;
+                case VkFence;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FENCE;
+                case VkDeviceMemory;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE_MEMORY;
+                case VkBuffer;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER;
+                case VkImage;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE;
+                case VkImageView;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE_VIEW;
+                case VkShaderModule;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SHADER_MODULE;
+                case VkPipelineCache;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_CACHE;
+                case VkPipelineLayout;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_LAYOUT;
+                case VkRenderPass;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_RENDER_PASS;
+                case VkPipeline;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
+                case VkDescriptorSetLayout;    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
+                case VkFramebuffer;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
+                case VkCommandPool;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
+                case VkSurfaceKHR;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
+                case VkSwapchainKHR;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SWAPCHAIN_KHR;
+                case VkDebugUtilsMessengerEXT; OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT;
+                case;                          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_UNKNOWN;
+                    #assert false "Unhandled Vk* type";
             }
 
             object_name := pushToArena(*context.pet.per_frame_arena, s8, name.count + 1);
@@ -678,31 +678,31 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
             Basic.print_to_builder(*builder, format, ..args);
             Basic.append(*builder, "\0");
 
-                   #if T == VkInstance {               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_INSTANCE;
-            } else #if T == VkPhysicalDevice {         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PHYSICAL_DEVICE;
-            } else #if T == VkDevice {                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE;
-            } else #if T == VkQueue {                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_QUEUE;
-            } else #if T == VkSemaphore {              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SEMAPHORE;
-            } else #if T == VkCommandBuffer {          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_BUFFER;
-            } else #if T == VkFence {                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FENCE;
-            } else #if T == VkDeviceMemory {           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE_MEMORY;
-            } else #if T == VkBuffer {                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER;
-            } else #if T == VkImage {                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE;
-            } else #if T == VkImageView {              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE_VIEW;
-            } else #if T == VkShaderModule {           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SHADER_MODULE;
-            } else #if T == VkPipelineCache {          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_CACHE;
-            } else #if T == VkPipelineLayout {         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_LAYOUT;
-            } else #if T == VkRenderPass {             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_RENDER_PASS;
-            } else #if T == VkPipeline {               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
-            } else #if T == VkDescriptorSetLayout {    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
-            } else #if T == VkFramebuffer {            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
-            } else #if T == VkCommandPool {            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
-            } else #if T == VkSurfaceKHR {             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
-            } else #if T == VkSwapchainKHR {           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SWAPCHAIN_KHR;
-            } else #if T == VkDebugUtilsMessengerEXT { OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT;
-            } else {
-                OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_UNKNOWN;
-                #assert false "Unhandled Vk* type";
+            #if T == {
+                case VkInstance;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_INSTANCE;
+                case VkPhysicalDevice;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PHYSICAL_DEVICE;
+                case VkDevice;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE;
+                case VkQueue;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_QUEUE;
+                case VkSemaphore;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SEMAPHORE;
+                case VkCommandBuffer;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_BUFFER;
+                case VkFence;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FENCE;
+                case VkDeviceMemory;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE_MEMORY;
+                case VkBuffer;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER;
+                case VkImage;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE;
+                case VkImageView;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE_VIEW;
+                case VkShaderModule;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SHADER_MODULE;
+                case VkPipelineCache;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_CACHE;
+                case VkPipelineLayout;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_LAYOUT;
+                case VkRenderPass;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_RENDER_PASS;
+                case VkPipeline;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
+                case VkDescriptorSetLayout;    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
+                case VkFramebuffer;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
+                case VkCommandPool;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
+                case VkSurfaceKHR;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
+                case VkSwapchainKHR;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SWAPCHAIN_KHR;
+                case VkDebugUtilsMessengerEXT; OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT;
+                case;                          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_UNKNOWN;
+                    #assert false "Unhandled Vk* type";
             }
 
             object_name := Basic.builder_to_string(*builder,, allocator = Basic.temp);
@@ -953,31 +953,32 @@ messengerCallback :: (
     } : .MESSAGE_HASH;
 
     push_context device.jai_context {
-        #if MESSAGE_DEDUPLICATION_STRATEGY == .VUID_HASH {
-            message_end := message.data + message.count;
+        #if MESSAGE_DEDUPLICATION_STRATEGY == {
+            case .VUID_HASH;
+                message_end := message.data + message.count;
 
-            vuid_start := message.data;
-            while vuid_start < message_end && vuid_start.* != #char "[" {
-                vuid_start += 1;
-            }
+                vuid_start := message.data;
+                while vuid_start < message_end && vuid_start.* != #char "[" {
+                    vuid_start += 1;
+                }
 
-            vuid_end := vuid_start;
-            while vuid_end < message_end && vuid_end.* != #char "]" {
+                vuid_end := vuid_start;
+                while vuid_end < message_end && vuid_end.* != #char "]" {
+                    vuid_end += 1;
+                }
                 vuid_end += 1;
-            }
-            vuid_end += 1;
 
-            vuid_string := string.{ vuid_end - vuid_start, vuid_start };
+                vuid_string := string.{ vuid_end - vuid_start, vuid_start };
 
-            hash := Hash.get_hash(vuid_string);
+                hash := Hash.get_hash(vuid_string);
 
-            should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
-        } else #if MESSAGE_DEDUPLICATION_STRATEGY == .MESSAGE_HASH {
-            hash := Hash.get_hash(message);
+                should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
+            case .MESSAGE_HASH;
+                hash := Hash.get_hash(message);
 
-            should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
-        } else {
-            should_be_printed :: true;
+                should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
+            case;
+                should_be_printed :: true;
         }
 
         if should_be_printed {

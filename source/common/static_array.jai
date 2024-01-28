@@ -98,7 +98,7 @@ for_expansion :: (array : *StaticArray, body : Code, flags : For_Flags) #expand 
 exit :: (status: s32) #foreign libc;
 
 #if OS == .WINDOWS {
-    libc :: #system_library "msvcrt";
+    libc :: #library,system "msvcrt";
 } else {
-    libc :: #system_library "libc";
+    libc :: #library,system "libc";
 }

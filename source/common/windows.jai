@@ -1435,8 +1435,8 @@ PFN_XInputGetState :: #type (
 
 #scope_file
 
-kernel32 :: #system_library "kernel32";
-user32   :: #system_library "user32";
-dwmapi   :: #system_library "dwmapi";
-advapi32 :: #system_library "advapi32";
-hid      :: #system_library "hid";
+kernel32 :: #library,system "kernel32";
+user32   :: #library,system "user32";
+dwmapi   :: #library,system "dwmapi";
+advapi32 :: #library,system "advapi32";
+hid      :: #library,system "hid";

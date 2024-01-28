@@ -401,9 +401,9 @@ shaderc_result_get_error_message :: (
 #scope_file
 
 #if DEBUG_BUILD {
-    shaderc :: #system_library "shaderc_sharedd";
+    shaderc :: #library,system "shaderc_sharedd";
 } else {
-    shaderc :: #system_library "shaderc_shared";
+    shaderc :: #library,system "shaderc_shared";
 }
 
 size_t :: u64; // We target only 64-bit systems, so... whatever.

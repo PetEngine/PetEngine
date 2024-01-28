@@ -388,7 +388,7 @@ VkDescriptorSetLayout :: *VkDescriptorSetLayout_T; VkDescriptorSetLayout_T :: st
 #load "buffer.jai";
 
 #if OS == .WINDOWS {
-    vulkan :: #system_library "vulkan-1";
+    vulkan :: #library,system "vulkan-1";
 } else {
     notImplemented();
 }
