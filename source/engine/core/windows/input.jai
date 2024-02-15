@@ -18,7 +18,7 @@ setupInitialInputState :: (window : *Win32Window) {
 registerRawInput :: (window : *Win32Window) {
     assert(window, "Input sink is not supported");
 
-    NOTIFY_FLAG :: #ifx PRINT_VERBOSE_MESSAGES then .DEVNOTIFY else 0;
+    NOTIFY_FLAG : RIDEV : #ifx PRINT_VERBOSE_MESSAGES then .DEVNOTIFY else 0;
 
     raw_input_devices := RAWINPUTDEVICE.[
         .{
