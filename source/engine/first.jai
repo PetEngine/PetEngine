@@ -28,17 +28,24 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 };
 
 PerViewUniform :: struct {
-    camera_pos : v3f;
+    Data :: struct {
+        camera_pos : v3f;
 /*
-    view_matrix     : m3x4;
-    inv_view_matrix : m3x4;
+        view_matrix     : m3x4;
+        inv_view_matrix : m3x4;
 
-    proj_matrix     : m4x4;
-    inv_proj_matrix : m4x4;
+        proj_matrix     : m4x4;
+        inv_proj_matrix : m4x4;
 
-    view_proj_matrix     : m4x4;
-    inv_view_proj_matrix : m4x4;
+        view_proj_matrix     : m4x4;
+        inv_view_proj_matrix : m4x4;
 */
+    } #no_padding
+
+    buffer        : *Buffer;
+    upload_buffer : StaticArray(*Buffer, Device.MAX_FRAME_BUFFERING);
+
+    data : Data;
 }
 
 petMain :: () {
@@ -80,7 +87,19 @@ petMain :: () {
     success := createShadersHotReload(*shaders_hot_reload, device, shader_manager);
     defer destroyShadersHotReload(*shaders_hot_reload, success);
 
-    per_view_uniform_buffer := createBuffer(device, resource_manager, size_of(PerViewUniform), .PERSISTENT, .DEFAULT, .UNIFORM, "Per view");
+    per_view_uniform : PerViewUniform;
+    per_view_uniform.buffer = createBuffer(device, resource_manager, size_of(PerViewUniform.Data), .PERSISTENT, .DEFAULT, .UNIFORM, "Per view");
+    per_view_uniform.upload_buffer.count = Device.MAX_FRAME_BUFFERING;
+    for * per_view_uniform.upload_buffer {
+        it.* = createBuffer(device,
+                            resource_manager,
+                            size_of(PerViewUniform.Data),
+                            .PERSISTENT,
+                            .UPLOAD,
+                            .NONE,
+                            Basic.tprint("Per view upload for frame #%", it_index));
+    }
+    per_view_uniform.upload_buffer.count = cast(s64) device.frame_buffering;
 
     depth_buffer := createTexture(device,
                                   resource_manager,
@@ -124,6 +143,10 @@ petMain :: () {
             recreateSwapchain(device, window);
         }
 
+        // @TODO: #FrameBuffering.
+        assert(per_view_uniform.upload_buffer.count == cast(s64) device.frame_buffering,
+               "It's illegal to change frame buffering for now.");
+
         beginFrame(device);
         {
             // Reset
@@ -144,6 +167,8 @@ petMain :: () {
                 //        since we do not want to release memory which is in use by async queues.
                 commitResourceMemory(device, resource_manager, .PER_FRAME);
             }
+
+            copyBuffer(device, *command_buffer, per_view_uniform.buffer, per_view_uniform.upload_buffer[device.frame_index]);
 
             back_buffer := getBackBuffer(device);
 

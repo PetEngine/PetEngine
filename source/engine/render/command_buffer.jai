@@ -273,6 +273,37 @@ setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, s
     }
 }
 
+copyBuffer :: (
+    device         : *Device,
+    command_buffer : *CommandBuffer,
+    dest           : *Buffer,
+    source         : *Buffer,
+    dest_offset    : u32 = 0,
+    source_offset  : u32 = 0,
+    bytes          : u32 = 0xFFFF_FFFF
+) {
+    assert(dest_offset   < dest.bytes);
+    assert(source_offset < source.bytes);
+
+    if bytes == 0xFFFF_FFFF {
+        bytes = source.bytes;
+        assert(source.bytes == dest.bytes);
+    } else {
+        assert(dest_offset   + bytes <= dest.bytes);
+        assert(source_offset + bytes <= source.bytes);
+    }
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            copyVulkanBuffer(command_buffer.handles[device.frame_index],
+                             cast(*VulkanBuffer) dest,
+                             cast(*VulkanBuffer) source,
+                             dest_offset,
+                             source_offset,
+                             bytes);
+    }
+}
+
 #scope_file
 
 PipelineBindPoint :: enum u8 {

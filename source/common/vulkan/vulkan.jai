@@ -214,6 +214,10 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO                 :: 1000207002;
     // Provided by VK_VERSION_1_2
     VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO                        :: 1000207004;
+    // Provided by VK_VERSION_1_3
+    VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2                         :: 1000337000;
+    // Provided by VK_VERSION_1_3
+    VK_STRUCTURE_TYPE_BUFFER_COPY_2                              :: 1000337006;
 
     // Provided by VK_EXT_debug_utils
     VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT           :: 1000128000;
@@ -365,9 +369,9 @@ VkMemoryRequirements2 :: struct {
 }
 
 // @Cleanup: Move to their own files
-VK_ATTACHMENT_UNUSED : u32 : 0xFFFF_FFFF;
-VK_SUBPASS_EXTERNAL  : u32 : 0xFFFF_FFFF;
-VK_WHOLE_SIZE        : u64 : 0xFFFF_FFFF_FFFF_FFFF;
+VK_ATTACHMENT_UNUSED : u32          : 0xFFFF_FFFF;
+VK_SUBPASS_EXTERNAL  : u32          : 0xFFFF_FFFF;
+VK_WHOLE_SIZE        : VkDeviceSize : 0xFFFF_FFFF_FFFF_FFFF;
 
 // @Cleanup: Move to their own files
 VkRenderPass          :: *VkRenderPass_T;          VkRenderPass_T          :: struct {}
