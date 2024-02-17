@@ -290,19 +290,16 @@ commitVulkanBufferMemory :: (
 
     memory_requirements_info : VkBufferMemoryRequirementsInfo2;
     memory_requirements      : VkMemoryRequirements2;
-    memory_offset            : VkDeviceSize;
 
     for memory_pool.resources {
         bind_infos_it.buffer       = it.buffer;
-        bind_infos_it.memoryOffset = memory_offset;
+        bind_infos_it.memoryOffset = allocate_info.allocationSize;
 
         memory_requirements_info.buffer = it.buffer;
         vkGetBufferMemoryRequirements2(device.device, *memory_requirements_info, *memory_requirements);
 
         requirements := *memory_requirements.memoryRequirements;
-        allocate_info.allocationSize = alignUpWithPowerOfTwo(requirements.size, requirements.alignment);
-
-        memory_offset += allocate_info.allocationSize;
+        allocate_info.allocationSize += alignUpWithPowerOfTwo(requirements.size, requirements.alignment);
 
         bind_infos_it += 1;
     }
@@ -348,19 +345,16 @@ commitVulkanTextureMemory :: (
 
     memory_requirements_info : VkImageMemoryRequirementsInfo2;
     memory_requirements      : VkMemoryRequirements2;
-    memory_offset            : VkDeviceSize;
 
     for memory_pool.resources {
         bind_infos_it.image        = it.image;
-        bind_infos_it.memoryOffset = memory_offset;
+        bind_infos_it.memoryOffset = allocate_info.allocationSize;
 
         memory_requirements_info.image = it.image;
         vkGetImageMemoryRequirements2(device.device, *memory_requirements_info, *memory_requirements);
 
         requirements := *memory_requirements.memoryRequirements;
-        allocate_info.allocationSize = alignUpWithPowerOfTwo(requirements.size, requirements.alignment);
-
-        memory_offset += allocate_info.allocationSize;
+        allocate_info.allocationSize += alignUpWithPowerOfTwo(requirements.size, requirements.alignment);
 
         bind_infos_it += 1;
     }
