@@ -63,6 +63,23 @@ createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *V
 
     vkGetPhysicalDeviceMemoryProperties2(device.physical_device, *device.memory_properties);
 
+    #if PRINT_VERBOSE_MESSAGES {
+        builder : Basic.String_Builder;
+        builder.allocator = Basic.temp;
+
+        Basic.print(*builder, "Available memory types (%):\n", device.memory_properties.memoryProperties.memoryTypeCount);
+        for toView(device.memory_properties.memoryProperties.memoryTypes.data, device.memory_properties.memoryProperties.memoryTypeCount) {
+            Basic.print(*builder, "    Properties: %\n", it.propertyFlags);
+        }
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+
+        Basic.print(*builder, "Available memory heaps (%):\n", device.memory_properties.memoryProperties.memoryHeapCount);
+        for toView(device.memory_properties.memoryProperties.memoryHeaps.data, device.memory_properties.memoryProperties.memoryHeapCount) {
+            Basic.print(*builder, "    Size: % GB, Flags: %\n", it.size / 1024.0 / 1024.0 / 1024.0, it.flags);
+        }
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+    }
+
     gatherQueuesInfo(device);
     createDevice(device, *enabled_device_extensions);
     loadVulkanDeviceExtensionsFunctions(*device.loader, device.device, *enabled_device_extensions);
@@ -343,16 +360,16 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                                                                                                  cast(*u32) *surface_formats.count,
                                                                                                  surface_formats.data));
 
-    {
-        builder : Basic.String_Builder;
-        builder.allocator = Basic.temp;
+    builder : Basic.String_Builder;
+    builder.allocator = Basic.temp;
 
+    #if PRINT_VERBOSE_MESSAGES {
         Basic.append(*builder, "Available surface formats:");
         for surface_formats {
             Basic.print(*builder, "\n    Format: %, space: %", it.format, it.colorSpace);
         }
 
-        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
     // @TODO: #HDR. Hardware HDR support
@@ -547,9 +564,6 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
     // @TODO: #Settings. Get back buffer clear color from settings.
     clear_color := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
-
-    // @Important: Should be with default allocator
-    builder : Basic.String_Builder;
 
     // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to texture manager
     for * device.swapchain_textures {
@@ -775,10 +789,8 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
     defer Basic.reset_temporary_storage();
 
-    #if PRINT_VERBOSE_MESSAGES {
-        builder : Basic.String_Builder;
-        builder.allocator = Basic.temp;
-    }
+    builder : Basic.String_Builder;
+    builder.allocator = Basic.temp;
 
     layers_to_apply : [..] *s8;
     layers_to_apply.allocator = Basic.temp;
@@ -834,13 +846,11 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             }
         }
 
-        #if PRINT_VERBOSE_MESSAGES {
-            Basic.print(*builder, "Applying instance layers (%):\n", layers_to_apply.count);
-            for layers_to_apply {
-                Basic.print(*builder, "    %\n", to_string(cast(*u8) it));
-            }
-            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        Basic.print(*builder, "Applying instance layers (%):\n", layers_to_apply.count);
+        for layers_to_apply {
+            Basic.print(*builder, "    %\n", to_string(cast(*u8) it));
         }
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     extensions_to_apply : [..] *s8;
@@ -899,13 +909,11 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             }
         }
 
-        #if PRINT_VERBOSE_MESSAGES {
-            Basic.print(*builder, "Applying instance extensions (%):\n", enabled_instance_extensions.count);
-            for enabled_instance_extensions.* {
-                Basic.print(*builder, "    %\n", it);
-            }
-            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        Basic.print(*builder, "Applying instance extensions (%):\n", enabled_instance_extensions.count);
+        for enabled_instance_extensions.* {
+            Basic.print(*builder, "    %\n", it);
         }
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     nt_engine_name : [ENGINE_NAME.count + 1] s8;
@@ -1229,7 +1237,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
     defer Basic.reset_temporary_storage();
 
     // Print info about available queue families
-    {
+    #if PRINT_VERBOSE_MESSAGES {
         builder : Basic.String_Builder;
         builder.allocator = Basic.temp;
 
@@ -1248,7 +1256,7 @@ END;
                         it.queueFamilyProperties.queueCount);
         }
 
-        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     QUEUE_TYPE_TO_VK_QUEUE_FLAGS :: VkQueueFlags.[
@@ -1401,13 +1409,11 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
             }
         }
 
-        #if PRINT_VERBOSE_MESSAGES {
-            Basic.print(*builder, "Applying device extensions (%):\n", enabled_device_extensions.count);
-            for enabled_device_extensions.* {
-                Basic.print(*builder, "    %\n", it);
-            }
-            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        Basic.print(*builder, "Applying device extensions (%):\n", enabled_device_extensions.count);
+        for enabled_device_extensions.* {
+            Basic.print(*builder, "    %\n", it);
         }
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
     dynamic_rendering_features : VkPhysicalDeviceDynamicRenderingFeatures;
