@@ -19,6 +19,8 @@ VulkanResourceManager :: struct {
         per_frame  : [POOLS_COUNT] StaticArray(MemoryPool(VulkanResource, capacity), Device.MAX_FRAME_BUFFERING);
     }
 
+    memory_type_indices : [POOLS_COUNT] u32;
+
     buffers  : Memory(VulkanBuffer,  MAX_BUFFERS);
     textures : Memory(VulkanTexture, MAX_TEXTURES);
 
@@ -37,6 +39,45 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
 
     manager.pushPlatformTexture   = pushVulkanTexture;
     manager.createPlatformTexture = createVulkanTexture;
+
+    builder : Basic.String_Builder;
+    builder.allocator = Basic.temp;
+
+    memory_heaps := toView(device.memory_properties.memoryProperties.memoryHeaps.data, device.memory_properties.memoryProperties.memoryHeapCount);
+
+    #if PRINT_VERBOSE_MESSAGES {
+
+        Basic.print(*builder, "Available memory heaps (%):\n", device.memory_properties.memoryProperties.memoryHeapCount);
+        for memory_heaps {
+            Basic.print(*builder, "    Size: % GB, Flags: %\n", it.size / 1024.0 / 1024.0 / 1024.0, it.flags);
+        }
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+
+        Basic.print(*builder, "Available memory types (%):\n", device.memory_properties.memoryProperties.memoryTypeCount);
+        for toView(device.memory_properties.memoryProperties.memoryTypes.data, device.memory_properties.memoryProperties.memoryTypeCount) {
+            heap := memory_heaps[it.heapIndex];
+            Basic.print(*builder, "    [%]: Properties: %\n         Heap size: % GB\n         Heap flags: %\n",
+                        it_index,
+                        it.propertyFlags,
+                        heap.size / 1024.0 / 1024.0 / 1024.0,
+                        heap.flags);
+        }
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+    }
+
+    fillMemoryTypeIndex(device, manager);
+
+    Basic.print(*builder, "Pools memory types (%):\n", ResourceManager.POOLS_COUNT);
+    for manager.memory_type_indices {
+        memory_type := device.memory_properties.memoryProperties.memoryTypes[it];
+        heap := memory_heaps[memory_type.heapIndex];
+        Basic.print(*builder, "    %:\n        Properties: %\n        Heap size: % GB\n        Heap flags: %\n",
+                    cast(ResourceManager.Pool) it_index,
+                    memory_type.propertyFlags,
+                    heap.size / 1024.0 / 1024.0 / 1024.0,
+                    heap.flags);
+    }
+    infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
 
     BUFFERS_SUBARENA_CAPACITY  :: ResourceManager.MAX_BUFFERS  * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
     TEXTURES_SUBARENA_CAPACITY :: ResourceManager.MAX_TEXTURES * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
@@ -101,16 +142,16 @@ commitVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, l
 
     if #complete lifetime == {
         case .PERSISTENT;
-            for * manager.buffers.persistent  commitVulkanBufferMemory(device,  it, lifetime, cast(ResourceManager.Pool) it_index);
-            for * manager.textures.persistent commitVulkanTextureMemory(device, it, lifetime, cast(ResourceManager.Pool) it_index);
+            for * manager.buffers.persistent  commitVulkanBufferMemory(device,  manager, it, lifetime, cast(ResourceManager.Pool) it_index);
+            for * manager.textures.persistent commitVulkanTextureMemory(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
 
         case .PER_SCENE;
-            for * manager.buffers.per_scene  commitVulkanBufferMemory(device,  it, lifetime, cast(ResourceManager.Pool) it_index);
-            for * manager.textures.per_scene commitVulkanTextureMemory(device, it, lifetime, cast(ResourceManager.Pool) it_index);
+            for * manager.buffers.per_scene  commitVulkanBufferMemory(device,  manager, it, lifetime, cast(ResourceManager.Pool) it_index);
+            for * manager.textures.per_scene commitVulkanTextureMemory(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
 
         case .PER_FRAME;
-            for * manager.buffers.per_frame  commitVulkanBufferMemory(device,  *it.*[device.frame_index], lifetime, cast(ResourceManager.Pool) it_index);
-            for * manager.textures.per_frame commitVulkanTextureMemory(device, *it.*[device.frame_index], lifetime, cast(ResourceManager.Pool) it_index);
+            for * manager.buffers.per_frame  commitVulkanBufferMemory(device,  manager, *it.*[device.frame_index], lifetime, cast(ResourceManager.Pool) it_index);
+            for * manager.textures.per_frame commitVulkanTextureMemory(device, manager, *it.*[device.frame_index], lifetime, cast(ResourceManager.Pool) it_index);
     }
 }
 
@@ -228,8 +269,10 @@ resetVulkanResourceMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanR
 // Buffers
 //
 
+// @TODO: VkPhysicalDeviceVulkan11Properties::maxMemoryAllocationSize
 commitVulkanBufferMemory :: (
     device      : *VulkanDevice,
+    manager     : *VulkanResourceManager,
     memory_pool : *VulkanResourceManager.MemoryPool,
     lifetime    : ResourceManager.Lifetime,
     pool        : ResourceManager.Pool
@@ -237,19 +280,9 @@ commitVulkanBufferMemory :: (
     assert(memory_pool.device_memory == VK_NULL_HANDLE);
     if memory_pool.resources.count <= 0 return;
 
-    assert(pool == .DEFAULT); // @Incomplete, @Continue
-    memory_type_index : u32 = 0xFFFF_FFFF;
-    for toView(device.memory_properties.memoryProperties.memoryTypes.data, device.memory_properties.memoryProperties.memoryTypeCount) {
-        if it.propertyFlags & .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT {
-            memory_type_index = cast(u32) it_index;
-            break;
-        }
-    }
-    assert(memory_type_index != 0xFFFF_FFFF, "Device local memory is not supported on this device");
-
     allocate_info := VkMemoryAllocateInfo.{
         allocationSize  = 0, // Will be set in the loop
-        memoryTypeIndex = memory_type_index
+        memoryTypeIndex = manager.memory_type_indices[pool]
     };
 
     bind_infos    := pushToArena(*context.pet.per_frame_arena, VkBindBufferMemoryInfo, memory_pool.resources.count);
@@ -297,6 +330,7 @@ commitVulkanBufferMemory :: (
 // @TODO: VkPhysicalDeviceVulkan11Properties::maxMemoryAllocationSize
 commitVulkanTextureMemory :: (
     device      : *VulkanDevice,
+    manager     : *VulkanResourceManager,
     memory_pool : *VulkanResourceManager.MemoryPool,
     lifetime    : ResourceManager.Lifetime,
     pool        : ResourceManager.Pool
@@ -304,19 +338,9 @@ commitVulkanTextureMemory :: (
     assert(memory_pool.device_memory == VK_NULL_HANDLE);
     if memory_pool.resources.count <= 0 return;
 
-    assert(pool == .DEFAULT); // @Incomplete, @Continue
-    memory_type_index : u32 = 0xFFFF_FFFF;
-    for toView(device.memory_properties.memoryProperties.memoryTypes.data, device.memory_properties.memoryProperties.memoryTypeCount) {
-        if it.propertyFlags & .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT {
-            memory_type_index = cast(u32) it_index;
-            break;
-        }
-    }
-    assert(memory_type_index != 0xFFFF_FFFF, "Device local memory is not supported on this device");
-
     allocate_info := VkMemoryAllocateInfo.{
         allocationSize  = 0, // Will be set in the loop
-        memoryTypeIndex = memory_type_index
+        memoryTypeIndex = manager.memory_type_indices[pool]
     };
 
     bind_infos    := pushToArena(*context.pet.per_frame_arena, VkBindImageMemoryInfo, memory_pool.resources.count);
@@ -405,5 +429,43 @@ commitVulkanTextureMemory :: (
         debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
 
         setVulkanObjectName(device, it.view, "% view", it.name);
+    }
+}
+
+//
+// Other
+//
+
+fillMemoryTypeIndex :: (device : *VulkanDevice, manager : *VulkanResourceManager) {
+    // [0] - ideal
+    // [1] - minimal
+    MEMORY_PROPERTIES : [ResourceManager.POOLS_COUNT][2] VkMemoryPropertyFlags : .[
+        .[
+            .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+        ], .[
+            .VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        ], .[
+            .VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | .VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
+            .VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | .VK_MEMORY_PROPERTY_HOST_CACHED_BIT
+        ]
+    ];
+
+    memory_types := toView(device.memory_properties.memoryProperties.memoryTypes.data, device.memory_properties.memoryProperties.memoryTypeCount);
+
+    for pool_properties, pool_index : MEMORY_PROPERTIES {
+        manager.memory_type_indices[pool_index] = 0xFFFF_FFFF;
+
+        for properties : pool_properties {
+            for memory_types {
+                if (it.propertyFlags & properties) == properties {
+                    manager.memory_type_indices[pool_index] = cast(u32) it_index;
+                    break properties;
+                }
+            }
+        }
+
+        assert(manager.memory_type_indices[pool_index] != 0xFFFF_FFFF, "Device local memory is not supported on this device");
     }
 }
