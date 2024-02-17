@@ -80,7 +80,7 @@ petMain :: () {
     success := createShadersHotReload(*shaders_hot_reload, device, shader_manager);
     defer destroyShadersHotReload(*shaders_hot_reload, success);
 
-    per_view_uniform_buffer := createBuffer(device, resource_manager, size_of(PerViewUniform), .UNIFORM, name = "Per view", .PERSISTENT);
+    per_view_uniform_buffer := createBuffer(device, resource_manager, size_of(PerViewUniform), .PERSISTENT, .DEFAULT, .UNIFORM, "Per view");
 
     depth_buffer := createTexture(device,
                                   resource_manager,
@@ -89,8 +89,9 @@ petMain :: () {
                                   device.render_resolution.height,
                                   clear_value = .{ depth = 1.0 },
                                   .DEPTH_TARGET | .SHADER_READ,
-                                  "Depth",
-                                  .PERSISTENT);
+                                  .PERSISTENT,
+                                  .DEFAULT,
+                                  "Depth");
 
     // Create persistent buffers and textures here...
 

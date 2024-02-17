@@ -11,6 +11,8 @@ Device :: struct {
     MAX_COMMAND_BUFFERS   : s32 : 16;
     MAX_FRAME_BUFFERING   : u8  : #run Basic.enum_highest_value(FrameBuffering);
 
+    QUEUE_TYPES_COUNT :: #run Basic.enum_highest_value(QueueType) + 1;
+
     vendor_id    : PCIVendorID;
     type         : Type;
     graphics_api : GraphicsAPI;

@@ -1,14 +1,13 @@
-// @TODO:
-//     - Get rid of resolution dependent memory kinds. Just make N render resolutions and choose between them.
-
 ResourceManager :: struct {
-    MAX_BUFFERS  :: 64; // For each memory kind (except resolution dependent)
-    MAX_TEXTURES :: 64; // For each memory kind
+    MAX_BUFFERS  :: 64; // For each lifetime
+    MAX_TEXTURES :: 64; // For each lifetime
 
     MAX_RESOURCE_NAME_LENGTH      :: 512;
     MAX_RESOURCE_FULL_NAME_LENGTH :: 2 * MAX_RESOURCE_NAME_LENGTH;
 
-    MemoryKind :: enum u8 {
+    POOLS_COUNT :: #run Basic.enum_highest_value(Pool) + 1;
+
+    Lifetime :: enum u8 {
         PERSISTENT;
         PER_SCENE;
         PER_FRAME;
@@ -25,14 +24,14 @@ ResourceManager :: struct {
     //
 
     destroyPlatformResourceManager : (device : *Device, manager : *ResourceManager);
-    commitPlatformResourceMemory   : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind);
-    resetPlatformResourceMemory    : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind);
+    commitPlatformResourceMemory   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime);
+    resetPlatformResourceMemory    : (device : *Device, manager : *ResourceManager, lifetime : Lifetime);
 
-    pushPlatformBuffer   : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind) -> *Buffer #must;
-    createPlatformBuffer : (device : *Device, manager : *ResourceManager, buffer : *Buffer, name : string, memory_kind : MemoryKind);
+    pushPlatformBuffer   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime, pool : Pool) -> *Buffer #must;
+    createPlatformBuffer : (device : *Device, manager : *ResourceManager, buffer : *Buffer, lifetime : Lifetime, pool : Pool, name : string);
 
-    pushPlatformTexture   : (device : *Device, manager : *ResourceManager, memory_kind : MemoryKind) -> *Texture #must;
-    createPlatformTexture : (device : *Device, manager : *ResourceManager, texture : *Texture, name : string, memory_kind : MemoryKind);
+    pushPlatformTexture   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime, pool : Pool) -> *Texture #must;
+    createPlatformTexture : (device : *Device, manager : *ResourceManager, texture : *Texture, lifetime : Lifetime, pool : Pool, name : string);
 }
 
 createResourceManager :: (device : *Device) -> *ResourceManager #must {
@@ -50,12 +49,12 @@ destroyResourceManager :: inline (device : *Device, manager : *ResourceManager) 
     manager.destroyPlatformResourceManager(device, manager);
 }
 
-commitResourceMemory :: inline (device : *Device, manager : *ResourceManager, memory_kind : ResourceManager.MemoryKind) {
-    manager.commitPlatformResourceMemory(device, manager, memory_kind);
+commitResourceMemory :: inline (device : *Device, manager : *ResourceManager, lifetime : ResourceManager.Lifetime) {
+    manager.commitPlatformResourceMemory(device, manager, lifetime);
 }
 
-resetResourceMemory :: inline (device : *Device, manager : *ResourceManager, memory_kind : ResourceManager.MemoryKind) {
-    manager.resetPlatformResourceMemory(device, manager, memory_kind);
+resetResourceMemory :: inline (device : *Device, manager : *ResourceManager, lifetime : ResourceManager.Lifetime) {
+    manager.resetPlatformResourceMemory(device, manager, lifetime);
 }
 
 #load "buffer.jai";

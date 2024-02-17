@@ -15,24 +15,27 @@ Buffer :: struct {
     flags           : Flags;
     name            : string;
     current_owner   : QueueType;
-    possible_owners : StaticArray(QueueType, #run Basic.enum_highest_value(QueueType) + 1);
+    possible_owners : StaticArray(QueueType, Device.QUEUE_TYPES_COUNT);
 }
 
 createBuffer :: (
     device          : *Device,
     manager         : *ResourceManager,
     bytes           : u32,
+    lifetime        : ResourceManager.Lifetime,
+    pool            : ResourceManager.Pool,
     usage           : Buffer.Usage,
-    flags           : Buffer.Flags = 0,
     name            : string,
-    $memory_kind    : ResourceManager.MemoryKind,
+    flags           : Buffer.Flags = 0,
     possible_owners : ..QueueType  = .[ .GRAPHICS ]
 ) -> *Buffer #must {
     assert(name.count <= ResourceManager.MAX_RESOURCE_NAME_LENGTH,
            "Max buffer name length (%) > ResourceManager.MAX_RESOURCE_NAME_LENGTH (%)",
            name.count, ResourceManager.MAX_RESOURCE_NAME_LENGTH);
+    assert(pool == .DEFAULT || usage == .NONE,
+           "Only NONE usage is allowed with non-DEFAULT pools");
 
-    buffer := manager.pushPlatformBuffer(device, manager, memory_kind);
+    buffer := manager.pushPlatformBuffer(device, manager, lifetime, pool);
 
     buffer.bytes                 = bytes;
     buffer.usage                 = usage;
@@ -41,7 +44,7 @@ createBuffer :: (
     buffer.possible_owners.count = possible_owners.count;
     memcpy(buffer.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
 
-    manager.createPlatformBuffer(device, manager, buffer, name, memory_kind);
+    manager.createPlatformBuffer(device, manager, buffer, lifetime, pool, name);
 
     return buffer;
 }

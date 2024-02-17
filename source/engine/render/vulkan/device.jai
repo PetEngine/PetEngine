@@ -11,7 +11,7 @@ VulkanDevice :: struct {
     physical_device : VkPhysicalDevice;
     device          : VkDevice;
 
-    queues : [#run Basic.enum_highest_value(QueueType) + 1] Queue;
+    queues : [QUEUE_TYPES_COUNT] Queue;
 
     surface            : VkSurfaceKHR;
     swapchain          : VkSwapchainKHR;
