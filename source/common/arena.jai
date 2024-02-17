@@ -22,9 +22,12 @@ createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) 
     builder : Basic.String_Builder;
     builder.allocator = Basic.temp;
 
-    Basic.print(*builder, "% thread ", context.pet.thread_name);
+    Basic.print(*builder, "% thread/", context.pet.thread_name);
     Basic.print(*builder, format, ..args);
-    arena.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
+    Basic.append(*builder, " arena");
+
+    // We need to preserve it, so do not use Basic.temp
+    arena.name = Basic.builder_to_string(*builder);
 
     #if OS == .WINDOWS {
         system_info : SYSTEM_INFO = ---;
@@ -63,9 +66,12 @@ createSubarena :: (arena : *Arena, subarena : *Arena, subarena_capacity : s64, $
     builder : Basic.String_Builder;
     builder.allocator = Basic.temp;
 
-    Basic.print(*builder, "% arena / ", arena.name);
+    Basic.print(*builder, "%/", arena.name);
     Basic.print(*builder, format, ..args);
-    subarena.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
+    Basic.append(*builder, " subarena");
+
+    // We need to preserve it, so do not use Basic.temp
+    subarena.name = Basic.builder_to_string(*builder);
 
     subarena.memory   = pushToArena(arena, subarena_capacity);
     subarena.capacity = subarena_capacity;
@@ -81,7 +87,7 @@ destroyArena :: (arena : *Arena) {
     }
 
     #if DEBUG_BUILD {
-        debugMessage("% arena: max occupied bytes: % / %", arena.name, arena.max_occupied, arena.capacity);
+        debugMessage("%: max occupied bytes: % / %", arena.name, arena.max_occupied, arena.capacity);
         arena.max_occupied = 0;
     }
 
@@ -94,7 +100,7 @@ destroySubarena :: (subarena : *Arena) {
     assert(subarena.memory != null, "Initialize subarena first");
 
     #if DEBUG_BUILD {
-        debugMessage("% subarena: max occupied bytes: % / %", subarena.name, subarena.max_occupied, subarena.capacity);
+        debugMessage("%: max occupied bytes: % / %", subarena.name, subarena.max_occupied, subarena.capacity);
         subarena.max_occupied = 0;
     }
 

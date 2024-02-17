@@ -123,11 +123,11 @@ threadProc :: (thread : *Thread) {
     context.temporary_storage.high_water_mark             = 0;
 
     // @TODO: #Settings. Get persistent arena capacity from settings.
-    createArena(*context.pet.persistent_arena, gigaBytes(1), "persistent");
+    createArena(*context.pet.persistent_arena, gigaBytes(1), "Persistent");
     defer destroyArena(*context.pet.persistent_arena);
 
     // @TODO: #Settings. Get per frame arena capacity from settings.
-    createArena(*context.pet.per_frame_arena, megaBytes(512), "per frame");
+    createArena(*context.pet.per_frame_arena, megaBytes(512), "Per frame");
     defer destroyArena(*context.pet.per_frame_arena);
 
     thread.procedure(thread.data);
