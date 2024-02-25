@@ -349,7 +349,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
         Basic.append(*builder, "Available surface formats:");
         for surface_formats {
-            Basic.print_to_builder(*builder, "\n    Format: %, space: %", it.format, it.colorSpace);
+            Basic.print(*builder, "\n    Format: %, space: %", it.format, it.colorSpace);
         }
 
         infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
@@ -573,7 +573,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then it.usage |= .COLOR_TARGET;
 
         if !it.name {
-            Basic.print_to_builder(*builder, "Swapchain image #%", it_index);
+            Basic.print(*builder, "Swapchain image #%", it_index);
             it.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
         }
 
@@ -675,7 +675,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
             builder : Basic.String_Builder;
             builder.allocator = Basic.temp;
 
-            Basic.print_to_builder(*builder, format, ..args);
+            Basic.print(*builder, format, ..args);
             Basic.append(*builder, "\0");
 
             #if T == {
@@ -791,9 +791,9 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         debugCheckVK(vkEnumerateInstanceLayerProperties(cast(*u32) *available_layers.count, available_layers.data));
 
         #if PRINT_VERBOSE_MESSAGES {
-            Basic.print_to_builder(*builder, "Available instance layers (%):\n", available_layers.count);
+            Basic.print(*builder, "Available instance layers (%):\n", available_layers.count);
             for available_layers {
-                Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.layerName.data));
+                Basic.print(*builder, "    %\n", to_string(cast(*u8) it.layerName.data));
             }
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
@@ -835,9 +835,9 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         }
 
         #if PRINT_VERBOSE_MESSAGES {
-            Basic.print_to_builder(*builder, "Applying instance layers (%):\n", layers_to_apply.count);
+            Basic.print(*builder, "Applying instance layers (%):\n", layers_to_apply.count);
             for layers_to_apply {
-                Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it));
+                Basic.print(*builder, "    %\n", to_string(cast(*u8) it));
             }
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
@@ -854,9 +854,9 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         debugCheckVK(vkEnumerateInstanceExtensionProperties(null, cast(*u32) *available_extensions.count, available_extensions.data));
 
         #if PRINT_VERBOSE_MESSAGES {
-            Basic.print_to_builder(*builder, "Available instance extensions (%):\n", available_extensions.count);
+            Basic.print(*builder, "Available instance extensions (%):\n", available_extensions.count);
             for available_extensions {
-                Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
+                Basic.print(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
@@ -900,9 +900,9 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         }
 
         #if PRINT_VERBOSE_MESSAGES {
-            Basic.print_to_builder(*builder, "Applying instance extensions (%):\n", enabled_instance_extensions.count);
+            Basic.print(*builder, "Applying instance extensions (%):\n", enabled_instance_extensions.count);
             for enabled_instance_extensions.* {
-                Basic.print_to_builder(*builder, "    %\n", it);
+                Basic.print(*builder, "    %\n", it);
             }
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
@@ -1233,7 +1233,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
         builder : Basic.String_Builder;
         builder.allocator = Basic.temp;
 
-        Basic.print_to_builder(*builder, "Available queue families (%):\n", queue_family_properties.count);
+        Basic.print(*builder, "Available queue families (%):\n", queue_family_properties.count);
 
 QUEUE_FAMILY_INFO_FORMAT_STRING :: #string END
     [%]: Flags:        %
@@ -1241,11 +1241,11 @@ QUEUE_FAMILY_INFO_FORMAT_STRING :: #string END
 END;
 
         for queue_family_properties {
-            Basic.print_to_builder(*builder,
-                                   QUEUE_FAMILY_INFO_FORMAT_STRING,
-                                   it_index,
-                                   it.queueFamilyProperties.queueFlags,
-                                   it.queueFamilyProperties.queueCount);
+            Basic.print(*builder,
+                        QUEUE_FAMILY_INFO_FORMAT_STRING,
+                        it_index,
+                        it.queueFamilyProperties.queueFlags,
+                        it.queueFamilyProperties.queueCount);
         }
 
         infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
@@ -1290,19 +1290,19 @@ END;
         Basic.append(*builder, "Queues info:\n");
 
 QUEUE_INFO_FORMAT_STRING :: #string END
-    % queue:
+    %:
         Family flags: %
         Family index: %
         Index in family: %
 END;
 
         for device.queues {
-            Basic.print_to_builder(*builder,
-                                   QUEUE_INFO_FORMAT_STRING,
-                                   cast(QueueType) it_index,
-                                   queue_family_properties[it.family_index].queueFamilyProperties.queueFlags,
-                                   it.family_index,
-                                   it.index_in_family);
+            Basic.print(*builder,
+                        QUEUE_INFO_FORMAT_STRING,
+                        cast(QueueType) it_index,
+                        queue_family_properties[it.family_index].queueFamilyProperties.queueFlags,
+                        it.family_index,
+                        it.index_in_family);
         }
 
         infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
@@ -1356,9 +1356,9 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         debugCheckVK(vkEnumerateDeviceExtensionProperties(device.physical_device, null, cast(*u32) *available_extensions.count, available_extensions.data));
 
         #if PRINT_VERBOSE_MESSAGES {
-            Basic.print_to_builder(*builder, "Available device extensions (%):\n", available_extensions.count);
+            Basic.print(*builder, "Available device extensions (%):\n", available_extensions.count);
             for available_extensions {
-                Basic.print_to_builder(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
+                Basic.print(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
@@ -1402,9 +1402,9 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         }
 
         #if PRINT_VERBOSE_MESSAGES {
-            Basic.print_to_builder(*builder, "Applying device extensions (%):\n", enabled_device_extensions.count);
+            Basic.print(*builder, "Applying device extensions (%):\n", enabled_device_extensions.count);
             for enabled_device_extensions.* {
-                Basic.print_to_builder(*builder, "    %\n", it);
+                Basic.print(*builder, "    %\n", it);
             }
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }

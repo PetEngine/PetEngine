@@ -22,8 +22,8 @@ createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) 
     builder : Basic.String_Builder;
     builder.allocator = Basic.temp;
 
-    Basic.print_to_builder(*builder, "% thread ", context.pet.thread_name);
-    Basic.print_to_builder(*builder, format, ..args);
+    Basic.print(*builder, "% thread ", context.pet.thread_name);
+    Basic.print(*builder, format, ..args);
     arena.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
 
     #if OS == .WINDOWS {
@@ -63,8 +63,8 @@ createSubarena :: (arena : *Arena, subarena : *Arena, subarena_capacity : s64, $
     builder : Basic.String_Builder;
     builder.allocator = Basic.temp;
 
-    Basic.print_to_builder(*builder, "% arena / ", arena.name);
-    Basic.print_to_builder(*builder, format, ..args);
+    Basic.print(*builder, "% arena / ", arena.name);
+    Basic.print(*builder, format, ..args);
     subarena.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
 
     subarena.memory   = pushToArena(arena, subarena_capacity);

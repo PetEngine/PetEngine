@@ -204,18 +204,18 @@ message :: (
     builder: Basic.String_Builder;
     builder.allocator = Basic.temp;
 
-    Basic.print_to_builder(*builder, "[%]: ", priority);
+    Basic.print(*builder, "[%]: ", priority);
 
     #if priority == .ASSERT {
         normalized_filename, result := File_CLEANUP.get_absolute_path(location.fully_pathed_filename);
         Basic.assert(result);
 
-        Basic.print_to_builder(*builder, "%(%,%): ", normalized_filename, location.line_number, location.character_number);
+        Basic.print(*builder, "%(%,%): ", normalized_filename, location.line_number, location.character_number);
     }
 
     if args.count > 0 {
         #assert format.count > 0;
-        Basic.print_to_builder(*builder, format, ..args);
+        Basic.print(*builder, format, ..args);
     } else #if format.count > 0 {
         Basic.append(*builder, format);
     } else {
@@ -224,7 +224,7 @@ message :: (
 
     #if print_sys_error {
         if sys_error_code != 0 {
-            Basic.print_to_builder(*builder, ". System error (%): ", sys_error_code);
+            Basic.print(*builder, ". System error (%): ", sys_error_code);
 
             sys_error_message : string;
 
