@@ -19,6 +19,7 @@ VulkanResourceManager :: struct {
         per_frame  : [POOLS_COUNT] StaticArray(MemoryPool(VulkanResource, capacity), Device.MAX_FRAME_BUFFERING);
     }
 
+    max_allocation_size : VkDeviceSize;
     memory_type_indices : [POOLS_COUNT] u32;
 
     buffers  : Memory(VulkanBuffer,  MAX_BUFFERS);
@@ -39,6 +40,8 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
 
     manager.pushPlatformTexture   = pushVulkanTexture;
     manager.createPlatformTexture = createVulkanTexture;
+
+    manager.max_allocation_size = device.properties11.maxMemoryAllocationSize;
 
     builder : Basic.String_Builder;
     builder.allocator = Basic.temp;
@@ -269,7 +272,6 @@ resetVulkanResourceMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanR
 // Buffers
 //
 
-// @TODO: VkPhysicalDeviceVulkan11Properties::maxMemoryAllocationSize
 commitVulkanBufferMemory :: (
     device      : *VulkanDevice,
     manager     : *VulkanResourceManager,
@@ -304,6 +306,14 @@ commitVulkanBufferMemory :: (
         bind_infos_it += 1;
     }
 
+    if allocate_info.allocationSize > manager.max_allocation_size {
+        assertMessage("Buffers/%/% memory pool allocation size (% MB) exceeds maximum allowed allocation size: % MB",
+                      lifetime,
+                      pool,
+                      allocate_info.allocationSize / 1024.0 / 1024.0,
+                      manager.max_allocation_size  / 1024.0 / 1024.0);
+    }
+
     // @TODO: VkAllocationCallbacks
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory_pool.device_memory));
 
@@ -324,7 +334,6 @@ commitVulkanBufferMemory :: (
 // Textures
 //
 
-// @TODO: VkPhysicalDeviceVulkan11Properties::maxMemoryAllocationSize
 commitVulkanTextureMemory :: (
     device      : *VulkanDevice,
     manager     : *VulkanResourceManager,
@@ -357,6 +366,14 @@ commitVulkanTextureMemory :: (
         allocate_info.allocationSize += alignUpWithPowerOfTwo(requirements.size, requirements.alignment);
 
         bind_infos_it += 1;
+    }
+
+    if allocate_info.allocationSize > manager.max_allocation_size {
+        assertMessage("Textures/%/% memory pool allocation size (% MB) exceeds maximum allowed allocation size: % MB",
+                      lifetime,
+                      pool,
+                      allocate_info.allocationSize / 1024.0 / 1024.0,
+                      manager.max_allocation_size  / 1024.0 / 1024.0);
     }
 
     // @TODO: VkAllocationCallbacks

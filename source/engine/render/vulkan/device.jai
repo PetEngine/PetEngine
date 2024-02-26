@@ -27,6 +27,7 @@ VulkanDevice :: struct {
 
     loader : VulkanLoader;
 
+    properties11      : VkPhysicalDeviceVulkan11Properties;
     properties12      : VkPhysicalDeviceVulkan12Properties;
     limits            : VkPhysicalDeviceLimits;
     memory_properties : VkPhysicalDeviceMemoryProperties2;
@@ -1212,7 +1213,8 @@ END;
                 cast(string) properties.deviceName,
                 new_line = false);
 
-    physical_device_properties.pNext = *device.properties12;
+    physical_device_properties.pNext = *device.properties11;
+    device.properties11.pNext        = *device.properties12;
 
     vkGetPhysicalDeviceProperties2(device.physical_device, *physical_device_properties);
 
