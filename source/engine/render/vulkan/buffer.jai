@@ -20,7 +20,7 @@ pushVulkanBuffer :: (
     if #complete lifetime == {
         case .PERSISTENT; buffer = pushBack(*manager.buffers.persistent[pool].resources);
         case .PER_SCENE;  buffer = pushBack(*manager.buffers.per_scene[pool].resources);
-        case .PER_FRAME;  buffer = pushBack(*manager.buffers.per_frame[pool][device.frame_index].resources);
+        case .PER_FRAME;  buffer = pushBack(*manager.buffers.per_frame[device.frame_index][pool].resources);
     }
 
     assert(buffer);
@@ -63,7 +63,7 @@ createVulkanBuffer :: (
     if #complete lifetime == {
         case .PERSISTENT; composeVulkanBufferName(buffer, *manager.buffers.persistent[pool],                    lifetime, pool, name);
         case .PER_SCENE;  composeVulkanBufferName(buffer, *manager.buffers.per_scene[pool],                     lifetime, pool, name);
-        case .PER_FRAME;  composeVulkanBufferName(buffer, *manager.buffers.per_frame[pool][device.frame_index], lifetime, pool, name);
+        case .PER_FRAME;  composeVulkanBufferName(buffer, *manager.buffers.per_frame[device.frame_index][pool], lifetime, pool, name);
     }
 
     setVulkanObjectName(device, buffer.buffer, buffer.name);
