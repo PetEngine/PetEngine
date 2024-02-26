@@ -52,7 +52,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
 
         Basic.print(*builder, "Available memory heaps (%):\n", device.memory_properties.memoryProperties.memoryHeapCount);
         for memory_heaps {
-            Basic.print(*builder, "    Size: % GB, Flags: %\n", it.size / 1024.0 / 1024.0 / 1024.0, it.flags);
+            Basic.print(*builder, "    Size: % GB, Flags: %\n", bytesToGigaBytes(it.size), it.flags);
         }
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
 
@@ -62,7 +62,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
             Basic.print(*builder, "    [%]: Properties: %\n         Heap size: % GB\n         Heap flags: %\n",
                         it_index,
                         it.propertyFlags,
-                        heap.size / 1024.0 / 1024.0 / 1024.0,
+                        bytesToGigaBytes(heap.size),
                         heap.flags);
         }
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
@@ -77,7 +77,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
         Basic.print(*builder, "    %:\n        Properties: %\n        Heap size: % GB\n        Heap flags: %\n",
                     cast(ResourceManager.Pool) it_index,
                     memory_type.propertyFlags,
-                    heap.size / 1024.0 / 1024.0 / 1024.0,
+                    bytesToGigaBytes(heap.size),
                     heap.flags);
     }
     infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
@@ -310,8 +310,8 @@ commitVulkanBufferMemory :: (
         assertMessage("Buffers/%/% memory pool allocation size (% MB) exceeds maximum allowed allocation size: % MB",
                       lifetime,
                       pool,
-                      allocate_info.allocationSize / 1024.0 / 1024.0,
-                      manager.max_allocation_size  / 1024.0 / 1024.0);
+                      bytesToMegaBytes(allocate_info.allocationSize),
+                      bytesToMegaBytes(manager.max_allocation_size));
     }
 
     // @TODO: VkAllocationCallbacks
@@ -372,8 +372,8 @@ commitVulkanTextureMemory :: (
         assertMessage("Textures/%/% memory pool allocation size (% MB) exceeds maximum allowed allocation size: % MB",
                       lifetime,
                       pool,
-                      allocate_info.allocationSize / 1024.0 / 1024.0,
-                      manager.max_allocation_size  / 1024.0 / 1024.0);
+                      bytesToMegaBytes(allocate_info.allocationSize),
+                      bytesToMegaBytes(manager.max_allocation_size));
     }
 
     // @TODO: VkAllocationCallbacks
