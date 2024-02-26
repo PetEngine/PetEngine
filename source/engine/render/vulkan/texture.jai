@@ -6,20 +6,15 @@ VulkanTexture :: struct {
     current_layout : VkImageLayout; // @TODO: Rename to just layout
 }
 
-pushVulkanTexture :: (
-    device_  : *Device,
-    manager_ : *ResourceManager,
-    lifetime : ResourceManager.Lifetime,
-    pool     : ResourceManager.Pool
-) -> *Texture #must {
+pushVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, lifetime : ResourceManager.Lifetime) -> *Texture #must {
     device  := cast(*VulkanDevice)          device_;
     manager := cast(*VulkanResourceManager) manager_;
 
     texture : *VulkanTexture;
     if #complete lifetime == {
-        case .PERSISTENT; texture = pushBack(*manager.textures.persistent[pool].resources);
-        case .PER_SCENE;  texture = pushBack(*manager.textures.per_scene[pool].resources);
-        case .PER_FRAME;  texture = pushBack(*manager.textures.per_frame[pool][device.frame_index].resources);
+        case .PERSISTENT; texture = pushBack(*manager.textures.persistent.resources);
+        case .PER_SCENE;  texture = pushBack(*manager.textures.per_scene.resources);
+        case .PER_FRAME;  texture = pushBack(*manager.textures.per_frame[device.frame_index].resources);
     }
 
     assert(texture);
@@ -31,7 +26,6 @@ createVulkanTexture :: (
     manager_ : *ResourceManager,
     texture_ : *Texture,
     lifetime : ResourceManager.Lifetime,
-    pool     : ResourceManager.Pool,
     name     : string
 ) {
     device  := cast(*VulkanDevice)          device_;
@@ -100,9 +94,9 @@ createVulkanTexture :: (
     debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
 
     if #complete lifetime == {
-        case .PERSISTENT; composeVulkanTextureName(texture, *manager.textures.persistent[pool],                    lifetime, pool, name);
-        case .PER_SCENE;  composeVulkanTextureName(texture, *manager.textures.per_scene[pool],                     lifetime, pool, name);
-        case .PER_FRAME;  composeVulkanTextureName(texture, *manager.textures.per_frame[pool][device.frame_index], lifetime, pool, name);
+        case .PERSISTENT; composeVulkanTextureName(texture, *manager.textures.persistent,                    lifetime, name);
+        case .PER_SCENE;  composeVulkanTextureName(texture, *manager.textures.per_scene,                     lifetime, name);
+        case .PER_FRAME;  composeVulkanTextureName(texture, *manager.textures.per_frame[device.frame_index], lifetime, name);
     }
 
     setVulkanObjectName(device, texture.image, texture.name);
@@ -361,23 +355,18 @@ checkImageProperties :: (device : *VulkanDevice, texture : *VulkanTexture, creat
     }
 }
 
-// "Texture/<lifetime>/<pool>/<name>"
+// "Texture/<lifetime>/<name>"
 composeVulkanTextureName :: (
     texture     : *Texture,
     memory_pool : *VulkanResourceManager.MemoryPool,
     lifetime    : ResourceManager.Lifetime,
-    pool        : ResourceManager.Pool,
     name        : string
 ) {
     lifetime_name := Reflection.enum_value_to_name(lifetime);
     assert(lifetime_name);
 
-    pool_name := Reflection.enum_value_to_name(pool);
-    assert(pool_name);
-
     full_name_length := "Texture/".count
                       + lifetime_name.count + "/".count
-                      + pool_name.count     + "/".count
                       + name.count;
 
     assert(full_name_length <= ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH,
@@ -387,6 +376,6 @@ composeVulkanTextureName :: (
 
     texture.name.data = pushToArena(*memory_pool.names_subarena, full_name_length);
 
-    appendToString(*texture.name, full_name_length, "Texture/", lifetime_name, "/", pool_name, "/", name);
+    appendToString(*texture.name, full_name_length, "Texture/", lifetime_name, "/", name);
     assert(texture.name.count == full_name_length, "texture.name.count (%) != full_name_length (%)", texture.name.count, full_name_length);
 }

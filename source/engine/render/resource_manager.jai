@@ -30,8 +30,8 @@ ResourceManager :: struct {
     pushPlatformBuffer   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime, pool : Pool) -> *Buffer #must;
     createPlatformBuffer : (device : *Device, manager : *ResourceManager, buffer : *Buffer, lifetime : Lifetime, pool : Pool, name : string);
 
-    pushPlatformTexture   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime, pool : Pool) -> *Texture #must;
-    createPlatformTexture : (device : *Device, manager : *ResourceManager, texture : *Texture, lifetime : Lifetime, pool : Pool, name : string);
+    pushPlatformTexture   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime) -> *Texture #must;
+    createPlatformTexture : (device : *Device, manager : *ResourceManager, texture : *Texture, lifetime : Lifetime, name : string);
 }
 
 createResourceManager :: (device : *Device) -> *ResourceManager #must {

@@ -109,7 +109,6 @@ petMain :: () {
                                   clear_value = .{ depth = 1.0 },
                                   .DEPTH_TARGET | .SHADER_READ,
                                   .PERSISTENT,
-                                  .DEFAULT,
                                   "Depth");
 
     // Create persistent buffers and textures here...

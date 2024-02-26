@@ -99,7 +99,6 @@ createTexture :: (
     clear_value         : Texture.ClearValue = .{},
     usage               : Texture.Usage,
     lifetime            : ResourceManager.Lifetime,
-    pool                : ResourceManager.Pool,
     name                : string,
     possible_owners     : ..QueueType = .[ .GRAPHICS ]
 ) -> *Texture #must {
@@ -147,7 +146,7 @@ createTexture :: (
            "Max texture name length (%) > ResourceManager.MAX_RESOURCE_NAME_LENGTH (%)",
            name.count, ResourceManager.MAX_RESOURCE_NAME_LENGTH);
 
-    texture := manager.pushPlatformTexture(device, manager, lifetime, pool);
+    texture := manager.pushPlatformTexture(device, manager, lifetime);
 
     texture.dimension             = dimension;
     texture.format                = format;
@@ -163,7 +162,7 @@ createTexture :: (
     texture.possible_owners.count = cast(u32) possible_owners.count;
     memcpy(texture.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
 
-    manager.createPlatformTexture(device, manager, texture, lifetime, pool, name);
+    manager.createPlatformTexture(device, manager, texture, lifetime, name);
 
     return texture;
 }
