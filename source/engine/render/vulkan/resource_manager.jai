@@ -78,7 +78,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
     }
 
-    fillMemoryTypeIndex(device, manager);
+    fillMemoryTypeIndices(device, manager);
 
     Basic.print(*builder, "Pools memory types (%):\n", ResourceManager.POOLS_COUNT);
     for manager.memory_type_indices {
@@ -124,21 +124,21 @@ commitVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, l
     if #complete lifetime == {
         case .PERSISTENT;
             for * manager.buffers.persistent {
-                commitVulkanBufferMemory(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
+                commitVulkanBufferMemoryPool(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
             }
-            commitVulkanTextureMemory(device, manager, *manager.textures.persistent, lifetime);
+            commitVulkanTextureMemoryPool(device, manager, *manager.textures.persistent, lifetime);
 
         case .PER_SCENE;
             for * manager.buffers.per_scene {
-                commitVulkanBufferMemory(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
+                commitVulkanBufferMemoryPool(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
             }
-            commitVulkanTextureMemory(device, manager, *manager.textures.per_scene, lifetime);
+            commitVulkanTextureMemoryPool(device, manager, *manager.textures.per_scene, lifetime);
 
         case .PER_FRAME;
             for * manager.buffers.per_frame[device.frame_index] {
-                commitVulkanBufferMemory(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
+                commitVulkanBufferMemoryPool(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
             }
-            commitVulkanTextureMemory(device, manager, *manager.textures.per_frame[device.frame_index], lifetime);
+            commitVulkanTextureMemoryPool(device, manager, *manager.textures.per_frame[device.frame_index], lifetime);
     }
 }
 
@@ -148,12 +148,12 @@ resetVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, li
 
     if #complete lifetime == {
         case .PERSISTENT;
-            for * manager.buffers.persistent resetVulkanResourceMemoryPool(device, it);
-            resetVulkanResourceMemoryPool(device, *manager.textures.persistent);
+            for * manager.buffers.persistent resetVulkanBufferMemoryPool(device, it, cast(ResourceManager.Pool) it_index);
+            resetVulkanTextureMemoryPool(device, *manager.textures.persistent);
 
         case .PER_SCENE;
-            for * manager.buffers.per_scene resetVulkanResourceMemoryPool(device, it);
-            resetVulkanResourceMemoryPool(device, *manager.textures.per_scene);
+            for * manager.buffers.per_scene resetVulkanBufferMemoryPool(device, it, cast(ResourceManager.Pool) it_index);
+            resetVulkanTextureMemoryPool(device, *manager.textures.per_scene);
 
         case .PER_FRAME;
             // @TODO: #PerFrameTextures. #PerFrameBuffers. #FrameBuffering.
@@ -167,40 +167,10 @@ resetVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, li
             manager.textures.per_frame.count = cast,no_check(s64) device.frame_buffering;
 
             for * manager.buffers.per_frame[device.frame_index] {
-                resetVulkanResourceMemoryPool(device, it);
+                resetVulkanBufferMemoryPool(device, it, cast(ResourceManager.Pool) it_index);
             }
-            resetVulkanResourceMemoryPool(device, *manager.textures.per_frame[device.frame_index]);
+            resetVulkanTextureMemoryPool(device, *manager.textures.per_frame[device.frame_index]);
     }
-}
-
-resetVulkanResourceMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.MemoryPool) {
-    for * memory_pool.resources {
-        // @TODO: VkAllocationCallbacks
-        #if memory_pool.VulkanResource == {
-            case VulkanBuffer;
-                vkDestroyBuffer(device.device, it.buffer, null);
-                it.buffer = VK_NULL_HANDLE;
-
-            case VulkanTexture;
-                vkDestroyImageView(device.device, it.view, null);
-                it.view = VK_NULL_HANDLE;
-
-                vkDestroyImage(device.device, it.image, null);
-                it.image = VK_NULL_HANDLE;
-
-            case;
-                #assert false, "Unhandled type";
-        }
-    }
-    memory_pool.resources.count = 0;
-
-    if memory_pool.device_memory {
-        // @TODO: VkAllocationCallbacks
-        vkFreeMemory(device.device, memory_pool.device_memory, null);
-        memory_pool.device_memory = VK_NULL_HANDLE;
-    }
-
-    resetArena(*memory_pool.names_subarena);
 }
 
 //
@@ -231,56 +201,66 @@ createVulkanBufferMemoryNamesSubarenas :: (
 }
 
 destroyVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.BufferMemory) {
-    destroyPool :: (
-        device      : *VulkanDevice,
-        memory_pool : *VulkanResourceManager.MemoryPool(VulkanBuffer, ResourceManager.MAX_BUFFERS),
-        lifetime    : ResourceManager.Lifetime,
-        pool        : ResourceManager.Pool,
-        frame_index : u8 = 0
-    ) {
-        for * memory_pool.resources {
-            warningMessage("% has not been freed", it.name);
-
-            // @TODO: VkAllocationCallbacks
-            vkDestroyBuffer(device.device, it.buffer, null);
-            it.buffer = VK_NULL_HANDLE;
-        }
-        memory_pool.resources.count = 0;
-
-        if memory_pool.device_memory {
-            if lifetime == .PER_FRAME {
-                assert(0 <= frame_index && frame_index <= Device.MAX_FRAME_BUFFERING);
-                warningMessage("Buffers/Frame #%/% device memory has not been freed", frame_index, pool);
-            } else {
-                warningMessage("Buffers/%/% device memory has not been freed", lifetime, pool);
-            }
-
-            // @TODO: VkAllocationCallbacks
-            vkFreeMemory(device.device, memory_pool.device_memory, null);
-            memory_pool.device_memory = VK_NULL_HANDLE;
-        }
-
-        destroySubarena(*memory_pool.names_subarena);
-    }
-
     for * memory.persistent {
-        destroyPool(device, it, .PERSISTENT, cast(ResourceManager.Pool) it_index);
+        assert(it.device_memory == VK_NULL_HANDLE);
+        assert(it.resources.count == 0);
+        destroySubarena(*it.names_subarena);
     }
 
     for * memory.per_scene  {
-        destroyPool(device, it, .PER_SCENE, cast(ResourceManager.Pool) it_index);
+        assert(it.device_memory == VK_NULL_HANDLE);
+        assert(it.resources.count == 0);
+        destroySubarena(*it.names_subarena);
     }
 
     memory.per_frame.count = memory.per_frame.capacity;
-    for * frame_pools, frame_index : memory.per_frame {
-        for * frame_pools.* {
-            destroyPool(device, it, .PER_FRAME, cast(ResourceManager.Pool) it_index, cast(u8) frame_index);
+    for * memory.per_frame {
+        for * it.* {
+            assert(it.device_memory == VK_NULL_HANDLE);
+            assert(it.resources.count == 0);
+            destroySubarena(*it.names_subarena);
         }
     }
     memory.per_frame.count = 0;
 }
 
-commitVulkanBufferMemory :: (
+resetVulkanBufferMemoryPool :: (
+    device      : *VulkanDevice,
+    memory_pool : *VulkanResourceManager.MemoryPool,
+    pool        : ResourceManager.Pool
+) {
+    if pool != .DEFAULT {
+        at_least_one_buffer_is_mapped : bool;
+        for memory_pool.resources {
+            if it.flags & .MAPPED {
+                assert(it.mapped_memory);
+                at_least_one_buffer_is_mapped = true;
+                break;
+            }
+        }
+
+        if at_least_one_buffer_is_mapped {
+            vkUnmapMemory(device.device, memory_pool.device_memory);
+        }
+    }
+
+    for * memory_pool.resources {
+        // @TODO: VkAllocationCallbacks
+        vkDestroyBuffer(device.device, it.buffer, null);
+        it.buffer = VK_NULL_HANDLE;
+    }
+    reset(*memory_pool.resources);
+
+    if memory_pool.device_memory {
+        // @TODO: VkAllocationCallbacks
+        vkFreeMemory(device.device, memory_pool.device_memory, null);
+        memory_pool.device_memory = VK_NULL_HANDLE;
+    }
+
+    resetArena(*memory_pool.names_subarena);
+}
+
+commitVulkanBufferMemoryPool :: (
     device      : *VulkanDevice,
     manager     : *VulkanResourceManager,
     memory_pool : *VulkanResourceManager.MemoryPool,
@@ -347,6 +327,35 @@ commitVulkanBufferMemory :: (
 
     debugCheckVK(vkBindBufferMemory2(device.device, cast(u32) memory_pool.resources.count, bind_infos));
 
+    if pool != .DEFAULT {
+        // Vulkan does not allow to map multiple ranges from the same device memory,
+        // so map entire device memory if at least one buffer should be mapped
+
+        at_least_one_buffer_should_be_mapped : bool;
+        for memory_pool.resources {
+            if it.flags & .MAPPED {
+                at_least_one_buffer_should_be_mapped = true;
+                break;
+            }
+        }
+
+        if at_least_one_buffer_should_be_mapped {
+            mapped_device_memory : *void;
+            debugCheckVK(vkMapMemory(device.device, memory_pool.device_memory, 0, VK_WHOLE_SIZE, 0, *mapped_device_memory));
+            assert(mapped_device_memory);
+
+            for * memory_pool.resources {
+                assert(!it.mapped_memory);
+
+                if it.flags & .MAPPED {
+                    it.mapped_memory = mapped_device_memory;
+                }
+
+                mapped_device_memory += it.bytes;
+            }
+        }
+    }
+
     // @TODO: #Views
 }
 
@@ -371,51 +380,45 @@ createVulkanTextureMemoryNamesSubarenas :: (
 }
 
 destroyVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.TextureMemory) {
-    destroyPool :: (
-        device      : *VulkanDevice,
-        memory_pool : *VulkanResourceManager.MemoryPool(VulkanTexture, ResourceManager.MAX_TEXTURES),
-        lifetime    : ResourceManager.Lifetime,
-        frame_index : u8 = 0
-    ) {
-        for * memory_pool.resources {
-            warningMessage("% has not been freed", it.name);
+    assert(memory.persistent.device_memory == VK_NULL_HANDLE);
+    assert(memory.persistent.resources.count == 0);
+    destroySubarena(*memory.persistent.names_subarena);
 
-            // @TODO: VkAllocationCallbacks
-            vkDestroyImageView(device.device, it.view, null);
-            it.view = VK_NULL_HANDLE;
+    assert(memory.per_scene.device_memory == VK_NULL_HANDLE);
+    assert(memory.per_scene.resources.count == 0);
+    destroySubarena(*memory.per_scene.names_subarena);
 
-            // @TODO: VkAllocationCallbacks
-            vkDestroyImage(device.device, it.image, null);
-            it.image = VK_NULL_HANDLE;
-        }
-        memory_pool.resources.count = 0;
-
-        if memory_pool.device_memory {
-            if lifetime == .PER_FRAME {
-                assert(0 <= frame_index && frame_index <= Device.MAX_FRAME_BUFFERING);
-                warningMessage("Textures/Frame #% device memory has not been freed", frame_index);
-            } else {
-                warningMessage("Textures/% device memory has not been freed", lifetime);
-            }
-
-            // @TODO: VkAllocationCallbacks
-            vkFreeMemory(device.device, memory_pool.device_memory, null);
-            memory_pool.device_memory = VK_NULL_HANDLE;
-        }
-
-        destroySubarena(*memory_pool.names_subarena);
-    }
-
-    destroyPool(device, *memory.persistent, .PERSISTENT);
-    destroyPool(device, *memory.per_scene, .PER_SCENE);
     memory.per_frame.count = memory.per_frame.capacity;
     for * memory.per_frame {
-        destroyPool(device, it, .PER_FRAME, cast(u8) it_index);
+        assert(it.device_memory == VK_NULL_HANDLE);
+        assert(it.resources.count == 0);
+        destroySubarena(*it.names_subarena);
     }
     memory.per_frame.count = 0;
 }
 
-commitVulkanTextureMemory :: (
+resetVulkanTextureMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.MemoryPool) {
+    for * memory_pool.resources {
+        // @TODO: VkAllocationCallbacks
+        vkDestroyImageView(device.device, it.view, null);
+        it.view = VK_NULL_HANDLE;
+
+        // @TODO: VkAllocationCallbacks
+        vkDestroyImage(device.device, it.image, null);
+        it.image = VK_NULL_HANDLE;
+    }
+    reset(*memory_pool.resources);
+
+    if memory_pool.device_memory {
+        // @TODO: VkAllocationCallbacks
+        vkFreeMemory(device.device, memory_pool.device_memory, null);
+        memory_pool.device_memory = VK_NULL_HANDLE;
+    }
+
+    resetArena(*memory_pool.names_subarena);
+}
+
+commitVulkanTextureMemoryPool :: (
     device      : *VulkanDevice,
     manager     : *VulkanResourceManager,
     memory_pool : *VulkanResourceManager.MemoryPool,
@@ -537,7 +540,7 @@ commitVulkanTextureMemory :: (
 // Other
 //
 
-fillMemoryTypeIndex :: (device : *VulkanDevice, manager : *VulkanResourceManager) {
+fillMemoryTypeIndices :: (device : *VulkanDevice, manager : *VulkanResourceManager) {
     // [0] - ideal
     // [1] - minimal
     MEMORY_PROPERTIES : [ResourceManager.POOLS_COUNT][2] VkMemoryPropertyFlags : .[

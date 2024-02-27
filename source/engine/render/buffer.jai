@@ -7,13 +7,15 @@ Buffer :: struct {
     }
 
     Flags :: enum_flags u8 {
-        RAW; // Raw or structured buffer
+        RAW;    // Raw or structured buffer
+        MAPPED;
     }
 
     bytes           : u32;
     usage           : Usage;
     flags           : Flags;
     name            : string;
+    mapped_memory   : *void;
     current_owner   : QueueType;
     possible_owners : StaticArray(QueueType, Device.QUEUE_TYPES_COUNT);
 }
@@ -34,6 +36,8 @@ createBuffer :: (
            name.count, ResourceManager.MAX_RESOURCE_NAME_LENGTH);
     assert(pool == .DEFAULT || usage == .NONE,
            "Only NONE usage is allowed with non-DEFAULT pools");
+    assert(!(pool == .DEFAULT && (flags & .MAPPED)),
+           "Buffers in DEFAULT pool cannot be mapped");
 
     buffer := manager.pushPlatformBuffer(device, manager, lifetime, pool);
 
