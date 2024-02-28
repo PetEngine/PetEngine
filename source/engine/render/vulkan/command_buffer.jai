@@ -322,8 +322,8 @@ setVulkanPushConstants :: inline (command_buffer : VkCommandBuffer, shader : *Vu
 
 copyVulkanBuffer :: inline (
     command_buffer : VkCommandBuffer,
-    dest           : *VulkanBuffer,
-    source         : *VulkanBuffer,
+    dest_buffer    : *VulkanBuffer,
+    source_buffer  : *VulkanBuffer,
     dest_offset    : u32,
     source_offset  : u32,
     bytes          : u32
@@ -335,8 +335,8 @@ copyVulkanBuffer :: inline (
     };
 
     info := VkCopyBufferInfo2.{
-        srcBuffer   = source.buffer,
-        dstBuffer   = dest.buffer,
+        srcBuffer   = source_buffer.buffer,
+        dstBuffer   = dest_buffer.buffer,
         regionCount = 1,
         pRegions    = *region
     };
