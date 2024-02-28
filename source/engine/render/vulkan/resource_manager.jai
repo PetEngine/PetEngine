@@ -3,7 +3,7 @@
 //    - #SwapchainBuffers. Make a function for swapchain buffers initialization?
 //    - #ResourceLayout. Rework resource layout changing mechanism. If we gonna compile our command buffers concurrently,
 //      current tracking of current texture layout will not work.
-//    - Use placement resources or something instead of freeing memory on reset. But we have to find a way to unbind resource memory.
+//    - Use reserved resources or something instead of freeing memory on reset. Use sparce bindings maybe?
 
 VulkanResourceManager :: struct {
     #as using public_data : ResourceManager;

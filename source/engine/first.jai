@@ -42,8 +42,8 @@ PerViewUniform :: struct {
 */
     } #no_padding
 
-    buffer        : *Buffer;
-    upload_buffer : StaticArray(*Buffer, Device.MAX_FRAME_BUFFERING);
+    buffer         : *Buffer;
+    upload_buffers : StaticArray(*Buffer, Device.MAX_FRAME_BUFFERING);
 
     data : Data;
 }
@@ -89,17 +89,18 @@ petMain :: () {
 
     per_view_uniform : PerViewUniform;
     per_view_uniform.buffer = createBuffer(device, resource_manager, size_of(PerViewUniform.Data), .PERSISTENT, .DEFAULT, .UNIFORM, "Per view");
-    per_view_uniform.upload_buffer.count = Device.MAX_FRAME_BUFFERING;
-    for * per_view_uniform.upload_buffer {
+    per_view_uniform.upload_buffers.count = PerViewUniform.upload_buffers.capacity;
+    for * per_view_uniform.upload_buffers {
         it.* = createBuffer(device,
                             resource_manager,
                             size_of(PerViewUniform.Data),
                             .PERSISTENT,
                             .UPLOAD,
                             .NONE,
-                            Basic.tprint("Per view upload for frame #%", it_index));
+                            "Per view",
+                            .MAPPED);
     }
-    per_view_uniform.upload_buffer.count = cast(s64) device.frame_buffering;
+    per_view_uniform.upload_buffers.count = cast(s64) device.frame_buffering;
 
     depth_buffer := createTexture(device,
                                   resource_manager,
@@ -143,7 +144,7 @@ petMain :: () {
         }
 
         // @TODO: #FrameBuffering.
-        assert(per_view_uniform.upload_buffer.count == cast(s64) device.frame_buffering,
+        assert(per_view_uniform.upload_buffers.count == cast(s64) device.frame_buffering,
                "It's illegal to change frame buffering for now.");
 
         beginFrame(device);
@@ -167,7 +168,15 @@ petMain :: () {
                 commitResourceMemory(device, resource_manager, .PER_FRAME);
             }
 
-            copyBuffer(device, *command_buffer, per_view_uniform.buffer, per_view_uniform.upload_buffer[device.frame_index]);
+            // Update per view uniform buffer
+            {
+                upload_buffer := per_view_uniform.upload_buffers[device.frame_index];
+
+                data : *PerViewUniform.Data = upload_buffer.mapped_memory;
+                data.camera_pos = v3f.{ 1.0, 2.0, 3.0 } + (3.0 * device.frame_index);
+
+                copyBuffer(device, *command_buffer, per_view_uniform.buffer, upload_buffer);
+            }
 
             back_buffer := getBackBuffer(device);
 
