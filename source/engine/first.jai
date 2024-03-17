@@ -195,6 +195,13 @@ Reflection :: #import "Reflection";
     #program_export
     WinMainCRTStartup :: () #c_call {
         first_context : Context;
+
+        // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
+        #if _STACK_TRACE {
+            stack_trace_sentinel : Stack_Trace_Node;
+            first_context.stack_trace = *stack_trace_sentinel;
+        }
+
         push_context first_context {
             initRuntimeAndCallEntryPoint();
         }
@@ -289,6 +296,13 @@ Reflection :: #import "Reflection";
         __command_line_arguments.data  = argv;
 
         first_context : Context;
+
+        // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
+        #if _STACK_TRACE {
+            stack_trace_sentinel : Stack_Trace_Node;
+            first_context.stack_trace = *stack_trace_sentinel;
+        }
+
         push_context first_context {
             initRuntimeAndCallEntryPoint();
         }

@@ -34,9 +34,17 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
 
         winThreadProc :: (parameter : *void) -> u32 #c_call {
             thread : *Thread(Data) = parameter;
+
+            // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
+            #if _STACK_TRACE {
+                stack_trace_sentinel : Stack_Trace_Node;
+                thread.jai_context.stack_trace = *stack_trace_sentinel;
+            }
+
             push_context thread.jai_context {
                 threadProc(thread);
             }
+
             return 0;
         }
 

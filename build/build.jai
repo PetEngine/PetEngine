@@ -20,6 +20,11 @@ BuildArguments :: struct {
     verbose    : bool;
 }
 
+CONFIG_STRING :: #string END
+DEBUG_BUILD            :: %;
+PRINT_VERBOSE_MESSAGES :: %;
+END;
+
 #run {
     context.print_style.default_format_struct.use_newlines_if_long_form = true;
 
@@ -150,8 +155,7 @@ BuildArguments :: struct {
 
     compiler_begin_intercept(workspace);
     {
-        add_build_string(tprint("DEBUG_BUILD            :: %;", !build_arguments.optimized), workspace);
-        add_build_string(tprint("PRINT_VERBOSE_MESSAGES :: %;", build_arguments.verbose),    workspace);
+        add_build_string(tprint(CONFIG_STRING, !build_arguments.optimized, build_arguments.verbose), workspace);
         add_build_file(build_filename, workspace);
 
         while true {
