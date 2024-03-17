@@ -231,6 +231,9 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR                  :: 1000001000;
     VK_STRUCTURE_TYPE_PRESENT_INFO_KHR                           :: 1000001001;
     VK_STRUCTURE_TYPE_ACQUIRE_NEXT_IMAGE_INFO_KHR                :: 1000060010;
+
+    // Provided by VK_EXT_validation_features
+    VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT                    :: 1000247000;
 }
 
 // Provided by VK_VERSION_1_0

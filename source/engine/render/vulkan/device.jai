@@ -819,7 +819,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         REQUIRED_LAYERS, OPTIONAL_LAYERS :: #run gatherVulkanLayers();
 
         for required_layer : REQUIRED_LAYERS {
-            layer_found := false;
+            layer_found : bool;
 
             for available_layers {
                 if to_string(cast(*u8) it.layerName.data) == required_layer {
@@ -836,7 +836,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         }
 
         for optional_layer : OPTIONAL_LAYERS {
-            layer_found := false;
+            layer_found : bool;
 
             for available_layers {
                 if to_string(cast(*u8) it.layerName.data) == optional_layer {
@@ -877,10 +877,26 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
         }
 
+        #if DEBUG_BUILD {
+            validation_extensions : [] VkExtensionProperties;
+            debugCheckVK(vkEnumerateInstanceExtensionProperties(cast(*s8) "VK_LAYER_KHRONOS_validation".data, cast(*u32) *validation_extensions.count, null));
+
+            validation_extensions.data = pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, validation_extensions.count);
+            debugCheckVK(vkEnumerateInstanceExtensionProperties(cast(*s8) "VK_LAYER_KHRONOS_validation".data, cast(*u32) *validation_extensions.count, validation_extensions.data));
+
+            #if PRINT_VERBOSE_MESSAGES {
+                Basic.print(*builder, "Available VK_LAYER_KHRONOS_validation's instance extensions (%):\n", validation_extensions.count);
+                for validation_extensions {
+                    Basic.print(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
+                }
+                verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+            }
+        }
+
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanInstanceExtensions();
 
         for required_extension : REQUIRED_EXTENSIONS {
-            extension_found := false;
+            extension_found : bool;
 
             for available_extensions {
                 if to_string(cast(*u8) it.extensionName.data) == required_extension {
@@ -898,7 +914,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         }
 
         for optional_extension : OPTIONAL_EXTENSIONS {
-            extension_found := false;
+            extension_found : bool;
 
             for available_extensions {
                 if to_string(cast(*u8) it.extensionName.data) == optional_extension {
@@ -912,6 +928,24 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
                 Basic.array_add(*extensions_to_apply, cast(*s8) optional_extension.data);
             } else {
                 warningMessage("Optional instance extension \"%\" has not been found in available instance extensions", optional_extension);
+            }
+        }
+
+        #if DEBUG_BUILD {
+            extension_found : bool;
+
+            for validation_extensions {
+                if to_string(cast(*u8) it.extensionName.data) == "VK_EXT_validation_features" {
+                    extension_found = true;
+                    break;
+                }
+            }
+
+            if extension_found {
+                Basic.array_add(enabled_instance_extensions, "VK_EXT_validation_features");
+                Basic.array_add(*extensions_to_apply, cast(*s8) "VK_EXT_validation_features".data);
+            } else {
+                warningMessage("Optional instance extension \"VK_EXT_validation_features\" has not been found in available VK_LAYER_KHRONOS_validation's instance extensions");
             }
         }
 
@@ -941,6 +975,21 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         enabledExtensionCount   = cast(u32) extensions_to_apply.count,
         ppEnabledExtensionNames = extensions_to_apply.data
     };
+
+    #if DEBUG_BUILD {
+        ENABLED_VALIDATION_FEATURES :: VkValidationFeatureEnableEXT.[
+            .VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+//          .VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
+            .VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+        ];
+
+        validation_features := VkValidationFeaturesEXT.{
+            enabledValidationFeatureCount = ENABLED_VALIDATION_FEATURES.count,
+            pEnabledValidationFeatures    = ENABLED_VALIDATION_FEATURES.data
+        };
+
+        instance_create_info.pNext = *validation_features;
+    }
 
     // @TODO: VkAllocationCallbacks
     debugCheckVK(vkCreateInstance(*instance_create_info, null, *device.instance));
@@ -1380,7 +1429,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanDeviceExtensions();
 
         for required_extension : REQUIRED_EXTENSIONS {
-            extension_found := false;
+            extension_found : bool;
 
             for available_extensions {
                 if to_string(cast(*u8) it.extensionName.data) == required_extension {
@@ -1398,7 +1447,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         }
 
         for optional_extension : OPTIONAL_EXTENSIONS {
-            extension_found := false;
+            extension_found : bool;
 
             for available_extensions {
                 if to_string(cast(*u8) it.extensionName.data) == optional_extension {

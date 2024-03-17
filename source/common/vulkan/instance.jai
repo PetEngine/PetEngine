@@ -414,3 +414,35 @@ PFN_vkCreateWin32SurfaceKHR :: #type (
 ) -> VkResult #c_call;
 
 }
+
+//
+// VK_EXT_validation_features
+//
+
+VkValidationFeatureEnableEXT :: enum VkEnum {
+    VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT                      :: 0;
+    VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT :: 1;
+    VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT                    :: 2;
+    VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT                      :: 3;
+    VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT        :: 4;
+}
+
+VkValidationFeatureDisableEXT :: enum VkEnum {
+    VK_VALIDATION_FEATURE_DISABLE_ALL_EXT                     :: 0;
+    VK_VALIDATION_FEATURE_DISABLE_SHADERS_EXT                 :: 1;
+    VK_VALIDATION_FEATURE_DISABLE_THREAD_SAFETY_EXT           :: 2;
+    VK_VALIDATION_FEATURE_DISABLE_API_PARAMETERS_EXT          :: 3;
+    VK_VALIDATION_FEATURE_DISABLE_OBJECT_LIFETIMES_EXT        :: 4;
+    VK_VALIDATION_FEATURE_DISABLE_CORE_CHECKS_EXT             :: 5;
+    VK_VALIDATION_FEATURE_DISABLE_UNIQUE_HANDLES_EXT          :: 6;
+    VK_VALIDATION_FEATURE_DISABLE_SHADER_VALIDATION_CACHE_EXT :: 7;
+}
+
+VkValidationFeaturesEXT :: struct {
+    sType                          : VkStructureType = .VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
+    pNext                          : *void;
+    enabledValidationFeatureCount  : u32;
+    pEnabledValidationFeatures     : *VkValidationFeatureEnableEXT;
+    disabledValidationFeatureCount : u32;
+    pDisabledValidationFeatures    : *VkValidationFeatureDisableEXT;
+}
