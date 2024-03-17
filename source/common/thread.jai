@@ -40,8 +40,7 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
             return 0;
         }
 
-        // @Cleanup: #CRT.
-        //     thread.handle = CreateThread(null, cast(SIZE_T) stack_size, winThreadProc, thread, CREATE_SUSPENDED, null);
+        // thread.handle = CreateThread(null, cast(SIZE_T) stack_size, winThreadProc, thread, CREATE_SUSPENDED, null);
         thread.handle = cast(HANDLE) _beginthreadex(null, cast(u32) stack_size, winThreadProc, thread, CREATE_SUSPENDED, null);
         assert(thread.handle, print_sys_error = true);
 
@@ -81,14 +80,6 @@ pauseThread :: (thread : *Thread) {
     }
 }
 
-terminateThread :: (thread : *Thread, exit_code : u32 = 0) {
-    #if OS == .WINDOWS {
-        debugCheck(TerminateThread(thread.handle, exit_code), print_sys_error = true);
-    } else {
-        notImplemented();
-    }
-}
-
 waitThread :: (thread : *Thread, milliseconds : u32 = 0xFFFF_FFFF, alertable := false) -> bool {
     signaled : bool;
 
@@ -104,11 +95,36 @@ waitThread :: (thread : *Thread, milliseconds : u32 = 0xFFFF_FFFF, alertable := 
     return signaled;
 }
 
+exitThread :: (exit_code : u32 = 0) {
+    #if OS == .WINDOWS {
+        if exit_code == 0xFFFF_FFFF {
+            exit_code = GetLastError();
+        }
+        _endthreadex(exit_code);
+    } else {
+        notImplemented();
+    }
+}
+
+exitProcess :: (exit_code : u32 = 0xFFFF_FFFF) #no_context {
+    #if OS == .WINDOWS {
+        if exit_code == 0xFFFF_FFFF {
+            exit_code = GetLastError();
+        }
+    } else {
+        if exit_code == 0xFFFF_FFFF {
+            exit_code = errno;
+        }
+    }
+
+    exit(cast,no_check(s32) exit_code);
+}
+
 #scope_file
 
-threadProc :: (thread : *Thread) {
-    context.thread_index      = getThreadIndex();
+threadProc :: no_inline (thread : *Thread) {
     context.base.context_info = type_info(Context);
+    context.thread_index      = getThreadIndex();
 
     context.allocator.proc(.THREAD_START, 0, 0, null, context.allocator.data);
     defer context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
@@ -116,8 +132,9 @@ threadProc :: (thread : *Thread) {
     temporary_storage : Temporary_Storage;
     context.temporary_storage = *temporary_storage;
 
-    TEMPORARY_STORAGE_SIZE :: 16384;
-    set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, Basic.alloc(TEMPORARY_STORAGE_SIZE));
+    // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
+    temporary_storage_data : [TEMPORARY_STORAGE_SIZE] u8 #align 64;
+    set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data.data);
     context.temporary_storage.current_page_bytes_occupied = 0;
     context.temporary_storage.total_bytes_occupied        = 0;
     context.temporary_storage.high_water_mark             = 0;
@@ -145,8 +162,9 @@ getThreadIndex :: inline () -> u32 #no_context {
     return thread_index;
 }
 
+exit :: (status: s32) #foreign libc_or_crt;
+
 #if OS == .WINDOWS {
-    // @Cleanup: #CRT
     _beginthreadex :: (
         security      : *void,
         stack_size    : u32,
@@ -154,7 +172,13 @@ getThreadIndex :: inline () -> u32 #no_context {
         arglist       : *void,
         initflag      : u32,
         thrdaddr      : *u32
-    ) -> u64 #foreign msvcrt;
+    ) -> u64 #foreign libc_or_crt;
 
-    msvcrt :: #library,system "msvcrt";
+    _endthreadex :: (
+       retval : u32
+    ) #foreign libc_or_crt;
+
+    libc_or_crt :: #library,system "msvcrt";
+} else {
+    libc_or_crt :: #library,system "libc";
 }

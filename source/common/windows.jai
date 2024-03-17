@@ -22,7 +22,6 @@ HLOCAL  :: HANDLE;
 
 BOOL      :: s32;
 BOOLEAN   :: u8;
-CHAR      :: s8;
 WCHAR     :: s16;
 INT_PTR   :: s64; // We target only 64-bit systems, so... whatever.
 UINT_PTR  :: u64; // We target only 64-bit systems, so... whatever.
@@ -31,8 +30,8 @@ ULONG_PTR :: u64; // We target only 64-bit systems, so... whatever.
 SIZE_T    :: ULONG_PTR;
 DWORD_PTR :: ULONG_PTR;
 
-LPSTR   :: *CHAR;
-LPCSTR  :: *CHAR;
+LPSTR   :: *s8;
+LPCSTR  :: *s8;
 LPWSTR  :: *WCHAR;
 LPCWSTR :: *WCHAR;
 PCWSTR  :: *WCHAR;
@@ -108,6 +107,11 @@ STD_ERROR_HANDLE  :: cast,no_check(u32) -12;
 GetStdHandle :: (
   nStdHandle : u32
 ) -> HANDLE #foreign kernel32;
+
+SetStdHandle :: (
+    nStdHandle : u32,
+    hHandle    : HANDLE
+) -> BOOL #foreign kernel32;
 
 CS_VREDRAW         : u32 : 0x00001;
 CS_HREDRAW         : u32 : 0x00002;
@@ -567,6 +571,21 @@ GetSystemInfo :: (
 IsDebuggerPresent :: (
 ) -> BOOL #foreign kernel32;
 
+GetCommandLineA :: (
+) -> LPSTR #foreign kernel32;
+
+ATTACH_PARENT_PROCESS : u32 : 0xFFFF_FFFF;
+
+AttachConsole :: (
+    dwProcessId : u32
+) -> BOOL #foreign kernel32;
+
+AllocConsole :: (
+) -> BOOL #foreign kernel32;
+
+FreeConsole :: (
+) -> BOOL #foreign kernel32;
+
 HKEY_CLASSES_ROOT                :: cast,no_check(HKEY) 0x80000000;
 HKEY_CURRENT_USER                :: cast,no_check(HKEY) 0x80000001;
 HKEY_LOCAL_MACHINE               :: cast,no_check(HKEY) 0x80000002;
@@ -589,6 +608,10 @@ RegGetValueW :: (
     pvData   : *void,
     pcbData  : *u32
 ) -> LSTATUS #foreign advapi32;
+
+//
+// Thread
+//
 
 SECURITY_ATTRIBUTES :: struct {
     nLength              : u32;
@@ -625,10 +648,9 @@ SuspendThread :: (
     hThread : HANDLE
 ) -> u32 #foreign kernel32;
 
-TerminateThread :: (
-    hThread    : HANDLE,
-    dwExitCode : u32
-) -> BOOL #foreign kernel32;
+//
+// Sync
+//
 
 INFINITE : u32 : 0xFFFFFFFF;
 
@@ -650,6 +672,10 @@ WaitForMultipleObjectsEx :: (
     dwMilliseconds : u32,
     bAlertable     : BOOL
 ) -> u32 #foreign kernel32;
+
+//
+// IO
+//
 
 CreateDirectoryW :: (
     lpPathName           : LPCWSTR,
@@ -742,6 +768,16 @@ FILE_FLAG_RANDOM_ACCESS         : u32 : 0x10000000;
 FILE_FLAG_NO_BUFFERING          : u32 : 0x20000000;
 FILE_FLAG_OVERLAPPED            : u32 : 0x40000000;
 FILE_FLAG_WRITE_THROUGH         : u32 : 0x80000000;
+
+CreateFileA :: (
+    lpFileName            : LPCSTR,
+    dwDesiredAccess       : u32,
+    dwShareMode           : u32,
+    lpSecurityAttributes  : *SECURITY_ATTRIBUTES,
+    dwCreationDisposition : u32,
+    dwFlagsAndAttributes  : u32,
+    hTemplateFile         : HANDLE
+) -> HANDLE #foreign kernel32;
 
 CreateFileW :: (
     lpFileName            : LPCWSTR,

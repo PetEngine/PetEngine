@@ -310,7 +310,7 @@ message :: (
 
     #if priority == .ASSERT {
         debugBreakIfDebugging();
-        Basic.exit(1);
+        exitProcess(ifx sys_error_code != 0 then sys_error_code else 1);
     }
 }
 

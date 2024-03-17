@@ -12,7 +12,7 @@ operator [] :: inline (array : StaticArray, index : s64) -> array.T #must #no_co
         if index >= array.count {
             write_string("[ASSERT]: StaticArray out of bounds access violation\n", true);
             debugBreakIfDebugging();
-            exit(1);
+            exitProcess(1);
         }
     }
 
@@ -24,7 +24,7 @@ operator *[] :: inline (array : *StaticArray, index : s64) -> *array.T #must #no
         if index >= array.count {
             write_string("[ASSERT]: StaticArray out of bounds access violation\n", true);
             debugBreakIfDebugging();
-            exit(1);
+            exitProcess(1);
         }
     }
 
@@ -36,7 +36,7 @@ operator []= :: inline (array : *StaticArray, index : s64, value : array.T) #no_
         if index >= array.count {
             write_string("[ASSERT]: StaticArray out of bounds access violation\n", true);
             debugBreakIfDebugging();
-            exit(1);
+            exitProcess(1);
         }
     }
 
@@ -48,7 +48,7 @@ pushBack :: inline (array : *StaticArray) -> *array.T #must #no_context {
         if array.count >= array.capacity {
             write_string("[ASSERT]: StaticArray overflow\n", true);
             debugBreakIfDebugging();
-            exit(1);
+            exitProcess(1);
         }
     }
 
@@ -62,7 +62,7 @@ pushBack :: inline (array : *StaticArray, data : [] array.T) #no_context {
         if array.count + data.count >= array.capacity {
             write_string("[ASSERT]: StaticArray overflow\n", true);
             debugBreakIfDebugging();
-            exit(1);
+            exitProcess(1);
         }
     }
 
@@ -94,11 +94,3 @@ for_expansion :: (array : *StaticArray, body : Code, flags : For_Flags) #expand 
 }
 
 #scope_file
-
-exit :: (status: s32) #foreign libc;
-
-#if OS == .WINDOWS {
-    libc :: #library,system "msvcrt";
-} else {
-    libc :: #library,system "libc";
-}

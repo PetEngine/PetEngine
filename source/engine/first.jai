@@ -41,13 +41,7 @@ PerViewUniform :: struct {
 */
 }
 
-main :: () {
-    {
-        context.print_style.default_format_struct.use_long_form_if_more_than_this_many_members = -1;
-        context.print_style.default_format_struct.use_newlines_if_long_form                    = true;
-        context.print_style.default_format_absolute_pointer.minimum_digits                     = 16;
-    }
-
+petMain :: () {
     context.pet.thread_name = "Main";
     context.pet.thread_kind = .MAIN;
 
@@ -194,3 +188,165 @@ main :: () {
 Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
 String     :: #import "String";
 Reflection :: #import "Reflection";
+
+#scope_file
+
+#if OS == .WINDOWS {
+    #program_export
+    WinMainCRTStartup :: () #c_call {
+        first_context : Context;
+        push_context first_context {
+            initRuntimeAndCallEntryPoint();
+        }
+
+        exitProcess(0);
+    }
+
+    getWindowsCommandLine :: () {
+        command_line : [] s8;
+        command_line.data = GetCommandLineA();
+        assert(command_line.data, print_sys_error = true);
+
+        // Count length
+        {
+            command_line_it := command_line.data;
+            while command_line_it.* command_line_it += 1;
+            command_line.count = command_line_it - command_line.data;
+        }
+        assert(command_line.count > 0, "Command line is empty, that's impossible");
+
+        // Parse command line
+        quote_opened             : bool;
+        skip_quote               : bool;
+        emplace_new_command_line := true;
+        for command_line {
+            if emplace_new_command_line {
+                __command_line_arguments.count += 1;
+
+                emplace_new_command_line = false;
+            }
+
+            if it == {
+                case #char "\\";
+                    if it_index < command_line.count - 1 && command_line[it_index + 1] == #char "\"" {
+                        skip_quote = true;
+                    }
+
+                case #char "\"";
+                    if skip_quote {
+                        skip_quote = false;
+                    } else {
+                        quote_opened = !quote_opened;
+                    }
+
+                case #char " ";
+                    if !quote_opened {
+                        emplace_new_command_line = true;
+                    }
+            }
+        }
+
+        __command_line_arguments.data = Basic.alloc(__command_line_arguments.count * size_of(*u8));
+        assert(__command_line_arguments.data, print_sys_error = true);
+
+        // Fill __command_line_arguments
+        quote_opened                 = false;
+        skip_quote                   = false;
+        emplace_new_command_line     = true;
+        command_line_arguments_index : s64;
+        for command_line {
+            if emplace_new_command_line {
+                __command_line_arguments[command_line_arguments_index] = cast(*u8) *command_line[it_index];
+                command_line_arguments_index += 1;
+
+                emplace_new_command_line = false;
+            }
+
+            if it == {
+                case #char "\\";
+                    if it_index < command_line.count - 1 && command_line[it_index + 1] == #char "\"" {
+                        skip_quote = true;
+                    }
+
+                case #char "\"";
+                    if skip_quote {
+                        skip_quote = false;
+                    } else {
+                        quote_opened = !quote_opened;
+                    }
+
+                case #char " ";
+                    if !quote_opened {
+                        emplace_new_command_line = true;
+                    }
+            }
+        }
+    }
+} else {
+    #program_export
+    main :: (argc : s32, argv : **s8) -> s32 #c_call {
+        __command_line_arguments.count = argc;
+        __command_line_arguments.data  = argv;
+
+        first_context : Context;
+        push_context first_context {
+            initRuntimeAndCallEntryPoint();
+        }
+
+        return errno;
+    }
+}
+
+initRuntimeAndCallEntryPoint :: () {
+    context.context_info = type_info(Context);
+
+    context.print_style.default_format_struct.use_long_form_if_more_than_this_many_members = -1;
+    context.print_style.default_format_struct.use_newlines_if_long_form                    = true;
+    context.print_style.default_format_absolute_pointer.minimum_digits                     = 16;
+
+    temporary_storage : Temporary_Storage;
+    context.temporary_storage = *temporary_storage;
+
+    // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.
+    temporary_storage_data : [TEMPORARY_STORAGE_SIZE] u8 #align 64;
+    set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data.data);
+
+    rpmalloc :: #import "rpmalloc";
+    context.allocator = .{ rpmalloc.rpmalloc_allocator_proc, null };
+
+    context.allocator.proc(.STARTUP, 0, 0, null, null);
+    defer context.allocator.proc(.SHUTDOWN, 0, 0, null, null);
+
+    #if OS == .WINDOWS {
+        getWindowsCommandLine();
+        defer Basic.free(__command_line_arguments.data);
+
+        #if DEBUG_BUILD {
+            console_was_allocated : bool;
+            if !AttachConsole(ATTACH_PARENT_PROCESS) {
+                debugCheck(AllocConsole(), print_sys_error = true);
+
+                stdin_handle  := CreateFileA(cast(*s8) "CONIN$".data,  GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, null);
+                stdout_handle := CreateFileA(cast(*s8) "CONOUT$".data, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, null);
+                stderr_handle := CreateFileA(cast(*s8) "CONOUT$".data, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, null);
+
+                assert(stdin_handle  != INVALID_HANDLE_VALUE, print_sys_error = true);
+                assert(stdout_handle != INVALID_HANDLE_VALUE, print_sys_error = true);
+                assert(stderr_handle != INVALID_HANDLE_VALUE, print_sys_error = true);
+
+                debugCheck(SetStdHandle(STD_INPUT_HANDLE,  stdin_handle),  print_sys_error = true);
+                debugCheck(SetStdHandle(STD_OUTPUT_HANDLE, stdout_handle), print_sys_error = true);
+                debugCheck(SetStdHandle(STD_ERROR_HANDLE,  stderr_handle), print_sys_error = true);
+
+                console_was_allocated = true;
+            }
+
+            defer if console_was_allocated {
+                debugCheck(FreeConsole());
+            }
+        }
+    }
+
+    entry_point :: () #entry_point;
+    no_inline entry_point();
+}

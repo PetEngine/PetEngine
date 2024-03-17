@@ -80,11 +80,14 @@ BuildArguments :: struct {
 
         #if OS == .WINDOWS {
             array_add(*additional_linker_arguments,
+                      "/SUBSYSTEM:WINDOWS",
+                      "/IGNORE:4216", // LNK4216: Exported entry point WinMainCRTStartup
                       join("/LIBPATH:", vk_sdk_path, "/Lib",, allocator = temp),
                       "/LIBPATH:../third_party/spirv_reflect");
 
             if build_arguments.optimized {
                 array_add(*additional_linker_arguments, "/LTCG"); // For SPIRV-Reflect
+                array_add(*additional_linker_arguments, "/STACK:0x100000,0x100000");
             }
 
             if !build_arguments.optimized || build_arguments.debug_info {
@@ -120,7 +123,7 @@ BuildArguments :: struct {
     build_options.output_executable_name                  = "engine";
     build_options.output_path                             = output_path;
     build_options.intermediate_path                       = intermediate_path;
-    build_options.entry_point_name                        = "main";
+    build_options.entry_point_name                        = "petMain";
     build_options.import_path                             = import_paths;
     build_options.additional_linker_arguments             = additional_linker_arguments;
 
