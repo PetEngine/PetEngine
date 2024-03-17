@@ -17,8 +17,6 @@ VulkanDevice :: struct {
     swapchain          : VkSwapchainKHR;
     swapchain_textures : StaticArray(VulkanTexture, MAX_SWAPCHAIN_BUFFERS);
 
-    semaphores : [#run Basic.enum_highest_value(SemaphoreKind) + 1] VkSemaphore;
-
     frame_data : StaticArray(FrameData, MAX_FRAME_BUFFERING);
 
     messenger      : VkDebugUtilsMessengerEXT;
@@ -113,11 +111,11 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
                 vkDestroyFence(device.device, it, null);
             }
         }
-    }
 
-    for device.semaphores {
-        // @TODO: VkAllocationCallbacks
-        vkDestroySemaphore(device.device, it, null);
+        for it.semaphores {
+            // @TODO: VkAllocationCallbacks
+            vkDestroySemaphore(device.device, it, null);
+        }
     }
 
     for device.swapchain_textures {
@@ -160,24 +158,6 @@ beginVulkanFrame :: (device : *VulkanDevice) {
     frame_data := *device.frame_data[device.frame_index];
 
     //
-    // Acquire next swapchain buffer
-    //
-    {
-        acquire_info := VkAcquireNextImageInfoKHR.{
-            swapchain  = device.swapchain,
-            timeout    = 0xFFFF_FFFF_FFFF_FFFF,
-            semaphore  = device.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
-            fence      = VK_NULL_HANDLE,
-            deviceMask = 1
-        };
-
-        back_buffer_index : u32 = ---;
-        debugCheckVK(device.loader.extensions.device.required.vkAcquireNextImage2KHR(device.device, *acquire_info, *back_buffer_index));
-
-        device.back_buffer_index = cast,no_check(u8) back_buffer_index;
-    }
-
-    //
     // Wait for current frame command pools memory
     //
     debugCheckVK(vkWaitForFences(device.device, frame_data.fences.count, frame_data.fences.data, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF));
@@ -212,6 +192,24 @@ beginVulkanFrame :: (device : *VulkanDevice) {
             command_buffers_used_it += 1;
             command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
         }
+    }
+
+    //
+    // Acquire next swapchain buffer
+    //
+    {
+        acquire_info := VkAcquireNextImageInfoKHR.{
+            swapchain  = device.swapchain,
+            timeout    = 0xFFFF_FFFF_FFFF_FFFF,
+            semaphore  = frame_data.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
+            fence      = VK_NULL_HANDLE,
+            deviceMask = 1
+        };
+
+        back_buffer_index : u32 = ---;
+        debugCheckVK(device.loader.extensions.device.required.vkAcquireNextImage2KHR(device.device, *acquire_info, *back_buffer_index));
+
+        device.back_buffer_index = cast,no_check(u8) back_buffer_index;
     }
 }
 
@@ -262,9 +260,9 @@ endVulkanFrame :: (device : *VulkanDevice) {
 
                 if it_index == cast,no_check(s64) QueueType.GRAPHICS {
                     submit_info.waitSemaphoreCount   = 1;
-                    submit_info.pWaitSemaphores      = *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE];
+                    submit_info.pWaitSemaphores      = *frame_data.semaphores[SemaphoreKind.ACQUIRE_IMAGE];
                     submit_info.signalSemaphoreCount = 1;
-                    submit_info.pSignalSemaphores    = *device.semaphores[SemaphoreKind.GRAPHICS_DONE];
+                    submit_info.pSignalSemaphores    = *frame_data.semaphores[SemaphoreKind.GRAPHICS_DONE];
 
                     fence_to_signal = VK_NULL_HANDLE;
                 } else {
@@ -314,14 +312,15 @@ endVulkanFrame :: (device : *VulkanDevice) {
         submit_info := VkSubmitInfo.{
             waitSemaphoreCount   = 1,
             pWaitSemaphores      = ifx  frame_data.command_buffers_used[QueueType.GRAPHICS] > 0
-                                   then *device.semaphores[SemaphoreKind.GRAPHICS_DONE]
-                                   else *device.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
+                                   then *frame_data.semaphores[SemaphoreKind.GRAPHICS_DONE]
+                                   else *frame_data.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
             pWaitDstStageMask    = VkPipelineStageFlags.[ .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT ].data,
             commandBufferCount   = 1,
             pCommandBuffers      = *post_frame_command_buffer,
             signalSemaphoreCount = 1,
-            pSignalSemaphores    = *device.semaphores[SemaphoreKind.POST_FRAME]
+            pSignalSemaphores    = *frame_data.semaphores[SemaphoreKind.POST_FRAME]
         };
+
         debugCheckVK(vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, fence_to_signal));
     }
 
@@ -335,7 +334,7 @@ endVulkanFrame :: (device : *VulkanDevice) {
 
         present_info := VkPresentInfoKHR.{
             waitSemaphoreCount = 1,
-            pWaitSemaphores    = *device.semaphores[SemaphoreKind.POST_FRAME],
+            pWaitSemaphores    = *frame_data.semaphores[SemaphoreKind.POST_FRAME],
             swapchainCount     = 1,
             pSwapchains        = *device.swapchain,
             pImageIndices      = back_buffer_indices.data,
@@ -742,7 +741,9 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
 Hash :: #import "Hash";
 
 FrameData :: struct {
-    fences               : [VulkanDevice.queues.count]                              VkFence;
+    semaphores : [#run Basic.enum_highest_value(SemaphoreKind) + 1] VkSemaphore;
+    fences     : [VulkanDevice.queues.count]                        VkFence;
+
     command_pools        : [VulkanDevice.queues.count]                              VkCommandPool;
     command_buffers      : [VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS] VkCommandBuffer;
     command_buffers_used : [VulkanDevice.queues.count]                              s32;
@@ -1503,11 +1504,13 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
 createSemaphores :: (device : *VulkanDevice) {
     create_info : VkSemaphoreCreateInfo;
 
-    for * device.semaphores {
-        // @TODO: VkAllocationCallbacks
-        debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, it));
+    for * frame_data, frame_index : device.frame_data {
+        for * frame_data.semaphores {
+            // @TODO: VkAllocationCallbacks
+            debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, it));
 
-        setVulkanObjectName(device, it.*, "% semaphore", cast(SemaphoreKind) it_index);
+            setVulkanObjectName(device, it.*, "% semaphore for frame #%", cast(SemaphoreKind) it_index, frame_index);
+        }
     }
 }
 
