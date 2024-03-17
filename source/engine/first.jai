@@ -214,12 +214,7 @@ Reflection :: #import "Reflection";
         command_line.data = GetCommandLineA();
         assert(command_line.data, print_sys_error = true);
 
-        // Count length
-        {
-            command_line_it := command_line.data;
-            while command_line_it.* command_line_it += 1;
-            command_line.count = command_line_it - command_line.data;
-        }
+        command_line.count = c_style_strlen(cast(*u8) command_line.data);
         assert(command_line.count > 0, "Command line is empty, that's impossible");
 
         // Parse command line
@@ -289,6 +284,28 @@ Reflection :: #import "Reflection";
             }
         }
     }
+
+    reopenStdHandle :: ($std_handle : u32) -> HANDLE {
+        #if std_handle == {
+            case STD_INPUT_HANDLE;  NAME :: "CONIN$";
+            case STD_OUTPUT_HANDLE; NAME :: "CONOUT$";
+            case STD_ERROR_HANDLE;  NAME :: "CONOUT$";
+            case;                   #assert false "Invalid std_handle value";
+        }
+
+        file_handle := CreateFileA(cast(*s8) NAME.data,
+                                   GENERIC_READ | GENERIC_WRITE,
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                   null,
+                                   OPEN_EXISTING,
+                                   FILE_ATTRIBUTE_NORMAL,
+                                   null);
+
+        assert(file_handle != INVALID_HANDLE_VALUE, print_sys_error = true);
+
+        debugCheck(SetStdHandle(std_handle, file_handle), print_sys_error = true);
+        return file_handle;
+    }
 } else {
     #program_export
     main :: (argc : s32, argv : **s8) -> s32 #c_call {
@@ -337,26 +354,27 @@ initRuntimeAndCallEntryPoint :: () {
 
         #if DEBUG_BUILD {
             console_was_allocated : bool;
+
+            stdin_handle  := INVALID_HANDLE_VALUE;
+            stdout_handle := INVALID_HANDLE_VALUE;
+            stderr_handle := INVALID_HANDLE_VALUE;
+
             if !AttachConsole(ATTACH_PARENT_PROCESS) {
                 debugCheck(AllocConsole(), print_sys_error = true);
 
-                stdin_handle  := CreateFileA(cast(*s8) "CONIN$".data,  GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, null);
-                stdout_handle := CreateFileA(cast(*s8) "CONOUT$".data, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, null);
-                stderr_handle := CreateFileA(cast(*s8) "CONOUT$".data, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, null);
-
-                assert(stdin_handle  != INVALID_HANDLE_VALUE, print_sys_error = true);
-                assert(stdout_handle != INVALID_HANDLE_VALUE, print_sys_error = true);
-                assert(stderr_handle != INVALID_HANDLE_VALUE, print_sys_error = true);
-
-                debugCheck(SetStdHandle(STD_INPUT_HANDLE,  stdin_handle),  print_sys_error = true);
-                debugCheck(SetStdHandle(STD_OUTPUT_HANDLE, stdout_handle), print_sys_error = true);
-                debugCheck(SetStdHandle(STD_ERROR_HANDLE,  stderr_handle), print_sys_error = true);
+                stdin_handle  = reopenStdHandle(STD_INPUT_HANDLE);
+                stdout_handle = reopenStdHandle(STD_OUTPUT_HANDLE);
+                stderr_handle = reopenStdHandle(STD_ERROR_HANDLE);
 
                 console_was_allocated = true;
             }
 
             defer if console_was_allocated {
-                debugCheck(FreeConsole());
+                debugCheck(CloseHandle(stderr_handle), print_sys_error = true);
+                debugCheck(CloseHandle(stdout_handle), print_sys_error = true);
+                debugCheck(CloseHandle(stdin_handle), print_sys_error = true);
+
+                debugCheck(FreeConsole(), print_sys_error = true);
             }
         }
     }
