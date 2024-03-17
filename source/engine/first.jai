@@ -321,12 +321,12 @@ initRuntimeAndCallEntryPoint :: () {
     temporary_storage : Temporary_Storage;
     context.temporary_storage = *temporary_storage;
 
-    // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.
+    // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
     temporary_storage_data : [TEMPORARY_STORAGE_SIZE] u8 #align 64;
     set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data.data);
 
-    rpmalloc :: #import "rpmalloc";
-    context.allocator = .{ rpmalloc.rpmalloc_allocator_proc, null };
+    // @TODO: Replace with rpmalloc when it will work properly
+    context.allocator = .{ Default_Allocator.allocator_proc, null };
 
     context.allocator.proc(.STARTUP, 0, 0, null, null);
     defer context.allocator.proc(.SHUTDOWN, 0, 0, null, null);
@@ -361,6 +361,7 @@ initRuntimeAndCallEntryPoint :: () {
         }
     }
 
-    entry_point :: () #entry_point;
-    no_inline entry_point();
+    no_inline petMain();
 }
+
+Default_Allocator :: #import "Default_Allocator"(ENABLE_ASSERTS = DEBUG_BUILD, ENABLE_VALIDATE_ARGS = DEBUG_BUILD);

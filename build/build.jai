@@ -26,13 +26,7 @@ PRINT_VERBOSE_MESSAGES :: %;
 END;
 
 #run {
-    context.print_style.default_format_struct.use_newlines_if_long_form = true;
-
-    compiler_version : Version_Info = ---;
-    compiler_version_str := compiler_get_version_info(*compiler_version);
-    if compareCompilerVersions(compiler_version, .{ 0, 1, 85 }) < 0 {
-        compiler_report(join("Compiler version you are using is ", compiler_version_str, ", minimal supported is 0.1.085",, allocator = temp));
-    }
+    checkCompilerVersion(.{0, 1, 88});
 
     build_options := get_build_options();
 
@@ -121,14 +115,14 @@ END;
 
     build_options.use_visual_studio_message_format        = true;
     build_options.dead_code_elimination                   = .ALL;
+    build_options.runtime_support_definitions             = .OMIT;
     build_options.backtrace_on_crash                      = .OFF;
-//  build_options.prevent_compile_time_calls_from_runtime = true; // Does not work properly yet
+    build_options.prevent_compile_time_calls_from_runtime = false; // @TODO: Replace with true when it will work properly
     build_options.info_flags                              = .POLYMORPH_DEDUPLICATE; // | .POLYMORPH_MATCH;
     build_options.text_output_flags                       = .OUTPUT_TIMING_INFO;    // | .OUTPUT_LINK_LINE;
     build_options.output_executable_name                  = "engine";
     build_options.output_path                             = output_path;
     build_options.intermediate_path                       = intermediate_path;
-    build_options.entry_point_name                        = "petMain";
     build_options.import_path                             = import_paths;
     build_options.additional_linker_arguments             = additional_linker_arguments;
 
@@ -232,12 +226,25 @@ getVulkanSDKPath :: () -> string {
     return path;
 }
 
-compareCompilerVersions :: (left : Version_Info, right : Version_Info) -> s8 {
-    if left.major < right.major return -1;
-    if left.major > right.major return  1;
-    if left.minor < right.minor return -1;
-    if left.minor > right.minor return  1;
-    if left.micro < right.micro return -1;
-    if left.micro > right.micro return  1;
-    return 0;
+checkCompilerVersion :: (minimal_supported_version : Version_Info) {
+    compareCompilerVersions :: (left : Version_Info, right : Version_Info) -> s8 {
+        if left.major < right.major return -1;
+        if left.major > right.major return  1;
+        if left.minor < right.minor return -1;
+        if left.minor > right.minor return  1;
+        if left.micro < right.micro return -1;
+        if left.micro > right.micro return  1;
+        return 0;
+    }
+
+    compiler_version : Version_Info = ---;
+    compiler_version_str := compiler_get_version_info(*compiler_version);
+    if compareCompilerVersions(compiler_version, minimal_supported_version) < 0 {
+        message := tprint("Compiler version you are using is %, minimal supported is %.%.%",
+                          compiler_version_str,
+                          minimal_supported_version.major,
+                          minimal_supported_version.minor,
+                          FormatInt.{ value = minimal_supported_version.micro, minimum_digits = 3 });
+        compiler_report(message);
+    }
 }
