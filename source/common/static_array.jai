@@ -70,6 +70,11 @@ pushBack :: inline (array : *StaticArray, data : [] array.T) #no_context {
     array.count += data.count;
 }
 
+reset :: inline (array : *StaticArray) #no_context {
+    memset(array.data.data, 0, array.count * size_of(array.T));
+    array.count = 0;
+}
+
 for_expansion :: (array : *StaticArray, body : Code, flags : For_Flags) #expand {
     REVERSE    :: cast(bool) (flags & .REVERSE);
     BY_POINTER :: cast(bool) (flags & .POINTER);

@@ -68,22 +68,22 @@ Texture :: struct {
         }
     };
 
-    dimension             : Dimension;
-    format                : Format;
-    flags                 : Flags;
-    usage                 : Usage;
-    width                 : u16;
-    height                : u16;
+    dimension       : Dimension;
+    format          : Format;
+    flags           : Flags;
+    usage           : Usage;
+    width           : u16;
+    height          : u16;
     union {
-        depth             : u16;
-        array_size        : u16;
+        depth       : u16;
+        array_size  : u16;
     };
-    samples_count         : u8;
-    mips_count            : u8;
-    clear_value           : ClearValue;
-    name                  : string;
-    current_owner         : QueueType;
-    possible_owners       : StaticArray(QueueType, #run Basic.enum_highest_value(QueueType) + 1);
+    samples_count   : u8;
+    mips_count      : u8;
+    clear_value     : ClearValue;
+    name            : string;
+    current_owner   : QueueType;
+    possible_owners : StaticArray(QueueType, Device.QUEUE_TYPES_COUNT);
 }
 
 createTexture :: (
@@ -98,8 +98,8 @@ createTexture :: (
     flags               : Texture.Flags      = 0,
     clear_value         : Texture.ClearValue = .{},
     usage               : Texture.Usage,
+    lifetime            : ResourceManager.Lifetime,
     name                : string,
-    $memory_kind        : ResourceManager.MemoryKind,
     possible_owners     : ..QueueType = .[ .GRAPHICS ]
 ) -> *Texture #must {
     assert(!(flags & .SWAPCHAIN),
@@ -146,7 +146,7 @@ createTexture :: (
            "Max texture name length (%) > ResourceManager.MAX_RESOURCE_NAME_LENGTH (%)",
            name.count, ResourceManager.MAX_RESOURCE_NAME_LENGTH);
 
-    texture := manager.pushPlatformTexture(device, manager, memory_kind);
+    texture := manager.pushPlatformTexture(device, manager, lifetime);
 
     texture.dimension             = dimension;
     texture.format                = format;
@@ -162,7 +162,7 @@ createTexture :: (
     texture.possible_owners.count = cast(u32) possible_owners.count;
     memcpy(texture.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
 
-    manager.createPlatformTexture(device, manager, texture, name, memory_kind);
+    manager.createPlatformTexture(device, manager, texture, lifetime, name);
 
     return texture;
 }

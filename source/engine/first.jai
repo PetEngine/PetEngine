@@ -28,17 +28,21 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 };
 
 PerViewUniform :: struct {
-    camera_pos : v3f;
+    Data :: struct {
+        camera_pos : v3f;
 /*
-    view_matrix     : m3x4;
-    inv_view_matrix : m3x4;
+        view_matrix     : m3x4;
+        inv_view_matrix : m3x4;
 
-    proj_matrix     : m4x4;
-    inv_proj_matrix : m4x4;
+        proj_matrix     : m4x4;
+        inv_proj_matrix : m4x4;
 
-    view_proj_matrix     : m4x4;
-    inv_view_proj_matrix : m4x4;
+        view_proj_matrix     : m4x4;
+        inv_view_proj_matrix : m4x4;
 */
+    } #no_padding
+
+    buffers : StaticArray(*Buffer, Device.MAX_FRAME_BUFFERING);
 }
 
 petMain :: () {
@@ -80,7 +84,17 @@ petMain :: () {
     success := createShadersHotReload(*shaders_hot_reload, device, shader_manager);
     defer destroyShadersHotReload(*shaders_hot_reload, success);
 
-    per_view_uniform_buffer := createBuffer(device, resource_manager, size_of(PerViewUniform), .UNIFORM, name = "Per view", .PERSISTENT);
+    per_view_uniform : PerViewUniform;
+    per_view_uniform.buffers.count = cast(s64) device.frame_buffering;
+    for * per_view_uniform.buffers {
+        it.* = createBuffer(device,
+                            resource_manager,
+                            size_of(PerViewUniform.Data),
+                            .PERSISTENT,
+                            .UPLOAD,
+                            .UNIFORM,
+                            Basic.tprint("Per view for frame #%", it_index));
+    }
 
     depth_buffer := createTexture(device,
                                   resource_manager,
@@ -89,8 +103,8 @@ petMain :: () {
                                   device.render_resolution.height,
                                   clear_value = .{ depth = 1.0 },
                                   .DEPTH_TARGET | .SHADER_READ,
-                                  "Depth",
-                                  .PERSISTENT);
+                                  .PERSISTENT,
+                                  "Depth");
 
     // Create persistent buffers and textures here...
 
@@ -123,6 +137,10 @@ petMain :: () {
             recreateSwapchain(device, window);
         }
 
+        // @TODO: #FrameBuffering.
+        assert(per_view_uniform.buffers.count == cast(s64) device.frame_buffering,
+               "It's illegal to change frame buffering for now.");
+
         beginFrame(device);
         {
             // Reset
@@ -142,6 +160,12 @@ petMain :: () {
                 //        Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame resources
                 //        since we do not want to release memory which is in use by async queues.
                 commitResourceMemory(device, resource_manager, .PER_FRAME);
+            }
+
+            // Update per view uniform buffer
+            {
+                data : *PerViewUniform.Data = per_view_uniform.buffers[device.frame_index].mapped_memory;
+                data.camera_pos = v3f.{ 1.0, 2.0, 3.0 } + (3.0 * device.frame_index);
             }
 
             back_buffer := getBackBuffer(device);

@@ -9,6 +9,9 @@ VK_MAX_PHYSICAL_DEVICE_NAME_SIZE : u32 : 256;
 // Provided by VK_VERSION_1_0
 VK_UUID_SIZE : u32 : 16;
 
+// Provided by VK_VERSION_1_1
+VK_LUID_SIZE : u32 : 8;
+
 // Provided by VK_VERSION_1_0
 VkDeviceSize :: u64;
 
@@ -36,6 +39,16 @@ VkVendorId :: enum VkEnum #specified {
     VK_VENDOR_ID_MESA     :: 0x10005;
     VK_VENDOR_ID_POCL     :: 0x10006;
     VK_VENDOR_ID_MOBILEYE :: 0x10007;
+}
+
+// Provided by VK_VERSION_1_1
+VkPointClippingBehavior :: enum VkEnum #specified {
+    VK_POINT_CLIPPING_BEHAVIOR_ALL_CLIP_PLANES           :: 0;
+    VK_POINT_CLIPPING_BEHAVIOR_USER_CLIP_PLANES_ONLY     :: 1;
+    // Provided by VK_KHR_maintenance2
+    VK_POINT_CLIPPING_BEHAVIOR_ALL_CLIP_PLANES_KHR       :: VK_POINT_CLIPPING_BEHAVIOR_ALL_CLIP_PLANES;
+    // Provided by VK_KHR_maintenance2
+    VK_POINT_CLIPPING_BEHAVIOR_USER_CLIP_PLANES_ONLY_KHR :: VK_POINT_CLIPPING_BEHAVIOR_USER_CLIP_PLANES_ONLY;
 }
 
 // Provided by VK_VERSION_1_2
@@ -131,6 +144,24 @@ VkQueueFlags :: enum_flags VkFlags #specified {
 }
     // Provided by VK_NV_optical_flow
     VK_QUEUE_OPTICAL_FLOW_BIT_NV  :: 0x00000100;
+}
+
+// Provided by VK_VERSION_1_1
+VkSubgroupFeatureFlags :: enum_flags VkFlags #specified {
+    VK_SUBGROUP_FEATURE_BASIC_BIT                :: 0x00000001;
+    VK_SUBGROUP_FEATURE_VOTE_BIT                 :: 0x00000002;
+    VK_SUBGROUP_FEATURE_ARITHMETIC_BIT           :: 0x00000004;
+    VK_SUBGROUP_FEATURE_BALLOT_BIT               :: 0x00000008;
+    VK_SUBGROUP_FEATURE_SHUFFLE_BIT              :: 0x00000010;
+    VK_SUBGROUP_FEATURE_SHUFFLE_RELATIVE_BIT     :: 0x00000020;
+    VK_SUBGROUP_FEATURE_CLUSTERED_BIT            :: 0x00000040;
+    VK_SUBGROUP_FEATURE_QUAD_BIT                 :: 0x00000080;
+    // Provided by VK_NV_shader_subgroup_partitioned
+    VK_SUBGROUP_FEATURE_PARTITIONED_BIT_NV       :: 0x00000100;
+    // Provided by VK_KHR_shader_subgroup_rotate
+    VK_SUBGROUP_FEATURE_ROTATE_BIT_KHR           :: 0x00000200;
+    // Provided by VK_KHR_shader_subgroup_rotate
+    VK_SUBGROUP_FEATURE_ROTATE_CLUSTERED_BIT_KHR :: 0x00000400;
 }
 
 // Provided by VK_VERSION_1_0
@@ -296,6 +327,27 @@ VkQueueFamilyProperties :: struct {
     queueCount                  : u32;
     timestampValidBits          : u32;
     minImageTransferGranularity : VkExtent3D;
+}
+
+// Provided by VK_VERSION_1_2
+VkPhysicalDeviceVulkan11Properties :: struct {
+    sType                             : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES;
+    pNext                             : *void;
+    deviceUUID                        : [VK_UUID_SIZE] u8;
+    driverUUID                        : [VK_UUID_SIZE] u8;
+    deviceLUID                        : [VK_LUID_SIZE] u8;
+    deviceNodeMask                    : u32;
+    deviceLUIDValid                   : VkBool32;
+    subgroupSize                      : u32;
+    subgroupSupportedStages           : VkShaderStageFlags;
+    subgroupSupportedOperations       : VkSubgroupFeatureFlags;
+    subgroupQuadOperationsInAllStages : VkBool32;
+    pointClippingBehavior             : VkPointClippingBehavior;
+    maxMultiviewViewCount             : u32;
+    maxMultiviewInstanceIndex         : u32;
+    protectedNoFault                  : VkBool32;
+    maxPerSetDescriptors              : u32;
+    maxMemoryAllocationSize           : VkDeviceSize;
 }
 
 // Provided by VK_VERSION_1_2

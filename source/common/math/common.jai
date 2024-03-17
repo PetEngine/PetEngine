@@ -53,6 +53,22 @@ teraBytes :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
     return value * 1_099_511_627_776.0;
 }
 
+bytesToKiloBytes :: inline (value : $T, $R := f32) -> R #no_context {
+    return cast(R) (value / 1024.0);
+}
+
+bytesToMegaBytes :: inline (value : $T, $R := f32) -> R #no_context {
+    return cast(R) (value / 1_048_576.0);
+}
+
+bytesToGigaBytes :: inline (value : $T, $R := f32) -> R #no_context {
+    return cast(R) (value / 1_073_741_824.0);
+}
+
+bytesToTeraBytes :: inline (value : $T, $R := f32) -> R #no_context {
+    return cast(R) (value / 1_099_511_627_776.0);
+}
+
 sign :: inline (value : $T/Type.[s8, s16, s32, s64, f32, f64]) -> T #no_context {
     return ifx value < 0 then -1 else
            ifx value > 0 then  1 else

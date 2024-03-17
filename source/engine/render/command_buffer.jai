@@ -273,6 +273,48 @@ setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, s
     }
 }
 
+copyBuffer :: (
+    device         : *Device,
+    command_buffer : *CommandBuffer,
+    dest_buffer    : *Buffer,
+    source_buffer  : *Buffer,
+    dest_offset    : u32 = 0,
+    source_offset  : u32 = 0,
+    bytes          : u32 = 0xFFFF_FFFF
+) {
+    assert(source_buffer.current_owner == command_buffer.usage,
+           "You are trying to copy from buffer \"%\" in % command buffer, but buffer's current owner is %. Change buffers's owner first to do so.",
+           source_buffer.name,
+           command_buffer.usage,
+           source_buffer.current_owner);
+    assert(dest_buffer.current_owner == command_buffer.usage,
+           "You are trying to copy to buffer \"%\" in % command buffer, but buffer's current owner is %. Change buffers's owner first to do so.",
+           dest_buffer.name,
+           command_buffer.usage,
+           dest_buffer.current_owner);
+
+    assert(dest_offset   < dest_buffer.bytes);
+    assert(source_offset < source_buffer.bytes);
+
+    if bytes == 0xFFFF_FFFF {
+        bytes = source_buffer.bytes;
+        assert(source_buffer.bytes == dest_buffer.bytes);
+    } else {
+        assert(dest_offset   + bytes <= dest_buffer.bytes);
+        assert(source_offset + bytes <= source_buffer.bytes);
+    }
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            copyVulkanBuffer(command_buffer.handles[device.frame_index],
+                             cast(*VulkanBuffer) dest_buffer,
+                             cast(*VulkanBuffer) source_buffer,
+                             dest_offset,
+                             source_offset,
+                             bytes);
+    }
+}
+
 #scope_file
 
 PipelineBindPoint :: enum u8 {

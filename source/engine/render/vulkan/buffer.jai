@@ -7,21 +7,34 @@ VulkanBuffer :: struct {
     buffer : VkBuffer;
 }
 
-pushVulkanBuffer :: (device_ : *Device, manager_ : *ResourceManager, memory_kind : ResourceManager.MemoryKind) -> *Buffer #must {
+pushVulkanBuffer :: (
+    device_  : *Device,
+    manager_ : *ResourceManager,
+    lifetime : ResourceManager.Lifetime,
+    pool     : ResourceManager.Pool
+) -> *Buffer #must {
     device  := cast(*VulkanDevice)          device_;
     manager := cast(*VulkanResourceManager) manager_;
 
     buffer : *VulkanBuffer;
-    if #complete memory_kind == {
-        case .PERSISTENT; buffer = pushBack(*manager.buffer_memory.persistent.buffers);
-        case .PER_SCENE;  buffer = pushBack(*manager.buffer_memory.per_scene.buffers);
-        case .PER_FRAME;  buffer = pushBack(*manager.buffer_memory.per_frame[device.frame_index].buffers);
+    if #complete lifetime == {
+        case .PERSISTENT; buffer = pushBack(*manager.buffers.persistent[pool].resources);
+        case .PER_SCENE;  buffer = pushBack(*manager.buffers.per_scene[pool].resources);
+        case .PER_FRAME;  buffer = pushBack(*manager.buffers.per_frame[device.frame_index][pool].resources);
     }
 
+    assert(buffer);
     return buffer;
 }
 
-createVulkanBuffer :: (device_ : *Device, manager_ : *ResourceManager, buffer_ : *Buffer, name : string, memory_kind : ResourceManager.MemoryKind) {
+createVulkanBuffer :: (
+    device_  : *Device,
+    manager_ : *ResourceManager,
+    buffer_  : *Buffer,
+    lifetime : ResourceManager.Lifetime,
+    pool     : ResourceManager.Pool,
+    name     : string
+) {
     device  := cast(*VulkanDevice)          device_;
     manager := cast(*VulkanResourceManager) manager_;
     buffer  := cast(*VulkanBuffer)          buffer_;
@@ -47,10 +60,10 @@ createVulkanBuffer :: (device_ : *Device, manager_ : *ResourceManager, buffer_ :
     // @TODO: #VkAllocationCallbacks
     debugCheckVK(vkCreateBuffer(device.device, *create_info, null, *buffer.buffer));
 
-    if memory_kind == {
-        case .PERSISTENT; composeBufferName(*manager.buffer_memory.persistent, buffer, name);
-        case .PER_SCENE;  composeBufferName(*manager.buffer_memory.per_scene, buffer, name);
-        case .PER_FRAME;  composeBufferName(*manager.buffer_memory.per_frame[device.frame_index], buffer, name);
+    if #complete lifetime == {
+        case .PERSISTENT; composeVulkanBufferName(buffer, *manager.buffers.persistent[pool],                    lifetime, pool, name);
+        case .PER_SCENE;  composeVulkanBufferName(buffer, *manager.buffers.per_scene[pool],                     lifetime, pool, name);
+        case .PER_FRAME;  composeVulkanBufferName(buffer, *manager.buffers.per_frame[device.frame_index][pool], lifetime, pool, name);
     }
 
     setVulkanObjectName(device, buffer.buffer, buffer.name);
@@ -71,16 +84,27 @@ bufferUsageToVkBufferUsageFlags :: inline (usage : Buffer.Usage) -> VkBufferUsag
     return usage_flags;
 }
 
-composeBufferName :: (memory : *VulkanResourceManager.Memory, buffer : *Buffer, name : string) {
-    memory_kind_name := Reflection.enum_value_to_name(memory.kind);
-    assert(memory_kind_name);
+// "Buffer/<lifetime>/<pool>/<usage>/<name>"
+composeVulkanBufferName :: (
+    buffer      : *Buffer,
+    memory_pool : *VulkanResourceManager.MemoryPool,
+    lifetime    : ResourceManager.Lifetime,
+    pool        : ResourceManager.Pool,
+    name        : string
+) {
+    lifetime_name := Reflection.enum_value_to_name(lifetime);
+    assert(lifetime_name);
+
+    pool_name := Reflection.enum_value_to_name(pool);
+    assert(pool_name);
 
     usage_name := Reflection.enum_value_to_name(buffer.usage);
     assert(usage_name);
 
     full_name_length := "Buffer/".count
-                      + memory_kind_name.count + "/".count
-                      + usage_name.count + "/".count
+                      + lifetime_name.count + "/".count
+                      + pool_name.count     + "/".count
+                      + usage_name.count    + "/".count
                       + name.count;
 
     assert(full_name_length <= ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH,
@@ -88,9 +112,8 @@ composeBufferName :: (memory : *VulkanResourceManager.Memory, buffer : *Buffer, 
            full_name_length,
            ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH);
 
-    buffer.name.data = pushToArena(*memory.names_subarena, full_name_length);
+    buffer.name.data = pushToArena(*memory_pool.names_subarena, full_name_length);
 
-    appendToString(*buffer.name, full_name_length, "Buffer/", memory_kind_name, "/", usage_name, "/", name);
-
-    assert(buffer.name.count == full_name_length, "full_name.count (%) != full_name_length (%)", buffer.name.count, full_name_length);
+    appendToString(*buffer.name, full_name_length, "Buffer/", lifetime_name, "/", pool_name, "/", usage_name, "/", name);
+    assert(buffer.name.count == full_name_length, "buffer.name.count (%) != full_name_length (%)", buffer.name.count, full_name_length);
 }

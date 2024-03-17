@@ -35,7 +35,10 @@ VkMemoryHeapFlags :: enum_flags VkFlags #specified {
     VK_MEMORY_HEAP_MULTI_INSTANCE_BIT_KHR :: VK_MEMORY_HEAP_MULTI_INSTANCE_BIT;
 }
 
+// Provided by VK_VERSION_1_0
 VkMemoryMapFlags :: enum_flags VkFlags #specified {
+    // Provided by VK_EXT_map_memory_placed
+    VK_MEMORY_MAP_PLACED_BIT_EXT :: 0x00000001;
 }
 
 // Provided by VK_VERSION_1_0

@@ -320,6 +320,30 @@ setVulkanPushConstants :: inline (command_buffer : VkCommandBuffer, shader : *Vu
                        data);
 }
 
+copyVulkanBuffer :: inline (
+    command_buffer : VkCommandBuffer,
+    dest_buffer    : *VulkanBuffer,
+    source_buffer  : *VulkanBuffer,
+    dest_offset    : u32,
+    source_offset  : u32,
+    bytes          : u32
+) #no_context {
+    region := VkBufferCopy2.{
+        srcOffset = source_offset,
+        dstOffset = dest_offset,
+        size      = bytes
+    };
+
+    info := VkCopyBufferInfo2.{
+        srcBuffer   = source_buffer.buffer,
+        dstBuffer   = dest_buffer.buffer,
+        regionCount = 1,
+        pRegions    = *region
+    };
+
+    vkCmdCopyBuffer2(command_buffer, *info);
+}
+
 #scope_file
 
 loadActionToVulkanLoadOp :: (action : TargetLoadAction) -> VkAttachmentLoadOp #no_context {

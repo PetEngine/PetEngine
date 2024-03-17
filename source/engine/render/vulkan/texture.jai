@@ -6,21 +6,28 @@ VulkanTexture :: struct {
     current_layout : VkImageLayout; // @TODO: Rename to just layout
 }
 
-pushVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, memory_kind : ResourceManager.MemoryKind) -> *Texture #must {
+pushVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, lifetime : ResourceManager.Lifetime) -> *Texture #must {
     device  := cast(*VulkanDevice)          device_;
     manager := cast(*VulkanResourceManager) manager_;
 
     texture : *VulkanTexture;
-    if #complete memory_kind == {
-        case .PERSISTENT; texture = pushBack(*manager.texture_memory.persistent.textures);
-        case .PER_SCENE;  texture = pushBack(*manager.texture_memory.per_scene.textures);
-        case .PER_FRAME;  texture = pushBack(*manager.texture_memory.per_frame[device.frame_index].textures);
+    if #complete lifetime == {
+        case .PERSISTENT; texture = pushBack(*manager.textures.persistent.resources);
+        case .PER_SCENE;  texture = pushBack(*manager.textures.per_scene.resources);
+        case .PER_FRAME;  texture = pushBack(*manager.textures.per_frame[device.frame_index].resources);
     }
 
+    assert(texture);
     return texture;
 }
 
-createVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, texture_ : *Texture, name : string, memory_kind : ResourceManager.MemoryKind) {
+createVulkanTexture :: (
+    device_  : *Device,
+    manager_ : *ResourceManager,
+    texture_ : *Texture,
+    lifetime : ResourceManager.Lifetime,
+    name     : string
+) {
     device  := cast(*VulkanDevice)          device_;
     manager := cast(*VulkanResourceManager) manager_;
     texture := cast(*VulkanTexture)         texture_;
@@ -86,10 +93,10 @@ createVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, texture_
     // @TODO: #VkAllocationCallbacks
     debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
 
-    if #complete memory_kind == {
-        case .PERSISTENT; composeTextureName(*manager.texture_memory.persistent,                    texture, name);
-        case .PER_SCENE;  composeTextureName(*manager.texture_memory.per_scene,                     texture, name);
-        case .PER_FRAME;  composeTextureName(*manager.texture_memory.per_frame[device.frame_index], texture, name);
+    if #complete lifetime == {
+        case .PERSISTENT; composeVulkanTextureName(texture, *manager.textures.persistent,                    lifetime, name);
+        case .PER_SCENE;  composeVulkanTextureName(texture, *manager.textures.per_scene,                     lifetime, name);
+        case .PER_FRAME;  composeVulkanTextureName(texture, *manager.textures.per_frame[device.frame_index], lifetime, name);
     }
 
     setVulkanObjectName(device, texture.image, texture.name);
@@ -348,12 +355,18 @@ checkImageProperties :: (device : *VulkanDevice, texture : *VulkanTexture, creat
     }
 }
 
-composeTextureName :: (memory : *VulkanResourceManager.Memory, texture : *Texture, name : string) {
-    memory_kind_name := Reflection.enum_value_to_name(memory.kind);
-    assert(memory_kind_name);
+// "Texture/<lifetime>/<name>"
+composeVulkanTextureName :: (
+    texture     : *Texture,
+    memory_pool : *VulkanResourceManager.MemoryPool,
+    lifetime    : ResourceManager.Lifetime,
+    name        : string
+) {
+    lifetime_name := Reflection.enum_value_to_name(lifetime);
+    assert(lifetime_name);
 
     full_name_length := "Texture/".count
-                      + memory_kind_name.count + "/".count
+                      + lifetime_name.count + "/".count
                       + name.count;
 
     assert(full_name_length <= ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH,
@@ -361,9 +374,8 @@ composeTextureName :: (memory : *VulkanResourceManager.Memory, texture : *Textur
            full_name_length,
            ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH);
 
-    texture.name.data = pushToArena(*memory.names_subarena, full_name_length);
+    texture.name.data = pushToArena(*memory_pool.names_subarena, full_name_length);
 
-    appendToString(*texture.name, full_name_length, "Texture/", memory_kind_name, "/", name);
-
-    assert(texture.name.count == full_name_length, "full_name.count (%) != full_name_length (%)", texture.name.count, full_name_length);
+    appendToString(*texture.name, full_name_length, "Texture/", lifetime_name, "/", name);
+    assert(texture.name.count == full_name_length, "texture.name.count (%) != full_name_length (%)", texture.name.count, full_name_length);
 }

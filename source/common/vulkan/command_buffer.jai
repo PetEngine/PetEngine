@@ -177,6 +177,25 @@ VkRenderingInfo :: struct {
     pStencilAttachment   : *VkRenderingAttachmentInfo;
 }
 
+// Provided by VK_VERSION_1_3
+VkBufferCopy2 :: struct {
+    sType     : VkStructureType = .VK_STRUCTURE_TYPE_BUFFER_COPY_2;
+    pNext     : *void;
+    srcOffset : VkDeviceSize;
+    dstOffset : VkDeviceSize;
+    size      : VkDeviceSize;
+}
+
+// Provided by VK_VERSION_1_3
+VkCopyBufferInfo2 :: struct {
+    sType       : VkStructureType = .VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
+    pNext       : *void;
+    srcBuffer   : VkBuffer;
+    dstBuffer   : VkBuffer;
+    regionCount : u32;
+    pRegions    : *VkBufferCopy2;
+}
+
 // Provided by VK_VERSION_1_0
 vkAllocateCommandBuffers :: (
     device          : VkDevice,
@@ -280,4 +299,10 @@ vkCmdPushConstants :: (
     offset        : u32,
     size          : u32,
     pValues       : *void
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_3
+vkCmdCopyBuffer2 :: (
+    commandBuffer   : VkCommandBuffer,
+    pCopyBufferInfo : *VkCopyBufferInfo2
 ) #foreign vulkan;

@@ -11,7 +11,7 @@ VulkanDevice :: struct {
     physical_device : VkPhysicalDevice;
     device          : VkDevice;
 
-    queues : [#run Basic.enum_highest_value(QueueType) + 1] Queue;
+    queues : [QUEUE_TYPES_COUNT] Queue;
 
     surface            : VkSurfaceKHR;
     swapchain          : VkSwapchainKHR;
@@ -27,6 +27,7 @@ VulkanDevice :: struct {
 
     loader : VulkanLoader;
 
+    properties11      : VkPhysicalDeviceVulkan11Properties;
     properties12      : VkPhysicalDeviceVulkan12Properties;
     limits            : VkPhysicalDeviceLimits;
     memory_properties : VkPhysicalDeviceMemoryProperties2;
@@ -60,23 +61,6 @@ createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *V
                 VK_API_VERSION_PATCH(device.api_version));
 
     vkGetPhysicalDeviceMemoryProperties2(device.physical_device, *device.memory_properties);
-
-    #if PRINT_VERBOSE_MESSAGES {
-        builder : Basic.String_Builder;
-        builder.allocator = Basic.temp;
-
-        Basic.print(*builder, "Available memory types (%):\n", device.memory_properties.memoryProperties.memoryTypeCount);
-        for toView(device.memory_properties.memoryProperties.memoryTypes.data, device.memory_properties.memoryProperties.memoryTypeCount) {
-            Basic.print(*builder, "    Properties: %\n", it.propertyFlags);
-        }
-        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
-
-        Basic.print(*builder, "Available memory heaps (%):\n", device.memory_properties.memoryProperties.memoryHeapCount);
-        for toView(device.memory_properties.memoryProperties.memoryHeaps.data, device.memory_properties.memoryProperties.memoryHeapCount) {
-            Basic.print(*builder, "    Size: % GB, Flags: %\n", it.size / 1024.0 / 1024.0 / 1024.0, it.flags);
-        }
-        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
-    }
 
     gatherQueuesInfo(device);
     createDevice(device, *enabled_device_extensions);
@@ -1229,7 +1213,8 @@ END;
                 cast(string) properties.deviceName,
                 new_line = false);
 
-    physical_device_properties.pNext = *device.properties12;
+    physical_device_properties.pNext = *device.properties11;
+    device.properties11.pNext        = *device.properties12;
 
     vkGetPhysicalDeviceProperties2(device.physical_device, *physical_device_properties);
 

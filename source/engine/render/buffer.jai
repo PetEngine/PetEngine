@@ -6,42 +6,41 @@ Buffer :: struct {
         READ_WRITE; // DirectX: UAV. Vulkan: Read-write storage buffer.
     }
 
-    Flags :: enum_flags u8 {
-        RAW; // Raw or structured buffer
-    }
-
     bytes           : u32;
     usage           : Usage;
-    flags           : Flags;
     name            : string;
+    mapped_memory   : *void;
     current_owner   : QueueType;
-    possible_owners : StaticArray(QueueType, #run Basic.enum_highest_value(QueueType) + 1);
+    possible_owners : StaticArray(QueueType, Device.QUEUE_TYPES_COUNT);
 }
 
 createBuffer :: (
     device          : *Device,
     manager         : *ResourceManager,
     bytes           : u32,
+    lifetime        : ResourceManager.Lifetime,
+    pool            : ResourceManager.Pool,
     usage           : Buffer.Usage,
-    flags           : Buffer.Flags = 0,
     name            : string,
-    $memory_kind    : ResourceManager.MemoryKind,
     possible_owners : ..QueueType  = .[ .GRAPHICS ]
 ) -> *Buffer #must {
     assert(name.count <= ResourceManager.MAX_RESOURCE_NAME_LENGTH,
            "Max buffer name length (%) > ResourceManager.MAX_RESOURCE_NAME_LENGTH (%)",
            name.count, ResourceManager.MAX_RESOURCE_NAME_LENGTH);
 
-    buffer := manager.pushPlatformBuffer(device, manager, memory_kind);
+    assert(pool != .UPLOAD || usage == .NONE || usage == .UNIFORM, "Only NONE and UNIFORM usages are allowed on UPLOAD pool");
+    assert(pool != .READ_BACK || usage == .NONE, "Only NONE usage is allowed on READ_BACK pool");
+    assert(usage != .UNIFORM || pool == .UPLOAD, "Uniform buffers could be created only on UPLOAD pool");
+
+    buffer := manager.pushPlatformBuffer(device, manager, lifetime, pool);
 
     buffer.bytes                 = bytes;
     buffer.usage                 = usage;
-    buffer.flags                 = flags;
     buffer.current_owner         = possible_owners[0];
     buffer.possible_owners.count = possible_owners.count;
     memcpy(buffer.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
 
-    manager.createPlatformBuffer(device, manager, buffer, name, memory_kind);
+    manager.createPlatformBuffer(device, manager, buffer, lifetime, pool, name);
 
     return buffer;
 }
