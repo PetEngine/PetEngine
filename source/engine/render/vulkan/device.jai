@@ -193,7 +193,9 @@ beginVulkanFrame :: (device : *VulkanDevice) {
     // Begin used command buffers
     //
     {
-        begin_info : VkCommandBufferBeginInfo;
+        begin_info := VkCommandBufferBeginInfo.{
+            flags = .VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+        };
 
         command_buffers_used_it := frame_data.command_buffers_used.data;
         command_buffers_it      := frame_data.command_buffers.data;
@@ -296,7 +298,10 @@ endVulkanFrame :: (device : *VulkanDevice) {
         back_buffer               := *device.swapchain_textures[device.back_buffer_index];
         fence_to_signal           := frame_data.fences[QueueType.GRAPHICS];
 
-        begin_info : VkCommandBufferBeginInfo;
+        begin_info := VkCommandBufferBeginInfo.{
+            flags = .VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+        };
+
         debugCheckVK(vkBeginCommandBuffer(post_frame_command_buffer, *begin_info));
         {
             assert(back_buffer.current_owner == .GRAPHICS);
@@ -1527,7 +1532,6 @@ createFences :: (device : *VulkanDevice) {
 // @TODO: #NotExistedQueues
 createCommandPools :: (device : *VulkanDevice) {
     create_info := VkCommandPoolCreateInfo.{
-        flags            = .VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         queueFamilyIndex = VK_QUEUE_FAMILY_IGNORED // Will be set in a loop
     };
 
