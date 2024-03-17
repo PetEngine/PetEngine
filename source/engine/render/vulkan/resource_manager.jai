@@ -191,13 +191,12 @@ createVulkanBufferMemoryNamesSubarenas :: (
         createSubarena(arena, *it.names_subarena, subarena_capacity, "Buffers/Per scene/%", cast(ResourceManager.Pool) it_index);
     }
 
-    memory.per_frame.count = memory.per_frame.capacity;
-    for * frame_pools, frame_index : memory.per_frame {
+    memory.per_frame.count = cast,no_check(s64) frames_buffering;
+    for * frame_pools, frame_index : memory.per_frame.data {
         for * frame_pools.* {
             createSubarena(arena, *it.names_subarena, subarena_capacity, "Buffers/Frame #%/%", frame_index, cast(ResourceManager.Pool) it_index);
         }
     }
-    memory.per_frame.count = cast,no_check(s64) frames_buffering;
 }
 
 destroyVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.BufferMemory) {
@@ -213,15 +212,14 @@ destroyVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceMa
         destroySubarena(*it.names_subarena);
     }
 
-    memory.per_frame.count = memory.per_frame.capacity;
-    for * memory.per_frame {
+    memory.per_frame.count = 0;
+    for * memory.per_frame.data {
         for * it.* {
             assert(it.device_memory == VK_NULL_HANDLE);
             assert(it.resources.count == 0);
             destroySubarena(*it.names_subarena);
         }
     }
-    memory.per_frame.count = 0;
 }
 
 resetVulkanBufferMemoryPool :: (
@@ -229,22 +227,9 @@ resetVulkanBufferMemoryPool :: (
     memory_pool : *VulkanResourceManager.MemoryPool,
     pool        : ResourceManager.Pool
 ) {
-    if pool != .DEFAULT {
-        at_least_one_buffer_is_mapped : bool;
-        for memory_pool.resources {
-            if it.flags & .MAPPED {
-                assert(it.mapped_memory);
-                at_least_one_buffer_is_mapped = true;
-                break;
-            }
-        }
-
-        if at_least_one_buffer_is_mapped {
-            vkUnmapMemory(device.device, memory_pool.device_memory);
-        }
-    }
-
     for * memory_pool.resources {
+        it.mapped_memory = null;
+
         // @TODO: VkAllocationCallbacks
         vkDestroyBuffer(device.device, it.buffer, null);
         it.buffer = VK_NULL_HANDLE;
@@ -252,6 +237,10 @@ resetVulkanBufferMemoryPool :: (
     reset(*memory_pool.resources);
 
     if memory_pool.device_memory {
+        if pool != .DEFAULT {
+            vkUnmapMemory(device.device, memory_pool.device_memory);
+        }
+
         // @TODO: VkAllocationCallbacks
         vkFreeMemory(device.device, memory_pool.device_memory, null);
         memory_pool.device_memory = VK_NULL_HANDLE;
@@ -328,31 +317,14 @@ commitVulkanBufferMemoryPool :: (
     debugCheckVK(vkBindBufferMemory2(device.device, cast(u32) memory_pool.resources.count, bind_infos));
 
     if pool != .DEFAULT {
-        // Vulkan does not allow to map multiple ranges from the same device memory,
-        // so map entire device memory if at least one buffer should be mapped
+        mapped_device_memory : *void;
+        debugCheckVK(vkMapMemory(device.device, memory_pool.device_memory, 0, VK_WHOLE_SIZE, 0, *mapped_device_memory));
+        assert(mapped_device_memory);
 
-        at_least_one_buffer_should_be_mapped : bool;
-        for memory_pool.resources {
-            if it.flags & .MAPPED {
-                at_least_one_buffer_should_be_mapped = true;
-                break;
-            }
-        }
-
-        if at_least_one_buffer_should_be_mapped {
-            mapped_device_memory : *void;
-            debugCheckVK(vkMapMemory(device.device, memory_pool.device_memory, 0, VK_WHOLE_SIZE, 0, *mapped_device_memory));
-            assert(mapped_device_memory);
-
-            for * memory_pool.resources {
-                assert(!it.mapped_memory);
-
-                if it.flags & .MAPPED {
-                    it.mapped_memory = mapped_device_memory;
-                }
-
-                mapped_device_memory += it.bytes;
-            }
+        for * memory_pool.resources {
+            assert(!it.mapped_memory);
+            it.mapped_memory = mapped_device_memory;
+            mapped_device_memory += it.bytes;
         }
     }
 
@@ -372,11 +344,10 @@ createVulkanTextureMemoryNamesSubarenas :: (
     createSubarena(arena, *memory.persistent.names_subarena, subarena_capacity, "Textures/Persistent");
     createSubarena(arena, *memory.per_scene.names_subarena, subarena_capacity, "Textures/Per scene");
 
-    memory.per_frame.count = memory.per_frame.capacity;
-    for * memory.per_frame {
+    memory.per_frame.count = cast,no_check(s64) frames_buffering;
+    for * memory.per_frame.data {
         createSubarena(arena, *it.names_subarena, subarena_capacity, "Textures/Frame #%", it_index);
     }
-    memory.per_frame.count = cast,no_check(s64) frames_buffering;
 }
 
 destroyVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.TextureMemory) {
@@ -388,13 +359,12 @@ destroyVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceM
     assert(memory.per_scene.resources.count == 0);
     destroySubarena(*memory.per_scene.names_subarena);
 
-    memory.per_frame.count = memory.per_frame.capacity;
-    for * memory.per_frame {
+    memory.per_frame.count = 0;
+    for * memory.per_frame.data {
         assert(it.device_memory == VK_NULL_HANDLE);
         assert(it.resources.count == 0);
         destroySubarena(*it.names_subarena);
     }
-    memory.per_frame.count = 0;
 }
 
 resetVulkanTextureMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.MemoryPool) {
@@ -544,13 +514,13 @@ fillMemoryTypeIndices :: (device : *VulkanDevice, manager : *VulkanResourceManag
     // [0] - ideal
     // [1] - minimal
     MEMORY_PROPERTIES : [ResourceManager.POOLS_COUNT][2] VkMemoryPropertyFlags : .[
-        .[
+        .[ // Default
             .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-        ], .[
+        ], .[ // Upload
             .VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | .VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             .VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-        ], .[
+        ], .[ // Readback
             .VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | .VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
             .VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | .VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | .VK_MEMORY_PROPERTY_HOST_CACHED_BIT
         ]
