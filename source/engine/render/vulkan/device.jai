@@ -5,6 +5,8 @@ VulkanDevice :: struct {
     MINIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_2;
     LATEST_VULKAN_MINOR_VERSION   :: 3;
 
+    need_to_recreate_swapchain : bool;
+
     api_version : u32;
 
     instance        : VkInstance;
@@ -132,7 +134,7 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
     vkDestroyInstance(device.instance, null);
 }
 
-beginVulkanFrame :: (device : *VulkanDevice) {
+beginVulkanFrame :: (device : *VulkanDevice, window : *Window) {
     assertThreadKind(.MAIN);
 
     //
@@ -176,6 +178,10 @@ beginVulkanFrame :: (device : *VulkanDevice) {
             command_buffers_used_it += 1;
             command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
         }
+    }
+
+    if device.need_to_recreate_swapchain {
+        recreateVulkanSwapchain(device, window);
     }
 
     //
@@ -325,7 +331,14 @@ endVulkanFrame :: (device : *VulkanDevice) {
             pResults           = null
         };
 
-        debugCheckVK(device.loader.extensions.device.required.vkQueuePresentKHR(device.queues[QueueType.GRAPHICS].handle, *present_info));
+        result := device.loader.extensions.device.required.vkQueuePresentKHR(device.queues[QueueType.GRAPHICS].handle, *present_info);
+        if result == .VK_ERROR_OUT_OF_DATE_KHR {
+            device.need_to_recreate_swapchain = true;
+        } else {
+            // VK_SUBOPTIMAL_KHR seems to be OK. The only platform where I had this VkResult code was Android,
+            // so let's just do not bother ourselves with it for now.
+            debugCheckVK(result, strict = false);
+        }
     }
 }
 
@@ -513,6 +526,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
     // @TODO: VkAllocationCallbacks
     debugCheckVK(device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain));
+    device.need_to_recreate_swapchain = false;
 
     if create_info.oldSwapchain != VK_NULL_HANDLE {
         // @TODO: VkAllocationCallbacks

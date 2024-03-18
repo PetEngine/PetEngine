@@ -132,16 +132,11 @@ petMain :: () {
             continue;
         }
 
-        // @Cleanup: Get rid of recreateSwapchain on high level, recreate it in a back-end when driver wants to.
-        if window.flags & .RESIZED {
-            recreateSwapchain(device, window);
-        }
-
         // @TODO: #FrameBuffering.
         assert(per_view_uniform.buffers.count == cast(s64) device.frame_buffering,
                "It's illegal to change frame buffering for now.");
 
-        beginFrame(device);
+        beginFrame(device, window);
         {
             // Reset
             {

@@ -113,10 +113,10 @@ destroyDevice :: (device : *Device) {
     }
 }
 
-beginFrame :: (device : *Device) {
+beginFrame :: (device : *Device, window : *Window) {
     if #complete device.graphics_api == {
         case .VULKAN;
-            beginVulkanFrame(cast(*VulkanDevice) device);
+            beginVulkanFrame(cast(*VulkanDevice) device, window);
     }
 }
 
@@ -124,13 +124,6 @@ endFrame :: (device : *Device) {
     if #complete device.graphics_api == {
         case .VULKAN;
             endVulkanFrame(cast(*VulkanDevice) device);
-    }
-}
-
-recreateSwapchain :: (device : *Device, window : *Window) {
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            recreateVulkanSwapchain(cast(*VulkanDevice) device, window);
     }
 }
 
