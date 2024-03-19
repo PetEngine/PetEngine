@@ -301,22 +301,24 @@ drawVulkanPrimitives :: inline (
     }
 }
 
-setVulkanPushConstants :: inline (command_buffer : VkCommandBuffer, shader : *VulkanShader, stage : ShaderStage, data : *$T) {
+setVulkanPushConstants :: (command_buffer : VkCommandBuffer, shader : *VulkanShader, binding : s64, data : *$T) {
     if !shader.pipeline return;
 
-    stage_bindings := *shader.binding_table.stage_bindings[stage];
+    assert(binding < shader.binding_table.push_constants_count);
 
-    assert(size_of(T) == stage_bindings.push_constants.bytes,
-           "The size of push constants data (%) should be equal to the size of push constants block in \"%\" shader (%).",
+    push_constants := *shader.binding_table.push_constants[binding];
+
+    assert(size_of(T) == push_constants.bytes,
+           "The size of push constants data (%) should be equal to the size of push constants block in \"%\" shader (%)",
            size_of(T),
            shader.name,
-           stage_bindings.push_constants.bytes);
+           push_constants.bytes);
 
     vkCmdPushConstants(command_buffer,
                        shader.pipeline_layout,
-                       shaderStageToVulkanStage(stage),
-                       stage_bindings.push_constants.offset,
-                       stage_bindings.push_constants.bytes,
+                       shaderStageFlagsToVulkanStageFlags(push_constants.stage_flags),
+                       push_constants.offset,
+                       push_constants.bytes,
                        data);
 }
 

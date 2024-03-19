@@ -1,7 +1,8 @@
 // @TODO:
-//     1. Enrich error messages with <shader name>(col, line)
-//     2. Allow comments in pipeline state description
-//     3. Dump shaders
+//     1. Organize bindings by update frequency
+//     2. Enrich error messages with <shader name>(col, line)
+//     3. Allow comments in pipeline state description
+//     4. Dump shaders
 
 ShaderCompiler :: struct {
     VERSION :: 1;
@@ -144,17 +145,37 @@ ShaderCompiler :: struct {
     } #no_padding
 
     BindingTable :: struct {
+        // @TODO: #BindingTable. Adequate number of sets and bindings for each stage
+        MAX_PUSH_CONSTANTS :: 8;
+        MAX_SETS           :: 4;
+        MAX_BINDINGS       :: 32;
+
+        DescriptorType :: enum u8 {
+            UNIFORM_BUFFER;
+            STORAGE_BUFFER;
+            SAMPLED_IMAGE;
+            STORAGE_IMAGE;
+            SAMPLER;
+        }
+
         PushConstantsRange :: struct {
-            offset : u32;
-            bytes  : u32;
+            stage_flags : ShaderStageFlags;
+            offset      : u32;
+            bytes       : u32;
         } #no_padding
 
-        StageBindings :: struct {
-            push_constants : PushConstantsRange;
+        DescriptorsRange :: struct {
+            descriptor_type   : DescriptorType;
+            descriptors_count : u8;
+            stage_flags       : ShaderStageFlags;
         } #no_padding
 
-        // @TODO: #BindingTable. Common bindings?
-        stage_bindings : [MAX_STAGES] StageBindings;
+        push_constants_count  : u8;
+        descriptor_sets_count : u8;
+        bindings_count        : [MAX_SETS] u8;
+
+        push_constants : [MAX_PUSH_CONSTANTS] PushConstantsRange;
+        bindings       : [MAX_SETS][MAX_BINDINGS] DescriptorsRange;
     } #no_padding
 
     //
@@ -175,6 +196,11 @@ ShaderCompiler :: struct {
 }
 
 ShaderStage :: enum u8 {
+    VERTEX;
+    FRAGMENT;
+}
+
+ShaderStageFlags :: enum_flags u8 {
     VERTEX;
     FRAGMENT;
 }
@@ -784,20 +810,35 @@ debugCheckSpvReflect :: ($code : Code) #expand #no_debug {
     }
 }
 
+// @Continue: Adapt to new data
 reflectPushConstants :: (binding_table : *BindingTable, stage_modules : *[MAX_STAGES] SpvReflectShaderModule) {
     for stage_modules.* {
-        if it.push_constant_block_count {
-            assert(it.push_constant_block_count == 1,
-                   "Only 1 push_constants block is allowed per stage, got %",
-                   it.push_constant_block_count);
+        stage_flag : ShaderStageFlags = ---;
+        if #complete cast(ShaderStage) it_index == {
+            case .VERTEX;   stage_flag = .VERTEX;
+            case .FRAGMENT; stage_flag = .FRAGMENT;
+        }
 
-            push_constant_block := *it.push_constant_blocks[0];
+        for push_constant_block : toView(it.push_constant_blocks, it.push_constant_block_count) {
+            push_constant_binding_index := -1;
+            for toView(binding_table.push_constants.data, binding_table.push_constants_count) {
+                if it.offset == push_constant_block.offset {
+                    push_constant_binding_index = it_index;
+                    break;
+                }
+            }
 
-            stage_bindings := *binding_table.stage_bindings[it_index];
-            stage_bindings.push_constants.offset = push_constant_block.offset;
+            if push_constant_binding_index != -1 {
+                binding_table.push_constants[push_constant_binding_index].stage_flags |= stage_flag;
+            } else {
+                push_constant_binding := *binding_table.push_constants[binding_table.push_constants_count];
+                binding_table.push_constants_count += 1;
 
-            for 0 .. push_constant_block.member_count - 1 {
-                stage_bindings.push_constants.bytes += push_constant_block.members[it].size;
+                push_constant_binding.stage_flags = stage_flag;
+                push_constant_binding.offset      = push_constant_block.offset;
+                for toView(push_constant_block.members, push_constant_block.member_count) {
+                    push_constant_binding.bytes += it.size;
+                }
             }
         }
     }

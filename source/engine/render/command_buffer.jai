@@ -258,7 +258,7 @@ drawPrimitives :: (
 }
 
 // @TODO: Other shaders
-setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, stage : ShaderStage, data : *$T) {
+setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, binding : s64, data : *$T) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can draw";
 
     shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
@@ -266,10 +266,7 @@ setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, s
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            setVulkanPushConstants(command_buffer.handles[device.frame_index],
-                                   cast(*VulkanShader) shader,
-                                   stage,
-                                   data);
+            setVulkanPushConstants(command_buffer.handles[device.frame_index], cast(*VulkanShader) shader, binding, data);
     }
 }
 

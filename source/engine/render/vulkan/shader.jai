@@ -261,6 +261,13 @@ shaderStageToVulkanStage :: inline (stage : ShaderStage) -> VkShaderStageFlags #
     return 0;
 }
 
+shaderStageFlagsToVulkanStageFlags :: inline (stage : ShaderStageFlags) -> VkShaderStageFlags #no_context {
+    vk_flags : VkShaderStageFlags;
+    if stage & .VERTEX   then vk_flags |= .VK_SHADER_STAGE_VERTEX_BIT;
+    if stage & .FRAGMENT then vk_flags |= .VK_SHADER_STAGE_FRAGMENT_BIT;
+    return vk_flags;
+}
+
 #scope_file
 
 createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStage, shader_name : string) -> VkShaderModule #must {
@@ -277,16 +284,15 @@ createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStag
     return module;
 }
 
-initPushConstantRanges :: inline (create_info : *VkPipelineLayoutCreateInfo, binding_table : *ShaderCompiler.BindingTable) {
-    for binding_table.stage_bindings {
-        if it.push_constants.bytes {
+initPushConstantRanges :: inline (create_info : *VkPipelineLayoutCreateInfo, binding_table : *ShaderCompiler.BindingTable) #no_context {
+    for binding_table.push_constants {
+        if it.bytes {
             range := *create_info.pPushConstantRanges[create_info.pushConstantRangeCount];
-
-            range.stageFlags = shaderStageToVulkanStage(cast(ShaderStage) it_index);
-            range.offset     = it.push_constants.offset;
-            range.size       = it.push_constants.bytes;
-
             create_info.pushConstantRangeCount += 1;
+
+            range.stageFlags = shaderStageFlagsToVulkanStageFlags(it.stage_flags);
+            range.offset     = it.offset;
+            range.size       = it.bytes;
         }
     }
 }
