@@ -181,7 +181,7 @@ petMain :: () {
                 setShader(device, *command_buffer, triangle_shader);
 
                 time := cast(f32) Basic.seconds_since_init();
-                setPushConstants(device, *command_buffer, .VERTEX, *time);
+                setPushConstants(device, *command_buffer, 0, *time);
 
                 drawPrimitives(device, *command_buffer, 4);
             }
