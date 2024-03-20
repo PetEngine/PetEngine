@@ -151,10 +151,15 @@ ShaderCompiler :: struct {
         MAX_BINDINGS       :: 32;
 
         DescriptorType :: enum u8 {
-            UNIFORM_BUFFER;
-            STORAGE_BUFFER;
-            SAMPLED_IMAGE;
-            STORAGE_IMAGE;
+            UNKNOWN;
+
+            BUFFER_CBV;
+            BUFFER_SRV;
+            BUFFER_UAV;
+
+            TEXTURE_SRV;
+            TEXTURE_UAV;
+
             SAMPLER;
         }
 
@@ -165,9 +170,9 @@ ShaderCompiler :: struct {
         } #no_padding
 
         DescriptorsRange :: struct {
+            stage_flags       : ShaderStageFlags;
             descriptor_type   : DescriptorType;
             descriptors_count : u8;
-            stage_flags       : ShaderStageFlags;
         } #no_padding
 
         push_constants_count  : u8;
@@ -382,6 +387,9 @@ compileShader :: (name : string) -> bool {
                                                            it.data,
                                                            *stage_modules[it_index]));
     }
+    defer for * stage_modules {
+        spvReflectDestroyShaderModule(it);
+    }
 
     //
     // 5.1 Get the actual number of color targets
@@ -403,8 +411,11 @@ compileShader :: (name : string) -> bool {
     //
 
     binding_table : BindingTable;
-    reflectPushConstants(*binding_table, *stage_modules);
-    // @TODO: other reflection
+    reflectPushConstants(*binding_table, stage_modules);
+    if !reflectBindings(*binding_table, stage_modules) {
+        // Error message has already been printed in reflectBindings
+        return false;
+    }
 
     //
     // 6. Write everything to file
@@ -810,9 +821,8 @@ debugCheckSpvReflect :: ($code : Code) #expand #no_debug {
     }
 }
 
-// @Continue: Adapt to new data
-reflectPushConstants :: (binding_table : *BindingTable, stage_modules : *[MAX_STAGES] SpvReflectShaderModule) {
-    for stage_modules.* {
+reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvReflectShaderModule) {
+    for stage_modules {
         stage_flag : ShaderStageFlags = ---;
         if #complete cast(ShaderStage) it_index == {
             case .VERTEX;   stage_flag = .VERTEX;
@@ -830,16 +840,73 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : *[MAX_ST
 
             if push_constant_binding_index != -1 {
                 binding_table.push_constants[push_constant_binding_index].stage_flags |= stage_flag;
-            } else {
-                push_constant_binding := *binding_table.push_constants[binding_table.push_constants_count];
-                binding_table.push_constants_count += 1;
+                continue;
+            }
 
-                push_constant_binding.stage_flags = stage_flag;
-                push_constant_binding.offset      = push_constant_block.offset;
-                for toView(push_constant_block.members, push_constant_block.member_count) {
-                    push_constant_binding.bytes += it.size;
-                }
+            push_constant_binding := *binding_table.push_constants[binding_table.push_constants_count];
+            binding_table.push_constants_count += 1;
+
+            push_constant_binding.stage_flags = stage_flag;
+            push_constant_binding.offset      = push_constant_block.offset;
+            for toView(push_constant_block.members, push_constant_block.member_count) {
+                push_constant_binding.bytes += it.size;
             }
         }
     }
+}
+
+reflectBindings :: (binding_table : *BindingTable, stage_modules : [] SpvReflectShaderModule) -> bool {
+    for stage_modules {
+        stage_flag : ShaderStageFlags = ---;
+        if #complete cast(ShaderStage) it_index == {
+            case .VERTEX;   stage_flag = .VERTEX;
+            case .FRAGMENT; stage_flag = .FRAGMENT;
+        }
+
+        for toView(it.descriptor_sets.data, it.descriptor_set_count) {
+            binding_table.descriptor_sets_count = max(cast(u8) (it.set + 1), binding_table.descriptor_sets_count);
+
+            for toView(it.bindings, it.binding_count) {
+                if it.binding < binding_table.bindings_count[it.set] {
+                    binding := *binding_table.bindings[it.set][it.binding];
+                    if binding.descriptor_type != .UNKNOWN {
+                        binding.stage_flags |= stage_flag;
+                        continue;
+                    }
+                } else {
+                    binding_table.bindings_count[it.set] = cast(u8) (it.binding + 1);
+                }
+
+                binding := *binding_table.bindings[it.set][it.binding];
+                binding.stage_flags = stage_flag;
+
+                if it.descriptor_type == {
+                    case .SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER;
+                        binding.descriptor_type = .SAMPLER;
+
+                    case .SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+                        binding.descriptor_type = .TEXTURE_SRV;
+
+                    case .SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                        binding.descriptor_type = .TEXTURE_UAV;
+
+                    case .SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                        binding.descriptor_type = .BUFFER_CBV;
+
+                    case .SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                        binding.descriptor_type = ifx it.resource_type == .SPV_REFLECT_RESOURCE_FLAG_SRV then .BUFFER_SRV else .BUFFER_UAV;
+                        assert(it.resource_type == .SPV_REFLECT_RESOURCE_FLAG_UAV);
+
+                    case;
+                        errorMessage("Unsupported descriptor type: %", it.descriptor_type);
+                        return false;
+                }
+
+                binding.descriptors_count = cast(u8) (it.count * max(1, it.block.member_count));
+                assert(binding.descriptors_count > 0);
+            }
+        }
+    }
+
+    return true;
 }

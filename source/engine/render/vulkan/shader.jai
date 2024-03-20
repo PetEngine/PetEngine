@@ -29,6 +29,34 @@ createVulkanShaderManager :: (device : *VulkanDevice) -> *VulkanShaderManager #m
     // @TODO: #VkAllocationCallbacks
     debugCheckVK(vkCreatePipelineCache(device.device, *create_info, null, *manager.pipeline_cache));
 
+PER_STAGE_DESCRIPTORS_LIMITS_FORMAT_STRING :: #string END
+Shader limits:
+    Max bound descriptor sets           = %
+    Max bound samplers                  = %
+    Max bound uniform buffers           = %
+    Max bound storage buffers           = %
+    Max bound sampled images            = %
+    Max bound storage images            = %
+    Max bound samplers per stage        = %
+    Max bound uniform buffers per stage = %
+    Max bound storage buffers per stage = %
+    Max bound sampled images per stage  = %
+    Max bound storage images per stage  = %
+END;
+
+    verboseMessage(PER_STAGE_DESCRIPTORS_LIMITS_FORMAT_STRING,
+                   device.limits.maxBoundDescriptorSets,
+                   device.limits.maxDescriptorSetSamplers,
+                   device.limits.maxDescriptorSetUniformBuffers,
+                   device.limits.maxDescriptorSetStorageBuffers,
+                   device.limits.maxDescriptorSetSampledImages,
+                   device.limits.maxDescriptorSetStorageImages,
+                   device.limits.maxPerStageDescriptorSamplers,
+                   device.limits.maxPerStageDescriptorUniformBuffers,
+                   device.limits.maxPerStageDescriptorStorageBuffers,
+                   device.limits.maxPerStageDescriptorSampledImages,
+                   device.limits.maxPerStageDescriptorStorageImages);
+
     return manager;
 }
 
