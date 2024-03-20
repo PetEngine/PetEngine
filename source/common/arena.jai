@@ -46,8 +46,8 @@ createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) 
     if arena.capacity != capacity {
         warningMessage("\"%\" arena will be created with different capacity since given capacity does not match system page size and allocation granularity alignment requirement. Given capacity: % bytes, aligned capacity: % byte, page size: % bytes, allocation granularity: % bytes",
                        arena.name,
-                       Basic.formatInt(capacity,       digits_per_comma = 3, comma_string = "'"),
-                       Basic.formatInt(arena.capacity, digits_per_comma = 3, comma_string = "'"),
+                       capacity,
+                       arena.capacity,
                        page_size,
                        allocation_granularity);
     }

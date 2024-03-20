@@ -350,6 +350,8 @@ Reflection :: #import "Reflection";
 initRuntimeAndCallEntryPoint :: () {
     context.context_info = type_info(Context);
 
+    context.print_style.default_format_int.digits_per_comma                                = 3;
+    context.print_style.default_format_int.comma_string                                    = "'";
     context.print_style.default_format_struct.use_long_form_if_more_than_this_many_members = -1;
     context.print_style.default_format_struct.use_newlines_if_long_form                    = true;
     context.print_style.default_format_absolute_pointer.minimum_digits                     = 16;

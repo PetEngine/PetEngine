@@ -148,7 +148,7 @@ formatHex :: inline (value : Any, minimum_digits := 1) -> Basic.FormatInt {
         base             = 16,
         minimum_digits   = minimum_digits,
         digits_per_comma = 4,
-        comma_string     = "_",
+        comma_string     = "'",
     };
 }
 

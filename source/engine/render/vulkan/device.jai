@@ -1219,10 +1219,10 @@ END;
                 VK_API_VERSION_MAJOR(properties.apiVersion),
                 VK_API_VERSION_MINOR(properties.apiVersion),
                 VK_API_VERSION_PATCH(properties.apiVersion),
-                Basic.formatInt(properties.driverVersion, base = 16),
+                formatHex(properties.driverVersion),
                 vendorIdToString(properties.vendorID),
-                Basic.formatInt(properties.vendorID, base = 16),
-                Basic.formatInt(properties.deviceID, base = 16),
+                formatHex(properties.vendorID),
+                formatHex(properties.deviceID),
                 properties.deviceType,
                 cast(string) properties.deviceName,
                 new_line = false);
