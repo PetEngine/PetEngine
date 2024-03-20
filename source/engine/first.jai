@@ -30,7 +30,7 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 PerViewUniform :: struct {
     Data :: struct {
         camera_pos : v3f;
-/*
+
         view_matrix     : m3x4;
         inv_view_matrix : m3x4;
 
@@ -39,7 +39,6 @@ PerViewUniform :: struct {
 
         view_proj_matrix     : m4x4;
         inv_view_proj_matrix : m4x4;
-*/
     } #no_padding
 
     buffers : StaticArray(*Buffer, Device.MAX_FRAME_BUFFERING);

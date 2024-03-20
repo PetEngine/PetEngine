@@ -32,11 +32,24 @@ void main() {
 
 #fragment_shader
 
+uniform PerView {
+    vec3 camera_pos;
+
+    mat3x4 view_matrix;
+    mat3x4 inv_view_matrix;
+
+    mat4x4 proj_matrix;
+    mat4x4 inv_proj_matrix;
+
+    mat4x4 view_proj_matrix;
+    mat4x4 inv_view_proj_matrix;
+};
+
 in  VertexOutput fs_input;
 out vec4         fs_output_color;
 
 void main() {
-    fs_output_color = fs_input.color;
+    fs_output_color = fs_input.color + vec4(camera_pos, 0.0);
 }
 
 #pipeline_state
