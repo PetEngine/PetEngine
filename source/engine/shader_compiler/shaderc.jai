@@ -364,7 +364,7 @@ shaderc_result_get_num_errors :: (
 ) -> size_t #foreign shaderc;
 
 // Indicate the status of a compilation.
-shaderc_compilation_status :: enum #specified {
+shaderc_compilation_status :: enum s32 #specified {
     shaderc_compilation_status_success :: 0;
     shaderc_compilation_status_invalid_stage :: 1;  // error stage deduction
     shaderc_compilation_status_compilation_error :: 2;

@@ -19,7 +19,7 @@
 /*! @enum SpvReflectResult
 
 */
-SpvReflectResult :: enum {
+SpvReflectResult :: enum s32 {
     SPV_REFLECT_RESULT_SUCCESS;
     SPV_REFLECT_RESULT_NOT_READY;
     SPV_REFLECT_RESULT_ERROR_PARSE_FAILED;
@@ -110,7 +110,7 @@ SpvReflectDecorationFlags :: enum_flags u32 #specified {
 /*! @enum SpvReflectResourceType
 
 */
-SpvReflectResourceType :: enum #specified {
+SpvReflectResourceType :: enum s32 #specified {
     SPV_REFLECT_RESOURCE_FLAG_UNDEFINED :: 0x00000000;
     SPV_REFLECT_RESOURCE_FLAG_SAMPLER   :: 0x00000001;
     SPV_REFLECT_RESOURCE_FLAG_CBV       :: 0x00000002;
@@ -121,7 +121,7 @@ SpvReflectResourceType :: enum #specified {
 /*! @enum SpvReflectFormat
 
 */
-SpvReflectFormat :: enum #specified {
+SpvReflectFormat :: enum s32 #specified {
     SPV_REFLECT_FORMAT_UNDEFINED           ::   0; // = VK_FORMAT_UNDEFINED
     SPV_REFLECT_FORMAT_R16_UINT            ::  74; // = VK_FORMAT_R16_UINT
     SPV_REFLECT_FORMAT_R16_SINT            ::  75; // = VK_FORMAT_R16_SINT
@@ -172,7 +172,7 @@ SpvReflectVariableFlags :: enum_flags u32 #specified {
 /*! @enum SpvReflectDescriptorType
 
 */
-SpvReflectDescriptorType :: enum #specified {
+SpvReflectDescriptorType :: enum s32 #specified {
     SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER                    ::  0;         // = VK_DESCRIPTOR_TYPE_SAMPLER
     SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER     ::  1;         // = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
     SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE              ::  2;         // = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
@@ -212,7 +212,7 @@ SpvReflectShaderStageFlags :: enum_flags u32 #specified {
 /*! @enum SpvReflectGenerator
 
 */
-SpvReflectGenerator :: enum #specified {
+SpvReflectGenerator :: enum s32 #specified {
     SPV_REFLECT_GENERATOR_KHRONOS_LLVM_SPIRV_TRANSLATOR         :: 6;
     SPV_REFLECT_GENERATOR_KHRONOS_SPIRV_TOOLS_ASSEMBLER         :: 7;
     SPV_REFLECT_GENERATOR_KHRONOS_GLSLANG_REFERENCE_FRONT_END   :: 8;
