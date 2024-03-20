@@ -74,10 +74,10 @@ END;
         if GET_DEVICE_CHANGE_WPARAM(wparam) == {
             case GIDC_ARRIVAL;
                 device_name, manufacturer, product := getRawInputDeviceNames(ri_device);
-                verboseMessage(DEVICE_CONNECTED_MESSAGE, ri_device, device_name, manufacturer, product, new_line = false);
+                verboseMessage(DEVICE_CONNECTED_MESSAGE, ri_device, device_name, manufacturer, product);
 
             case GIDC_REMOVAL;
-                verboseMessage(DEVICE_DISCONNECTED_MESSAGE, ri_device, new_line = false);
+                verboseMessage(DEVICE_DISCONNECTED_MESSAGE, ri_device);
         }
     }
 }

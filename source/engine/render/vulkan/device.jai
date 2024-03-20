@@ -811,7 +811,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             for available_layers {
                 Basic.print(*builder, "    %\n", to_string(cast(*u8) it.layerName.data));
             }
-            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
         }
 
         REQUIRED_LAYERS, OPTIONAL_LAYERS :: #run gatherVulkanLayers();
@@ -854,7 +854,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         for layers_to_apply {
             Basic.print(*builder, "    %\n", to_string(cast(*u8) it));
         }
-        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
     extensions_to_apply : [..] *s8;
@@ -872,7 +872,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             for available_extensions {
                 Basic.print(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
-            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
         }
 
         #if DEBUG_BUILD {
@@ -887,7 +887,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
                 for validation_extensions {
                     Basic.print(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
                 }
-                verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+                verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
             }
         }
 
@@ -951,7 +951,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         for enabled_instance_extensions.* {
             Basic.print(*builder, "    %\n", it);
         }
-        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
     nt_engine_name : [ENGINE_NAME.count + 1] s8;
@@ -1077,13 +1077,13 @@ messengerCallback :: (
 END;
 
             if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT {
-                errorMessage(MESSAGE_FORMAT, message, new_line = false);
+                errorMessage(MESSAGE_FORMAT, message);
             } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT {
-                warningMessage(MESSAGE_FORMAT, message, new_line = false);
+                warningMessage(MESSAGE_FORMAT, message);
             } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT {
-                verboseMessage(MESSAGE_FORMAT, message, new_line = false);
+                verboseMessage(MESSAGE_FORMAT, message);
             } else {
-                infoMessage(MESSAGE_FORMAT, message, new_line = false);
+                infoMessage(MESSAGE_FORMAT, message);
             }
         }
     }
@@ -1224,8 +1224,7 @@ END;
                 formatHex(properties.vendorID),
                 formatHex(properties.deviceID),
                 properties.deviceType,
-                cast(string) properties.deviceName,
-                new_line = false);
+                cast(string) properties.deviceName);
 
     physical_device_properties.pNext = *device.properties11;
     device.properties11.pNext        = *device.properties12;
@@ -1247,8 +1246,7 @@ END;
                 device.properties12.conformanceVersion.major,
                 device.properties12.conformanceVersion.minor,
                 device.properties12.conformanceVersion.subminor,
-                device.properties12.conformanceVersion.patch,
-                new_line = false);
+                device.properties12.conformanceVersion.patch);
 
     device.limits = properties.limits;
 
@@ -1310,7 +1308,7 @@ END;
                         it.queueFamilyProperties.queueCount);
         }
 
-        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
     QUEUE_TYPE_TO_VK_QUEUE_FLAGS :: VkQueueFlags.[
@@ -1367,7 +1365,7 @@ END;
                         it.index_in_family);
         }
 
-        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 }
 
@@ -1422,7 +1420,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
             for available_extensions {
                 Basic.print(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
             }
-            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+            verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
         }
 
         REQUIRED_EXTENSIONS, OPTIONAL_EXTENSIONS :: #run gatherVulkanDeviceExtensions();
@@ -1467,7 +1465,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         for enabled_device_extensions.* {
             Basic.print(*builder, "    %\n", it);
         }
-        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
     dynamic_rendering_features : VkPhysicalDeviceDynamicRenderingFeatures;

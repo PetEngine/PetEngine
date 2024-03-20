@@ -64,7 +64,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
         for memory_heaps {
             Basic.print(*builder, "    Size: % GB, Flags: %\n", bytesToGigaBytes(it.size), it.flags);
         }
-        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
 
         Basic.print(*builder, "Available memory types (%):\n", device.memory_properties.memoryProperties.memoryTypeCount);
         for toView(device.memory_properties.memoryProperties.memoryTypes.data, device.memory_properties.memoryProperties.memoryTypeCount) {
@@ -75,7 +75,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
                         bytesToGigaBytes(heap.size),
                         heap.flags);
         }
-        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
     fillMemoryTypeIndices(device, manager);
@@ -90,7 +90,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
                     bytesToGigaBytes(heap.size),
                     heap.flags);
     }
-    infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp), new_line = false);
+    infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
 
     BUFFERS_SUBARENA_CAPACITY  :: ResourceManager.MAX_BUFFERS  * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
     TEXTURES_SUBARENA_CAPACITY :: ResourceManager.MAX_TEXTURES * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;

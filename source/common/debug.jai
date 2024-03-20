@@ -21,19 +21,18 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
         expression       : Code,
         $format          := "",
         args             : ..Any,
-        $new_line        := true,
         $print_sys_error := false,
         location         := #caller_location
     ) #expand #no_debug {
         #if is_constant(#insert expression) {
             #if !(#insert expression) {
                 FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-                assertMessage(FORMAT_OR_EXPRESSION, ..args, new_line = new_line, print_sys_error = print_sys_error, location = location);
+                assertMessage(FORMAT_OR_EXPRESSION, ..args, print_sys_error = print_sys_error, location = location);
             }
         } else {
             if !(#insert expression) {
                 FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-                assertMessage(FORMAT_OR_EXPRESSION, ..args, new_line = new_line, print_sys_error = print_sys_error, location = location);
+                assertMessage(FORMAT_OR_EXPRESSION, ..args, print_sys_error = print_sys_error, location = location);
             }
         }
     }
@@ -42,18 +41,16 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
         expression       : Code,
         $format          := "",
         args             : ..Any,
-        $new_line        := true,
         $print_sys_error := false,
         location         := #caller_location
     ) #expand #no_debug {
-        assert(expression, format, ..args, new_line = new_line, print_sys_error = print_sys_error, location = location);
+        assert(expression, format, ..args, print_sys_error = print_sys_error, location = location);
     }
 } else {
     assert :: (
         #discard expression      : Code,
         #discard format          := "",
         #discard args            : ..Any,
-        #discard new_line        := true,
         #discard print_sys_error := false,
         #discard location        := #caller_location
     ) #expand #no_debug {
@@ -63,7 +60,6 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
         expression               : Code,
         #discard format          := "",
         #discard args            : ..Any,
-        #discard new_line        := true,
         #discard print_sys_error := false,
         #discard location        := #caller_location
     ) #expand #no_debug {
@@ -184,7 +180,6 @@ message :: (
     $priority        : MessagePriority,
     $format          : string,
     args             : ..Any,
-    $new_line        := true,
     $print_sys_error := false,
     location         := #caller_location
 ) {
@@ -255,8 +250,13 @@ message :: (
         }
     }
 
-    #if new_line {
-        Basic.append(*builder, "\n");
+    // Add new line if there is no any in the end
+    {
+        buffer := Basic.get_current_buffer(*builder);
+        data := Basic.get_buffer_data(buffer);
+        if data[buffer.count - 1] != #char "\n" {
+            Basic.append(*builder, "\n");
+        }
     }
 
     #if priority == .ASSERT {
