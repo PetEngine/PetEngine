@@ -10,13 +10,17 @@ ShaderCompiler :: struct {
     SOURCE_SHADERS_FOLDER :: "../../../source/shaders";
     OUTPUT_SHADERS_FOLDER :: "shaders";
 
+    MIN_FILE_SIZE :: size_of(Header) + size_of(PipelineState) + size_of(BindingTable);
+
     INVALID_OFFSET             :: -1;
     INVALID_COLOR_TARGET_INDEX : u8 : 0xFF;
 
-    MAX_STAGES        :: #run Basic.enum_highest_value(ShaderStage) + 1;
-    MAX_COLOR_TARGETS :: 8;
-
-    MIN_FILE_SIZE :: size_of(Header) + size_of(PipelineState) + size_of(BindingTable);
+    MAX_STAGES         :: #run Basic.enum_highest_value(ShaderStage) + 1;
+    MAX_COLOR_TARGETS  :: 8;
+    // @TODO: #BindingTable. Adequate number of sets and bindings for each stage
+    MAX_PUSH_CONSTANTS :: 8;
+    MAX_SETS           :: 4;
+    MAX_BINDINGS       :: 32;
 
     Header :: struct {
         version       : u8 = VERSION;
@@ -145,11 +149,6 @@ ShaderCompiler :: struct {
     } #no_padding
 
     BindingTable :: struct {
-        // @TODO: #BindingTable. Adequate number of sets and bindings for each stage
-        MAX_PUSH_CONSTANTS :: 8;
-        MAX_SETS           :: 4;
-        MAX_BINDINGS       :: 32;
-
         DescriptorType :: enum u8 {
             UNKNOWN;
 
@@ -183,6 +182,17 @@ ShaderCompiler :: struct {
         bindings       : [MAX_SETS][MAX_BINDINGS] DescriptorsRange;
     } #no_padding
 
+    RuntimeBindingName :: struct {
+        length : u8;
+        buffer : [127] u8;
+    }
+    #assert size_of(RuntimeBindingName) == 128;
+
+    RuntimeBindingNamesTable :: struct {
+        push_constants : [MAX_PUSH_CONSTANTS] RuntimeBindingName;
+        bindings       : [MAX_SETS][MAX_BINDINGS] RuntimeBindingName;
+    }
+
     //
     // Util functions
     //
@@ -197,6 +207,40 @@ ShaderCompiler :: struct {
 
     getBindingTable :: inline (file_data : string) -> *BindingTable {
         return cast(*BindingTable) (file_data.data + size_of(Header) + size_of(PipelineState));
+    }
+
+    deserializeBindingNamesTable :: (file_data : string, runtime_binding_names_table : *RuntimeBindingNamesTable) {
+        binding_table          := getBindingTable(file_data);
+        binding_names_table_it := (file_data.data + size_of(Header) + size_of(PipelineState) + size_of(BindingTable));
+
+        push_constants_name_it := runtime_binding_names_table.push_constants.data;
+        for toView(binding_table.push_constants.data, binding_table.push_constants_count) {
+            push_constants_name_it.length = binding_names_table_it.*;
+            binding_names_table_it += 1;
+
+            assert(push_constants_name_it.length <= RuntimeBindingName.buffer.count);
+
+            memcpy(push_constants_name_it.buffer.data, binding_names_table_it, push_constants_name_it.length);
+            binding_names_table_it += push_constants_name_it.length;
+
+            push_constants_name_it += 1;
+        }
+
+        for set_bindings, set_index : toView(binding_table.bindings.data, binding_table.descriptor_sets_count) {
+            for binding, binding_index : toView(set_bindings.data, binding_table.bindings_count[set_index]) {
+                if binding.descriptor_type != .UNKNOWN {
+                    binding_name := *runtime_binding_names_table.bindings[set_index][binding_index];
+
+                    binding_name.length = binding_names_table_it.*;
+                    binding_names_table_it += 1;
+
+                    assert(binding_name.length <= RuntimeBindingName.buffer.count);
+
+                    memcpy(binding_name.buffer.data, binding_names_table_it, binding_name.length);
+                    binding_names_table_it += binding_name.length;
+                }
+            }
+        }
     }
 }
 
@@ -410,21 +454,53 @@ compileShader :: (name : string) -> bool {
     // 5.2. Get binding table from platform specific intermediate shader language
     //
 
-    binding_table : BindingTable;
-    reflectPushConstants(*binding_table, stage_modules);
-    if !reflectBindings(*binding_table, stage_modules) {
+    binding_table               : BindingTable;
+    runtime_binding_names_table : RuntimeBindingNamesTable;
+    if !reflectPushConstants(*binding_table, *runtime_binding_names_table, stage_modules) {
+        // Error message has already been printed in reflectPushConstants
+        return false;
+    }
+    if !reflectBindings(*binding_table, *runtime_binding_names_table, stage_modules) {
         // Error message has already been printed in reflectBindings
         return false;
     }
 
     //
-    // 6. Write everything to file
+    // 6. Serialize runtime binding names table
+    //
+
+    serialized_binding_names_table : string;
+    {
+        builder := Basic.String_Builder.{
+            allocator = Basic.temp
+        };
+
+        for toView(runtime_binding_names_table.push_constants.data, binding_table.push_constants_count) {
+            Basic.append(*builder, it.length);
+            Basic.append(*builder, it.buffer.data, it.length);
+        }
+
+        for set_names, set : toView(runtime_binding_names_table.bindings.data, binding_table.descriptor_sets_count) {
+            for name, binding : toView(set_names.data, binding_table.bindings_count[set]) {
+                if name.length {
+                    assert(binding_table.bindings[set][binding].descriptor_type != .UNKNOWN);
+                    Basic.append(*builder, name.length);
+                    Basic.append(*builder, name.buffer.data, name.length);
+                }
+            }
+        }
+
+        serialized_binding_names_table = Basic.builder_to_string(*builder,, allocator = Basic.temp);
+    }
+
+    //
+    // 7. Write everything to file
     //
 
     header : Header;
     header.shader_kind = shader_kind;
 
-    offset := MIN_FILE_SIZE;
+    offset := MIN_FILE_SIZE + serialized_binding_names_table.count;
 
     for * header.stage_offsets {
         stage_spirv := stage_spirvs[it_index];
@@ -443,6 +519,7 @@ compileShader :: (name : string) -> bool {
         writeFile(output_file, *header, size_of(Header));
         writeFile(output_file, *pipeline_state, size_of(PipelineState));
         writeFile(output_file, *binding_table, size_of(BindingTable));
+        writeFile(output_file, serialized_binding_names_table);
         for stage_spirvs {
             if it {
                 writeFile(output_file, it);
@@ -821,7 +898,11 @@ debugCheckSpvReflect :: ($code : Code) #expand #no_debug {
     }
 }
 
-reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvReflectShaderModule) {
+reflectPushConstants :: (
+    binding_table               : *BindingTable,
+    runtime_binding_names_table : *RuntimeBindingNamesTable,
+    stage_modules               : [] SpvReflectShaderModule
+) -> bool {
     for stage_modules {
         stage_flag : ShaderStageFlags = ---;
         if #complete cast(ShaderStage) it_index == {
@@ -851,11 +932,43 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvRe
             for toView(push_constant_block.members, push_constant_block.member_count) {
                 push_constant_binding.bytes += it.size;
             }
+
+            assert(push_constant_block.name,
+                   "A name for push constants instance #%, stage: % is null for some reason. It can be 0 length, but have to be non-null",
+                   it_index,
+                   stage_flag);
+
+            push_constant_block_name_length := c_style_strlen(cast(*u8) push_constant_block.name);
+
+            if push_constant_block_name_length <= 0 {
+                errorMessage("Please, specify push constants instance name #%, stage: % (not the block/type name). It is required for bindings handles",
+                             it_index,
+                             stage_flag);
+                return false;
+            }
+
+            if push_constant_block_name_length > RuntimeBindingName.buffer.count {
+                errorMessage("Too long push constants instance name: %. Current length: %, max allowed: %",
+                             string.{ push_constant_block_name_length, cast(*u8) push_constant_block.name },
+                             push_constant_block_name_length,
+                             RuntimeBindingName.buffer.count);
+                return false;
+            }
+
+            variable_name := *runtime_binding_names_table.push_constants[binding_table.push_constants_count - 1];
+            variable_name.length = cast(u8) push_constant_block_name_length;
+            memcpy(variable_name.buffer.data, push_constant_block.name, push_constant_block_name_length);
         }
     }
+
+    return true;
 }
 
-reflectBindings :: (binding_table : *BindingTable, stage_modules : [] SpvReflectShaderModule) -> bool {
+reflectBindings :: (
+    binding_table               : *BindingTable,
+    runtime_binding_names_table : *RuntimeBindingNamesTable,
+    stage_modules               : [] SpvReflectShaderModule
+) -> bool {
     for stage_modules {
         stage_flag : ShaderStageFlags = ---;
         if #complete cast(ShaderStage) it_index == {
@@ -894,8 +1007,12 @@ reflectBindings :: (binding_table : *BindingTable, stage_modules : [] SpvReflect
                         binding.descriptor_type = .BUFFER_CBV;
 
                     case .SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-                        binding.descriptor_type = ifx it.resource_type == .SPV_REFLECT_RESOURCE_FLAG_SRV then .BUFFER_SRV else .BUFFER_UAV;
-                        assert(it.resource_type == .SPV_REFLECT_RESOURCE_FLAG_UAV);
+                        if it.resource_type == .SPV_REFLECT_RESOURCE_FLAG_SRV {
+                            binding.descriptor_type = .BUFFER_SRV;
+                        } else {
+                            assert(it.resource_type == .SPV_REFLECT_RESOURCE_FLAG_UAV);
+                            binding.descriptor_type = .BUFFER_UAV;
+                        }
 
                     case;
                         errorMessage("Unsupported descriptor type: %", it.descriptor_type);
@@ -904,6 +1021,35 @@ reflectBindings :: (binding_table : *BindingTable, stage_modules : [] SpvReflect
 
                 binding.descriptors_count = cast(u8) (it.count * max(1, it.block.member_count));
                 assert(binding.descriptors_count > 0);
+
+                assert(it.name,
+                       "A name for % instance in descriptor set #%, binding #% is null for some reason. It can be 0 length, but have to be non-null",
+                       binding.descriptor_type,
+                       it.set,
+                       it.binding);
+
+                binding_name_length := c_style_strlen(cast(*u8) it.name);
+
+                if binding_name_length <= 0 {
+                    errorMessage("Please, specify an instance name for % in descriptor set #%, binding #% (not the block/type name). It is required for bindings handles",
+                                 binding.descriptor_type,
+                                 it.set,
+                                 it.binding);
+                    return false;
+                }
+
+                if binding_name_length > RuntimeBindingName.buffer.count {
+                    errorMessage("Too long % instance name: %. Current length: %, max allowed: %",
+                                 binding.descriptor_type,
+                                 string.{ binding_name_length, cast(*u8) it.name },
+                                 binding_name_length,
+                                 RuntimeBindingName.buffer.count);
+                    return false;
+                }
+
+                variable_name := *runtime_binding_names_table.bindings[it.set][it.binding];
+                variable_name.length = cast(u8) binding_name_length;
+                memcpy(variable_name.buffer.data, it.name, binding_name_length);
             }
         }
     }
