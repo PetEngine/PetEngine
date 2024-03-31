@@ -257,6 +257,10 @@ ShaderStageFlags :: enum_flags u8 {
 compileShader :: (name : string) -> bool {
     infoMessage("Compiling shader \"%\"...", name);
 
+    setArenaMarker(*context.pet.per_frame_arena);
+    defer resetArenaToMarker(*context.pet.per_frame_arena);
+    Basic.auto_release_temp();
+
     source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader",, allocator = Basic.temp);
 
     source     : string     = ---;
@@ -368,6 +372,7 @@ compileShader :: (name : string) -> bool {
     // @TODO: shaderc_compile_options_set_binding_base
     shaderc_compile_options_set_auto_map_locations(shaderc_options, true);
     // @TOOD: #Viewport. Experiment with shaderc_compile_options_set_invert_y
+    shaderc_compile_options_set_include_callbacks(shaderc_options, resolveIncludeCallback, releaseIncludeResult, *context);
 
     nt_name : string = ---;
     nt_name.count = name.count + 1;
@@ -408,9 +413,20 @@ compileShader :: (name : string) -> bool {
 
         status := shaderc_result_get_compilation_status(result);
         if status != .shaderc_compilation_status_success {
-            error_message := shaderc_result_get_error_message(result);
-            errorMessage("% shader compilation failed: %\n%", cast(ShaderStage) it_index, status, to_string(cast(*u8) error_message));
+            errorMessage("% shader compilation is failed with % error(s): %\n%",
+                         cast(ShaderStage) it_index,
+                         shaderc_result_get_num_errors(result),
+                         status,
+                         to_string(cast(*u8) shaderc_result_get_error_message(result)));
             return false;
+        }
+
+        warnings_count := shaderc_result_get_num_warnings(result);
+        if warnings_count {
+            warningMessage("% shader compilation is succeeded with % warning(s):\n%",
+                           cast(ShaderStage) it_index,
+                           warnings_count,
+                           to_string(cast(*u8) shaderc_result_get_error_message(result)));
         }
 
         stage_spirv := *stage_spirvs[it_index];
@@ -1055,4 +1071,47 @@ reflectBindings :: (
     }
 
     return true;
+}
+
+resolveIncludeCallback :: (
+    user_data         : *void,
+    requested_source  : *s8,
+    type              : shaderc_include_type,
+    requesting_source : *s8,
+    include_depth     : size_t
+) -> *shaderc_include_result #c_call {
+    push_context,defer_pop cast(*Context) user_data;
+
+    include_filename := String.join(SOURCE_SHADERS_FOLDER, "/", to_string(cast(*u8) requested_source),, allocator = Basic.temp);
+
+    include_result := pushToArena(*context.pet.per_frame_arena, shaderc_include_result);
+
+    content, error := readEntireFile(include_filename, pushToArena, *context.pet.per_frame_arena);
+    if error == {
+        case .NONE;
+            absolute_include_filename := getAbsolutePath(include_filename, pushToArena, *context.pet.per_frame_arena);
+
+            include_result.source_name        = cast(*s8)    absolute_include_filename.data;
+            include_result.source_name_length = cast(size_t) absolute_include_filename.count;
+
+            include_result.content        = cast(*s8)    content.data;
+            include_result.content_length = cast(size_t) content.count;
+
+        case .FILE_NOT_FOUND; #through;
+        case .PATH_NOT_FOUND;
+            error_message := Basic.tprint("File \"%\" does not exist. There is a requirement that a path in #include should be specified relative to root shaders folder, maybe you violated it", include_filename);
+            include_result.content        = cast(*s8)    error_message.data;
+            include_result.content_length = cast(size_t) error_message.count;
+
+        case;
+            error_message := Basic.tprint("There was an error in opening \"%\" file. Look at previous error messages to get what went wrong", include_filename);
+            include_result.content        = cast(*s8)    error_message.data;
+            include_result.content_length = cast(size_t) error_message.count;
+    }
+
+    return include_result;
+}
+
+releaseIncludeResult :: (user_data : *void, include_result : *shaderc_include_result) #c_call {
+    // Everything is in per frame arena, so we do not need to free anything
 }

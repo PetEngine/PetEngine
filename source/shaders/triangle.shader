@@ -1,15 +1,4 @@
-uniform PerView {
-    vec3 camera_pos;
-
-    mat3x4 view_matrix;
-    mat3x4 inv_view_matrix;
-
-    mat4x4 proj_matrix;
-    mat4x4 inv_proj_matrix;
-
-    mat4x4 view_proj_matrix;
-    mat4x4 inv_view_proj_matrix;
-} g_per_view;
+#include "common_uniforms.shader_header"
 
 struct VertexOutput {
     vec4 color;
@@ -65,7 +54,7 @@ void main() {
 
     fs_output_color = fs_input.color
                     // @Cleanup: #Test
-                    + vec4(g_per_view.camera_pos, 0.0)
+                    + vec4(g_camera.position, 0.0)
                     + texture(sampler2D(g_texture_srv, g_sampler), vec2(0.5, 0.5)),
                     + g_Buffer_srv.data[128]
                     + g_Buffer_uav.data[32];
