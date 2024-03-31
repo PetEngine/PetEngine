@@ -23,6 +23,8 @@ createVulkanShaderManager :: (device : *VulkanDevice) -> *VulkanShaderManager #m
     manager := pushToArena(*context.pet.persistent_arena, VulkanShaderManager);
     manager.per_frame_reset_data.count = cast,no_check(s64) device.frame_buffering;
 
+    #insert -> string { return generatePlatformVtableInitialization(ShaderManager, "manager", "Vulkan"); }
+
     // @TODO: #PipelineCache. Initial data.
     create_info : VkPipelineCacheCreateInfo;
 
@@ -60,7 +62,10 @@ END;
     return manager;
 }
 
-destroyVulkanShaderManager :: (device : *VulkanDevice, manager : *VulkanShaderManager) {
+destroyVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
+    device  := cast(*VulkanDevice)        device_;
+    manager := cast(*VulkanShaderManager) manager_;
+
     // @TODO: #VkAllocationCallbacks
     vkDestroyPipelineCache(device.device, manager.pipeline_cache, null);
 
@@ -73,7 +78,10 @@ destroyVulkanShaderManager :: (device : *VulkanDevice, manager : *VulkanShaderMa
     }
 }
 
-resetVulkanShaderManager :: (device : *VulkanDevice, manager : *VulkanShaderManager) {
+resetVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
+    device  := cast(*VulkanDevice)        device_;
+    manager := cast(*VulkanShaderManager) manager_;
+
     assertThreadKind(.MAIN);
 
     reset_data := *manager.per_frame_reset_data[device.frame_index];
@@ -98,7 +106,9 @@ resetVulkanShaderManager :: (device : *VulkanDevice, manager : *VulkanShaderMana
     }
 }
 
-findVulkanShader :: (manager : *VulkanShaderManager, name : string) -> *VulkanShader #no_context {
+findVulkanShader :: (manager_ : *ShaderManager, name : string) -> *Shader #must #no_context {
+    manager := cast(*VulkanShaderManager) manager_;
+
     shaders_it := manager.shaders_storage.data;
     for 0 .. manager.shaders_count {
         if shaders_it.name == name {
@@ -116,7 +126,9 @@ VulkanShader :: struct {
     pipeline        : VkPipeline;
 }
 
-pushVulkanShader :: (manager : *VulkanShaderManager) -> *VulkanShader #must {
+pushVulkanShader :: (manager_ : *ShaderManager) -> *Shader #must {
+    manager := cast(*VulkanShaderManager) manager_;
+
     assert(manager.shaders_count < manager.shaders_storage.count,
            "Too many shaders were created. Consider increasing ShaderManager.MAX_SHADERS");
 
@@ -126,7 +138,11 @@ pushVulkanShader :: (manager : *VulkanShaderManager) -> *VulkanShader #must {
     return shader;
 }
 
-createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, shader : *VulkanShader, shader_file_data : string) {
+createGraphicsVulkanShader :: (device_ : *Device, manager_ : *ShaderManager, shader_ : *Shader, shader_file_data : string) {
+    device  := cast(*VulkanDevice)        device_;
+    manager := cast(*VulkanShaderManager) manager_;
+    shader  := cast(*VulkanShader)        shader_;
+
     shader_file_header := ShaderCompiler.getHeader(shader_file_data);
 
     shader_stages : [ShaderCompiler.MAX_STAGES] VkShaderModule = ---;
@@ -265,7 +281,11 @@ createGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderMa
     setVulkanObjectName(device, shader.pipeline, "% graphics pipeline", shader.name);
 }
 
-reloadGraphicsVulkanShader :: (device : *VulkanDevice, manager : *VulkanShaderManager, shader : *VulkanShader, shader_file_data : string) {
+reloadGraphicsVulkanShader :: (device_ : *Device, manager_ : *ShaderManager, shader_ : *Shader, shader_file_data : string) {
+    device  := cast(*VulkanDevice)        device_;
+    manager := cast(*VulkanShaderManager) manager_;
+    shader  := cast(*VulkanShader)        shader_;
+
     reset_data := VulkanShaderManager.ResetData.{
         pipeline        = shader.pipeline,
         pipeline_layout = shader.pipeline_layout,

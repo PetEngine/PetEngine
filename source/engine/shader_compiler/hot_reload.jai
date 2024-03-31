@@ -154,7 +154,7 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload, was_created : bool) 
 // @TODO: #ThreadPool
 reloadShader :: inline (device : *Device, manager : *ShaderManager, name : string) {
     if compileShader(name) {
-        shader := findShader(device, manager, name);
+        shader := findShader(manager, name);
         if shader {
             reloadShader(device, manager, shader);
         }
