@@ -41,21 +41,22 @@ VulkanResourceManager :: struct {
 
 createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManager #must {
     manager := pushToArena(*context.pet.persistent_arena, VulkanResourceManager);
-
-    manager.destroyPlatformResourceManager = destroyVulkanResourceManager;
-    manager.commitPlatformResourceMemory   = commitVulkanResourceMemory;
-    manager.resetPlatformResourceMemory    = resetVulkanResourceMemory;
-
-    manager.pushPlatformBuffer   = pushVulkanBuffer;
-    manager.createPlatformBuffer = createVulkanBuffer;
-
-    manager.pushPlatformTexture   = pushVulkanTexture;
-    manager.createPlatformTexture = createVulkanTexture;
-
     manager.max_allocation_size = device.properties11.maxMemoryAllocationSize;
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    #insert -> string {
+        builder := Basic.String_Builder.{ allocator = Basic.temp };
+
+        for type_info(ResourceManager).members {
+            if it.type.type == .PROCEDURE {
+                vulkan_procedure_name := String.replace(it.name, "Platform", "Vulkan",, allocator = Basic.temp);
+                Basic.print(*builder, "manager.% = %;\n", it.name, vulkan_procedure_name);
+            }
+        }
+
+        return Basic.builder_to_string(*builder,, allocator = Basic.temp);
+    }
+
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     memory_heaps := toView(device.memory_properties.memoryProperties.memoryHeaps.data, device.memory_properties.memoryProperties.memoryHeapCount);
 
