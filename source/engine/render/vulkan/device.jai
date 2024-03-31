@@ -38,6 +38,8 @@ VulkanDevice :: struct {
 createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *VulkanDevice #must {
     device := pushToArena(*context.pet.persistent_arena, VulkanDevice);
 
+    #insert -> string { return generatePlatformVtableInitialization(Device, "device", "Vulkan"); }
+
     device.jai_context      = *context;
     device.frame_buffering  = frame_buffering;
     device.frame_data.count = cast,no_check(s64) frame_buffering;
@@ -79,7 +81,9 @@ createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *V
     return device;
 }
 
-destroyVulkanDevice :: (device : *VulkanDevice) {
+destroyVulkanDevice :: (device_ : *Device) {
+    device := cast(*VulkanDevice) device_;
+
     // @Important: Should be the first call
     waitVulkanDeviceIdle(device);
 
@@ -134,7 +138,8 @@ destroyVulkanDevice :: (device : *VulkanDevice) {
     vkDestroyInstance(device.instance, null);
 }
 
-beginVulkanFrame :: (device : *VulkanDevice, window : *Window) {
+beginVulkanFrame :: (device_ : *Device, window : *Window) {
+    device := cast(*VulkanDevice) device_;
     assertThreadKind(.MAIN);
 
     //
@@ -204,8 +209,10 @@ beginVulkanFrame :: (device : *VulkanDevice, window : *Window) {
 }
 
 // @TODO: Revisit submits and post frame job
-endVulkanFrame :: (device : *VulkanDevice) {
+endVulkanFrame :: (device_ : *Device) {
+    device := cast(*VulkanDevice) device_;
     assertThreadKind(.MAIN);
+
     frame_data := *device.frame_data[device.frame_index];
 
     //
@@ -632,12 +639,15 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     }
 }
 
-waitVulkanDeviceIdle :: (device : *VulkanDevice) {
+waitVulkanDeviceIdle :: (device_ : *Device) {
     assertThreadKind(.MAIN);
+    device := cast(*VulkanDevice) device_;
+
     debugCheckVK(vkDeviceWaitIdle(device.device));
 }
 
-getVulkanSwapchainTexture :: inline (device : *VulkanDevice, swapchain_buffer_index : u32) -> *VulkanTexture {
+getVulkanSwapchainTexture :: inline (device_ : *Device, swapchain_buffer_index : u32) -> *Texture {
+    device := cast(*VulkanDevice) device_;
     return *device.swapchain_textures[swapchain_buffer_index];
 }
 

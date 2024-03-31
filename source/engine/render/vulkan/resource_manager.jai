@@ -43,18 +43,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
     manager := pushToArena(*context.pet.persistent_arena, VulkanResourceManager);
     manager.max_allocation_size = device.properties11.maxMemoryAllocationSize;
 
-    #insert -> string {
-        builder := Basic.String_Builder.{ allocator = Basic.temp };
-
-        for type_info(ResourceManager).members {
-            if it.type.type == .PROCEDURE {
-                vulkan_procedure_name := String.replace(it.name, "Platform", "Vulkan",, allocator = Basic.temp);
-                Basic.print(*builder, "manager.% = %;\n", it.name, vulkan_procedure_name);
-            }
-        }
-
-        return Basic.builder_to_string(*builder,, allocator = Basic.temp);
-    }
+    #insert -> string { return generatePlatformVtableInitialization(ResourceManager, "manager", "Vulkan"); }
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 

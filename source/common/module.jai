@@ -152,6 +152,29 @@ formatHex :: inline (value : Any, minimum_digits := 1) -> Basic.FormatInt {
     };
 }
 
+generatePlatformVtableInitialization :: (
+    $vtable_storage_type         : Type,
+    vtable_storage_instance_name : string,
+    platform_name                : string
+) -> string {
+    assert(vtable_storage_instance_name);
+    assert(platform_name);
+
+    ti := type_info(vtable_storage_type);
+    assert(ti.type == .STRUCT);
+
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
+
+    for ti.members {
+        if it.type.type == .PROCEDURE {
+            vulkan_procedure_name := String.replace(it.name, "Platform", platform_name,, allocator = Basic.temp);
+            Basic.print(*builder, "%.% = %;\n", vtable_storage_instance_name, it.name, vulkan_procedure_name);
+        }
+    }
+
+    return Basic.builder_to_string(*builder,, allocator = Basic.temp);
+}
+
 #load "arena.jai";
 #load "debug.jai";
 #load "file.jai";
@@ -170,5 +193,6 @@ formatHex :: inline (value : Any, minimum_digits := 1) -> Basic.FormatInt {
 
 #scope_module
 
-Basic :: #import "Basic";
-Math  :: #import "Math";
+Basic  :: #import "Basic";
+Math   :: #import "Math";
+String :: #import "String";

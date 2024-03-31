@@ -1,5 +1,3 @@
-// @TODO: Vtable for platform functions
-
 Device :: struct {
     Type :: enum u8 {
         INVALID;
@@ -27,6 +25,18 @@ Device :: struct {
 
     frame_buffering : FrameBuffering;
     frame_index     : u8;
+
+    //
+    // VTable
+    //
+
+    destroyPlatformDevice : (device : *Device);
+
+    beginPlatformFrame : (device : *Device, window : *Window);
+    endPlatformFrame   : (device : *Device);
+
+    waitPlatformDeviceIdle      : (device : *Device);
+    getPlatformSwapchainTexture : (device : *Device, swapchain_buffer_index : u32) -> *Texture;
 }
 
 GraphicsAPI :: enum u8 {
@@ -106,49 +116,29 @@ createDevice :: (
     return device;
 }
 
-destroyDevice :: (device : *Device) {
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            destroyVulkanDevice(cast(*VulkanDevice) device);
-    }
+destroyDevice :: inline (device : *Device) {
+    device.destroyPlatformDevice(device);
 }
 
-beginFrame :: (device : *Device, window : *Window) {
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            beginVulkanFrame(cast(*VulkanDevice) device, window);
-    }
+beginFrame :: inline (device : *Device, window : *Window) {
+    device.beginPlatformFrame(device, window);
 }
 
-endFrame :: (device : *Device) {
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            endVulkanFrame(cast(*VulkanDevice) device);
-    }
+endFrame :: inline (device : *Device) {
+    device.endPlatformFrame(device);
 }
 
-waitDeviceIdle :: (device : *Device) {
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            waitVulkanDeviceIdle(cast(*VulkanDevice) device);
-    }
+waitDeviceIdle :: inline (device : *Device) {
+    device.waitPlatformDeviceIdle(device);
 }
 
-getSwapchainTexture :: (device : *Device, swapchain_buffer_index : u32) -> *Texture {
+getSwapchainTexture :: inline (device : *Device, swapchain_buffer_index : u32) -> *Texture {
     assert(swapchain_buffer_index < device.swapchain_buffers_count);
-
-    texture : *Texture;
-
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            texture = getVulkanSwapchainTexture(cast(*VulkanDevice) device, swapchain_buffer_index);
-    }
-
-    return texture;
+    return device.getPlatformSwapchainTexture(device, swapchain_buffer_index);
 }
 
-getBackBuffer :: (device : *Device) -> *Texture {
-    return inline getSwapchainTexture(device, device.back_buffer_index);
+getBackBuffer :: inline (device : *Device) -> *Texture {
+    return getSwapchainTexture(device, device.back_buffer_index);
 }
 
 #scope_file
