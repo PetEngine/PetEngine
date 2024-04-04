@@ -384,8 +384,6 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
                 case VkPipeline;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
                 case VkDescriptorSetLayout;    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
                 case VkSampler;                OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SAMPLER;
-                case VkDescriptorPool;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_POOL;
-                case VkDescriptorSet;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET;
                 case VkFramebuffer;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
                 case VkCommandPool;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
                 case VkSurfaceKHR;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
@@ -438,8 +436,6 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
                 case VkPipeline;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
                 case VkDescriptorSetLayout;    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
                 case VkSampler;                OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SAMPLER;
-                case VkDescriptorPool;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_POOL;
-                case VkDescriptorSet;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET;
                 case VkFramebuffer;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
                 case VkCommandPool;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
                 case VkSurfaceKHR;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;

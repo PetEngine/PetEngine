@@ -403,8 +403,6 @@ VkSampler     :: *VkSampler_T;     VkSampler_T     :: struct {}
 #load "pipeline.jai";
 #load "buffer.jai";
 #load "descriptor_set_layout.jai";
-#load "descriptor_pool.jai";
-#load "descriptor_set.jai";
 
 #if OS == .WINDOWS {
     vulkan :: #library,system "vulkan-1";
