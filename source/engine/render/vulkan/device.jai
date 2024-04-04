@@ -375,6 +375,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
                 case VkDeviceMemory;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE_MEMORY;
                 case VkBuffer;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER;
                 case VkImage;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE;
+                case VkBufferView;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER_VIEW;
                 case VkImageView;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE_VIEW;
                 case VkShaderModule;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SHADER_MODULE;
                 case VkPipelineCache;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_CACHE;
@@ -382,6 +383,9 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
                 case VkRenderPass;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_RENDER_PASS;
                 case VkPipeline;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
                 case VkDescriptorSetLayout;    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
+                case VkSampler;                OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SAMPLER;
+                case VkDescriptorPool;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_POOL;
+                case VkDescriptorSet;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET;
                 case VkFramebuffer;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
                 case VkCommandPool;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
                 case VkSurfaceKHR;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
@@ -425,6 +429,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
                 case VkDeviceMemory;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE_MEMORY;
                 case VkBuffer;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER;
                 case VkImage;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE;
+                case VkBufferView;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER_VIEW;
                 case VkImageView;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE_VIEW;
                 case VkShaderModule;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SHADER_MODULE;
                 case VkPipelineCache;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_CACHE;
@@ -432,6 +437,9 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
                 case VkRenderPass;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_RENDER_PASS;
                 case VkPipeline;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
                 case VkDescriptorSetLayout;    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
+                case VkSampler;                OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SAMPLER;
+                case VkDescriptorPool;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_POOL;
+                case VkDescriptorSet;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET;
                 case VkFramebuffer;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
                 case VkCommandPool;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
                 case VkSurfaceKHR;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
