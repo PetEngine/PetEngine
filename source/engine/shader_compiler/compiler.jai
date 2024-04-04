@@ -1007,19 +1007,24 @@ reflectBindings :: (
                 }
 
                 binding := *binding_table.bindings[it.set][it.binding];
-                binding.stage_flags = stage_flag;
+                binding.stage_flags       = stage_flag;
+                binding.descriptors_count = cast(u8) max(1, it.count);
 
                 if it.descriptor_type == {
                     case .SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER;
+                        assert(it.resource_type == .SPV_REFLECT_RESOURCE_FLAG_SAMPLER);
                         binding.descriptor_type = .SAMPLER;
 
                     case .SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+                        assert(it.resource_type == .SPV_REFLECT_RESOURCE_FLAG_SRV);
                         binding.descriptor_type = .TEXTURE_SRV;
 
                     case .SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                        assert(it.resource_type == .SPV_REFLECT_RESOURCE_FLAG_UAV);
                         binding.descriptor_type = .TEXTURE_UAV;
 
                     case .SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                        assert(it.resource_type == .SPV_REFLECT_RESOURCE_FLAG_CBV);
                         binding.descriptor_type = .BUFFER_CBV;
 
                     case .SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -1034,9 +1039,6 @@ reflectBindings :: (
                         errorMessage("Unsupported descriptor type: %", it.descriptor_type);
                         return false;
                 }
-
-                binding.descriptors_count = cast(u8) (it.count * max(1, it.block.member_count));
-                assert(binding.descriptors_count > 0);
 
                 assert(it.name,
                        "A name for % instance in descriptor set #%, binding #% is null for some reason. It can be 0 length, but have to be non-null",
