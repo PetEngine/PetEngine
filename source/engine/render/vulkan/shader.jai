@@ -1,22 +1,26 @@
 #scope_export
 
+// @TODO: #EfficientBindings.
+//      - @Continue: Descriptor buffers
+
 VulkanShaderManager :: struct {
     #as using public_data : ShaderManager;
 
     ResetData :: struct {
-        pipeline        : VkPipeline;
-        pipeline_layout : VkPipelineLayout;
+        pipeline               : VkPipeline;
+        pipeline_layout        : VkPipelineLayout;
+        descriptor_set_layouts : StaticArray(VkDescriptorSetLayout, ShaderCompiler.MAX_DESCRIPTOR_SETS);
     }
 
     PerFrameResetData :: struct {
         data  : StaticArray(ResetData, MAX_SHADERS);
         mutex : Mutex;
-    };
-
-    per_frame_reset_data : StaticArray(PerFrameResetData, Device.MAX_FRAME_BUFFERING);
+    }
 
     pipeline_cache  : VkPipelineCache;
     shaders_storage : [MAX_SHADERS] VulkanShader;
+
+    per_frame_reset_data : StaticArray(PerFrameResetData, Device.MAX_FRAME_BUFFERING);
 }
 
 createVulkanShaderManager :: (device : *VulkanDevice) -> *VulkanShaderManager #must {
@@ -24,12 +28,6 @@ createVulkanShaderManager :: (device : *VulkanDevice) -> *VulkanShaderManager #m
     manager.per_frame_reset_data.count = cast,no_check(s64) device.frame_buffering;
 
     #insert -> string { return generatePlatformVtableInitialization(ShaderManager, "manager", "Vulkan"); }
-
-    // @TODO: #PipelineCache. Initial data.
-    create_info : VkPipelineCacheCreateInfo;
-
-    // @TODO: #VkAllocationCallbacks
-    debugCheckVK(vkCreatePipelineCache(device.device, *create_info, null, *manager.pipeline_cache));
 
 SHADER_LIMITS_FORMAT_STRING :: #string END
 Shader limits:
@@ -59,6 +57,10 @@ END;
                    device.limits.maxPerStageDescriptorSampledImages,
                    device.limits.maxPerStageDescriptorStorageImages);
 
+    // @TODO: #PipelineCache. Initial data.
+    create_info : VkPipelineCacheCreateInfo;
+    debugCheckVK(vkCreatePipelineCache(device.device, *create_info, null, *manager.pipeline_cache));
+
     return manager;
 }
 
@@ -66,15 +68,17 @@ destroyVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
     device  := cast(*VulkanDevice)        device_;
     manager := cast(*VulkanShaderManager) manager_;
 
-    // @TODO: #VkAllocationCallbacks
     vkDestroyPipelineCache(device.device, manager.pipeline_cache, null);
 
     for toView(manager.shaders_storage.data, manager.shaders_count) {
-        // @TODO: #VkAllocationCallbacks
         vkDestroyPipeline(device.device, it.pipeline, null);
-
-        // @TODO: #VkAllocationCallbacks
         vkDestroyPipelineLayout(device.device, it.pipeline_layout, null);
+
+        for it.descriptor_set_layouts {
+            if it != VK_NULL_HANDLE {
+                vkDestroyDescriptorSetLayout(device.device, it, null);
+            }
+        }
     }
 }
 
@@ -94,11 +98,20 @@ resetVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
             if it.pipeline {
                 // @TODO: #VkAllocationCallbacks
                 vkDestroyPipeline(device.device, it.pipeline, null);
+                it.pipeline = VK_NULL_HANDLE;
             }
 
             if it.pipeline_layout {
                 // @TODO: #VkAllocationCallbacks
                 vkDestroyPipelineLayout(device.device, it.pipeline_layout, null);
+                it.pipeline_layout = VK_NULL_HANDLE;
+            }
+
+            for * descriptor_set_layout : it.descriptor_set_layouts {
+                if descriptor_set_layout.* {
+                    vkDestroyDescriptorSetLayout(device.device, descriptor_set_layout.*, null);
+                    descriptor_set_layout.* = VK_NULL_HANDLE;
+                }
             }
         }
 
@@ -124,6 +137,8 @@ VulkanShader :: struct {
 
     pipeline_layout : VkPipelineLayout;
     pipeline        : VkPipeline;
+
+    descriptor_set_layouts : StaticArray(VkDescriptorSetLayout, ShaderCompiler.MAX_DESCRIPTOR_SETS);
 }
 
 pushVulkanShader :: (manager_ : *ShaderManager) -> *Shader #must {
@@ -176,15 +191,18 @@ createGraphicsVulkanShader :: (device_ : *Device, manager_ : *ShaderManager, sha
         vkDestroyShaderModule(device.device, it, null);
     }
 
-    // @TODO: #ShaderCompiler. VkDescriptorSetLayout
+    createDescriptorSetLayouts(device, manager, shader);
+
     {
-        ranges : [ShaderCompiler.MAX_STAGES] VkPushConstantRange;
+        ranges : [ShaderCompiler.MAX_PUSH_CONSTANTS] VkPushConstantRange;
+        fillPushConstantRanges(ranges, *shader.binding_table);
 
         create_info := VkPipelineLayoutCreateInfo.{
-            pPushConstantRanges = ranges.data,
+            setLayoutCount         = cast(u32) shader.descriptor_set_layouts.count,
+            pSetLayouts            = shader.descriptor_set_layouts.data.data,
+            pushConstantRangeCount = shader.binding_table.push_constants_count,
+            pPushConstantRanges    = ranges.data,
         };
-
-        initPushConstantRanges(*create_info, *shader.binding_table);
 
         // @TODO: #VkAllocationCallbacks
         debugCheckVK(vkCreatePipelineLayout(device.device, *create_info, null, *shader.pipeline_layout));
@@ -287,18 +305,17 @@ reloadGraphicsVulkanShader :: (device_ : *Device, manager_ : *ShaderManager, sha
     shader  := cast(*VulkanShader)        shader_;
 
     reset_data := VulkanShaderManager.ResetData.{
-        pipeline        = shader.pipeline,
-        pipeline_layout = shader.pipeline_layout,
+        pipeline               = shader.pipeline,
+        pipeline_layout        = shader.pipeline_layout,
+        descriptor_set_layouts = shader.descriptor_set_layouts,
     };
 
     createGraphicsVulkanShader(device, manager, shader, shader_file_data);
 
-    if shader.pipeline != reset_data.pipeline || shader.pipeline_layout != reset_data.pipeline_layout {
-        per_frame_reset_data := *manager.per_frame_reset_data[device.frame_index];
-        scopedLock(*per_frame_reset_data.mutex);
+    per_frame_reset_data := *manager.per_frame_reset_data[device.frame_index];
+    scopedLock(*per_frame_reset_data.mutex);
 
-        pushBack(*per_frame_reset_data.data).* = reset_data;
-    }
+    pushBack(*per_frame_reset_data.data).* = reset_data;
 }
 
 shaderStageToVulkanStage :: inline (stage : ShaderStage) -> VkShaderStageFlags #no_context {
@@ -314,6 +331,20 @@ shaderStageFlagsToVulkanStageFlags :: inline (stage : ShaderStageFlags) -> VkSha
     if stage & .VERTEX   then vk_flags |= .VK_SHADER_STAGE_VERTEX_BIT;
     if stage & .FRAGMENT then vk_flags |= .VK_SHADER_STAGE_FRAGMENT_BIT;
     return vk_flags;
+}
+
+descriptorTypeToVulkanDescriptorType :: inline (type : ShaderCompiler.BindingTable.DescriptorType) -> VkDescriptorType {
+    if type == {
+        case .BUFFER_CBV;  return .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        case .BUFFER_SRV;  return .VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        case .BUFFER_UAV;  return .VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        case .TEXTURE_SRV; return .VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        case .TEXTURE_UAV; return .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        case .SAMPLER;     return .VK_DESCRIPTOR_TYPE_SAMPLER;
+    }
+
+    assert(false, "Unhandled descriptor type: %", type);
+    return 0xFFFF_FFFF;
 }
 
 #scope_file
@@ -332,16 +363,43 @@ createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStag
     return module;
 }
 
-initPushConstantRanges :: inline (create_info : *VkPipelineLayoutCreateInfo, binding_table : *ShaderCompiler.BindingTable) #no_context {
-    for binding_table.push_constants {
-        if it.bytes {
-            range := *create_info.pPushConstantRanges[create_info.pushConstantRangeCount];
-            create_info.pushConstantRangeCount += 1;
+createDescriptorSetLayouts :: (device : *VulkanDevice, manager : *VulkanShaderManager, shader : *VulkanShader) {
+    shader.descriptor_set_layouts.count = shader.binding_table.descriptor_sets_count;
 
-            range.stageFlags = shaderStageFlagsToVulkanStageFlags(it.stage_flags);
-            range.offset     = it.offset;
-            range.size       = it.bytes;
+    for set_bindings, set_index : toView(shader.binding_table.bindings.data, shader.binding_table.descriptor_sets_count) {
+        bindings_count := shader.binding_table.bindings_count[set_index];
+        if !bindings_count continue;
+
+        binding_layouts : [ShaderCompiler.MAX_BINDINGS] VkDescriptorSetLayoutBinding;
+
+        for binding, binding_index : toView(set_bindings.data, bindings_count) {
+            if binding.descriptor_type != .UNKNOWN {
+                binding_layout := *binding_layouts[binding_index];
+                binding_layout.binding         = cast(u32) binding_index;
+                binding_layout.descriptorType  = descriptorTypeToVulkanDescriptorType(binding.descriptor_type);
+                binding_layout.descriptorCount = binding.descriptors_count;
+                binding_layout.stageFlags      = shaderStageFlagsToVulkanStageFlags(binding.stage_flags);
+            }
         }
+
+        create_info := VkDescriptorSetLayoutCreateInfo.{
+            flags        = .VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT,
+            bindingCount = bindings_count,
+            pBindings    = binding_layouts.data,
+        };
+
+        debugCheckVK(vkCreateDescriptorSetLayout(device.device, *create_info, null, *shader.descriptor_set_layouts[set_index]));
+
+        setVulkanObjectName(device, shader.descriptor_set_layouts[set_index], "% descriptor set layout #%", shader.name, set_index);
+    }
+}
+
+fillPushConstantRanges :: inline (ranges : [] VkPushConstantRange, binding_table : *ShaderCompiler.BindingTable) #no_context {
+    for toView(binding_table.push_constants.data, binding_table.push_constants_count) {
+        range := *ranges[it_index];
+        range.stageFlags = shaderStageFlagsToVulkanStageFlags(it.stage_flags);
+        range.offset     = it.offset;
+        range.size       = it.bytes;
     }
 }
 

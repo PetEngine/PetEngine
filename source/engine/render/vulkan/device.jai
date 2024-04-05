@@ -1193,14 +1193,17 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     }
 
     dynamic_rendering_features : VkPhysicalDeviceDynamicRenderingFeatures;
-
-    features_to_enable := VkPhysicalDeviceFeatures2.{ pNext = *dynamic_rendering_features };
     available_features := VkPhysicalDeviceFeatures2.{ pNext = *dynamic_rendering_features };
 
     vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
     assert(dynamic_rendering_features.dynamicRendering == VK_TRUE);
+    assert(available_features.features.fragmentStoresAndAtomics == VK_TRUE);
 
     // @TODO: #Features. define optional and required features and validate it.
+    features_to_enable := VkPhysicalDeviceFeatures2.{
+        pNext                             = *dynamic_rendering_features,
+        features.fragmentStoresAndAtomics = VK_TRUE
+    };
 
     device_create_info := VkDeviceCreateInfo.{
         pNext                   = *features_to_enable,

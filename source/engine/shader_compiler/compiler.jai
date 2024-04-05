@@ -15,12 +15,12 @@ ShaderCompiler :: struct {
     INVALID_OFFSET             :: -1;
     INVALID_COLOR_TARGET_INDEX : u8 : 0xFF;
 
-    MAX_STAGES         :: #run Basic.enum_highest_value(ShaderStage) + 1;
-    MAX_COLOR_TARGETS  :: 8;
+    MAX_STAGES          :: #run Basic.enum_highest_value(ShaderStage) + 1;
+    MAX_COLOR_TARGETS   :: 8;
     // @TODO: #BindingTable. Adequate number of sets and bindings for each stage
-    MAX_PUSH_CONSTANTS :: 8;
-    MAX_SETS           :: 4;
-    MAX_BINDINGS       :: 32;
+    MAX_PUSH_CONSTANTS  :: 8;
+    MAX_DESCRIPTOR_SETS :: 4;
+    MAX_BINDINGS        :: 32;
 
     Header :: struct {
         version       : u8 = VERSION;
@@ -176,10 +176,10 @@ ShaderCompiler :: struct {
 
         push_constants_count  : u8;
         descriptor_sets_count : u8;
-        bindings_count        : [MAX_SETS] u8;
+        bindings_count        : [MAX_DESCRIPTOR_SETS] u8;
 
         push_constants : [MAX_PUSH_CONSTANTS] PushConstantsRange;
-        bindings       : [MAX_SETS][MAX_BINDINGS] DescriptorsRange;
+        bindings       : [MAX_DESCRIPTOR_SETS][MAX_BINDINGS] DescriptorsRange;
     } #no_padding
 
     RuntimeBindingName :: struct {
@@ -190,7 +190,7 @@ ShaderCompiler :: struct {
 
     RuntimeBindingNamesTable :: struct {
         push_constants : [MAX_PUSH_CONSTANTS] RuntimeBindingName;
-        bindings       : [MAX_SETS][MAX_BINDINGS] RuntimeBindingName;
+        bindings       : [MAX_DESCRIPTOR_SETS][MAX_BINDINGS] RuntimeBindingName;
     }
 
     //
