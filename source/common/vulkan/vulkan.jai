@@ -1,7 +1,7 @@
 #scope_export
 
 size_t   :: u64; // We target only 64-bit systems, so... whatever.
-VkBool32 :: u32;
+VkBool32 :: #type,distinct u32;
 
 VK_TRUE  : VkBool32 : 1;
 VK_FALSE : VkBool32 : 0;
@@ -162,8 +162,6 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO              :: 28;
     VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO                :: 30;
     VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO          :: 32;
-    VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO                :: 33;
-    VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO               :: 34;
     VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET                       :: 35;
     VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET                        :: 36;
     VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO                   :: 39;

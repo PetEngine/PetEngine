@@ -428,11 +428,11 @@ initInputAssemblyState :: inline (this : *VkPipelineInputAssemblyStateCreateInfo
         case;                 assertMessage("Unknown topology: %", state.primitive_topology);
     }
 
-    this.primitiveRestartEnable = cast,no_check(u32) (   this.topology == .VK_PRIMITIVE_TOPOLOGY_LINE_STRIP
-                                                      || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
-                                                      || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN
-                                                      || this.topology == .VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY
-                                                      || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY);
+    this.primitiveRestartEnable = cast,no_check(VkBool32) (   this.topology == .VK_PRIMITIVE_TOPOLOGY_LINE_STRIP
+                                                           || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
+                                                           || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN
+                                                           || this.topology == .VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY
+                                                           || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY);
 }
 
 initViewportState :: inline (this : *VkPipelineViewportStateCreateInfo) #no_context {

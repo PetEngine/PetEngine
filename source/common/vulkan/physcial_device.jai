@@ -13,7 +13,7 @@ VK_UUID_SIZE : u32 : 16;
 VK_LUID_SIZE : u32 : 8;
 
 // Provided by VK_VERSION_1_0
-VkDeviceSize :: u64;
+VkDeviceSize :: #type,distinct u64;
 
 // Provided by VK_VERSION_1_2
 VK_MAX_DRIVER_NAME_SIZE : u32 : 256;

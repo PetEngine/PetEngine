@@ -45,7 +45,7 @@ createVulkanBuffer :: (
     }
 
     create_info := VkBufferCreateInfo.{
-        size                  = buffer.bytes,
+        size                  = cast(VkDeviceSize) buffer.bytes,
         usage                 = bufferUsageToVkBufferUsageFlags(buffer.usage),
         queueFamilyIndexCount = cast(u32) buffer.possible_owners.count,
         pQueueFamilyIndices   = queue_family_indices.data,

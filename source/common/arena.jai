@@ -44,7 +44,7 @@ createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) 
     arena.capacity = alignUpWithPowerOfTwo(capacity, page_size);
     arena.capacity = alignUpWithPowerOfTwo(arena.capacity, allocation_granularity);
     if arena.capacity != capacity {
-        warningMessage("\"%\" arena will be created with different capacity since given capacity does not match system page size and allocation granularity alignment requirement. Given capacity: % bytes, aligned capacity: % byte, page size: % bytes, allocation granularity: % bytes",
+        warningMessage("\"%\" will be created with different capacity since given capacity does not match system page size and allocation granularity alignment requirements. Given capacity: % bytes, aligned capacity: % byte, page size: % bytes, allocation granularity: % bytes",
                        arena.name,
                        capacity,
                        arena.capacity,
