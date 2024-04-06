@@ -27,6 +27,10 @@ pushVulkanBuffer :: (
     return buffer;
 }
 
+pushVulkanDescriptorBuffer :: inline (device : *VulkanDevice, manager : *VulkanResourceManager) -> *VulkanBuffer #must {
+    return pushBack(*manager.descriptor_buffers.persistent.resources);
+}
+
 createVulkanBuffer :: (
     device_  : *Device,
     manager_ : *ResourceManager,
@@ -65,6 +69,33 @@ createVulkanBuffer :: (
         case .PER_SCENE;  composeVulkanBufferName(buffer, *manager.buffers.per_scene[pool],                     lifetime, pool, name);
         case .PER_FRAME;  composeVulkanBufferName(buffer, *manager.buffers.per_frame[device.frame_index][pool], lifetime, pool, name);
     }
+
+    setVulkanObjectName(device, buffer.buffer, buffer.name);
+}
+
+createVulkanDescriptorBuffer :: (device : *VulkanDevice, manager : *VulkanResourceManager, buffer : *VulkanBuffer, name : string) {
+    queue_family_indices : [VulkanBuffer.possible_owners.capacity] u32;
+    for buffer.possible_owners {
+        queue_family_indices[it_index] = device.queues[it].family_index;
+    }
+
+    create_info := VkBufferCreateInfo.{
+        size                  = cast(VkDeviceSize) buffer.bytes,
+        usage                 = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT
+                              | .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT,
+        queueFamilyIndexCount = cast(u32) buffer.possible_owners.count,
+        pQueueFamilyIndices   = queue_family_indices.data
+    };
+
+    if buffer.possible_owners.count > 1 {
+        create_info.sharingMode = .VK_SHARING_MODE_CONCURRENT;
+    } else {
+        create_info.sharingMode = .VK_SHARING_MODE_EXCLUSIVE;
+    }
+
+    debugCheckVK(vkCreateBuffer(device.device, *create_info, null, *buffer.buffer));
+
+    composeVulkanDescriptorBufferName(buffer, *manager.descriptor_buffers.persistent, name);
 
     setVulkanObjectName(device, buffer.buffer, buffer.name);
 }
@@ -115,5 +146,21 @@ composeVulkanBufferName :: (
     buffer.name.data = pushToArena(*memory_pool.names_subarena, full_name_length);
 
     appendToString(*buffer.name, full_name_length, "Buffer/", lifetime_name, "/", pool_name, "/", usage_name, "/", name);
+    assert(buffer.name.count == full_name_length, "buffer.name.count (%) != full_name_length (%)", buffer.name.count, full_name_length);
+}
+
+// "Descriptor Buffer/<name>"
+composeVulkanDescriptorBufferName :: (buffer : *Buffer, memory_pool : *VulkanResourceManager.MemoryPool, name : string) {
+    full_name_length := "Descriptor Buffer/".count
+                      + name.count;
+
+    assert(full_name_length <= ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH,
+           "Buffer full name length (%) > ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH (%)",
+           full_name_length,
+           ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH);
+
+    buffer.name.data = pushToArena(*memory_pool.names_subarena, full_name_length);
+
+    appendToString(*buffer.name, full_name_length, "Descriptor Buffer/", name);
     assert(buffer.name.count == full_name_length, "buffer.name.count (%) != full_name_length (%)", buffer.name.count, full_name_length);
 }

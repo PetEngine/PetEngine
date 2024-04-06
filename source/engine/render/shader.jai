@@ -18,12 +18,12 @@ ShaderManager :: struct {
     reloadGraphicsPlatformShader : (device : *Device, manager : *ShaderManager, shader : *Shader, shader_file_data : string);
 }
 
-createShaderManager :: (device : *Device) -> *ShaderManager #must {
+createShaderManager :: (device : *Device, resource_manager : *ResourceManager) -> *ShaderManager #must {
     manager : *ShaderManager;
 
     if #complete device.graphics_api == {
         case .VULKAN;
-           manager = createVulkanShaderManager(cast(*VulkanDevice) device);
+           manager = createVulkanShaderManager(cast(*VulkanDevice) device, cast(*VulkanResourceManager) resource_manager);
     }
 
     return manager;

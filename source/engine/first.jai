@@ -76,7 +76,7 @@ petMain :: () {
     resource_manager := createResourceManager(device);
     defer destroyResourceManager(device, resource_manager);
 
-    shader_manager := createShaderManager(device);
+    shader_manager := createShaderManager(device, resource_manager);
     defer destroyShaderManager(device, shader_manager);
 
     shaders_hot_reload : ShadersHotReload;

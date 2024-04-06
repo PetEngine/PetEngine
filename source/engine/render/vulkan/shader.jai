@@ -17,13 +17,15 @@ VulkanShaderManager :: struct {
         mutex : Mutex;
     }
 
+    descriptor_buffers : StaticArray(*VulkanBuffer, Device.MAX_FRAME_BUFFERING);
+
     pipeline_cache  : VkPipelineCache;
     shaders_storage : [MAX_SHADERS] VulkanShader;
 
     per_frame_reset_data : StaticArray(PerFrameResetData, Device.MAX_FRAME_BUFFERING);
 }
 
-createVulkanShaderManager :: (device : *VulkanDevice) -> *VulkanShaderManager #must {
+createVulkanShaderManager :: (device : *VulkanDevice, resource_manager : *VulkanResourceManager) -> *VulkanShaderManager #must {
     manager := pushToArena(*context.pet.persistent_arena, VulkanShaderManager);
     manager.per_frame_reset_data.count = cast,no_check(s64) device.frame_buffering;
 
@@ -42,6 +44,7 @@ Shader limits:
     Max bound storage buffers per stage = %
     Max bound sampled images per stage  = %
     Max bound storage images per stage  = %
+    Max bound descriptor buffers        = %
 END;
 
     verboseMessage(SHADER_LIMITS_FORMAT_STRING,
@@ -55,7 +58,21 @@ END;
                    device.limits.maxPerStageDescriptorUniformBuffers,
                    device.limits.maxPerStageDescriptorStorageBuffers,
                    device.limits.maxPerStageDescriptorSampledImages,
-                   device.limits.maxPerStageDescriptorStorageImages);
+                   device.limits.maxPerStageDescriptorStorageImages,
+                   device.descriptor_buffer_properties.maxDescriptorBufferBindings);
+
+    manager.descriptor_buffers.count = cast,no_check(s64) device.frame_buffering;
+    for * manager.descriptor_buffers {
+        it.* = pushVulkanDescriptorBuffer(device, resource_manager);
+
+        // @TODO: Revisit size
+        it.*.bytes = megaBytes(cast(u32) 1);
+        it.*.current_owner = QueueType.GRAPHICS;
+        it.*.possible_owners.count = 1;
+        it.*.possible_owners[0] = QueueType.GRAPHICS;
+
+        createVulkanDescriptorBuffer(device, resource_manager, it.*, Basic.tprint("Frame #%", it_index));
+    }
 
     // @TODO: #PipelineCache. Initial data.
     create_info : VkPipelineCacheCreateInfo;

@@ -245,6 +245,13 @@ VkStructureType :: enum VkEnum #specified {
 
     // Provided by VK_EXT_validation_features
     VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT                    :: 1000247000;
+
+    // Provided by VK_EXT_descriptor_buffer
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT :: 1000316000;
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT   :: 1000316002;
+    VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT                      :: 1000316003;
+    VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT                          :: 1000316004;
+    VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT               :: 1000316011;
 }
 
 // Provided by VK_VERSION_1_0
@@ -401,6 +408,7 @@ VkSampler     :: *VkSampler_T;     VkSampler_T     :: struct {}
 #load "pipeline.jai";
 #load "buffer.jai";
 #load "descriptor_set_layout.jai";
+#load "descriptor_buffer.jai";
 
 #if OS == .WINDOWS {
     vulkan :: #library,system "vulkan-1";

@@ -612,3 +612,54 @@ vkGetPhysicalDeviceFeatures2 :: (
     physicalDevice : VkPhysicalDevice,
     pFeatures      : *VkPhysicalDeviceFeatures2
 ) #foreign vulkan;
+
+//
+// Provided by VK_EXT_descriptor_buffer
+//
+
+VkPhysicalDeviceDescriptorBufferFeaturesEXT :: struct {
+    sType                              : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
+    pNext                              : *void;
+    descriptorBuffer                   : VkBool32;
+    descriptorBufferCaptureReplay      : VkBool32;
+    descriptorBufferImageLayoutIgnored : VkBool32;
+    descriptorBufferPushDescriptors    : VkBool32;
+}
+
+VkPhysicalDeviceDescriptorBufferPropertiesEXT :: struct {
+    sType                                                : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT;
+    pNext                                                : *void;
+    combinedImageSamplerDescriptorSingleArray            : VkBool32;
+    bufferlessPushDescriptors                            : VkBool32;
+    allowSamplerImageViewPostSubmitCreation              : VkBool32;
+    descriptorBufferOffsetAlignment                      : VkDeviceSize;
+    maxDescriptorBufferBindings                          : u32;
+    maxResourceDescriptorBufferBindings                  : u32;
+    maxSamplerDescriptorBufferBindings                   : u32;
+    maxEmbeddedImmutableSamplerBindings                  : u32;
+    maxEmbeddedImmutableSamplers                         : u32;
+    bufferCaptureReplayDescriptorDataSize                : size_t;
+    imageCaptureReplayDescriptorDataSize                 : size_t;
+    imageViewCaptureReplayDescriptorDataSize             : size_t;
+    samplerCaptureReplayDescriptorDataSize               : size_t;
+    accelerationStructureCaptureReplayDescriptorDataSize : size_t;
+    samplerDescriptorSize                                : size_t;
+    combinedImageSamplerDescriptorSize                   : size_t;
+    sampledImageDescriptorSize                           : size_t;
+    storageImageDescriptorSize                           : size_t;
+    uniformTexelBufferDescriptorSize                     : size_t;
+    robustUniformTexelBufferDescriptorSize               : size_t;
+    storageTexelBufferDescriptorSize                     : size_t;
+    robustStorageTexelBufferDescriptorSize               : size_t;
+    uniformBufferDescriptorSize                          : size_t;
+    robustUniformBufferDescriptorSize                    : size_t;
+    storageBufferDescriptorSize                          : size_t;
+    robustStorageBufferDescriptorSize                    : size_t;
+    inputAttachmentDescriptorSize                        : size_t;
+    accelerationStructureDescriptorSize                  : size_t;
+    maxSamplerDescriptorBufferRange                      : VkDeviceSize;
+    maxResourceDescriptorBufferRange                     : VkDeviceSize;
+    samplerDescriptorBufferAddressSpaceSize              : VkDeviceSize;
+    resourceDescriptorBufferAddressSpaceSize             : VkDeviceSize;
+    descriptorBufferAddressSpaceSize                     : VkDeviceSize;
+}

@@ -29,10 +29,11 @@ VulkanDevice :: struct {
 
     loader : VulkanLoader;
 
-    properties11      : VkPhysicalDeviceVulkan11Properties;
-    properties12      : VkPhysicalDeviceVulkan12Properties;
-    limits            : VkPhysicalDeviceLimits;
-    memory_properties : VkPhysicalDeviceMemoryProperties2;
+    properties11                 : VkPhysicalDeviceVulkan11Properties;
+    properties12                 : VkPhysicalDeviceVulkan12Properties;
+    limits                       : VkPhysicalDeviceLimits;
+    memory_properties            : VkPhysicalDeviceMemoryProperties2;
+    descriptor_buffer_properties : VkPhysicalDeviceDescriptorBufferPropertiesEXT;
 }
 
 createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *VulkanDevice #must {
@@ -952,6 +953,7 @@ END;
 
     physical_device_properties.pNext = *device.properties11;
     device.properties11.pNext        = *device.properties12;
+    device.properties12.pNext        = *device.descriptor_buffer_properties;
 
     vkGetPhysicalDeviceProperties2(device.physical_device, *physical_device_properties);
 
@@ -1192,17 +1194,34 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
-    dynamic_rendering_features : VkPhysicalDeviceDynamicRenderingFeatures;
-    available_features := VkPhysicalDeviceFeatures2.{ pNext = *dynamic_rendering_features };
+    // Test feature support
+    {
+        available_descriptor_buffer_features :  VkPhysicalDeviceDescriptorBufferFeaturesEXT;
+        available_dynamic_rendering_features := VkPhysicalDeviceDynamicRenderingFeatures.{ pNext = *available_descriptor_buffer_features };
+        available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_dynamic_rendering_features };
 
-    vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
-    assert(dynamic_rendering_features.dynamicRendering == VK_TRUE);
-    assert(available_features.features.fragmentStoresAndAtomics == VK_TRUE);
+        vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
+        // UAV support
+        assert(available_features.features.vertexPipelineStoresAndAtomics == VK_TRUE);
+        assert(available_features.features.fragmentStoresAndAtomics == VK_TRUE);
+        // Dynamic rendering support
+        assert(available_dynamic_rendering_features.dynamicRendering == VK_TRUE);
+        // Descriptor buffer support
+        assert(available_descriptor_buffer_features.descriptorBuffer == VK_TRUE);
+    }
 
     // @TODO: #Features. define optional and required features and validate it.
+    descriptor_buffer_features_to_enable := VkPhysicalDeviceDescriptorBufferFeaturesEXT.{
+        descriptorBuffer = VK_TRUE,
+    };
+    dynamic_rendering_features_to_enable := VkPhysicalDeviceDynamicRenderingFeatures.{
+        pNext            = *descriptor_buffer_features_to_enable,
+        dynamicRendering = VK_TRUE,
+    };
     features_to_enable := VkPhysicalDeviceFeatures2.{
-        pNext                             = *dynamic_rendering_features,
-        features.fragmentStoresAndAtomics = VK_TRUE
+        pNext                                   = *dynamic_rendering_features_to_enable,
+        features.vertexPipelineStoresAndAtomics = VK_TRUE,
+        features.fragmentStoresAndAtomics       = VK_TRUE,
     };
 
     device_create_info := VkDeviceCreateInfo.{
