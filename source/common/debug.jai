@@ -143,7 +143,7 @@ notImplemented :: ($assert_in_run_time := false, location := #caller_location) #
 }
 
 codeToString :: (code : Code) -> string #compile_time {
-    // @TODO: Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
+    // @TODO: #CompileTime. Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
     Basic.assert(#compile_time, "This function should be run only in compile time");
 
     builder : Basic.String_Builder;
@@ -315,7 +315,7 @@ message :: (
 }
 
 formatOrExpression :: ($format : string, expression : Code) -> string #compile_time {
-    // @TODO: Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
+    // @TODO: #CompileTime.
     Basic.assert(#compile_time, "This function should be run only in compile time");
 
     #if format.count > 0 {

@@ -138,7 +138,7 @@ gammaToLinear :: inline (value : $T/Type.[f32, f64], gamma : T = 2.2) {
 #scope_file
 
 rejectVectors :: inline (T : Type) -> bool #compile_time {
-    // @TODO: Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
+    // @TODO: #CompileTime.
     assert(#compile_time, "This function should be run only in compile time");
 
     return T != v2f && T != v2s && T != v2u
@@ -147,7 +147,7 @@ rejectVectors :: inline (T : Type) -> bool #compile_time {
 }
 
 rejectMatrices :: inline (T : Type) -> bool #compile_time {
-    // @TODO: Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
+    // @TODO: #CompileTime.
     assert(#compile_time, "This function should be run only in compile time");
 
     return T != m2x2 && T != m3x3 && T != m3x4 && T != m4x3 && T != m4x4;
