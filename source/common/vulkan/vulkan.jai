@@ -202,6 +202,8 @@ VkStructureType :: enum VkEnum #specified {
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2        :: 1000059006;
     // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO                 :: 1000060000;
+    // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2                        :: 1000145003;
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2          :: 1000146000;
@@ -221,6 +223,8 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO                 :: 1000207002;
     // Provided by VK_VERSION_1_2
     VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO                        :: 1000207004;
+    // Provided by VK_VERSION_1_2
+    VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO                 :: 1000244001;
     // Provided by VK_VERSION_1_3
     VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2                         :: 1000337000;
     // Provided by VK_VERSION_1_3

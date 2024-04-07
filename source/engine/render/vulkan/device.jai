@@ -1198,7 +1198,8 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     {
         available_descriptor_buffer_features :  VkPhysicalDeviceDescriptorBufferFeaturesEXT;
         available_dynamic_rendering_features := VkPhysicalDeviceDynamicRenderingFeatures.{ pNext = *available_descriptor_buffer_features };
-        available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_dynamic_rendering_features };
+        available_features_1_2               := VkPhysicalDeviceVulkan12Features.{ pNext = *available_dynamic_rendering_features };
+        available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_features_1_2 };
 
         vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
         // UAV support
@@ -1208,6 +1209,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         assert(available_dynamic_rendering_features.dynamicRendering == VK_TRUE);
         // Descriptor buffer support
         assert(available_descriptor_buffer_features.descriptorBuffer == VK_TRUE);
+        assert(available_features_1_2.bufferDeviceAddress            == VK_TRUE);
     }
 
     // @TODO: #Features. define optional and required features and validate it.
@@ -1218,8 +1220,12 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         pNext            = *descriptor_buffer_features_to_enable,
         dynamicRendering = VK_TRUE,
     };
+    features_1_2_to_enable := VkPhysicalDeviceVulkan12Features.{
+        pNext               = *dynamic_rendering_features_to_enable,
+        bufferDeviceAddress = VK_TRUE,
+    };
     features_to_enable := VkPhysicalDeviceFeatures2.{
-        pNext                                   = *dynamic_rendering_features_to_enable,
+        pNext                                   = *features_1_2_to_enable,
         features.vertexPipelineStoresAndAtomics = VK_TRUE,
         features.fragmentStoresAndAtomics       = VK_TRUE,
     };

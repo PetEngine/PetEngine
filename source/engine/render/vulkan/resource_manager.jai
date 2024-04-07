@@ -264,8 +264,12 @@ commitVulkanBufferMemoryPool :: (
     assert(memory_pool.device_memory == VK_NULL_HANDLE);
     if memory_pool.resources.count <= 0 return;
 
+    allocate_flags_info := VkMemoryAllocateFlagsInfo.{
+        flags = .VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT
+    };
+
     allocate_info := VkMemoryAllocateInfo.{
-        allocationSize  = 0, // Will be set in the loop
+        pNext           = *allocate_flags_info,
         memoryTypeIndex = manager.memory_type_indices[pool]
     };
 
@@ -330,6 +334,16 @@ commitVulkanBufferMemoryPool :: (
             assert(!it.mapped_memory);
             it.mapped_memory = mapped_device_memory;
             mapped_device_memory += it.bytes;
+
+            info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
+            it.device_address = vkGetBufferDeviceAddress(device.device, *info);
+            assert(it.device_address);
+        }
+    } else {
+        for * memory_pool.resources {
+            info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
+            it.device_address = vkGetBufferDeviceAddress(device.device, *info);
+            assert(it.device_address);
         }
     }
 }
@@ -401,7 +415,6 @@ commitVulkanTextureMemoryPool :: (
     if memory_pool.resources.count <= 0 return;
 
     allocate_info := VkMemoryAllocateInfo.{
-        allocationSize  = 0, // Will be set in the loop
         memoryTypeIndex = manager.memory_type_indices[ResourceManager.Pool.DEFAULT]
     };
 
@@ -556,8 +569,12 @@ commitVulkanDescriptorBufferMemoryPool :: (
     assert(memory_pool.device_memory == VK_NULL_HANDLE);
     if memory_pool.resources.count <= 0 return;
 
+    allocate_flags_info := VkMemoryAllocateFlagsInfo.{
+        flags = .VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT
+    };
+
     allocate_info := VkMemoryAllocateInfo.{
-        allocationSize  = 0, // Will be set in the loop
+        pNext           = *allocate_flags_info,
         memoryTypeIndex = manager.memory_type_indices[ResourceManager.Pool.UPLOAD]
     };
 
@@ -606,6 +623,10 @@ commitVulkanDescriptorBufferMemoryPool :: (
         assert(!it.mapped_memory);
         it.mapped_memory = mapped_device_memory;
         mapped_device_memory += it.bytes;
+
+        info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
+        it.device_address = vkGetBufferDeviceAddress(device.device, *info);
+        assert(it.device_address);
     }
 }
 

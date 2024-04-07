@@ -41,6 +41,21 @@ VkMemoryMapFlags :: enum_flags VkFlags #specified {
     VK_MEMORY_MAP_PLACED_BIT_EXT :: 0x00000001;
 }
 
+// Provided by VK_VERSION_1_1
+VkMemoryAllocateFlags :: enum_flags VkFlags #specified {
+    VK_MEMORY_ALLOCATE_DEVICE_MASK_BIT                       :: 0x00000001;
+    // Provided by VK_VERSION_1_2
+    VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT                    :: 0x00000002;
+    // Provided by VK_VERSION_1_2
+    VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT     :: 0x00000004;
+    // Provided by VK_KHR_device_group
+    VK_MEMORY_ALLOCATE_DEVICE_MASK_BIT_KHR                   :: VK_MEMORY_ALLOCATE_DEVICE_MASK_BIT;
+    // Provided by VK_KHR_buffer_device_address
+    VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR                :: VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+    // Provided by VK_KHR_buffer_device_address
+    VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT_KHR :: VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
+}
+
 // Provided by VK_VERSION_1_0
 VkMemoryType :: struct {
     propertyFlags : VkMemoryPropertyFlags;
@@ -74,6 +89,14 @@ VkMemoryAllocateInfo :: struct {
     pNext           : *void;
     allocationSize  : VkDeviceSize;
     memoryTypeIndex : u32;
+}
+
+// Provided by VK_VERSION_1_1
+VkMemoryAllocateFlagsInfo :: struct {
+    sType      : VkStructureType = .VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
+    pNext      : *void;
+    flags      : VkMemoryAllocateFlags;
+    deviceMask : u32;
 }
 
 // Provided by VK_VERSION_1_1

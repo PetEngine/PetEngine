@@ -4,7 +4,8 @@
 VulkanBuffer :: struct {
     #as using public_data : Buffer;
 
-    buffer : VkBuffer;
+    buffer         : VkBuffer;
+    device_address : VkDeviceAddress;
 }
 
 pushVulkanBuffer :: (
@@ -49,8 +50,9 @@ createVulkanBuffer :: (
     }
 
     create_info := VkBufferCreateInfo.{
-        size                  = cast(VkDeviceSize) buffer.bytes,
-        usage                 = bufferUsageToVkBufferUsageFlags(buffer.usage),
+        size                  = cast(VkDeviceSize) buffer.size,
+        usage                 = bufferUsageToVkBufferUsageFlags(buffer.usage)
+                              | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         queueFamilyIndexCount = cast(u32) buffer.possible_owners.count,
         pQueueFamilyIndices   = queue_family_indices.data,
     };
@@ -80,9 +82,10 @@ createVulkanDescriptorBuffer :: (device : *VulkanDevice, manager : *VulkanResour
     }
 
     create_info := VkBufferCreateInfo.{
-        size                  = cast(VkDeviceSize) buffer.bytes,
+        size                  = cast(VkDeviceSize) buffer.size,
         usage                 = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT
-                              | .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT,
+                              | .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT
+                              | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         queueFamilyIndexCount = cast(u32) buffer.possible_owners.count,
         pQueueFamilyIndices   = queue_family_indices.data
     };
