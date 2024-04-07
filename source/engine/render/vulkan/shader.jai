@@ -66,7 +66,7 @@ END;
         it.* = pushVulkanDescriptorBuffer(device, resource_manager);
 
         // @TODO: Revisit size
-        it.*.bytes = megaBytes(cast(u32) 1);
+        it.*.size = megaBytes(cast(u32) 1);
         it.*.current_owner = QueueType.GRAPHICS;
         it.*.possible_owners.count = 1;
         it.*.possible_owners[0] = QueueType.GRAPHICS;

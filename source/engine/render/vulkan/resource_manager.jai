@@ -333,7 +333,7 @@ commitVulkanBufferMemoryPool :: (
         for * memory_pool.resources {
             assert(!it.mapped_memory);
             it.mapped_memory = mapped_device_memory;
-            mapped_device_memory += it.bytes;
+            mapped_device_memory += it.size;
 
             info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
             it.device_address = vkGetBufferDeviceAddress(device.device, *info);
@@ -622,7 +622,7 @@ commitVulkanDescriptorBufferMemoryPool :: (
     for * memory_pool.resources {
         assert(!it.mapped_memory);
         it.mapped_memory = mapped_device_memory;
-        mapped_device_memory += it.bytes;
+        mapped_device_memory += it.size;
 
         info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
         it.device_address = vkGetBufferDeviceAddress(device.device, *info);

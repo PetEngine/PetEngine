@@ -6,7 +6,7 @@ Buffer :: struct {
         READ_WRITE; // DirectX: UAV. Vulkan: Read-write storage buffer.
     }
 
-    bytes           : u32;
+    size            : u32;
     usage           : Usage;
     name            : string;
     mapped_memory   : *void;
@@ -17,7 +17,7 @@ Buffer :: struct {
 createBuffer :: (
     device          : *Device,
     manager         : *ResourceManager,
-    bytes           : u32,
+    size            : u32,
     lifetime        : ResourceManager.Lifetime,
     pool            : ResourceManager.Pool,
     usage           : Buffer.Usage,
@@ -34,7 +34,7 @@ createBuffer :: (
 
     buffer := manager.pushPlatformBuffer(device, manager, lifetime, pool);
 
-    buffer.bytes                 = bytes;
+    buffer.size                  = size;
     buffer.usage                 = usage;
     buffer.current_owner         = possible_owners[0];
     buffer.possible_owners.count = possible_owners.count;
