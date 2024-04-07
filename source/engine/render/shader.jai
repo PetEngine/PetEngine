@@ -41,8 +41,8 @@ Shader :: struct {
     Kind :: enum u8 {
         UNKNOWN;
         GRAPHICS;
-        COMPUTE;
         MESH;
+        COMPUTE;
         RAY_TRACING;
     }
 
@@ -96,8 +96,8 @@ createShader :: (
 
             manager.createGraphicsPlatformShader(device, manager, shader, shader_file_data);
 
-        case .COMPUTE;     #through;
         case .MESH;        #through;
+        case .COMPUTE;     #through;
         case .RAY_TRACING;
             notImplemented(true);
     }
@@ -120,8 +120,8 @@ reloadShader :: (device : *Device, manager : *ShaderManager, shader : *Shader) {
         case .GRAPHICS;
             manager.reloadGraphicsPlatformShader(device, manager, shader, shader_file_data);
 
-        case .COMPUTE;     #through;
         case .MESH;        #through;
+        case .COMPUTE;     #through;
         case .RAY_TRACING;
             notImplemented(true);
     }

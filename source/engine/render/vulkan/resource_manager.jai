@@ -116,6 +116,7 @@ destroyVulkanResourceManager :: (device_ : *Device, manager_ : *ResourceManager)
 
     destroyVulkanBufferMemory(device, *manager.buffers);
     destroyVulkanTextureMemory(device, *manager.textures);
+    destroyVulkanDescriptorBufferMemory(device, *manager.descriptor_buffers);
 
     destroyArena(*manager.names_arena);
 }

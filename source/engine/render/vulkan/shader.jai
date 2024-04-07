@@ -1,7 +1,7 @@
 #scope_export
 
-// @TODO: #EfficientBindings.
-//      - @Continue: Descriptor buffers
+// @TODO:
+//     - Split into 2 files: shader_manager.jai and shader.jai
 
 VulkanShaderManager :: struct {
     #as using public_data : ShaderManager;
@@ -17,7 +17,13 @@ VulkanShaderManager :: struct {
         mutex : Mutex;
     }
 
-    descriptor_buffers : StaticArray(*VulkanBuffer, Device.MAX_FRAME_BUFFERING);
+    PerFrameBindings :: struct {
+        descriptor_buffer        : *VulkanBuffer;
+        descriptor_buffer_offset : VkDeviceSize;
+        mutex                    : Mutex;
+    }
+
+    per_frame_bindings : StaticArray(PerFrameBindings, Device.MAX_FRAME_BUFFERING);
 
     pipeline_cache  : VkPipelineCache;
     shaders_storage : [MAX_SHADERS] VulkanShader;
@@ -61,17 +67,17 @@ END;
                    device.limits.maxPerStageDescriptorStorageImages,
                    device.descriptor_buffer_properties.maxDescriptorBufferBindings);
 
-    manager.descriptor_buffers.count = cast,no_check(s64) device.frame_buffering;
-    for * manager.descriptor_buffers {
-        it.* = pushVulkanDescriptorBuffer(device, resource_manager);
+    manager.per_frame_bindings.count = cast,no_check(s64) device.frame_buffering;
+    for * manager.per_frame_bindings {
+        it.descriptor_buffer = pushVulkanDescriptorBuffer(device, resource_manager);
 
         // @TODO: Revisit size
-        it.*.size = megaBytes(cast(u32) 1);
-        it.*.current_owner = QueueType.GRAPHICS;
-        it.*.possible_owners.count = 1;
-        it.*.possible_owners[0] = QueueType.GRAPHICS;
+        it.descriptor_buffer.size                  = megaBytes(cast(u32) 1);
+        it.descriptor_buffer.current_owner         = QueueType.GRAPHICS;
+        it.descriptor_buffer.possible_owners.count = 1;
+        it.descriptor_buffer.possible_owners[0]    = QueueType.GRAPHICS;
 
-        createVulkanDescriptorBuffer(device, resource_manager, it.*, Basic.tprint("Frame #%", it_index));
+        createVulkanDescriptorBuffer(device, resource_manager, it.descriptor_buffer, Basic.tprint("Frame #%", it_index));
     }
 
     // @TODO: #PipelineCache. Initial data.
@@ -105,10 +111,13 @@ resetVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
 
     assertThreadKind(.MAIN);
 
-    reset_data := *manager.per_frame_reset_data[device.frame_index];
-    scopedLock(*reset_data.mutex);
+    // No need to sync, that happens before we write commands to command buffers
+    manager.per_frame_bindings[device.frame_index].descriptor_buffer_offset = 0;
 
+    reset_data := *manager.per_frame_reset_data[device.frame_index];
     if reset_data.data.count > 0 {
+        scopedLock(*reset_data.mutex);
+
         waitVulkanDeviceIdle(device);
 
         for reset_data.data {
@@ -153,8 +162,8 @@ VulkanShader :: struct {
     #as using public_data : Shader;
 
     DescriptorSetLayoutInfo :: struct {
-        size    : VkDeviceSize;
-        offsets : [ShaderCompiler.MAX_BINDINGS] VkDeviceSize;
+        size            : VkDeviceSize;
+        binding_offsets : [ShaderCompiler.MAX_BINDINGS] VkDeviceSize;
     }
 
     pipeline_layout : VkPipelineLayout;
@@ -234,9 +243,9 @@ createGraphicsVulkanShader :: (device_ : *Device, manager_ : *ShaderManager, sha
     }
 
     #if DEBUG_BUILD {
-        CREATE_FLAGS : VkPipelineCreateFlags : .VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
+        DEBUG_PIPELINE_CREATE_FLAGS : VkPipelineCreateFlags : .VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
     } else {
-        CREATE_FLAGS : VkPipelineCreateFlags : 0;
+        DEBUG_PIPELINE_CREATE_FLAGS : VkPipelineCreateFlags : 0;
     }
 
     stage_create_infos : [shader_stages.count] VkPipelineShaderStageCreateInfo = ---;
@@ -297,7 +306,8 @@ createGraphicsVulkanShader :: (device_ : *Device, manager_ : *ShaderManager, sha
 
     create_info := VkGraphicsPipelineCreateInfo.{
         pNext               = *pipeline_rendering_create_info,
-        flags               = CREATE_FLAGS,
+        flags               = DEBUG_PIPELINE_CREATE_FLAGS
+                            | .VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT,
         stageCount          = cast(u32) stage_create_infos.count,
         pStages             = stage_create_infos.data,
         pVertexInputState   = *vertex_input_state,
@@ -422,8 +432,11 @@ createDescriptorSetLayouts :: (device : *VulkanDevice, manager : *VulkanShaderMa
                                                                                  descriptor_set_layout.*,
                                                                                  *descriptor_set_layout_info.size);
 
+        descriptor_set_layout_info.size = alignUpWithPowerOfTwo(descriptor_set_layout_info.size,
+                                                                device.descriptor_buffer_properties.descriptorBufferOffsetAlignment);
+
         for binding, binding_index : toView(set_bindings.data, bindings_count) {
-            binding_offset := *descriptor_set_layout_info.offsets[binding_index];
+            binding_offset := *descriptor_set_layout_info.binding_offsets[binding_index];
 
             if binding.descriptor_type != .UNKNOWN {
                 device.loader.extensions.device.required.vkGetDescriptorSetLayoutBindingOffsetEXT(device.device,
@@ -436,7 +449,7 @@ createDescriptorSetLayouts :: (device : *VulkanDevice, manager : *VulkanShaderMa
         }
 
         for binding, binding_index : toView(set_bindings.data + bindings_count, set_bindings.count - bindings_count) {
-            descriptor_set_layout_info.offsets[bindings_count + binding_index] = cast,trunc(VkDeviceSize) ShaderCompiler.INVALID_OFFSET;
+            descriptor_set_layout_info.binding_offsets[bindings_count + binding_index] = cast,trunc(VkDeviceSize) ShaderCompiler.INVALID_OFFSET;
         }
     }
 }

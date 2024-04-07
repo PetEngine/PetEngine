@@ -106,7 +106,12 @@ setVulkanScissorRect :: inline (command_buffer : VkCommandBuffer, scissor_rect :
     vkCmdSetScissor(command_buffer, 0, 1, *vk_scissor_rect);
 }
 
-setVulkanShader :: inline (command_buffer : VkCommandBuffer, shader : *VulkanShader) #no_context {
+setVulkanShader :: (
+    command_buffer : *CommandBuffer,
+    shader_manager : *VulkanShaderManager,
+    shader         : *VulkanShader,
+    frame_index    : u8
+) #no_context {
     if !shader.pipeline return;
 
     if #complete shader.kind == {
@@ -114,19 +119,32 @@ setVulkanShader :: inline (command_buffer : VkCommandBuffer, shader : *VulkanSha
             // @TODO: Print some meaningful message why it's illegal
         case .GRAPHICS; #through;
         case .MESH;
-            vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
+            vkCmdBindPipeline(command_buffer.handles[frame_index], .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
         case .COMPUTE;
-            vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline);
+            vkCmdBindPipeline(command_buffer.handles[frame_index], .VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline);
         case .RAY_TRACING;
-            vkCmdBindPipeline(command_buffer, .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, shader.pipeline);
+            vkCmdBindPipeline(command_buffer.handles[frame_index], .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, shader.pipeline);
     }
+
+    bindings := *shader_manager.per_frame_bindings[frame_index];
+    lock(*bindings.mutex);
+
+    old_offset := cast(s64) bindings.descriptor_buffer_offset;
+    for shader.descriptor_set_layout_infos {
+        command_buffer.descriptor_buffer_set_offsets[it_index] = cast(s64) bindings.descriptor_buffer_offset;
+        bindings.descriptor_buffer_offset += it.size;
+    }
+    new_offset := cast(s64) bindings.descriptor_buffer_offset;
+
+    unlock(*bindings.mutex);
+
+    // Zero out old descriptors
+    memset(bindings.descriptor_buffer.mapped_memory + old_offset, 0, new_offset);
 }
 
-// @TODO: #MSAA. Resolve attachments
-//        Mip selection
-//        VkPhysicalDeviceLimits::maxColorAttachments
-//        VkPhysicalDeviceLimits::maxFramebufferWidth
-//        VkPhysicalDeviceLimits::maxFramebufferHeight
+// @TODO: #MSAA.
+//     - Mip selection
+//     - #Limits. maxColorAttachments, maxFramebufferWidth, maxFramebufferHeight
 beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] ColorTargetDesc, depth_target : *DepthTargetDesc) {
     barriers    := pushToArena(*context.pet.per_frame_arena, VkImageMemoryBarrier, color_targets.count + cast,no_check(s64) (depth_target != null));
     barriers_it := barriers;
@@ -288,6 +306,40 @@ endVulkanRendering :: inline (command_buffer : VkCommandBuffer) #no_context {
     vkCmdEndRendering(command_buffer);
 }
 
+commitVulkanBindings :: (device : *VulkanDevice, command_buffer : *CommandBuffer, shader : *VulkanShader) #no_context {
+    if !shader.pipeline return;
+
+    bind_point : VkPipelineBindPoint;
+    if #complete shader.kind == {
+        case .UNKNOWN;
+            // @TODO: Print some meaningful message why it's illegal
+        case .GRAPHICS; #through;
+        case .MESH;
+            bind_point = .VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+        case .COMPUTE;
+            bind_point = .VK_PIPELINE_BIND_POINT_COMPUTE;
+
+        case .RAY_TRACING;
+            bind_point = .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
+    }
+
+    for shader.descriptor_set_layouts {
+        if !it continue;
+
+        buffer_index := cast(u32) it_index;
+        offset       := cast(VkDeviceSize) command_buffer.descriptor_buffer_set_offsets[it_index];
+
+        device.loader.extensions.device.required.vkCmdSetDescriptorBufferOffsetsEXT(command_buffer.handles[device.frame_index],
+                                                                                    bind_point,
+                                                                                    shader.pipeline_layout,
+                                                                                    cast(u32) it_index,
+                                                                                    1,
+                                                                                    *buffer_index,
+                                                                                    *offset);
+    }
+}
+
 drawVulkanPrimitives :: inline (
     command_buffer : VkCommandBuffer,
     shader         : *VulkanShader,
@@ -296,9 +348,9 @@ drawVulkanPrimitives :: inline (
     first_vertex   : u32,
     first_instance : u32
 ) #no_context {
-    if shader.pipeline {
-        vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
-    }
+    if !shader.pipeline return;
+
+    vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
 }
 
 setVulkanPushConstants :: (command_buffer : VkCommandBuffer, shader : *VulkanShader, handle : PushConstantsHandle, data : *$T) {
@@ -323,6 +375,58 @@ setVulkanPushConstants :: (command_buffer : VkCommandBuffer, shader : *VulkanSha
                        push_constants.offset,
                        push_constants.bytes,
                        data);
+}
+
+bindVulkanBuffer :: (
+    device         : *VulkanDevice,
+    command_buffer : *CommandBuffer,
+    shader_manager : *VulkanShaderManager,
+    shader         : *VulkanShader,
+    handle         : BindingHandle,
+    buffer         : *VulkanBuffer
+) {
+    if !shader.pipeline return;
+
+    if handle.set == BindingHandle.INVALID_SET || handle.binding == BindingHandle.INVALID_BINDING {
+        warningMessage("Invalid set and/or binding for shader \"%\", buffer \"%\"", shader.name, buffer.name);
+        return;
+    }
+
+    descriptor_range := shader.binding_table.bindings[handle.set][handle.binding];
+
+    descriptor_info := VkDescriptorGetInfoEXT.{
+        type = descriptorTypeToVulkanDescriptorType(descriptor_range.descriptor_type),
+    };
+
+    if descriptor_range.descriptor_type == .UNKNOWN {
+        warningMessage("There is no any binding in descriptor set %, binding %", handle.set, handle.binding);
+        return;
+    }
+
+    descriptor_address_info := VkDescriptorAddressInfoEXT.{
+        address = buffer.device_address,
+        range   = cast(VkDeviceSize) buffer.size,
+        format  = .VK_FORMAT_UNDEFINED
+    };
+
+    // All the buffers have the same descriptor data type, so whatever since data is union
+    descriptor_info.data.pUniformBuffer = *descriptor_address_info;
+
+    // @TODO: #RobustAccess.
+    descriptor_size : u64;
+    if buffer.usage == {
+        case .UNIFORM;    descriptor_size = device.descriptor_buffer_properties.uniformBufferDescriptorSize;
+        case .READ_ONLY;  #through;
+        case .READ_WRITE; descriptor_size = device.descriptor_buffer_properties.storageBufferDescriptorSize;
+        case;
+            warningMessage("You cannot bind a buffer with % usage", buffer.usage);
+    }
+
+    descriptor_memory := shader_manager.per_frame_bindings[device.frame_index].descriptor_buffer.mapped_memory
+                       + command_buffer.descriptor_buffer_set_offsets[handle.set]
+                       + cast(s64) shader.descriptor_set_layout_infos[handle.set].binding_offsets[handle.binding];
+
+    device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
 }
 
 copyVulkanBuffer :: inline (

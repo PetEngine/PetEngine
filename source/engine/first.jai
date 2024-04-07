@@ -141,10 +141,11 @@ petMain :: () {
         {
             // Reset
             {
-                resetCommandBuffer(device, *command_buffer);
                 // @TODO: #PerFrameResources. Delete unused per frame resources memory when number of swapchain buffers is decreased.
                 resetResourceMemory(device, resource_manager, .PER_FRAME);
                 resetShaderManager(device, shader_manager);
+
+                resetCommandBuffer(device, *command_buffer, shader_manager);
             }
 
             // Create per frame buffers and textures here...
@@ -179,7 +180,8 @@ petMain :: () {
                 setViewport(device, *command_buffer, *(Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }), back_buffer.height);
                 setScissorRect(device, *command_buffer, *(ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height }));
 
-                setShader(device, *command_buffer, triangle_shader);
+                setShader(device, *command_buffer, shader_manager, triangle_shader);
+                bindResource(device, *command_buffer, shader_manager, per_view_handle, per_view_uniform.buffers[device.frame_index]);
 
                 time := cast(f32) Basic.seconds_since_init();
                 setPushConstants(device, *command_buffer, push_constants_handle, *time);
