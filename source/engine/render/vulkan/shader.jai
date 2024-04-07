@@ -152,10 +152,16 @@ findVulkanShader :: (manager_ : *ShaderManager, name : string) -> *Shader #must 
 VulkanShader :: struct {
     #as using public_data : Shader;
 
+    DescriptorSetLayoutInfo :: struct {
+        size    : VkDeviceSize;
+        offsets : [ShaderCompiler.MAX_BINDINGS] VkDeviceSize;
+    }
+
     pipeline_layout : VkPipelineLayout;
     pipeline        : VkPipeline;
 
-    descriptor_set_layouts : StaticArray(VkDescriptorSetLayout, ShaderCompiler.MAX_DESCRIPTOR_SETS);
+    descriptor_set_layouts      : StaticArray(VkDescriptorSetLayout,   ShaderCompiler.MAX_DESCRIPTOR_SETS);
+    descriptor_set_layout_infos : StaticArray(DescriptorSetLayoutInfo, ShaderCompiler.MAX_DESCRIPTOR_SETS);
 }
 
 pushVulkanShader :: (manager_ : *ShaderManager) -> *Shader #must {
@@ -381,7 +387,8 @@ createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStag
 }
 
 createDescriptorSetLayouts :: (device : *VulkanDevice, manager : *VulkanShaderManager, shader : *VulkanShader) {
-    shader.descriptor_set_layouts.count = shader.binding_table.descriptor_sets_count;
+    shader.descriptor_set_layouts.count      = shader.binding_table.descriptor_sets_count;
+    shader.descriptor_set_layout_infos.count = shader.binding_table.descriptor_sets_count;
 
     for set_bindings, set_index : toView(shader.binding_table.bindings.data, shader.binding_table.descriptor_sets_count) {
         bindings_count := shader.binding_table.bindings_count[set_index];
@@ -405,9 +412,32 @@ createDescriptorSetLayouts :: (device : *VulkanDevice, manager : *VulkanShaderMa
             pBindings    = binding_layouts.data,
         };
 
-        debugCheckVK(vkCreateDescriptorSetLayout(device.device, *create_info, null, *shader.descriptor_set_layouts[set_index]));
+        descriptor_set_layout := *shader.descriptor_set_layouts[set_index];
+        debugCheckVK(vkCreateDescriptorSetLayout(device.device, *create_info, null, descriptor_set_layout));
 
-        setVulkanObjectName(device, shader.descriptor_set_layouts[set_index], "% descriptor set layout #%", shader.name, set_index);
+        setVulkanObjectName(device, descriptor_set_layout.*, "% descriptor set layout #%", shader.name, set_index);
+
+        descriptor_set_layout_info := *shader.descriptor_set_layout_infos[set_index];
+        device.loader.extensions.device.required.vkGetDescriptorSetLayoutSizeEXT(device.device,
+                                                                                 descriptor_set_layout.*,
+                                                                                 *descriptor_set_layout_info.size);
+
+        for binding, binding_index : toView(set_bindings.data, bindings_count) {
+            binding_offset := *descriptor_set_layout_info.offsets[binding_index];
+
+            if binding.descriptor_type != .UNKNOWN {
+                device.loader.extensions.device.required.vkGetDescriptorSetLayoutBindingOffsetEXT(device.device,
+                                                                                                  descriptor_set_layout.*,
+                                                                                                  cast(u32) binding_index,
+                                                                                                  binding_offset);
+            } else {
+                binding_offset.* = cast,trunc(VkDeviceSize) ShaderCompiler.INVALID_OFFSET;
+            }
+        }
+
+        for binding, binding_index : toView(set_bindings.data + bindings_count, set_bindings.count - bindings_count) {
+            descriptor_set_layout_info.offsets[bindings_count + binding_index] = cast,trunc(VkDeviceSize) ShaderCompiler.INVALID_OFFSET;
+        }
     }
 }
 
