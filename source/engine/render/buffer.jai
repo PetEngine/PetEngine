@@ -22,7 +22,7 @@ createBuffer :: (
     pool            : ResourceManager.Pool,
     usage           : Buffer.Usage,
     name            : string,
-    possible_owners : ..QueueType  = .[ .GRAPHICS ]
+    possible_owners : ..QueueType = .[ .GRAPHICS ]
 ) -> *Buffer #must {
     assert(name.count <= ResourceManager.MAX_RESOURCE_NAME_LENGTH,
            "Max buffer name length (%) > ResourceManager.MAX_RESOURCE_NAME_LENGTH (%)",

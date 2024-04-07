@@ -411,8 +411,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
 setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, args : ..Any) {
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
-            builder : Basic.String_Builder;
-            builder.allocator = Basic.temp;
+            builder := Basic.String_Builder.{ allocator = Basic.temp };
 
             Basic.print(*builder, format, ..args);
             Basic.append(*builder, "\0");
@@ -518,8 +517,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
     defer Basic.reset_temporary_storage();
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     layers_to_apply : [..] *s8;
     layers_to_apply.allocator = Basic.temp;
@@ -772,8 +770,7 @@ messengerCallback :: (
             #if SHORTEN_MESSAGE {
                 index := String.find_index_from_left(message, "Object");
                 if index != -1 {
-                    builder : Basic.String_Builder;
-                    builder.allocator = Basic.temp;
+                    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
                     severity_and_vuid := string.{ index, message.data };
                     Basic.append(*builder, severity_and_vuid);
@@ -1016,8 +1013,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
 
     // Print info about available queue families
     #if PRINT_VERBOSE_MESSAGES {
-        builder : Basic.String_Builder;
-        builder.allocator = Basic.temp;
+        builder := Basic.String_Builder.{ allocator = Basic.temp };
 
         Basic.print(*builder, "Available queue families (%):\n", queue_family_properties.count);
 
@@ -1070,8 +1066,7 @@ END;
 
     // Print info about queues
     {
-        builder : Basic.String_Builder;
-        builder.allocator = Basic.temp;
+        builder := Basic.String_Builder.{ allocator = Basic.temp };
 
         Basic.append(*builder, "Queues info:\n");
 
@@ -1128,8 +1123,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 
     defer Basic.reset_temporary_storage();
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     extensions_to_apply : [..] *s8;
     extensions_to_apply.allocator = Basic.temp;
@@ -1318,8 +1312,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                                                                                                  cast(*u32) *surface_formats.count,
                                                                                                  surface_formats.data));
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     #if PRINT_VERBOSE_MESSAGES {
         Basic.append(*builder, "Available surface formats:");

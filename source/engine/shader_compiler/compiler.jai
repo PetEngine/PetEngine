@@ -487,9 +487,7 @@ compileShader :: (name : string) -> bool {
 
     serialized_binding_names_table : string;
     {
-        builder := Basic.String_Builder.{
-            allocator = Basic.temp
-        };
+        builder := Basic.String_Builder.{ allocator = Basic.temp };
 
         for toView(runtime_binding_names_table.push_constants.data, binding_table.push_constants_count) {
             Basic.append(*builder, it.length);

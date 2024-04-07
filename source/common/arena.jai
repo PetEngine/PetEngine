@@ -19,8 +19,7 @@ Arena :: struct {
 createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) {
     assert(capacity > 0);
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     Basic.print(*builder, "% thread/", context.pet.thread_name);
     Basic.print(*builder, format, ..args);
@@ -63,8 +62,7 @@ createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) 
 }
 
 createSubarena :: (arena : *Arena, subarena : *Arena, subarena_capacity : s64, $format : string, args : ..Any) {
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     Basic.print(*builder, "%/", arena.name);
     Basic.print(*builder, format, ..args);

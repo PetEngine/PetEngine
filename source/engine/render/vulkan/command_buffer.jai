@@ -409,7 +409,7 @@ bindVulkanBuffer :: (
         format  = .VK_FORMAT_UNDEFINED
     };
 
-    // All the buffers have the same descriptor data type, so whatever since data is union
+    // All types of buffers have the same descriptor data type, so whatever since data is union
     descriptor_info.data.pUniformBuffer = *descriptor_address_info;
 
     // @TODO: #RobustAccess.

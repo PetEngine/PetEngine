@@ -66,7 +66,7 @@ Texture :: struct {
             depth   : f32;
             stencil : u32;
         }
-    };
+    }
 
     dimension       : Dimension;
     format          : Format;
