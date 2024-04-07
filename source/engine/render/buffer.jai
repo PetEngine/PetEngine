@@ -10,6 +10,7 @@ Buffer :: struct {
     usage           : Usage;
     name            : string;
     mapped_memory   : *void;
+    device_address  : u64;
     current_owner   : QueueType;
     possible_owners : StaticArray(QueueType, Device.QUEUE_TYPES_COUNT);
 }

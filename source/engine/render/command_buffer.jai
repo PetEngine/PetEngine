@@ -96,7 +96,7 @@ resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, shader
             vulkan_shader_manager := cast(*VulkanShaderManager) shader_manager;
 
             binding_info := VkDescriptorBufferBindingInfoEXT.{
-                address = vulkan_shader_manager.per_frame_bindings[device.frame_index].descriptor_buffer.device_address,
+                address = cast(VkDeviceAddress) vulkan_shader_manager.per_frame_bindings[device.frame_index].descriptor_buffer.device_address,
                 usage   = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT
                         | .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT
             };

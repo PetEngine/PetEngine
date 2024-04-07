@@ -4,8 +4,7 @@
 VulkanBuffer :: struct {
     #as using public_data : Buffer;
 
-    buffer         : VkBuffer;
-    device_address : VkDeviceAddress;
+    buffer : VkBuffer;
 }
 
 pushVulkanBuffer :: (

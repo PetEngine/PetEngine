@@ -337,13 +337,13 @@ commitVulkanBufferMemoryPool :: (
             mapped_device_memory += it.size;
 
             info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
-            it.device_address = vkGetBufferDeviceAddress(device.device, *info);
+            it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
             assert(it.device_address);
         }
     } else {
         for * memory_pool.resources {
             info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
-            it.device_address = vkGetBufferDeviceAddress(device.device, *info);
+            it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
             assert(it.device_address);
         }
     }
@@ -626,7 +626,7 @@ commitVulkanDescriptorBufferMemoryPool :: (
         mapped_device_memory += it.size;
 
         info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
-        it.device_address = vkGetBufferDeviceAddress(device.device, *info);
+        it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
         assert(it.device_address);
     }
 }

@@ -404,7 +404,7 @@ bindVulkanBuffer :: (
     }
 
     descriptor_address_info := VkDescriptorAddressInfoEXT.{
-        address = buffer.device_address,
+        address = cast(VkDeviceAddress) buffer.device_address,
         range   = cast(VkDeviceSize) buffer.size,
         format  = .VK_FORMAT_UNDEFINED
     };
