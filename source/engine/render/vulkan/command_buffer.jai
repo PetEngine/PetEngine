@@ -301,12 +301,15 @@ drawVulkanPrimitives :: inline (
     }
 }
 
-setVulkanPushConstants :: (command_buffer : VkCommandBuffer, shader : *VulkanShader, binding : s64, data : *$T) {
+setVulkanPushConstants :: (command_buffer : VkCommandBuffer, shader : *VulkanShader, handle : PushConstantsHandle, data : *$T) {
     if !shader.pipeline return;
 
-    assert(binding < shader.binding_table.push_constants_count);
+    if handle.index == PushConstantsHandle.INVALID_INDEX {
+        warningMessage("Invalid push consatnts binding for shader \"%\"", shader.name);
+        return;
+    }
 
-    push_constants := *shader.binding_table.push_constants[binding];
+    push_constants := *shader.binding_table.push_constants[handle.index];
 
     assert(size_of(T) == push_constants.bytes,
            "The size of push constants data (%) should be equal to the size of push constants block in \"%\" shader (%)",

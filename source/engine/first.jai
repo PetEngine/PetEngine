@@ -111,6 +111,8 @@ petMain :: () {
     defer resetResourceMemory(device, resource_manager, .PERSISTENT);
 
     triangle_shader := createShader(device, shader_manager, "triangle", .[ getBackBuffer(device).format ]);
+    push_constants_handle := getPushConstantsHandle(triangle_shader, "g_push_constants");
+    per_view_handle       := getBindingHandle(triangle_shader, "g_per_view");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 
@@ -180,7 +182,7 @@ petMain :: () {
                 setShader(device, *command_buffer, triangle_shader);
 
                 time := cast(f32) Basic.seconds_since_init();
-                setPushConstants(device, *command_buffer, 0, *time);
+                setPushConstants(device, *command_buffer, push_constants_handle, *time);
 
                 drawPrimitives(device, *command_buffer, 4);
             }

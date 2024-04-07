@@ -258,15 +258,15 @@ drawPrimitives :: (
 }
 
 // @TODO: Other shaders
-setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, binding : s64, data : *$T) {
-    #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can draw";
+setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, handle : PushConstantsHandle, data : *$T) {
+    #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use push constants for now";
 
     shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set shader before setting its push constants");
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            setVulkanPushConstants(command_buffer.handles[device.frame_index], cast(*VulkanShader) shader, binding, data);
+            setVulkanPushConstants(command_buffer.handles[device.frame_index], cast(*VulkanShader) shader, handle, data);
     }
 }
 

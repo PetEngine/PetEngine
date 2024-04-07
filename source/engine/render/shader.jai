@@ -53,7 +53,23 @@ Shader :: struct {
     depth_target_format  : Texture.Format;
 
     binding_table       : ShaderCompiler.BindingTable;
+    binding_names_table : ShaderCompiler.RuntimeBindingNamesTable;
 }
+
+PushConstantsHandle :: struct {
+    INVALID_INDEX :: ShaderCompiler.MAX_PUSH_CONSTANTS;
+
+    index : u8 = INVALID_INDEX;
+}
+
+BindingHandle :: struct {
+    INVALID_SET     :: ShaderCompiler.MAX_DESCRIPTOR_SETS;
+    INVALID_BINDING :: ShaderCompiler.MAX_BINDINGS;
+
+    set     : u8 = INVALID_SET;
+    binding : u8 = INVALID_BINDING;
+}
+
 
 createShader :: (
     device               : *Device,
@@ -111,6 +127,36 @@ reloadShader :: (device : *Device, manager : *ShaderManager, shader : *Shader) {
     }
 }
 
+getPushConstantsHandle :: (shader : *Shader, name : string) -> PushConstantsHandle {
+    handle : PushConstantsHandle;
+    for toView(shader.binding_names_table.push_constants.data, shader.binding_table.push_constants_count) {
+        name_in_table := string.{ count = it.length, data = it.buffer.data };
+        if name_in_table == name {
+            handle.index = cast(u8) it_index;
+            break;
+        }
+    }
+    return handle;
+}
+
+getBindingHandle :: (shader : *Shader, name : string) -> BindingHandle {
+    handle : BindingHandle;
+    for set_names, set_index : toView(shader.binding_names_table.bindings.data, shader.binding_table.descriptor_sets_count) {
+        bindings_count := shader.binding_table.bindings_count[set_index];
+        if !bindings_count continue;
+
+        for binding_name, binding_index : toView(shader.binding_names_table.bindings[set_index].data, bindings_count) {
+            name_in_table := string.{ count = binding_name.length, data = binding_name.buffer.data };
+            if name_in_table == name {
+                handle.set     = cast(u8) set_index;
+                handle.binding = cast(u8) binding_index;
+                break set_names;
+            }
+        }
+    }
+    return handle;
+}
+
 #scope_file
 
 deserializeShaderFile :: (shader : *Shader) -> string {
@@ -127,6 +173,7 @@ deserializeShaderFile :: (shader : *Shader) -> string {
 
     shader.kind          = shader_file_header.shader_kind;
     shader.binding_table = ShaderCompiler.getBindingTable(shader_file_data).*;
+    ShaderCompiler.deserializeBindingNamesTable(shader_file_data, *shader.binding_names_table);
 
     return shader_file_data;
 }
