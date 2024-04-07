@@ -6,7 +6,7 @@ Mutex :: struct {
     }
 }
 
-lock :: (mutex : *Mutex, $shared := false) {
+lock :: (mutex : *Mutex, $shared := false) #no_context {
     #if OS == .WINDOWS {
         #if shared { AcquireSRWLockShared(*mutex.srw_lock);    }
         else       { AcquireSRWLockExclusive(*mutex.srw_lock); }
@@ -15,7 +15,7 @@ lock :: (mutex : *Mutex, $shared := false) {
     }
 }
 
-unlock :: (mutex : *Mutex, $shared := false) {
+unlock :: (mutex : *Mutex, $shared := false) #no_context {
     #if OS == .WINDOWS {
         #if shared { ReleaseSRWLockShared(*mutex.srw_lock);    }
         else       { ReleaseSRWLockExclusive(*mutex.srw_lock); }
@@ -24,7 +24,7 @@ unlock :: (mutex : *Mutex, $shared := false) {
     }
 }
 
-tryLock :: (mutex : *Mutex, $shared := false) -> bool {
+tryLock :: (mutex : *Mutex, $shared := false) -> bool #no_context {
     #if OS == .WINDOWS {
         #if shared { return cast(bool) TryAcquireSRWLockShared(*mutex.srw_lock);    }
         else       { return cast(bool) TryAcquireSRWLockExclusive(*mutex.srw_lock); }
