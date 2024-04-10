@@ -161,6 +161,7 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO         :: 27;
     VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO              :: 28;
     VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO                :: 30;
+    VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO                        :: 31;
     VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO          :: 32;
     VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET                       :: 35;
     VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET                        :: 36;
@@ -396,7 +397,6 @@ VK_WHOLE_SIZE        : VkDeviceSize : 0xFFFF_FFFF_FFFF_FFFF;
 // @Cleanup: Move to their own files
 VkRenderPass  :: *VkRenderPass_T;  VkRenderPass_T  :: struct {}
 VkFramebuffer :: *VkFramebuffer_T; VkFramebuffer_T :: struct {}
-VkSampler     :: *VkSampler_T;     VkSampler_T     :: struct {}
 
 #scope_module
 
@@ -415,6 +415,7 @@ VkSampler     :: *VkSampler_T;     VkSampler_T     :: struct {}
 #load "buffer.jai";
 #load "descriptor_set_layout.jai";
 #load "descriptor_buffer.jai";
+#load "sampler.jai";
 
 #if OS == .WINDOWS {
     vulkan :: #library,system "vulkan-1";

@@ -46,6 +46,14 @@ VulkanResourceManager :: struct {
         per_frame  : StaticArray(Pool, Device.MAX_FRAME_BUFFERING);
     }
 
+    SamplerMemory :: struct {
+        Pool :: MemorylessPool(VulkanSampler, MAX_SAMPLERS);
+
+        persistent : Pool;
+        per_scene  : Pool;
+        per_frame  : StaticArray(Pool, Device.MAX_FRAME_BUFFERING);
+    }
+
     DescriptorBufferMemory :: struct {
         Pool :: MemoryPool(VulkanBuffer, MAX_DESCRIPTOR_BUFFERS);
 
@@ -57,6 +65,7 @@ VulkanResourceManager :: struct {
     buffers            : BufferMemory;
     textures           : TextureMemory;
     texture_views      : TextureViewMemory;
+    samplers           : SamplerMemory;
     descriptor_buffers : DescriptorBufferMemory;
 
     names_arena : Arena;
@@ -107,10 +116,12 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
     BUFFERS_SUBARENA_CAPACITY            :: ResourceManager.MAX_BUFFERS                  * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
     TEXTURES_SUBARENA_CAPACITY           :: ResourceManager.MAX_TEXTURES                 * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
     TEXTURE_VIEWS_SUBARENA_CAPACITY      :: ResourceManager.MAX_TEXTURE_VIEWS            * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
+    SAMPLERS_SUBARENA_CAPACITY           :: ResourceManager.MAX_SAMPLERS                 * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
     DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY :: VulkanResourceManager.MAX_DESCRIPTOR_BUFFERS * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
     MANAGER_ARENA_CAPACITY               :: BUFFERS_SUBARENA_CAPACITY       * (2 + Device.MAX_FRAME_BUFFERING) * ResourceManager.POOLS_COUNT
                                           + TEXTURES_SUBARENA_CAPACITY      * (2 + Device.MAX_FRAME_BUFFERING)
                                           + TEXTURE_VIEWS_SUBARENA_CAPACITY * (2 + Device.MAX_FRAME_BUFFERING)
+                                          + SAMPLERS_SUBARENA_CAPACITY      * (2 + Device.MAX_FRAME_BUFFERING)
                                           + DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY;
 
     createArena(*manager.names_arena, MANAGER_ARENA_CAPACITY, "VulkanResourceManager names");
@@ -118,6 +129,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
     createVulkanBufferMemoryNamesSubarenas(*manager.buffers, *manager.names_arena, BUFFERS_SUBARENA_CAPACITY, device.frame_buffering);
     createVulkanTextureMemoryNamesSubarenas(*manager.textures, *manager.names_arena, TEXTURES_SUBARENA_CAPACITY, device.frame_buffering);
     createVulkanTextureViewMemoryNamesSubarenas(*manager.texture_views, *manager.names_arena, TEXTURE_VIEWS_SUBARENA_CAPACITY, device.frame_buffering);
+    createVulkanSamplerMemoryNamesSubarenas(*manager.samplers, *manager.names_arena, SAMPLERS_SUBARENA_CAPACITY, device.frame_buffering);
     createVulkanDescriptorBufferMemoryNamesSubarenas(*manager.descriptor_buffers, *manager.names_arena, DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY, device.frame_buffering);
 
     return manager;
@@ -132,6 +144,7 @@ destroyVulkanResourceManager :: (device_ : *Device, manager_ : *ResourceManager)
     destroyVulkanBufferMemory(device, *manager.buffers);
     destroyVulkanTextureMemory(device, *manager.textures);
     destroyVulkanTextureViewMemory(device, *manager.texture_views);
+    destroyVulkanSamplerMemory(device, *manager.samplers);
     destroyVulkanDescriptorBufferMemory(device, *manager.descriptor_buffers);
 
     destroyArena(*manager.names_arena);
@@ -172,12 +185,14 @@ resetVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, li
             for * manager.buffers.persistent resetVulkanBufferMemoryPool(device, it, cast(ResourceManager.Pool) it_index);
             resetVulkanTextureMemoryPool(device, *manager.textures.persistent);
             resetVulkanTextureViewMemoryPool(device, *manager.texture_views.persistent);
+            resetVulkanSamplerMemoryPool(device, *manager.samplers.persistent);
             resetVulkanDescriptorBufferMemoryPool(device, *manager.descriptor_buffers.persistent);
 
         case .PER_SCENE;
             for * manager.buffers.per_scene resetVulkanBufferMemoryPool(device, it, cast(ResourceManager.Pool) it_index);
             resetVulkanTextureMemoryPool(device, *manager.textures.per_scene);
             resetVulkanTextureViewMemoryPool(device, *manager.texture_views.per_scene);
+            resetVulkanSamplerMemoryPool(device, *manager.samplers.per_scene);
 
         case .PER_FRAME;
             // @TODO: #PerFrameTextures. #PerFrameBuffers. #FrameBuffering.
@@ -195,6 +210,7 @@ resetVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, li
             }
             resetVulkanTextureMemoryPool(device, *manager.textures.per_frame[device.frame_index]);
             resetVulkanTextureViewMemoryPool(device, *manager.texture_views.per_frame[device.frame_index]);
+            resetVulkanSamplerMemoryPool(device, *manager.samplers.per_frame[device.frame_index]);
     }
 }
 
@@ -520,6 +536,47 @@ resetVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *Vulk
     reset(*memory_pool.resources);
 
     resetArena(*memory_pool.names_subarena);
+}
+
+//
+// Samplers
+//
+
+createVulkanSamplerMemoryNamesSubarenas :: (
+    memory            : *VulkanResourceManager.SamplerMemory,
+    arena             : *Arena,
+    subarena_capacity : s64,
+    frames_buffering  : FrameBuffering
+) {
+    createSubarena(arena, *memory.persistent.names_subarena, subarena_capacity, "Samplers/Persistent");
+    createSubarena(arena, *memory.per_scene.names_subarena, subarena_capacity, "Samplers/Per scene");
+
+    memory.per_frame.count = cast,no_check(s64) frames_buffering;
+    for * memory.per_frame.data {
+        createSubarena(arena, *it.names_subarena, subarena_capacity, "Samplers/Frame #%", it_index);
+    }
+}
+
+destroyVulkanSamplerMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.SamplerMemory) {
+    assert(memory.persistent.resources.count == 0);
+    destroySubarena(*memory.persistent.names_subarena);
+
+    assert(memory.per_scene.resources.count == 0);
+    destroySubarena(*memory.per_scene.names_subarena);
+
+    memory.per_frame.count = 0;
+    for * memory.per_frame.data {
+        assert(it.resources.count == 0);
+        destroySubarena(*it.names_subarena);
+    }
+}
+
+resetVulkanSamplerMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.MemorylessPool) {
+    for * memory_pool.resources {
+        vkDestroySampler(device.device, it.sampler, null);
+        it.sampler = VK_NULL_HANDLE;
+    }
+    reset(*memory_pool.resources);
 
     resetArena(*memory_pool.names_subarena);
 }
@@ -672,3 +729,4 @@ fillMemoryTypeIndices :: (device : *VulkanDevice, manager : *VulkanResourceManag
 #load "buffer.jai";
 #load "texture.jai";
 #load "texture_view.jai";
+#load "sampler.jai";
