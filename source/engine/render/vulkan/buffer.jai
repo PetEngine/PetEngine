@@ -113,7 +113,7 @@ bufferUsageToVkBufferUsageFlags :: inline (usage : Buffer.Usage) -> VkBufferUsag
 
 // "Buffer/<lifetime>/<pool>/<usage>/<name>"
 composeVulkanBufferName :: (
-    buffer      : *Buffer,
+    buffer      : *VulkanBuffer,
     memory_pool : *VulkanResourceManager.MemoryPool,
     lifetime    : ResourceManager.Lifetime,
     pool        : ResourceManager.Pool,
@@ -146,7 +146,7 @@ composeVulkanBufferName :: (
 }
 
 // "Descriptor Buffer/<name>"
-composeVulkanDescriptorBufferName :: (buffer : *Buffer, memory_pool : *VulkanResourceManager.MemoryPool, name : string) {
+composeVulkanDescriptorBufferName :: (buffer : *VulkanBuffer, memory_pool : *VulkanResourceManager.MemoryPool, name : string) {
     full_name_length := "Descriptor Buffer/".count
                       + name.count;
 

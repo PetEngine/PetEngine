@@ -346,7 +346,7 @@ checkImageProperties :: (device : *VulkanDevice, texture : *VulkanTexture, creat
 
 // "Texture/<lifetime>/<name>"
 composeVulkanTextureName :: (
-    texture     : *Texture,
+    texture     : *VulkanTexture,
     memory_pool : *VulkanResourceManager.MemoryPool,
     lifetime    : ResourceManager.Lifetime,
     name        : string

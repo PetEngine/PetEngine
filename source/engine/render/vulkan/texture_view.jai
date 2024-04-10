@@ -83,14 +83,14 @@ createVulkanTextureView :: (
         case .PER_FRAME;  composeVulkanTextureViewName(view, *manager.texture_views.per_frame[device.frame_index], lifetime, name);
     }
 
-    setVulkanObjectName(device, view.view, "% view", view.name);
+    setVulkanObjectName(device, view.view, view.name);
 }
 
 #scope_file
 
 // "Texture View/<lifetime>/<name>"
 composeVulkanTextureViewName :: (
-    view        : *TextureView,
+    view        : *VulkanTextureView,
     memory_pool : *VulkanResourceManager.MemorylessPool,
     lifetime    : ResourceManager.Lifetime,
     name        : string
