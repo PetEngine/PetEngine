@@ -7,7 +7,7 @@ StaticArray :: struct(T : Type, capacity : s64) {
     data  : [capacity] T;
 }
 
-operator [] :: inline (array : StaticArray, index : s64) -> array.T #must #no_context {
+operator [] :: inline (array : *StaticArray, index : s64) -> array.T #must #no_context {
     #if DEBUG_BUILD {
         if index >= array.count {
             write_string("[ASSERT]: StaticArray out of bounds access violation\n", true);
