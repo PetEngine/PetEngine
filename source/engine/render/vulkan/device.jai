@@ -1539,7 +1539,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     // @TODO: #Settings. Get back buffer clear color from settings.
     clear_color := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
 
-    // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to texture manager
+    // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to resource manager
     for * texture : device.swapchain_textures {
         texture.dimension             = ._2D;
         texture.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);

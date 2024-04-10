@@ -1,5 +1,5 @@
 // @TODO:
-//    - @Cleanup: VkAllocationCallbacks -> #VkAllocationCallbacks.
+//    - @Cleanup: Delete #VkAllocationCallbacks
 
 #scope_export
 
@@ -105,7 +105,7 @@ petMain :: () {
                                   .PERSISTENT,
                                   "Depth");
 
-    depth_buffer_shader_read_view := createTextureView(device, resource_manager, depth_buffer, .SHADER_READ, lifetime = .PERSISTENT);
+    depth_buffer_srv := createTextureView(device, resource_manager, depth_buffer, .SHADER_READ, lifetime = .PERSISTENT);
 
     // Create persistent buffers and textures here...
 
@@ -115,7 +115,6 @@ petMain :: () {
     triangle_shader := createShader(device, shader_manager, "triangle", .[ getBackBuffer(device).format ]);
     push_constants_handle := getPushConstantsHandle(triangle_shader, "g_push_constants");
     per_view_handle       := getBindingHandle(triangle_shader, "g_per_view");
-    texture_srv_handle    := getBindingHandle(triangle_shader, "g_texture_srv");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 
@@ -186,7 +185,6 @@ petMain :: () {
 
                 setShader(device, *command_buffer, shader_manager, triangle_shader);
                 bindResource(device, *command_buffer, shader_manager, per_view_handle, per_view_uniform.buffers[device.frame_index]);
-                bindResource(device, *command_buffer, shader_manager, texture_srv_handle, depth_buffer_shader_read_view);
 
                 time := cast(f32) Basic.seconds_since_init();
                 setPushConstants(device, *command_buffer, push_constants_handle, *time);

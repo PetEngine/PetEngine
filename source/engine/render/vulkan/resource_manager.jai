@@ -117,9 +117,6 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
     createVulkanTextureViewMemoryNamesSubarenas(*manager.texture_views, *manager.names_arena, TEXTURE_VIEWS_SUBARENA_CAPACITY, device.frame_buffering);
     createVulkanDescriptorBufferMemoryNamesSubarenas(*manager.descriptor_buffers, *manager.names_arena, DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY, device.frame_buffering);
 
-    // @Cleanup
-    debugMessage("maxImageArrayLayers = %", device.limits.maxImageArrayLayers);
-
     return manager;
 }
 

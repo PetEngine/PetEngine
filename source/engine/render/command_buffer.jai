@@ -270,6 +270,7 @@ drawPrimitives :: (
 
     if #complete device.graphics_api == {
         case .VULKAN;
+            // @TOOD: #Bindings. Find a way to not do this for every draw call
             commitVulkanBindings(cast(*VulkanDevice) device, command_buffer, cast(*VulkanShader) shader);
 
             drawVulkanPrimitives(command_buffer.handles[device.frame_index],

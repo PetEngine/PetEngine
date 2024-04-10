@@ -1,6 +1,3 @@
-// @TODO: #VulkanBuffer.
-//    - #Views
-
 VulkanBuffer :: struct {
     #as using public_data : Buffer;
 

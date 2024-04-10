@@ -34,30 +34,11 @@ void main() {
 
 #fragment_shader
 
-// @Cleanup: #Test.
-layout(rg16_snorm) uniform image2D g_texture_uav;
-uniform sampler g_sampler;
-uniform texture2D g_texture_srv;
-readonly buffer BufferSRV {
-    vec4 data[256];
-} g_Buffer_srv;
-buffer BufferUAV {
-    vec4 data[64];
-} g_Buffer_uav;
-
 in  VertexOutput fs_input;
 out vec4         fs_output_color;
 
 void main() {
-    // @Cleanup: #Test
-    imageStore(g_texture_uav, ivec2(0), vec4(-0.5, 1.0, 0.0, 0.0));
-
-    fs_output_color = fs_input.color
-                    // @Cleanup: #Test
-                    + vec4(g_per_view.camera_position, 0.0)
-                    + texture(sampler2D(g_texture_srv, g_sampler), vec2(0.5, 0.5)),
-                    + g_Buffer_srv.data[128]
-                    + g_Buffer_uav.data[32];
+    fs_output_color = fs_input.color;
 }
 
 #pipeline_state

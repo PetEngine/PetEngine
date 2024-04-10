@@ -194,7 +194,7 @@ FileInfo :: struct {
     };
 }
 
-// @Cleanup: #Naming. Shorter name?
+// @TODO: #Naming. Shorter name?
 EnumerateFilesCallbackResult :: enum u8 {
     CONTINUE;
     BREAK;
