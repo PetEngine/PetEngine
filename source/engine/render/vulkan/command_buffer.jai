@@ -153,7 +153,8 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
     color_attachments_it := color_attachments;
 
     for color_targets {
-        texture := cast(*VulkanTexture) it.texture;
+        view    := cast(*VulkanTextureView) it.view;
+        texture := cast(*VulkanTexture) view.texture;
 
         if texture.current_layout != .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL {
             barriers_it.srcAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
@@ -164,17 +165,17 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
             barriers_it.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
             barriers_it.image                           = texture.image;
             barriers_it.subresourceRange.aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT;
-            barriers_it.subresourceRange.baseMipLevel   = 0;
-            barriers_it.subresourceRange.levelCount     = 1;
-            barriers_it.subresourceRange.baseArrayLayer = 0;
-            barriers_it.subresourceRange.layerCount     = 1;
+            barriers_it.subresourceRange.baseMipLevel   = view.first_mip;
+            barriers_it.subresourceRange.levelCount     = view.mips_count;
+            barriers_it.subresourceRange.baseArrayLayer = view.first_layer;
+            barriers_it.subresourceRange.layerCount     = max(view.layers_count, 1);
 
             texture.current_layout = .VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
             barriers_it += 1;
         }
 
-        color_attachments_it.imageView                 = texture.view;
+        color_attachments_it.imageView                 = view.view;
         color_attachments_it.imageLayout               = texture.current_layout;
         color_attachments_it.resolveMode               = .VK_RESOLVE_MODE_NONE;
         color_attachments_it.resolveImageView          = VK_NULL_HANDLE;
@@ -188,11 +189,11 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
 
     rendering_extent : VkExtent2D = ---;
     if color_targets.count > 0 {
-        rendering_extent.width  = color_targets[0].texture.width;
-        rendering_extent.height = color_targets[0].texture.height;
+        rendering_extent.width  = color_targets[0].view.texture.width;
+        rendering_extent.height = color_targets[0].view.texture.height;
     } else {
-        rendering_extent.width  = depth_target.texture.width;
-        rendering_extent.height = depth_target.texture.height;
+        rendering_extent.width  = depth_target.view.texture.width;
+        rendering_extent.height = depth_target.view.texture.height;
     }
 
     rendering_info := VkRenderingInfo.{
@@ -213,21 +214,22 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
     stencil_attachment : VkRenderingAttachmentInfo = ---;
 
     if depth_target {
-        texture := cast(*VulkanTexture) depth_target.texture;
+        view    := cast(*VulkanTextureView) depth_target.view;
+        texture := cast(*VulkanTexture) view.texture;
 
-        format_flags := textureFormatFlags(texture.format);
+        format_flags := textureFormatFlags(view.format);
 
         new_layout : VkImageLayout      = ---;
         aspectMask : VkImageAspectFlags = ---;
 
         if format_flags & (.DEPTH | .STENCIL) == (.DEPTH | .STENCIL) {
-            new_layout = ifx  texture.usage & .READ_ONLY
+            new_layout = ifx  view.usage == .DEPTH_READ_ONLY
                          then .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
                          else .VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
             aspectMask = .VK_IMAGE_ASPECT_DEPTH_BIT | .VK_IMAGE_ASPECT_STENCIL_BIT;
         } else if format_flags & .DEPTH {
-            new_layout = ifx  texture.usage & .READ_ONLY
+            new_layout = ifx  view.usage == .DEPTH_READ_ONLY
                          then .VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL
                          else .VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 
@@ -235,7 +237,7 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         } else {
             assert(format_flags & .STENCIL);
 
-            new_layout = ifx  texture.usage & .READ_ONLY
+            new_layout = ifx  view.usage == .DEPTH_READ_ONLY
                          then .VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL
                          else .VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL;
 
@@ -251,10 +253,10 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
             barriers_it.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
             barriers_it.image                           = texture.image;
             barriers_it.subresourceRange.aspectMask     = aspectMask;
-            barriers_it.subresourceRange.baseMipLevel   = 0;
-            barriers_it.subresourceRange.levelCount     = 1;
-            barriers_it.subresourceRange.baseArrayLayer = 0;
-            barriers_it.subresourceRange.layerCount     = 1;
+            barriers_it.subresourceRange.baseMipLevel   = view.first_mip;
+            barriers_it.subresourceRange.levelCount     = view.mips_count;
+            barriers_it.subresourceRange.baseArrayLayer = view.first_layer;
+            barriers_it.subresourceRange.layerCount     = max(view.layers_count, 1);
 
             texture.current_layout = new_layout;
 
@@ -262,7 +264,7 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         }
 
         if format_flags & .DEPTH {
-            depth_attachment.imageView                     = texture.view;
+            depth_attachment.imageView                     = view.view;
             depth_attachment.imageLayout                   = texture.current_layout;
             depth_attachment.resolveMode                   = .VK_RESOLVE_MODE_NONE;
             depth_attachment.resolveImageView              = VK_NULL_HANDLE;
@@ -275,7 +277,7 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         }
 
         if format_flags & .STENCIL {
-            stencil_attachment.imageView                       = texture.view;
+            stencil_attachment.imageView                       = view.view;
             stencil_attachment.imageLayout                     = texture.current_layout;
             stencil_attachment.resolveMode                     = .VK_RESOLVE_MODE_NONE;
             stencil_attachment.resolveImageView                = VK_NULL_HANDLE;
@@ -420,6 +422,60 @@ bindVulkanBuffer :: (
         case .READ_WRITE; descriptor_size = device.descriptor_buffer_properties.storageBufferDescriptorSize;
         case;
             warningMessage("You cannot bind a buffer with % usage", buffer.usage);
+    }
+
+    descriptor_memory := shader_manager.per_frame_bindings[device.frame_index].descriptor_buffer.mapped_memory
+                       + command_buffer.descriptor_buffer_set_offsets[handle.set]
+                       + cast(s64) shader.descriptor_set_layout_infos[handle.set].binding_offsets[handle.binding];
+
+    device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
+}
+
+bindVulkanTexture :: (
+    device         : *VulkanDevice,
+    command_buffer : *CommandBuffer,
+    shader_manager : *VulkanShaderManager,
+    shader         : *VulkanShader,
+    handle         : BindingHandle,
+    view           : *VulkanTextureView
+) {
+    if !shader.pipeline return;
+
+    if handle.set == BindingHandle.INVALID_SET || handle.binding == BindingHandle.INVALID_BINDING {
+        warningMessage("Invalid set and/or binding for shader \"%\", texture view \"%\"", shader.name, view.name);
+        return;
+    }
+
+    descriptor_range := shader.binding_table.bindings[handle.set][handle.binding];
+
+    descriptor_info := VkDescriptorGetInfoEXT.{
+        type = descriptorTypeToVulkanDescriptorType(descriptor_range.descriptor_type),
+    };
+
+    if descriptor_range.descriptor_type == .UNKNOWN {
+        warningMessage("There is no any binding in descriptor set %, binding %", handle.set, handle.binding);
+        return;
+    }
+
+    descriptor_image_info := VkDescriptorImageInfo.{ imageView = view.view };
+
+    // All types of textures have the same descriptor data type, so whatever since data is union
+    descriptor_info.data.pSampledImage = *descriptor_image_info;
+
+    descriptor_size : u64;
+    if view.usage == {
+        case .SHADER_READ;
+            descriptor_size                   = device.descriptor_buffer_properties.sampledImageDescriptorSize;
+            descriptor_image_info.imageLayout = ifx  textureFormatFlags(view.format) & (.DEPTH | .STENCIL)
+                                                then .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                                                else .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        case .SHADER_WRITE;
+            descriptor_size                   = device.descriptor_buffer_properties.storageImageDescriptorSize;
+            descriptor_image_info.imageLayout = .VK_IMAGE_LAYOUT_GENERAL;
+
+        case;
+            warningMessage("You cannot bind a texture view with % usage", view.usage);
     }
 
     descriptor_memory := shader_manager.per_frame_bindings[device.frame_index].descriptor_buffer.mapped_memory

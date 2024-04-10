@@ -15,9 +15,10 @@ VulkanDevice :: struct {
 
     queues : [QUEUE_TYPES_COUNT] Queue;
 
-    surface            : VkSurfaceKHR;
-    swapchain          : VkSwapchainKHR;
-    swapchain_textures : StaticArray(VulkanTexture, MAX_SWAPCHAIN_BUFFERS);
+    surface                 : VkSurfaceKHR;
+    swapchain               : VkSwapchainKHR;
+    swapchain_textures      : StaticArray(VulkanTexture, MAX_SWAPCHAIN_BUFFERS);
+    swapchain_texture_views : StaticArray([2] VulkanTextureView, MAX_SWAPCHAIN_BUFFERS);
 
     frame_data : StaticArray(FrameData, MAX_FRAME_BUFFERING);
 
@@ -109,13 +110,19 @@ destroyVulkanDevice :: (device_ : *Device) {
         }
     }
 
-    for device.swapchain_textures {
-        if it.view != VK_NULL_HANDLE {
-            // @TODO: #Views.
-            // @TODO: VkAllocationCallbacks
-            vkDestroyImageView(device.device, it.view, null);
-        }
+    for views : device.swapchain_texture_views {
+        for views {
+            if it.view {
+                vkDestroyImageView(device.device, it.view, null);
+            }
 
+            if it.name {
+                Basic.free(it.name.data);
+            }
+        }
+    }
+
+    for device.swapchain_textures {
         if it.name {
             Basic.free(it.name.data);
         }
@@ -360,6 +367,20 @@ waitVulkanDeviceIdle :: (device_ : *Device) {
 getVulkanSwapchainTexture :: inline (device_ : *Device, swapchain_buffer_index : u32) -> *Texture {
     device := cast(*VulkanDevice) device_;
     return *device.swapchain_textures[swapchain_buffer_index];
+}
+
+getVulkanSwapchainTextureView :: (device_ : *Device, swapchain_buffer_index : u32, usage : Texture.Usage) -> *TextureView {
+    device := cast(*VulkanDevice) device_;
+
+    index : u8 = ---;
+    if usage == {
+        case .COLOR_TARGET; index = 0;
+        case .SHADER_READ;  index = 1;
+        case;
+            assertMessage("Unsupported swapchain texure view usage: %", usage);
+    }
+
+    return *device.swapchain_texture_views[swapchain_buffer_index][index];
 }
 
 setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
@@ -1510,7 +1531,8 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                                                                      swapchain_images.data);
     assert(swapchain_buffers_count == device.swapchain_buffers_count);
 
-    device.swapchain_textures.count = device.swapchain_buffers_count;
+    device.swapchain_textures.count      = device.swapchain_buffers_count;
+    device.swapchain_texture_views.count = device.swapchain_buffers_count;
 
     swapchain_images_it := swapchain_images.data;
 
@@ -1518,43 +1540,60 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     clear_color := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
 
     // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to texture manager
-    for * device.swapchain_textures {
-        it.dimension             = ._2D;
-        it.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
-        it.flags                 = .SWAPCHAIN;
-        it.width                 = cast(u16) surface_extent.width;
-        it.height                = cast(u16) surface_extent.height;
-        it.depth                 = 0;
-        it.samples_count         = 1;
-        it.mips_count            = 1;
-        it.clear_value.color_f32 = clear_color;
-        it.current_owner         = .GRAPHICS;
-        it.possible_owners.count = 1;
-        it.possible_owners[0]    = .GRAPHICS;
-        it.image                 = swapchain_images_it.*;
-        it.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
+    for * texture : device.swapchain_textures {
+        texture.dimension             = ._2D;
+        texture.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
+        texture.flags                 = .SWAPCHAIN;
+        texture.width                 = cast(u16) surface_extent.width;
+        texture.height                = cast(u16) surface_extent.height;
+        texture.depth                 = 0;
+        texture.samples_count         = 1;
+        texture.mips_count            = 1;
+        texture.clear_value.color_f32 = clear_color;
+        texture.current_owner         = .GRAPHICS;
+        texture.possible_owners.count = 1;
+        texture.possible_owners[0]    = .GRAPHICS;
+        texture.image                 = swapchain_images_it.*;
+        texture.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
 
-        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then it.usage |= .SHADER_READ;
-        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then it.usage |= .SHADER_WRITE;
-        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then it.usage |= .COLOR_TARGET;
+        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then texture.usages |= .SHADER_READ;
+        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then texture.usages |= .SHADER_WRITE;
+        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then texture.usages |= .COLOR_TARGET;
 
-        if !it.name {
+        if !texture.name {
             Basic.print(*builder, "Swapchain image #%", it_index);
-            it.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
+            texture.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
         }
 
-        setVulkanObjectName(device, it.image, it.name);
+        setVulkanObjectName(device, texture.image, texture.name);
+
+        VIEW_USAGES :: Texture.Usage.[
+            .COLOR_TARGET,
+            .SHADER_READ,
+        ];
 
         // @TODO: #Views.
-        {
-            if it.view {
-                // @TODO: VkAllocationCallbacks
-                vkDestroyImageView(device.device, it.view, null);
+        for * view : device.swapchain_texture_views[it_index] {
+            if !(texture.usages & VIEW_USAGES[it_index]) continue;
+
+            view.texture    = texture;
+            view.dimension  = texture.dimension;
+            view.format     = texture.format;
+            view.usage      = VIEW_USAGES[it_index];
+            view.mips_count = 1;
+
+            if view.view {
+                vkDestroyImageView(device.device, view.view, null);
             }
 
+            usage_info := VkImageViewUsageCreateInfo.{
+                usage = textureUsageToVulkanUsageFlags(view.usage, false)
+            };
+
             view_create_info := VkImageViewCreateInfo.{
+                pNext            = *usage_info,
                 flags            = 0,
-                image            = it.image,
+                image            = texture.image,
                 viewType         = .VK_IMAGE_VIEW_TYPE_2D,
                 format           = allowed_surface_format.format,
                 components       = .{
@@ -1572,10 +1611,14 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                 },
             };
 
-            // @TODO: VkAllocationCallbacks
-            debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
+            debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *view.view));
 
-            setVulkanObjectName(device, it.view, "% view", it.name);
+            if !view.name {
+                Basic.print(*builder, "% % view", texture.name, view.usage);
+                view.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
+            }
+
+            setVulkanObjectName(device, view.view, view.name);
         }
 
         swapchain_images_it += 1;

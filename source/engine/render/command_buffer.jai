@@ -40,14 +40,14 @@ TargetStoreAction :: enum u8 {
 }
 
 ColorTargetDesc :: struct {
-    texture : *Texture;
+    view : *TextureView;
 
     load_action  : TargetLoadAction;
     store_action : TargetStoreAction;
 }
 
 DepthTargetDesc :: struct {
-    texture : *Texture;
+    view : *TextureView;
 
     depth_load_action  : TargetLoadAction;
     depth_store_action : TargetStoreAction;
@@ -197,32 +197,37 @@ beginRendering :: (
     #if DEBUG_BUILD {
         reference_texture : *Texture = ---;
         if color_targets.count > 0 {
-            reference_texture = color_targets[0].texture;
+            reference_texture = color_targets[0].view.texture;
         } else {
-            reference_texture = depth_target.texture;
+            reference_texture = depth_target.view.texture;
         }
 
         for color_targets {
-            assert(it.texture);
+            assert(it.view.usage == .COLOR_TARGET,
+                   "Expected texture view with % usage, got with %. Name: \"%\"",
+                   Texture.Usage.COLOR_TARGET,
+                   it.view.usage,
+                   it.view.name);
 
-            assert(it.texture.usage & .COLOR_TARGET,
-                   "If you want to use \"%\" texture as color target add % usage on its creation",
-                   it.texture.name,
-                   Texture.Usage.COLOR_TARGET);
+            assert(textureFormatFlags(it.view.format) & .COLOR,
+                   "Color target should have color format");
 
-            assert(it.texture.width == reference_texture.width && it.texture.height == reference_texture.height,
+            assert(it.view.texture.width == reference_texture.width && it.view.texture.height == reference_texture.height,
                    "All color targets should have the same width and height");
         }
 
         if depth_target {
-            assert(depth_target.texture);
+            assert(depth_target.view.usage == .DEPTH_TARGET || depth_target.view.usage == .DEPTH_READ_ONLY,
+                   "Expected texture view with % or % usage, got with %. Name: \"%\"",
+                   Texture.Usage.DEPTH_TARGET,
+                   Texture.Usage.DEPTH_READ_ONLY,
+                   depth_target.view.usage,
+                   depth_target.view.name);
 
-            assert(depth_target.texture.usage & .DEPTH_TARGET,
-                   "If you want to use \"%\" texture as depth target add % usage on its creation",
-                   depth_target.texture.name,
-                   Texture.Usage.DEPTH_TARGET);
+            assert(textureFormatFlags(depth_target.view.format) & (.DEPTH | .STENCIL),
+                   "Depth target should have depth-stencil format");
 
-            assert(depth_target.texture.width == reference_texture.width && depth_target.texture.height == reference_texture.height,
+            assert(depth_target.view.texture.width == reference_texture.width && depth_target.view.texture.height == reference_texture.height,
                    "Depth target should have the same width and height as color targets have");
         }
     }
@@ -298,7 +303,7 @@ bindResource :: (
     resource       : *$Resource
 ) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use bindings for now";
-    #assert Resource == Buffer || Resource == Texture;
+    #assert Resource == Buffer || Resource == TextureView;
 
     shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set shader before setting its bindings");
@@ -314,9 +319,13 @@ bindResource :: (
                                      handle,
                                      cast(*VulkanBuffer) resource);
 
-                case Texture;
-                    // @TODO: Views required
-                    notImplemented();
+                case TextureView;
+                    bindVulkanTexture(cast(*VulkanDevice) device,
+                                     command_buffer,
+                                     cast(*VulkanShaderManager) shader_manager,
+                                     cast(*VulkanShader) shader,
+                                     handle,
+                                     cast(*VulkanTextureView) resource);
             }
     }
 }

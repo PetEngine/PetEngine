@@ -35,8 +35,10 @@ Device :: struct {
     beginPlatformFrame : (device : *Device, window : *Window);
     endPlatformFrame   : (device : *Device);
 
-    waitPlatformDeviceIdle      : (device : *Device);
-    getPlatformSwapchainTexture : (device : *Device, swapchain_buffer_index : u32) -> *Texture;
+    waitPlatformDeviceIdle : (device : *Device);
+
+    getPlatformSwapchainTexture     : (device : *Device, swapchain_buffer_index : u32) -> *Texture;
+    getPlatformSwapchainTextureView : (device : *Device, swapchain_buffer_index : u32, usage : Texture.Usage) -> *TextureView;
 }
 
 GraphicsAPI :: enum u8 {
@@ -137,8 +139,17 @@ getSwapchainTexture :: inline (device : *Device, swapchain_buffer_index : u32) -
     return device.getPlatformSwapchainTexture(device, swapchain_buffer_index);
 }
 
+getSwapchainTextureView :: inline (device : *Device, swapchain_buffer_index : u32, usage : Texture.Usage) -> *TextureView {
+    assert(swapchain_buffer_index < device.swapchain_buffers_count);
+    return device.getPlatformSwapchainTextureView(device, swapchain_buffer_index, usage);
+}
+
 getBackBuffer :: inline (device : *Device) -> *Texture {
     return getSwapchainTexture(device, device.back_buffer_index);
+}
+
+getBackBufferView :: inline (device : *Device, usage : Texture.Usage) -> *TextureView {
+    return getSwapchainTextureView(device, device.back_buffer_index, usage);
 }
 
 #scope_file

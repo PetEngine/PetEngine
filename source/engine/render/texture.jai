@@ -1,5 +1,6 @@
 Texture :: struct {
-    ALL_MIPS : u8 : 0xFF;
+    ALL_MIPS   : u8  : 0xFF;
+    ALL_LAYERS : u16 : 0xFFFF;
 
     Dimension :: enum u8 {
         _1D;
@@ -40,11 +41,11 @@ Texture :: struct {
     }
 
     Usage :: enum_flags u8 {
-        SHADER_READ;  // DirectX: SRV. Vulkan, OpenGL: Sampled image.
-        SHADER_WRITE; // DirectX: UAV. Vulkan, OpenGL: Storage image.
-        COLOR_TARGET; // DirectX: RTV. Vulkan, OpenGL: Color attachment.
-        DEPTH_TARGET; // DirectX: DSV. Vulkan, OpenGL: Depth stencil attachment.
-        READ_ONLY;    // Only depth test, no depth write.
+        SHADER_READ;     // DirectX: SRV. Vulkan, OpenGL: Sampled image.
+        SHADER_WRITE;    // DirectX: UAV. Vulkan, OpenGL: Storage image.
+        COLOR_TARGET;    // DirectX: RTV. Vulkan, OpenGL: Color attachment.
+        DEPTH_TARGET;    // DirectX: DSV. Vulkan, OpenGL: Depth stencil attachment.
+        DEPTH_READ_ONLY; // Only depth test, no depth write.
     }
 
     FormatFlags :: enum_flags u8 {
@@ -71,7 +72,7 @@ Texture :: struct {
     dimension       : Dimension;
     format          : Format;
     flags           : Flags;
-    usage           : Usage;
+    usages          : Usage;
     width           : u16;
     height          : u16;
     union {
@@ -97,7 +98,7 @@ createTexture :: (
     mips_count          : u8                 = 1,
     flags               : Texture.Flags      = 0,
     clear_value         : Texture.ClearValue = .{},
-    usage               : Texture.Usage,
+    usages              : Texture.Usage,
     lifetime            : ResourceManager.Lifetime,
     name                : string,
     possible_owners     : ..QueueType = .[ .GRAPHICS ]
@@ -106,10 +107,10 @@ createTexture :: (
            "You cannot explicitly set SWAPCHAIN flag");
     assert(depth_or_array_size > 0 || !(flags & .ARRAY),
            "Number of elements in array of textures cannot be 0"); // @TODO: Dynamic arrays?
-    assert((usage & (.COLOR_TARGET | .DEPTH_TARGET)) != (.COLOR_TARGET | .DEPTH_TARGET),
+    assert((usages & (.COLOR_TARGET | .DEPTH_TARGET)) != (.COLOR_TARGET | .DEPTH_TARGET),
            "COLOR_TARGET and DEPTH_TARGET usages cannot be combined");
-    assert((usage & (.DEPTH_TARGET | .READ_ONLY)) == (.DEPTH_TARGET | .READ_ONLY) || !(usage & .READ_ONLY),
-           "READ_ONLY usage should be used with DEPTH_TARGET usage");
+    assert((usages & (.DEPTH_TARGET | .DEPTH_READ_ONLY)) == (.DEPTH_TARGET | .DEPTH_READ_ONLY) || !(usages & .DEPTH_READ_ONLY),
+           "DEPTH_READ_ONLY usage should be used with DEPTH_TARGET usage");
     assert(samples_count ==  1 ||
            samples_count ==  2 ||
            samples_count ==  4 ||
@@ -151,7 +152,7 @@ createTexture :: (
     texture.dimension             = dimension;
     texture.format                = format;
     texture.flags                 = flags;
-    texture.usage                 = usage;
+    texture.usages                = usages;
     texture.width                 = width;
     texture.height                = height;
     texture.depth                 = depth_or_array_size;

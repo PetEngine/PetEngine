@@ -204,6 +204,8 @@ VkStructureType :: enum VkEnum #specified {
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO                 :: 1000060000;
     // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO               :: 1000117002;
+    // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2                        :: 1000145003;
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2          :: 1000146000;

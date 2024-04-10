@@ -2,7 +2,6 @@ VulkanTexture :: struct {
     #as using public_data : Texture;
 
     image          : VkImage;
-    view           : VkImageView;   // @TODO: #Views.
     current_layout : VkImageLayout; // @TODO: Rename to just layout
 }
 
@@ -45,7 +44,7 @@ createVulkanTexture :: (
         arrayLayers           = 1,
         samples               = samplesCountToVulkanSampleCountFlags(texture.samples_count),
         tiling                = .VK_IMAGE_TILING_OPTIMAL,
-        usage                 = textureUsageToVulkanUsageFlags(texture.usage),
+        usage                 = textureUsageToVulkanUsageFlags(texture.usages, true),
         queueFamilyIndexCount = cast(u32) texture.possible_owners.count,
         pQueueFamilyIndices   = queue_family_indices.data,
         initialLayout         = .VK_IMAGE_LAYOUT_UNDEFINED // initialLayout must be VK_IMAGE_LAYOUT_UNDEFINED or VK_IMAGE_LAYOUT_PREINITIALIZED
@@ -132,9 +131,13 @@ vulkanFormatToTextureFormat :: inline (format : VkFormat) -> Texture.Format #no_
     return .UNKNOWN;
 }
 
-textureUsageToVulkanUsageFlags :: inline (usage : Texture.Usage) -> VkImageUsageFlags #no_context {
-    usage_flags : VkImageUsageFlags = .VK_IMAGE_USAGE_TRANSFER_SRC_BIT
-                                    | .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+textureUsageToVulkanUsageFlags :: inline (usage : Texture.Usage, $apply_transfer_flags : bool) -> VkImageUsageFlags #no_context {
+    usage_flags : VkImageUsageFlags;
+
+    #if apply_transfer_flags {
+        usage_flags |= .VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                    |  .VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    }
 
     if usage & .SHADER_READ  then usage_flags |= .VK_IMAGE_USAGE_SAMPLED_BIT;
     if usage & .SHADER_WRITE then usage_flags |= .VK_IMAGE_USAGE_STORAGE_BIT;
