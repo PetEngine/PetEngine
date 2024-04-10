@@ -45,7 +45,3 @@ createBuffer :: (
 
     return buffer;
 }
-
-#scope_file
-
-#load "vulkan/buffer.jai";

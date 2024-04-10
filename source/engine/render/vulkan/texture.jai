@@ -15,8 +15,6 @@ pushVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, lifetime :
         case .PER_SCENE;  texture = pushBack(*manager.textures.per_scene.resources);
         case .PER_FRAME;  texture = pushBack(*manager.textures.per_frame[device.frame_index].resources);
     }
-
-    assert(texture);
     return texture;
 }
 
@@ -145,17 +143,6 @@ textureUsageToVulkanUsageFlags :: inline (usage : Texture.Usage, $apply_transfer
     if usage & .DEPTH_TARGET then usage_flags |= .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
     return usage_flags;
-}
-
-vulkanUsageFlagsToTextureUsage :: inline (usage_flags : VkImageUsageFlags) -> Texture.Usage #no_context {
-    usage : Texture.Usage;
-
-    if usage_flags & .VK_IMAGE_USAGE_SAMPLED_BIT                  then usage |= .SHADER_READ;
-    if usage_flags & .VK_IMAGE_USAGE_STORAGE_BIT                  then usage |= .SHADER_WRITE;
-    if usage_flags & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT         then usage |= .COLOR_TARGET;
-    if usage_flags & .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT then usage |= .DEPTH_TARGET;
-
-    return usage;
 }
 
 samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleCountFlags #no_context {
@@ -380,5 +367,5 @@ composeVulkanTextureName :: (
     texture.name.data = pushToArena(*memory_pool.names_subarena, full_name_length);
 
     appendToString(*texture.name, full_name_length, "Texture/", lifetime_name, "/", name);
-    assert(texture.name.count == full_name_length, "texture.name.count (%) != full_name_length (%)", texture.name.count, full_name_length);
+    assert(texture.name.count == full_name_length);
 }

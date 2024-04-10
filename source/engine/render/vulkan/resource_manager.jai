@@ -677,4 +677,6 @@ fillMemoryTypeIndices :: (device : *VulkanDevice, manager : *VulkanResourceManag
     }
 }
 
+#load "buffer.jai";
+#load "texture.jai";
 #load "texture_view.jai";

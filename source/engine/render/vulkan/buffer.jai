@@ -22,8 +22,6 @@ pushVulkanBuffer :: (
         case .PER_SCENE;  buffer = pushBack(*manager.buffers.per_scene[pool].resources);
         case .PER_FRAME;  buffer = pushBack(*manager.buffers.per_frame[device.frame_index][pool].resources);
     }
-
-    assert(buffer);
     return buffer;
 }
 
@@ -148,7 +146,7 @@ composeVulkanBufferName :: (
     buffer.name.data = pushToArena(*memory_pool.names_subarena, full_name_length);
 
     appendToString(*buffer.name, full_name_length, "Buffer/", lifetime_name, "/", pool_name, "/", usage_name, "/", name);
-    assert(buffer.name.count == full_name_length, "buffer.name.count (%) != full_name_length (%)", buffer.name.count, full_name_length);
+    assert(buffer.name.count == full_name_length);
 }
 
 // "Descriptor Buffer/<name>"
@@ -164,5 +162,5 @@ composeVulkanDescriptorBufferName :: (buffer : *Buffer, memory_pool : *VulkanRes
     buffer.name.data = pushToArena(*memory_pool.names_subarena, full_name_length);
 
     appendToString(*buffer.name, full_name_length, "Descriptor Buffer/", name);
-    assert(buffer.name.count == full_name_length, "buffer.name.count (%) != full_name_length (%)", buffer.name.count, full_name_length);
+    assert(buffer.name.count == full_name_length);
 }
