@@ -252,7 +252,6 @@ resetVulkanBufferMemoryPool :: (
     for * memory_pool.resources {
         it.mapped_memory = null;
 
-        // @TODO: VkAllocationCallbacks
         vkDestroyBuffer(device.device, it.buffer, null);
         it.buffer = VK_NULL_HANDLE;
     }
@@ -263,7 +262,6 @@ resetVulkanBufferMemoryPool :: (
             vkUnmapMemory(device.device, memory_pool.device_memory);
         }
 
-        // @TODO: VkAllocationCallbacks
         vkFreeMemory(device.device, memory_pool.device_memory, null);
         memory_pool.device_memory = VK_NULL_HANDLE;
     }
@@ -325,7 +323,6 @@ commitVulkanBufferMemoryPool :: (
         }
     }
 
-    // @TODO: VkAllocationCallbacks
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory_pool.device_memory));
 
     if lifetime == .PER_FRAME {
@@ -462,7 +459,6 @@ commitVulkanTextureMemoryPool :: (
         }
     }
 
-    // @TODO: VkAllocationCallbacks
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory_pool.device_memory));
 
     if lifetime == .PER_FRAME {
@@ -559,7 +555,6 @@ resetVulkanDescriptorBufferMemoryPool :: (device : *VulkanDevice, memory_pool : 
     if memory_pool.device_memory {
         vkUnmapMemory(device.device, memory_pool.device_memory);
 
-        // @TODO: VkAllocationCallbacks
         vkFreeMemory(device.device, memory_pool.device_memory, null);
         memory_pool.device_memory = VK_NULL_HANDLE;
     }

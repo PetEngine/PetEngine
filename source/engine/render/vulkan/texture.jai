@@ -87,7 +87,6 @@ createVulkanTexture :: (
     checkCreateInfoLimits(device, *create_info, textureFormatFlags(texture.format));
     checkImageProperties(device, texture, *create_info);
 
-    // @TODO: #VkAllocationCallbacks
     debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
 
     if #complete lifetime == {

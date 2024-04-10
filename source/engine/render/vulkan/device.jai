@@ -92,20 +92,17 @@ destroyVulkanDevice :: (device_ : *Device) {
     for device.frame_data {
         for it.command_pools {
             if it != VK_NULL_HANDLE {
-                // @TODO: VkAllocationCallbacks
                 vkDestroyCommandPool(device.device, it, null);
             }
         }
 
         for it.fences {
             if it != VK_NULL_HANDLE {
-                // @TODO: VkAllocationCallbacks
                 vkDestroyFence(device.device, it, null);
             }
         }
 
         for it.semaphores {
-            // @TODO: VkAllocationCallbacks
             vkDestroySemaphore(device.device, it, null);
         }
     }
@@ -128,21 +125,16 @@ destroyVulkanDevice :: (device_ : *Device) {
         }
     }
 
-    // @TODO: VkAllocationCallbacks
     device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, device.swapchain, null);
 
-    // @TODO: VkAllocationCallbacks
     device.loader.extensions.instance.required.vkDestroySurfaceKHR(device.instance, device.surface, null);
 
-    // @TODO: VkAllocationCallbacks
     vkDestroyDevice(device.device, null);
 
     if device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT {
-        // @TODO: VkAllocationCallbacks
         device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT(device.instance, device.messenger, null);
     }
 
-    // @TODO: VkAllocationCallbacks
     vkDestroyInstance(device.instance, null);
 }
 
@@ -733,7 +725,6 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         instance_create_info.pNext = *validation_features;
     }
 
-    // @TODO: VkAllocationCallbacks
     debugCheckVK(vkCreateInstance(*instance_create_info, null, *device.instance));
 
     return api_version;
@@ -855,7 +846,6 @@ initMessengerCallback :: (device : *VulkanDevice) {
             pUserData       = device,
         };
 
-        // @TODO: VkAllocationCallbacks
         debugCheckVK(device.loader.extensions.instance.optional.vkCreateDebugUtilsMessengerEXT(device.instance,
                                                                                                *create_info,
                                                                                                null,
@@ -1257,7 +1247,6 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         pEnabledFeatures        = null, // We are using pNext for VkPhysicalDeviceFeatures2
     };
 
-    // @TODO: VkAllocationCallbacks
     debugCheckVK(vkCreateDevice(device.physical_device, *device_create_info, null, *device.device));
 }
 
@@ -1287,7 +1276,6 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
             hwnd      = win32_window.handle
         };
 
-        // @TODO: VkAllocationCallbacks
         debugCheckVK(device.loader.extensions.instance.required.vkCreateWin32SurfaceKHR(device.instance,
                                                                                         *create_info,
                                                                                         null,
@@ -1495,12 +1483,10 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         oldSwapchain          = device.swapchain
     };
 
-    // @TODO: VkAllocationCallbacks
     debugCheckVK(device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain));
     device.need_to_recreate_swapchain = false;
 
     if create_info.oldSwapchain != VK_NULL_HANDLE {
-        // @TODO: VkAllocationCallbacks
         device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, create_info.oldSwapchain, null);
     }
 
@@ -1630,7 +1616,6 @@ createSemaphores :: (device : *VulkanDevice) {
 
     for * frame_data, frame_index : device.frame_data {
         for * frame_data.semaphores {
-            // @TODO: VkAllocationCallbacks
             debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, it));
 
             setVulkanObjectName(device, it.*, "% semaphore for frame #%", cast(SemaphoreKind) it_index, frame_index);
@@ -1645,7 +1630,6 @@ createFences :: (device : *VulkanDevice) {
 
     for * frame_data, frame_index : device.frame_data {
         for * frame_data.fences {
-            // @TODO: VkAllocationCallbacks
             debugCheckVK(vkCreateFence(device.device, *create_info, null, it));
 
             setVulkanObjectName(device, it.*, "% fence for frame #%", cast(QueueType) it_index, frame_index);
@@ -1668,7 +1652,6 @@ createCommandPools :: (device : *VulkanDevice) {
         for * frame_data.command_pools {
             create_info.queueFamilyIndex = queues_it.family_index;
 
-            // @TODO: VkAllocationCallbacks
             debugCheckVK(vkCreateCommandPool(device.device, *create_info, null, it));
 
             setVulkanObjectName(device, it.*, "% command pool for frame #%", cast(QueueType) it_index, frame_index);

@@ -122,13 +122,11 @@ resetVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
 
         for reset_data.data {
             if it.pipeline {
-                // @TODO: #VkAllocationCallbacks
                 vkDestroyPipeline(device.device, it.pipeline, null);
                 it.pipeline = VK_NULL_HANDLE;
             }
 
             if it.pipeline_layout {
-                // @TODO: #VkAllocationCallbacks
                 vkDestroyPipelineLayout(device.device, it.pipeline_layout, null);
                 it.pipeline_layout = VK_NULL_HANDLE;
             }
@@ -219,7 +217,6 @@ createGraphicsVulkanShader :: (device_ : *Device, manager_ : *ShaderManager, sha
         it.* = createShaderStage(device, spirv, cast(ShaderStage) it_index, shader.name);
     }
     defer for shader_stages {
-        // @TODO: #VkAllocationCallbacks
         vkDestroyShaderModule(device.device, it, null);
     }
 
@@ -236,7 +233,6 @@ createGraphicsVulkanShader :: (device_ : *Device, manager_ : *ShaderManager, sha
             pPushConstantRanges    = ranges.data,
         };
 
-        // @TODO: #VkAllocationCallbacks
         debugCheckVK(vkCreatePipelineLayout(device.device, *create_info, null, *shader.pipeline_layout));
 
         setVulkanObjectName(device, shader.pipeline_layout, "% pipeline layout", shader.name);
@@ -326,7 +322,6 @@ createGraphicsVulkanShader :: (device_ : *Device, manager_ : *ShaderManager, sha
         basePipelineIndex   = 0
     };
 
-    // @TODO: #VkAllocationCallbacks
     debugCheckVK(vkCreateGraphicsPipelines(device.device, manager.pipeline_cache, 1, *create_info, null, *shader.pipeline));
 
     setVulkanObjectName(device, shader.pipeline, "% graphics pipeline", shader.name);
@@ -389,7 +384,7 @@ createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStag
     };
 
     module : VkShaderModule;
-    debugCheckVK(vkCreateShaderModule(device.device, *create_info, null, *module)); // @TODO: VkAllocationCallbacks
+    debugCheckVK(vkCreateShaderModule(device.device, *create_info, null, *module));
 
     setVulkanObjectName(device, module, "% stage % shader module", stage, shader_name);
 

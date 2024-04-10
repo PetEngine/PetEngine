@@ -1,6 +1,3 @@
-// @TODO:
-//    - @Cleanup: Delete #VkAllocationCallbacks
-
 #scope_export
 
 ENGINE_NAME    :: "PetEngine";

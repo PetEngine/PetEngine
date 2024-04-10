@@ -57,7 +57,6 @@ createVulkanBuffer :: (
         create_info.sharingMode = .VK_SHARING_MODE_EXCLUSIVE;
     }
 
-    // @TODO: #VkAllocationCallbacks
     debugCheckVK(vkCreateBuffer(device.device, *create_info, null, *buffer.buffer));
 
     if #complete lifetime == {
