@@ -199,6 +199,68 @@ shaderc_compile_options_set_forced_version_profile :: (
     profile : shaderc_profile
 ) #foreign shaderc;
 
+// Source text inclusion via #include is supported with a pair of callbacks
+// to an "includer" on the client side.  The first callback processes an
+// inclusion request, and returns an include result.  The includer owns
+// the contents of the result, and those contents must remain valid until the
+// second callback is invoked to release the result.  Both callbacks take a
+// user_data argument to specify the client context.
+// To return an error, set the source_name to an empty string and put your
+// error message in content.
+
+// An include result.
+shaderc_include_result :: struct {
+    // The name of the source file.  The name should be fully resolved
+    // in the sense that it should be a unique name in the context of the
+    // includer.  For example, if the includer maps source names to files in
+    // a filesystem, then this name should be the absolute path of the file.
+    // For a failed inclusion, this string is empty.
+    source_name        : *s8;
+    source_name_length : size_t;
+    // The text contents of the source file in the normal case.
+    // For a failed inclusion, this contains the error message.
+    content        : *s8;
+    content_length : size_t;
+    // User data to be passed along with this request.
+    user_data : *void;
+}
+
+// The kinds of include requests.
+shaderc_include_type :: enum s32 {
+    shaderc_include_type_relative;  // E.g. #include "source"
+    shaderc_include_type_standard;  // E.g. #include <source>
+}
+
+// An includer callback type for mapping an #include request to an include
+// result.  The user_data parameter specifies the client context.  The
+// requested_source parameter specifies the name of the source being requested.
+// The type parameter specifies the kind of inclusion request being made.
+// The requesting_source parameter specifies the name of the source containing
+// the #include request.  The includer owns the result object and its contents,
+// and both must remain valid until the release callback is called on the result
+// object.
+shaderc_include_resolve_fn :: #type (
+    user_data         : *void,
+    requested_source  : *s8,
+    type              : shaderc_include_type,
+    requesting_source : *s8,
+    include_depth     : size_t
+) -> *shaderc_include_result #c_call;
+
+// An includer callback type for destroying an include result.
+shaderc_include_result_release_fn :: #type (
+    user_data      : *void,
+    include_result : *shaderc_include_result
+) #c_call;
+
+// Sets includer callback functions.
+shaderc_compile_options_set_include_callbacks :: (
+    options         : shaderc_compile_options_t,
+    resolver        : shaderc_include_resolve_fn,
+    result_releaser : shaderc_include_result_release_fn,
+    user_data       : *void
+) #foreign shaderc;
+
 shaderc_target_env :: enum s32 {
     shaderc_target_env_vulkan;  // SPIR-V under Vulkan semantics
     shaderc_target_env_opengl;  // SPIR-V under OpenGL semantics
@@ -364,7 +426,7 @@ shaderc_result_get_num_errors :: (
 ) -> size_t #foreign shaderc;
 
 // Indicate the status of a compilation.
-shaderc_compilation_status :: enum #specified {
+shaderc_compilation_status :: enum s32 #specified {
     shaderc_compilation_status_success :: 0;
     shaderc_compilation_status_invalid_stage :: 1;  // error stage deduction
     shaderc_compilation_status_compilation_error :: 2;

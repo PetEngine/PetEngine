@@ -1,0 +1,23 @@
+#ifndef COMMON_UNIFORMS
+#define COMMON_UNIFORMS
+
+uniform PerView {
+    vec3 camera_position;
+
+    mat3x4 view_matrix;
+    mat3x4 inv_view_matrix;
+
+    mat4x4 proj_matrix;
+    mat4x4 inv_proj_matrix;
+
+    mat4x4 view_proj_matrix;
+    mat4x4 inv_view_proj_matrix;
+} g_per_view;
+
+uniform PerFrame {
+    uint  frame;
+    float time;
+    float dtime;
+} g_per_frame;
+
+#endif

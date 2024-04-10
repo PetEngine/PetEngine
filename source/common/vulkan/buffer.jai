@@ -4,6 +4,9 @@
 VkBuffer :: *VkBuffer_T; VkBuffer_T :: struct {}
 
 // Provided by VK_VERSION_1_0
+VkBufferView :: *VkBufferView_T; VkBufferView_T :: struct {}
+
+// Provided by VK_VERSION_1_0
 VkBufferCreateFlags :: enum_flags VkFlags #specified {
     VK_BUFFER_CREATE_SPARSE_BINDING_BIT                       :: 0x00000001;
     VK_BUFFER_CREATE_SPARSE_RESIDENCY_BIT                     :: 0x00000002;
@@ -105,6 +108,13 @@ VkBindBufferMemoryInfo :: struct {
     memoryOffset : VkDeviceSize;
 }
 
+// Provided by VK_VERSION_1_2
+VkBufferDeviceAddressInfo :: struct {
+    sType  : VkStructureType = .VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    pNext  : *void;
+    buffer : VkBuffer;
+}
+
 // Provided by VK_VERSION_1_0
 vkCreateBuffer :: (
     device      : VkDevice,
@@ -133,3 +143,9 @@ vkBindBufferMemory2 :: (
     bindInfoCount : u32,
     pBindInfos    : *VkBindBufferMemoryInfo
 ) -> VkResult #foreign vulkan;
+
+// Provided by VK_VERSION_1_2
+vkGetBufferDeviceAddress :: (
+    device : VkDevice,
+    pInfo  : *VkBufferDeviceAddressInfo
+) -> VkDeviceAddress #foreign vulkan;

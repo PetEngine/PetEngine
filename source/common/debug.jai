@@ -143,11 +143,10 @@ notImplemented :: ($assert_in_run_time := false, location := #caller_location) #
 }
 
 codeToString :: (code : Code) -> string #compile_time {
-    // @TODO: Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
+    // @Cleanup: #CompileTime. Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
     Basic.assert(#compile_time, "This function should be run only in compile time");
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     root := Compiler.compiler_get_nodes(code);
     Program_Print.print_expression(*builder, root);
@@ -196,8 +195,7 @@ message :: (
         }
     }
 
-    builder: Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     Basic.print(*builder, "[%]: ", priority);
 
@@ -315,8 +313,7 @@ message :: (
 }
 
 formatOrExpression :: ($format : string, expression : Code) -> string #compile_time {
-    // @TODO: Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
-    Basic.assert(#compile_time, "This function should be run only in compile time");
+    Basic.assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
 
     #if format.count > 0 {
         return format;

@@ -6,10 +6,11 @@ Buffer :: struct {
         READ_WRITE; // DirectX: UAV. Vulkan: Read-write storage buffer.
     }
 
-    bytes           : u32;
+    size            : u32;
     usage           : Usage;
     name            : string;
     mapped_memory   : *void;
+    device_address  : u64;
     current_owner   : QueueType;
     possible_owners : StaticArray(QueueType, Device.QUEUE_TYPES_COUNT);
 }
@@ -17,12 +18,12 @@ Buffer :: struct {
 createBuffer :: (
     device          : *Device,
     manager         : *ResourceManager,
-    bytes           : u32,
+    size            : u32,
     lifetime        : ResourceManager.Lifetime,
     pool            : ResourceManager.Pool,
     usage           : Buffer.Usage,
     name            : string,
-    possible_owners : ..QueueType  = .[ .GRAPHICS ]
+    possible_owners : ..QueueType = .[ .GRAPHICS ]
 ) -> *Buffer #must {
     assert(name.count <= ResourceManager.MAX_RESOURCE_NAME_LENGTH,
            "Max buffer name length (%) > ResourceManager.MAX_RESOURCE_NAME_LENGTH (%)",
@@ -34,7 +35,7 @@ createBuffer :: (
 
     buffer := manager.pushPlatformBuffer(device, manager, lifetime, pool);
 
-    buffer.bytes                 = bytes;
+    buffer.size                  = size;
     buffer.usage                 = usage;
     buffer.current_owner         = possible_owners[0];
     buffer.possible_owners.count = possible_owners.count;
@@ -44,7 +45,3 @@ createBuffer :: (
 
     return buffer;
 }
-
-#scope_file
-
-#load "vulkan/buffer.jai";

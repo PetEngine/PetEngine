@@ -979,6 +979,13 @@ GetFileAttributesW :: (
     lpFileName : LPCWSTR
 ) -> u32 #foreign kernel32;
 
+GetFullPathNameW :: (
+    lpFileName    : LPCWSTR,
+    nBufferLength : u32,
+    lpBuffer      : LPWSTR,
+    lpFilePart    : *LPWSTR
+) -> u32 #foreign kernel32;
+
 CREATE_EVENT_MANUAL_RESET : u32 : 0x00000001;
 CREATE_EVENT_INITIAL_SET  : u32 : 0x00000002;
 

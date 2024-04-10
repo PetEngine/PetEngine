@@ -1,7 +1,7 @@
 #scope_export
 
 size_t   :: u64; // We target only 64-bit systems, so... whatever.
-VkBool32 :: u32;
+VkBool32 :: #type,distinct u32;
 
 VK_TRUE  : VkBool32 : 1;
 VK_FALSE : VkBool32 : 0;
@@ -161,6 +161,9 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO         :: 27;
     VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO              :: 28;
     VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO                :: 30;
+    VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO          :: 32;
+    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET                       :: 35;
+    VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET                        :: 36;
     VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO                   :: 39;
     VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO               :: 40;
     VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO            :: 41;
@@ -199,6 +202,10 @@ VkStructureType :: enum VkEnum #specified {
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2        :: 1000059006;
     // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO                 :: 1000060000;
+    // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO               :: 1000117002;
+    // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2                        :: 1000145003;
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2          :: 1000146000;
@@ -210,12 +217,16 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO                    :: 1000157000;
     // Provided by VK_VERSION_1_1
     VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO                     :: 1000157001;
+    // Provided by VK_VERSION_1_1
+    VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_SUPPORT              :: 1000168001;
     // Provided by VK_VERSION_1_2
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES          :: 1000196000;
     // Provided by VK_VERSION_1_2
     VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO                 :: 1000207002;
     // Provided by VK_VERSION_1_2
     VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO                        :: 1000207004;
+    // Provided by VK_VERSION_1_2
+    VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO                 :: 1000244001;
     // Provided by VK_VERSION_1_3
     VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2                         :: 1000337000;
     // Provided by VK_VERSION_1_3
@@ -240,6 +251,13 @@ VkStructureType :: enum VkEnum #specified {
 
     // Provided by VK_EXT_validation_features
     VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT                    :: 1000247000;
+
+    // Provided by VK_EXT_descriptor_buffer
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT :: 1000316000;
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT   :: 1000316002;
+    VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT                      :: 1000316003;
+    VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT                          :: 1000316004;
+    VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT               :: 1000316011;
 }
 
 // Provided by VK_VERSION_1_0
@@ -376,9 +394,9 @@ VK_SUBPASS_EXTERNAL  : u32          : 0xFFFF_FFFF;
 VK_WHOLE_SIZE        : VkDeviceSize : 0xFFFF_FFFF_FFFF_FFFF;
 
 // @Cleanup: Move to their own files
-VkRenderPass          :: *VkRenderPass_T;          VkRenderPass_T          :: struct {}
-VkFramebuffer         :: *VkFramebuffer_T;         VkFramebuffer_T         :: struct {}
-VkDescriptorSetLayout :: *VkDescriptorSetLayout_T; VkDescriptorSetLayout_T :: struct {}
+VkRenderPass  :: *VkRenderPass_T;  VkRenderPass_T  :: struct {}
+VkFramebuffer :: *VkFramebuffer_T; VkFramebuffer_T :: struct {}
+VkSampler     :: *VkSampler_T;     VkSampler_T     :: struct {}
 
 #scope_module
 
@@ -395,6 +413,8 @@ VkDescriptorSetLayout :: *VkDescriptorSetLayout_T; VkDescriptorSetLayout_T :: st
 #load "barriers.jai";
 #load "pipeline.jai";
 #load "buffer.jai";
+#load "descriptor_set_layout.jai";
+#load "descriptor_buffer.jai";
 
 #if OS == .WINDOWS {
     vulkan :: #library,system "vulkan-1";

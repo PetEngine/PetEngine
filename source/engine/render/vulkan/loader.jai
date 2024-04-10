@@ -14,13 +14,13 @@ VulkanLoader :: struct {
     extensions : struct {
         instance : struct {
             required : struct {
-                vkDestroySurfaceKHR                       : PFN_vkDestroySurfaceKHR;                       @VK_KHR_surface;
-                vkGetPhysicalDeviceSurfaceSupportKHR      : PFN_vkGetPhysicalDeviceSurfaceSupportKHR;      @VK_KHR_surface;
-                vkGetPhysicalDeviceSurfaceCapabilitiesKHR : PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR; @VK_KHR_surface;
-                vkGetPhysicalDeviceSurfaceFormatsKHR      : PFN_vkGetPhysicalDeviceSurfaceFormatsKHR;      @VK_KHR_surface;
-                vkGetPhysicalDeviceSurfacePresentModesKHR : PFN_vkGetPhysicalDeviceSurfacePresentModesKHR; @VK_KHR_surface;
+                vkDestroySurfaceKHR                       : PFN_vkDestroySurfaceKHR;                       @VK_KHR_surface
+                vkGetPhysicalDeviceSurfaceSupportKHR      : PFN_vkGetPhysicalDeviceSurfaceSupportKHR;      @VK_KHR_surface
+                vkGetPhysicalDeviceSurfaceCapabilitiesKHR : PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR; @VK_KHR_surface
+                vkGetPhysicalDeviceSurfaceFormatsKHR      : PFN_vkGetPhysicalDeviceSurfaceFormatsKHR;      @VK_KHR_surface
+                vkGetPhysicalDeviceSurfacePresentModesKHR : PFN_vkGetPhysicalDeviceSurfacePresentModesKHR; @VK_KHR_surface
                 #if OS == .WINDOWS {
-                    vkCreateWin32SurfaceKHR               : PFN_vkCreateWin32SurfaceKHR;                   @VK_KHR_win32_surface;
+                    vkCreateWin32SurfaceKHR : PFN_vkCreateWin32SurfaceKHR; @VK_KHR_win32_surface
                 } else {
                     notImplemented();
                 }
@@ -28,14 +28,14 @@ VulkanLoader :: struct {
 
             optional : struct {
                 #if DEBUG_BUILD {
-                    vkSetDebugUtilsObjectNameEXT     : PFN_vkSetDebugUtilsObjectNameEXT;   @VK_EXT_debug_utils
-                    vkQueueBeginDebugUtilsLabelEXT   : PFN_vkQueueBeginDebugUtilsLabelEXT; @VK_EXT_debug_utils
-                    vkQueueEndDebugUtilsLabelEXT     : PFN_vkQueueEndDebugUtilsLabelEXT;   @VK_EXT_debug_utils
-                    vkCmdBeginDebugUtilsLabelEXT     : PFN_vkCmdBeginDebugUtilsLabelEXT;   @VK_EXT_debug_utils
-                    vkCmdEndDebugUtilsLabelEXT       : PFN_vkCmdEndDebugUtilsLabelEXT;     @VK_EXT_debug_utils
+                    vkSetDebugUtilsObjectNameEXT   : PFN_vkSetDebugUtilsObjectNameEXT;   @VK_EXT_debug_utils
+                    vkQueueBeginDebugUtilsLabelEXT : PFN_vkQueueBeginDebugUtilsLabelEXT; @VK_EXT_debug_utils
+                    vkQueueEndDebugUtilsLabelEXT   : PFN_vkQueueEndDebugUtilsLabelEXT;   @VK_EXT_debug_utils
+                    vkCmdBeginDebugUtilsLabelEXT   : PFN_vkCmdBeginDebugUtilsLabelEXT;   @VK_EXT_debug_utils
+                    vkCmdEndDebugUtilsLabelEXT     : PFN_vkCmdEndDebugUtilsLabelEXT;     @VK_EXT_debug_utils
                 }
-                vkCreateDebugUtilsMessengerEXT   : PFN_vkCreateDebugUtilsMessengerEXT;  @VK_EXT_debug_utils
-                vkDestroyDebugUtilsMessengerEXT  : PFN_vkDestroyDebugUtilsMessengerEXT; @VK_EXT_debug_utils
+                vkCreateDebugUtilsMessengerEXT  : PFN_vkCreateDebugUtilsMessengerEXT;  @VK_EXT_debug_utils
+                vkDestroyDebugUtilsMessengerEXT : PFN_vkDestroyDebugUtilsMessengerEXT; @VK_EXT_debug_utils
             };
         };
 
@@ -46,6 +46,12 @@ VulkanLoader :: struct {
                 vkGetSwapchainImagesKHR : PFN_vkGetSwapchainImagesKHR; @VK_KHR_swapchain
                 vkAcquireNextImage2KHR  : PFN_vkAcquireNextImage2KHR;  @VK_KHR_swapchain
                 vkQueuePresentKHR       : PFN_vkQueuePresentKHR;       @VK_KHR_swapchain
+
+                vkGetDescriptorSetLayoutSizeEXT          : PFN_vkGetDescriptorSetLayoutSizeEXT;          @VK_EXT_descriptor_buffer
+                vkGetDescriptorSetLayoutBindingOffsetEXT : PFN_vkGetDescriptorSetLayoutBindingOffsetEXT; @VK_EXT_descriptor_buffer
+                vkGetDescriptorEXT                       : PFN_vkGetDescriptorEXT;                       @VK_EXT_descriptor_buffer
+                vkCmdBindDescriptorBuffersEXT            : PFN_vkCmdBindDescriptorBuffersEXT;            @VK_EXT_descriptor_buffer
+                vkCmdSetDescriptorBufferOffsetsEXT       : PFN_vkCmdSetDescriptorBufferOffsetsEXT;       @VK_EXT_descriptor_buffer
             };
 
             optional : struct {
@@ -54,7 +60,9 @@ VulkanLoader :: struct {
     };
 }
 
-gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
+gatherVulkanLayers :: () -> (required : [] string, optional : [] string) #compile_time {
+    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
+
     required_layers : [..] string;
     required_layers.allocator = Basic.temp;
 
@@ -96,7 +104,9 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) {
     return required_layers, optional_layers;
 }
 
-gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] string) {
+gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] string) #compile_time {
+    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
+
     required_extensions : [..] string;
     required_extensions.allocator = Basic.temp;
 
@@ -138,7 +148,9 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
     return required_extensions, optional_extensions;
 }
 
-gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] string) {
+gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] string) #compile_time {
+    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
+
     required_extensions : [..] string;
     required_extensions.allocator = Basic.temp;
 
@@ -157,7 +169,6 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
             Basic.array_add_if_unique(*required_extensions, extension_name);
         }
     }
-
 
     optional_extensions : [..] string;
     optional_extensions.allocator = Basic.temp;

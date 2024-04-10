@@ -1,3 +1,5 @@
+#include "common_uniforms.shader_header"
+
 struct VertexOutput {
     vec4 color;
 };
@@ -9,7 +11,7 @@ struct Vertex {
     vec4 color;
 };
 
-const Vertex g_Vertices[] = {
+const Vertex g_vertices[] = {
     { { -0.5,  0.5, 0.0, 1.0 }, { 1.0, 0.0, 0.0, 1.0 } },
     { {  0.5,  0.5, 0.0, 1.0 }, { 0.0, 1.0, 0.0, 1.0 } },
     { { -0.5, -0.5, 0.0, 1.0 }, { 0.0, 0.0, 1.0, 1.0 } },
@@ -20,13 +22,13 @@ out VertexOutput vs_output;
 
 layout(push_constant) uniform PushConstants {
     float time;
-};
+} g_push_constants;
 
 void main() {
-    Vertex vertex = g_Vertices[gl_VertexIndex];
+    Vertex vertex = g_vertices[gl_VertexIndex];
     gl_Position   = vertex.position;
 
-    const float alpha = cos(1.5 * time) * 0.5 + 0.5;
+    const float alpha = cos(1.5 * g_push_constants.time) * 0.5 + 0.5;
     vs_output.color = vertex.color * alpha;
 }
 

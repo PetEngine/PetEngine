@@ -156,7 +156,7 @@ vkGetInstanceProcAddr :: (
 ) -> PFN_vkVoidFunction #foreign vulkan;
 
 //
-// VK_EXT_debug_utils
+// Provided by VK_EXT_debug_utils
 //
 
 VkDebugUtilsMessengerEXT :: *VkDebugUtilsMessengerEXT_T; VkDebugUtilsMessengerEXT_T :: struct {}
@@ -266,7 +266,7 @@ PFN_vkDestroyDebugUtilsMessengerEXT :: #type (
 ) #c_call;
 
 //
-// VK_KHR_surface
+// Provided by VK_KHR_surface
 //
 
 VkSurfaceKHR :: *VkSurfaceKHR_T; VkSurfaceKHR_T :: struct {}
@@ -390,7 +390,7 @@ PFN_vkGetPhysicalDeviceSurfacePresentModesKHR :: #type (
 ) -> VkResult #c_call;
 
 //
-// VK_KHR_win32_surface
+// Provided by VK_KHR_win32_surface
 //
 
 #if OS == .WINDOWS {
@@ -416,7 +416,7 @@ PFN_vkCreateWin32SurfaceKHR :: #type (
 }
 
 //
-// VK_EXT_validation_features
+// Provided by VK_EXT_validation_features
 //
 
 VkValidationFeatureEnableEXT :: enum VkEnum {

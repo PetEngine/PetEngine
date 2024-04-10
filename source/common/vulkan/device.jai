@@ -84,7 +84,7 @@ vkDeviceWaitIdle :: (
 ) -> VkResult #foreign vulkan;
 
 //
-// VK_KHR_swapchain
+// Provided by VK_KHR_swapchain
 //
 
 VkSwapchainKHR :: *VkSwapchainKHR_T; VkSwapchainKHR_T :: struct {}

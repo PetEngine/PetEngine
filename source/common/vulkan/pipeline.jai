@@ -13,7 +13,7 @@ VkPipeline :: *VkPipeline_T; VkPipeline_T :: struct {}
 VkShaderModule :: *VkShaderModule_T; VkShaderModule_T :: struct {}
 
 // Provided by VK_VERSION_1_0
-VkSampleMask :: u32;
+VkSampleMask :: #type,distinct u32;
 
 // Provided by VK_VERSION_1_0
 VkVertexInputRate :: enum VkEnum #specified {

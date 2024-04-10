@@ -194,7 +194,7 @@ FileInfo :: struct {
     };
 }
 
-// @Cleanup: #Naming. Shorter name?
+// @TODO: #Naming. Shorter name?
 EnumerateFilesCallbackResult :: enum u8 {
     CONTINUE;
     BREAK;
@@ -259,6 +259,31 @@ fileExists :: (filename : string) -> bool {
         // PathFileExists just does "return GetFileAttributes(filename) != INVALID_FILE_ATTRIBUTES;",
         // so we won't use it as it requires one more library to link
         return GetFileAttributesW(wide_filename.data) != INVALID_FILE_ATTRIBUTES;
+    } else {
+        notImplemented();
+    }
+}
+
+getAbsolutePath :: (
+    relative_path : string,
+    allocate      : (user_data : *$T, bytes : s64) -> *void,
+    user_data     : *T
+) -> string {
+    #if OS == .WINDOWS {
+        wide_relative_path : [] WCHAR = ---;
+        wide_relative_path.data = pushToArena(*context.pet.per_frame_arena, WCHAR, relative_path.count + 1);
+        asciiToWide(*wide_relative_path, relative_path, true);
+
+        absolute_path_length := GetFullPathNameW(wide_relative_path.data, 0, null, null);
+        assert(absolute_path_length > 0, print_sys_error = true);
+
+        absolute_path_capacity := absolute_path_length + 1;
+        wide_absolute_path := pushToArena(*context.pet.per_frame_arena, WCHAR, absolute_path_capacity);
+
+        absolute_path_length = GetFullPathNameW(wide_relative_path.data, absolute_path_capacity * size_of(WCHAR), wide_absolute_path, null);
+        assert(absolute_path_length > 0, print_sys_error = true);
+
+        return wideToAscii(wide_absolute_path, absolute_path_length, allocate, user_data);
     } else {
         notImplemented();
     }

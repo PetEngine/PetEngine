@@ -154,7 +154,7 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload, was_created : bool) 
 // @TODO: #ThreadPool
 reloadShader :: inline (device : *Device, manager : *ShaderManager, name : string) {
     if compileShader(name) {
-        shader := findShader(device, manager, name);
+        shader := findShader(manager, name);
         if shader {
             reloadShader(device, manager, shader);
         }
@@ -179,10 +179,6 @@ recompileOutOfDateShaders :: inline (hot_reload : *ShadersHotReload) {
 
         binary_file_info, binary_file_error := getFileInfo(binary_filename);
         assert(binary_file_error == .NONE || binary_file_error == .FILE_NOT_FOUND || binary_file_error == .PATH_NOT_FOUND);
-
-        if binary_file_error == .FILE_NOT_FOUND || binary_file_error == .PATH_NOT_FOUND {
-            warningMessage("File % does not exist", binary_filename);
-        }
 
         if Basic.compare_apollo_times(binary_file_info.last_write_time, source_file_info.last_write_time) > 0 {
             return .CONTINUE;

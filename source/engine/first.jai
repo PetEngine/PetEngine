@@ -1,5 +1,5 @@
 // @TODO:
-//    - @Cleanup: VkAllocationCallbacks -> #VkAllocationCallbacks.
+//    - @Cleanup: Delete #VkAllocationCallbacks
 
 #scope_export
 
@@ -30,7 +30,7 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 PerViewUniform :: struct {
     Data :: struct {
         camera_pos : v3f;
-/*
+
         view_matrix     : m3x4;
         inv_view_matrix : m3x4;
 
@@ -39,7 +39,6 @@ PerViewUniform :: struct {
 
         view_proj_matrix     : m4x4;
         inv_view_proj_matrix : m4x4;
-*/
     } #no_padding
 
     buffers : StaticArray(*Buffer, Device.MAX_FRAME_BUFFERING);
@@ -77,7 +76,7 @@ petMain :: () {
     resource_manager := createResourceManager(device);
     defer destroyResourceManager(device, resource_manager);
 
-    shader_manager := createShaderManager(device);
+    shader_manager := createShaderManager(device, resource_manager);
     defer destroyShaderManager(device, shader_manager);
 
     shaders_hot_reload : ShadersHotReload;
@@ -106,12 +105,16 @@ petMain :: () {
                                   .PERSISTENT,
                                   "Depth");
 
+    depth_buffer_srv := createTextureView(device, resource_manager, depth_buffer, .SHADER_READ, lifetime = .PERSISTENT);
+
     // Create persistent buffers and textures here...
 
     commitResourceMemory(device, resource_manager, .PERSISTENT);
     defer resetResourceMemory(device, resource_manager, .PERSISTENT);
 
     triangle_shader := createShader(device, shader_manager, "triangle", .[ getBackBuffer(device).format ]);
+    push_constants_handle := getPushConstantsHandle(triangle_shader, "g_push_constants");
+    per_view_handle       := getBindingHandle(triangle_shader, "g_per_view");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 
@@ -140,10 +143,11 @@ petMain :: () {
         {
             // Reset
             {
-                resetCommandBuffer(device, *command_buffer);
                 // @TODO: #PerFrameResources. Delete unused per frame resources memory when number of swapchain buffers is decreased.
                 resetResourceMemory(device, resource_manager, .PER_FRAME);
                 resetShaderManager(device, shader_manager);
+
+                resetCommandBuffer(device, *command_buffer, shader_manager);
             }
 
             // Create per frame buffers and textures here...
@@ -163,13 +167,14 @@ petMain :: () {
                 data.camera_pos = v3f.{ 1.0, 2.0, 3.0 } + (3.0 * device.frame_index);
             }
 
-            back_buffer := getBackBuffer(device);
+            back_buffer_view := getBackBufferView(device, .COLOR_TARGET);
+            back_buffer      := back_buffer_view.texture;
 
             clearTexture(device, *command_buffer, depth_buffer);
 
             beginRendering(device, *command_buffer, .[
                 .{
-                    texture      = back_buffer,
+                    view         = back_buffer_view,
                     load_action  = .CLEAR,
                     store_action = .STORE,
                 },
@@ -178,10 +183,11 @@ petMain :: () {
                 setViewport(device, *command_buffer, *(Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }), back_buffer.height);
                 setScissorRect(device, *command_buffer, *(ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height }));
 
-                setShader(device, *command_buffer, triangle_shader);
+                setShader(device, *command_buffer, shader_manager, triangle_shader);
+                bindResource(device, *command_buffer, shader_manager, per_view_handle, per_view_uniform.buffers[device.frame_index]);
 
                 time := cast(f32) Basic.seconds_since_init();
-                setPushConstants(device, *command_buffer, .VERTEX, *time);
+                setPushConstants(device, *command_buffer, push_constants_handle, *time);
 
                 drawPrimitives(device, *command_buffer, 4);
             }

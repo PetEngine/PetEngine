@@ -351,6 +351,13 @@ VkImageViewCreateInfo :: struct {
     subresourceRange : VkImageSubresourceRange;
 }
 
+// Provided by VK_VERSION_1_1
+VkImageViewUsageCreateInfo :: struct {
+    sType : VkStructureType = .VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO;
+    pNext : *void;
+    usage : VkImageUsageFlags;
+}
+
 // Provided by VK_VERSION_1_0
 vkCreateImage :: (
     device      : VkDevice,

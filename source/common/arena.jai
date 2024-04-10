@@ -19,8 +19,7 @@ Arena :: struct {
 createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) {
     assert(capacity > 0);
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     Basic.print(*builder, "% thread/", context.pet.thread_name);
     Basic.print(*builder, format, ..args);
@@ -44,7 +43,7 @@ createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) 
     arena.capacity = alignUpWithPowerOfTwo(capacity, page_size);
     arena.capacity = alignUpWithPowerOfTwo(arena.capacity, allocation_granularity);
     if arena.capacity != capacity {
-        warningMessage("\"%\" arena will be created with different capacity since given capacity does not match system page size and allocation granularity alignment requirement. Given capacity: % bytes, aligned capacity: % byte, page size: % bytes, allocation granularity: % bytes",
+        warningMessage("\"%\" will be created with different capacity since given capacity does not match system page size and allocation granularity alignment requirements. Given capacity: % bytes, aligned capacity: % byte, page size: % bytes, allocation granularity: % bytes",
                        arena.name,
                        capacity,
                        arena.capacity,
@@ -63,8 +62,7 @@ createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) 
 }
 
 createSubarena :: (arena : *Arena, subarena : *Arena, subarena_capacity : s64, $format : string, args : ..Any) {
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     Basic.print(*builder, "%/", arena.name);
     Basic.print(*builder, format, ..args);

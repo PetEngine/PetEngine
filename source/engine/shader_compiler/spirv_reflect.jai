@@ -19,7 +19,7 @@
 /*! @enum SpvReflectResult
 
 */
-SpvReflectResult :: enum {
+SpvReflectResult :: enum s32 {
     SPV_REFLECT_RESULT_SUCCESS;
     SPV_REFLECT_RESULT_NOT_READY;
     SPV_REFLECT_RESULT_ERROR_PARSE_FAILED;
@@ -94,23 +94,28 @@ NOTE: HLSL row_major and column_major decorations are reversed
 
 */
 SpvReflectDecorationFlags :: enum_flags u32 #specified {
-    SPV_REFLECT_DECORATION_NONE              :: 0x00000000;
-    SPV_REFLECT_DECORATION_BLOCK             :: 0x00000001;
-    SPV_REFLECT_DECORATION_BUFFER_BLOCK      :: 0x00000002;
-    SPV_REFLECT_DECORATION_ROW_MAJOR         :: 0x00000004;
-    SPV_REFLECT_DECORATION_COLUMN_MAJOR      :: 0x00000008;
-    SPV_REFLECT_DECORATION_BUILT_IN          :: 0x00000010;
-    SPV_REFLECT_DECORATION_NOPERSPECTIVE     :: 0x00000020;
-    SPV_REFLECT_DECORATION_FLAT              :: 0x00000040;
-    SPV_REFLECT_DECORATION_NON_WRITABLE      :: 0x00000080;
-    SPV_REFLECT_DECORATION_RELAXED_PRECISION :: 0x00000100;
-    SPV_REFLECT_DECORATION_NON_READABLE      :: 0x00000200;
+    SPV_REFLECT_DECORATION_NONE                :: 0x00000000;
+    SPV_REFLECT_DECORATION_BLOCK               :: 0x00000001;
+    SPV_REFLECT_DECORATION_BUFFER_BLOCK        :: 0x00000002;
+    SPV_REFLECT_DECORATION_ROW_MAJOR           :: 0x00000004;
+    SPV_REFLECT_DECORATION_COLUMN_MAJOR        :: 0x00000008;
+    SPV_REFLECT_DECORATION_BUILT_IN            :: 0x00000010;
+    SPV_REFLECT_DECORATION_NOPERSPECTIVE       :: 0x00000020;
+    SPV_REFLECT_DECORATION_FLAT                :: 0x00000040;
+    SPV_REFLECT_DECORATION_NON_WRITABLE        :: 0x00000080;
+    SPV_REFLECT_DECORATION_RELAXED_PRECISION   :: 0x00000100;
+    SPV_REFLECT_DECORATION_NON_READABLE        :: 0x00000200;
+    SPV_REFLECT_DECORATION_PATCH               :: 0x00000400;
+    SPV_REFLECT_DECORATION_PER_VERTEX          :: 0x00000800;
+    SPV_REFLECT_DECORATION_PER_TASK            :: 0x00001000;
+    SPV_REFLECT_DECORATION_WEIGHT_TEXTURE      :: 0x00002000;
+    SPV_REFLECT_DECORATION_BLOCK_MATCH_TEXTURE :: 0x00004000;
 }
 
 /*! @enum SpvReflectResourceType
 
 */
-SpvReflectResourceType :: enum #specified {
+SpvReflectResourceType :: enum s32 #specified {
     SPV_REFLECT_RESOURCE_FLAG_UNDEFINED :: 0x00000000;
     SPV_REFLECT_RESOURCE_FLAG_SAMPLER   :: 0x00000001;
     SPV_REFLECT_RESOURCE_FLAG_CBV       :: 0x00000002;
@@ -121,7 +126,7 @@ SpvReflectResourceType :: enum #specified {
 /*! @enum SpvReflectFormat
 
 */
-SpvReflectFormat :: enum #specified {
+SpvReflectFormat :: enum s32 #specified {
     SPV_REFLECT_FORMAT_UNDEFINED           ::   0; // = VK_FORMAT_UNDEFINED
     SPV_REFLECT_FORMAT_R16_UINT            ::  74; // = VK_FORMAT_R16_UINT
     SPV_REFLECT_FORMAT_R16_SINT            ::  75; // = VK_FORMAT_R16_SINT
@@ -167,12 +172,14 @@ SpvReflectFormat :: enum #specified {
 SpvReflectVariableFlags :: enum_flags u32 #specified {
     SPV_REFLECT_VARIABLE_FLAGS_NONE   :: 0x00000000;
     SPV_REFLECT_VARIABLE_FLAGS_UNUSED :: 0x00000001;
+    // If variable points to a copy of the PhysicalStorageBuffer struct
+    SPV_REFLECT_VARIABLE_FLAGS_PHYSICAL_POINTER_COPY :: 0x00000002;
 }
 
 /*! @enum SpvReflectDescriptorType
 
 */
-SpvReflectDescriptorType :: enum #specified {
+SpvReflectDescriptorType :: enum s32 #specified {
     SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER                    ::  0;         // = VK_DESCRIPTOR_TYPE_SAMPLER
     SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER     ::  1;         // = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
     SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE              ::  2;         // = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
@@ -212,7 +219,7 @@ SpvReflectShaderStageFlags :: enum_flags u32 #specified {
 /*! @enum SpvReflectGenerator
 
 */
-SpvReflectGenerator :: enum #specified {
+SpvReflectGenerator :: enum s32 #specified {
     SPV_REFLECT_GENERATOR_KHRONOS_LLVM_SPIRV_TRANSLATOR         :: 6;
     SPV_REFLECT_GENERATOR_KHRONOS_SPIRV_TOOLS_ASSEMBLER         :: 7;
     SPV_REFLECT_GENERATOR_KHRONOS_GLSLANG_REFERENCE_FRONT_END   :: 8;
@@ -305,6 +312,10 @@ SpvReflectTypeDescription :: struct {
     // If underlying type is a struct (ex. array of structs)
     // this gives access to the OpTypeStruct
     struct_type_description : *SpvReflectTypeDescription;
+
+    // Some pointers to SpvReflectTypeDescription are really
+    // just copies of another reference to the same OpType
+    copied                  : u32;
 
     // @deprecated use struct_type_description instead
     member_count            : u32;

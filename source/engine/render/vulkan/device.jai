@@ -15,9 +15,10 @@ VulkanDevice :: struct {
 
     queues : [QUEUE_TYPES_COUNT] Queue;
 
-    surface            : VkSurfaceKHR;
-    swapchain          : VkSwapchainKHR;
-    swapchain_textures : StaticArray(VulkanTexture, MAX_SWAPCHAIN_BUFFERS);
+    surface                 : VkSurfaceKHR;
+    swapchain               : VkSwapchainKHR;
+    swapchain_textures      : StaticArray(VulkanTexture, MAX_SWAPCHAIN_BUFFERS);
+    swapchain_texture_views : StaticArray([2] VulkanTextureView, MAX_SWAPCHAIN_BUFFERS);
 
     frame_data : StaticArray(FrameData, MAX_FRAME_BUFFERING);
 
@@ -29,10 +30,11 @@ VulkanDevice :: struct {
 
     loader : VulkanLoader;
 
-    properties11      : VkPhysicalDeviceVulkan11Properties;
-    properties12      : VkPhysicalDeviceVulkan12Properties;
-    limits            : VkPhysicalDeviceLimits;
-    memory_properties : VkPhysicalDeviceMemoryProperties2;
+    properties11                 : VkPhysicalDeviceVulkan11Properties;
+    properties12                 : VkPhysicalDeviceVulkan12Properties;
+    limits                       : VkPhysicalDeviceLimits;
+    memory_properties            : VkPhysicalDeviceMemoryProperties2;
+    descriptor_buffer_properties : VkPhysicalDeviceDescriptorBufferPropertiesEXT;
 }
 
 createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *VulkanDevice #must {
@@ -108,13 +110,19 @@ destroyVulkanDevice :: (device_ : *Device) {
         }
     }
 
-    for device.swapchain_textures {
-        if it.view != VK_NULL_HANDLE {
-            // @TODO: #Views.
-            // @TODO: VkAllocationCallbacks
-            vkDestroyImageView(device.device, it.view, null);
-        }
+    for views : device.swapchain_texture_views {
+        for views {
+            if it.view {
+                vkDestroyImageView(device.device, it.view, null);
+            }
 
+            if it.name {
+                Basic.free(it.name.data);
+            }
+        }
+    }
+
+    for device.swapchain_textures {
         if it.name {
             Basic.free(it.name.data);
         }
@@ -361,6 +369,20 @@ getVulkanSwapchainTexture :: inline (device_ : *Device, swapchain_buffer_index :
     return *device.swapchain_textures[swapchain_buffer_index];
 }
 
+getVulkanSwapchainTextureView :: (device_ : *Device, swapchain_buffer_index : u32, usage : Texture.Usage) -> *TextureView {
+    device := cast(*VulkanDevice) device_;
+
+    index : u8 = ---;
+    if usage == {
+        case .COLOR_TARGET; index = 0;
+        case .SHADER_READ;  index = 1;
+        case;
+            assertMessage("Unsupported swapchain texure view usage: %", usage);
+    }
+
+    return *device.swapchain_texture_views[swapchain_buffer_index][index];
+}
+
 setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
@@ -375,6 +397,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
                 case VkDeviceMemory;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE_MEMORY;
                 case VkBuffer;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER;
                 case VkImage;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE;
+                case VkBufferView;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER_VIEW;
                 case VkImageView;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE_VIEW;
                 case VkShaderModule;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SHADER_MODULE;
                 case VkPipelineCache;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_CACHE;
@@ -382,6 +405,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
                 case VkRenderPass;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_RENDER_PASS;
                 case VkPipeline;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
                 case VkDescriptorSetLayout;    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
+                case VkSampler;                OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SAMPLER;
                 case VkFramebuffer;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
                 case VkCommandPool;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
                 case VkSurfaceKHR;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
@@ -408,8 +432,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
 setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, args : ..Any) {
     #if DEBUG_BUILD {
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
-            builder : Basic.String_Builder;
-            builder.allocator = Basic.temp;
+            builder := Basic.String_Builder.{ allocator = Basic.temp };
 
             Basic.print(*builder, format, ..args);
             Basic.append(*builder, "\0");
@@ -425,6 +448,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
                 case VkDeviceMemory;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE_MEMORY;
                 case VkBuffer;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER;
                 case VkImage;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE;
+                case VkBufferView;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER_VIEW;
                 case VkImageView;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE_VIEW;
                 case VkShaderModule;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SHADER_MODULE;
                 case VkPipelineCache;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_CACHE;
@@ -432,6 +456,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
                 case VkRenderPass;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_RENDER_PASS;
                 case VkPipeline;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
                 case VkDescriptorSetLayout;    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
+                case VkSampler;                OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SAMPLER;
                 case VkFramebuffer;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
                 case VkCommandPool;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
                 case VkSurfaceKHR;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
@@ -513,8 +538,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
     defer Basic.reset_temporary_storage();
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     layers_to_apply : [..] *s8;
     layers_to_apply.allocator = Basic.temp;
@@ -767,8 +791,7 @@ messengerCallback :: (
             #if SHORTEN_MESSAGE {
                 index := String.find_index_from_left(message, "Object");
                 if index != -1 {
-                    builder : Basic.String_Builder;
-                    builder.allocator = Basic.temp;
+                    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
                     severity_and_vuid := string.{ index, message.data };
                     Basic.append(*builder, severity_and_vuid);
@@ -948,6 +971,7 @@ END;
 
     physical_device_properties.pNext = *device.properties11;
     device.properties11.pNext        = *device.properties12;
+    device.properties12.pNext        = *device.descriptor_buffer_properties;
 
     vkGetPhysicalDeviceProperties2(device.physical_device, *physical_device_properties);
 
@@ -1010,8 +1034,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
 
     // Print info about available queue families
     #if PRINT_VERBOSE_MESSAGES {
-        builder : Basic.String_Builder;
-        builder.allocator = Basic.temp;
+        builder := Basic.String_Builder.{ allocator = Basic.temp };
 
         Basic.print(*builder, "Available queue families (%):\n", queue_family_properties.count);
 
@@ -1064,8 +1087,7 @@ END;
 
     // Print info about queues
     {
-        builder : Basic.String_Builder;
-        builder.allocator = Basic.temp;
+        builder := Basic.String_Builder.{ allocator = Basic.temp };
 
         Basic.append(*builder, "Queues info:\n");
 
@@ -1122,8 +1144,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 
     defer Basic.reset_temporary_storage();
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     extensions_to_apply : [..] *s8;
     extensions_to_apply.allocator = Basic.temp;
@@ -1188,15 +1209,41 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
-    dynamic_rendering_features : VkPhysicalDeviceDynamicRenderingFeatures;
+    // Test feature support
+    {
+        available_descriptor_buffer_features :  VkPhysicalDeviceDescriptorBufferFeaturesEXT;
+        available_dynamic_rendering_features := VkPhysicalDeviceDynamicRenderingFeatures.{ pNext = *available_descriptor_buffer_features };
+        available_features_1_2               := VkPhysicalDeviceVulkan12Features.{ pNext = *available_dynamic_rendering_features };
+        available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_features_1_2 };
 
-    features_to_enable := VkPhysicalDeviceFeatures2.{ pNext = *dynamic_rendering_features };
-    available_features := VkPhysicalDeviceFeatures2.{ pNext = *dynamic_rendering_features };
-
-    vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
-    assert(dynamic_rendering_features.dynamicRendering == VK_TRUE);
+        vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
+        // UAV support
+        assert(available_features.features.vertexPipelineStoresAndAtomics == VK_TRUE);
+        assert(available_features.features.fragmentStoresAndAtomics == VK_TRUE);
+        // Dynamic rendering support
+        assert(available_dynamic_rendering_features.dynamicRendering == VK_TRUE);
+        // Descriptor buffer support
+        assert(available_descriptor_buffer_features.descriptorBuffer == VK_TRUE);
+        assert(available_features_1_2.bufferDeviceAddress            == VK_TRUE);
+    }
 
     // @TODO: #Features. define optional and required features and validate it.
+    descriptor_buffer_features_to_enable := VkPhysicalDeviceDescriptorBufferFeaturesEXT.{
+        descriptorBuffer = VK_TRUE,
+    };
+    dynamic_rendering_features_to_enable := VkPhysicalDeviceDynamicRenderingFeatures.{
+        pNext            = *descriptor_buffer_features_to_enable,
+        dynamicRendering = VK_TRUE,
+    };
+    features_1_2_to_enable := VkPhysicalDeviceVulkan12Features.{
+        pNext               = *dynamic_rendering_features_to_enable,
+        bufferDeviceAddress = VK_TRUE,
+    };
+    features_to_enable := VkPhysicalDeviceFeatures2.{
+        pNext                                   = *features_1_2_to_enable,
+        features.vertexPipelineStoresAndAtomics = VK_TRUE,
+        features.fragmentStoresAndAtomics       = VK_TRUE,
+    };
 
     device_create_info := VkDeviceCreateInfo.{
         pNext                   = *features_to_enable,
@@ -1286,8 +1333,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                                                                                                  cast(*u32) *surface_formats.count,
                                                                                                  surface_formats.data));
 
-    builder : Basic.String_Builder;
-    builder.allocator = Basic.temp;
+    builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     #if PRINT_VERBOSE_MESSAGES {
         Basic.append(*builder, "Available surface formats:");
@@ -1485,51 +1531,69 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                                                                      swapchain_images.data);
     assert(swapchain_buffers_count == device.swapchain_buffers_count);
 
-    device.swapchain_textures.count = device.swapchain_buffers_count;
+    device.swapchain_textures.count      = device.swapchain_buffers_count;
+    device.swapchain_texture_views.count = device.swapchain_buffers_count;
 
     swapchain_images_it := swapchain_images.data;
 
     // @TODO: #Settings. Get back buffer clear color from settings.
     clear_color := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
 
-    // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to texture manager
-    for * device.swapchain_textures {
-        it.dimension             = ._2D;
-        it.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
-        it.flags                 = .SWAPCHAIN;
-        it.width                 = cast(u16) surface_extent.width;
-        it.height                = cast(u16) surface_extent.height;
-        it.depth                 = 0;
-        it.samples_count         = 1;
-        it.mips_count            = 1;
-        it.clear_value.color_f32 = clear_color;
-        it.current_owner         = .GRAPHICS;
-        it.possible_owners.count = 1;
-        it.possible_owners[0]    = .GRAPHICS;
-        it.image                 = swapchain_images_it.*;
-        it.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
+    // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to resource manager
+    for * texture : device.swapchain_textures {
+        texture.dimension             = ._2D;
+        texture.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
+        texture.flags                 = .SWAPCHAIN;
+        texture.width                 = cast(u16) surface_extent.width;
+        texture.height                = cast(u16) surface_extent.height;
+        texture.depth                 = 0;
+        texture.samples_count         = 1;
+        texture.mips_count            = 1;
+        texture.clear_value.color_f32 = clear_color;
+        texture.current_owner         = .GRAPHICS;
+        texture.possible_owners.count = 1;
+        texture.possible_owners[0]    = .GRAPHICS;
+        texture.image                 = swapchain_images_it.*;
+        texture.current_layout        = .VK_IMAGE_LAYOUT_UNDEFINED;
 
-        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then it.usage |= .SHADER_READ;
-        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then it.usage |= .SHADER_WRITE;
-        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then it.usage |= .COLOR_TARGET;
+        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_SAMPLED_BIT          then texture.usages |= .SHADER_READ;
+        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_STORAGE_BIT          then texture.usages |= .SHADER_WRITE;
+        #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then texture.usages |= .COLOR_TARGET;
 
-        if !it.name {
+        if !texture.name {
             Basic.print(*builder, "Swapchain image #%", it_index);
-            it.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
+            texture.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
         }
 
-        setVulkanObjectName(device, it.image, it.name);
+        setVulkanObjectName(device, texture.image, texture.name);
+
+        VIEW_USAGES :: Texture.Usage.[
+            .COLOR_TARGET,
+            .SHADER_READ,
+        ];
 
         // @TODO: #Views.
-        {
-            if it.view {
-                // @TODO: VkAllocationCallbacks
-                vkDestroyImageView(device.device, it.view, null);
+        for * view : device.swapchain_texture_views[it_index] {
+            if !(texture.usages & VIEW_USAGES[it_index]) continue;
+
+            view.texture    = texture;
+            view.dimension  = texture.dimension;
+            view.format     = texture.format;
+            view.usage      = VIEW_USAGES[it_index];
+            view.mips_count = 1;
+
+            if view.view {
+                vkDestroyImageView(device.device, view.view, null);
             }
 
+            usage_info := VkImageViewUsageCreateInfo.{
+                usage = textureUsageToVulkanUsageFlags(view.usage, false)
+            };
+
             view_create_info := VkImageViewCreateInfo.{
+                pNext            = *usage_info,
                 flags            = 0,
-                image            = it.image,
+                image            = texture.image,
                 viewType         = .VK_IMAGE_VIEW_TYPE_2D,
                 format           = allowed_surface_format.format,
                 components       = .{
@@ -1547,10 +1611,14 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                 },
             };
 
-            // @TODO: VkAllocationCallbacks
-            debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *it.view));
+            debugCheckVK(vkCreateImageView(device.device, *view_create_info, null, *view.view));
 
-            setVulkanObjectName(device, it.view, "% view", it.name);
+            if !view.name {
+                Basic.print(*builder, "% % view", texture.name, view.usage);
+                view.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
+            }
+
+            setVulkanObjectName(device, view.view, view.name);
         }
 
         swapchain_images_it += 1;

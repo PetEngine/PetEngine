@@ -8,6 +8,8 @@ CommandBuffer :: struct(usage : QueueType) {
         scissor_rect     : ScissorRect;
         inside_rendering : bool;
     }
+
+    descriptor_buffer_set_offsets : [ShaderCompiler.MAX_DESCRIPTOR_SETS] s64;
 }
 
 Viewport :: struct {
@@ -38,14 +40,14 @@ TargetStoreAction :: enum u8 {
 }
 
 ColorTargetDesc :: struct {
-    texture : *Texture;
+    view : *TextureView;
 
     load_action  : TargetLoadAction;
     store_action : TargetStoreAction;
 }
 
 DepthTargetDesc :: struct {
-    texture : *Texture;
+    view : *TextureView;
 
     depth_load_action  : TargetLoadAction;
     depth_store_action : TargetStoreAction;
@@ -69,7 +71,7 @@ createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(u
     return command_buffer;
 }
 
-resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer) {
+resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, shader_manager : *ShaderManager) {
     // @TODO: #FrameBuffering.
     //    - If device.frame_buffering > command_buffer.handles.count allocate new memory memory
     //    - If device.frame_buffering < command_buffer.handles.count free unusused memory
@@ -86,6 +88,22 @@ resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer) {
         command_buffer.viewport         = .{};
         command_buffer.scissor_rect     = .{};
         command_buffer.inside_rendering = false;
+    }
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            vulkan_device         := cast(*VulkanDevice)        device;
+            vulkan_shader_manager := cast(*VulkanShaderManager) shader_manager;
+
+            binding_info := VkDescriptorBufferBindingInfoEXT.{
+                address = cast(VkDeviceAddress) vulkan_shader_manager.per_frame_bindings[device.frame_index].descriptor_buffer.device_address,
+                usage   = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT
+                        | .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT
+            };
+
+            vulkan_device.loader.extensions.device.required.vkCmdBindDescriptorBuffersEXT(command_buffer.handles[device.frame_index],
+                                                                                          1,
+                                                                                          *binding_info);
     }
 }
 
@@ -135,7 +153,7 @@ setScissorRect :: (device : *Device, command_buffer : *CommandBuffer, scissor_re
     command_buffer.scissor_rect = scissor_rect.*;
 }
 
-setShader :: (device : *Device, command_buffer : *CommandBuffer, shader : *Shader) #no_context {
+setShader :: (device : *Device, command_buffer : *CommandBuffer, shader_manager : *ShaderManager, shader : *Shader) #no_context {
     #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
             "Only graphics and compute command buffers can set shaders";
 
@@ -144,7 +162,6 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader : *Shade
     if #complete shader.kind == {
         case .UNKNOWN;
             // @TODO: Print some meaningful message why it's illegal
-
         case .GRAPHICS; #through;
         case .MESH;
             pipeline_bind_point = .GRAPHICS_OR_MESH;
@@ -158,12 +175,12 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader : *Shade
         return;
     }
 
+    command_buffer.shaders[pipeline_bind_point] = shader;
+
     if #complete device.graphics_api == {
         case .VULKAN;
-            setVulkanShader(command_buffer.handles[device.frame_index], cast(*VulkanShader) shader);
+            setVulkanShader(command_buffer, cast(*VulkanShaderManager) shader_manager, cast(*VulkanShader) shader, device.frame_index);
     }
-
-    command_buffer.shaders[pipeline_bind_point] = shader;
 }
 
 beginRendering :: (
@@ -180,32 +197,37 @@ beginRendering :: (
     #if DEBUG_BUILD {
         reference_texture : *Texture = ---;
         if color_targets.count > 0 {
-            reference_texture = color_targets[0].texture;
+            reference_texture = color_targets[0].view.texture;
         } else {
-            reference_texture = depth_target.texture;
+            reference_texture = depth_target.view.texture;
         }
 
         for color_targets {
-            assert(it.texture);
+            assert(it.view.usage == .COLOR_TARGET,
+                   "Expected texture view with % usage, got with %. Name: \"%\"",
+                   Texture.Usage.COLOR_TARGET,
+                   it.view.usage,
+                   it.view.name);
 
-            assert(it.texture.usage & .COLOR_TARGET,
-                   "If you want to use \"%\" texture as color target add % usage on its creation",
-                   it.texture.name,
-                   Texture.Usage.COLOR_TARGET);
+            assert(textureFormatFlags(it.view.format) & .COLOR,
+                   "Color target should have color format");
 
-            assert(it.texture.width == reference_texture.width && it.texture.height == reference_texture.height,
+            assert(it.view.texture.width == reference_texture.width && it.view.texture.height == reference_texture.height,
                    "All color targets should have the same width and height");
         }
 
         if depth_target {
-            assert(depth_target.texture);
+            assert(depth_target.view.usage == .DEPTH_TARGET || depth_target.view.usage == .DEPTH_READ_ONLY,
+                   "Expected texture view with % or % usage, got with %. Name: \"%\"",
+                   Texture.Usage.DEPTH_TARGET,
+                   Texture.Usage.DEPTH_READ_ONLY,
+                   depth_target.view.usage,
+                   depth_target.view.name);
 
-            assert(depth_target.texture.usage & .DEPTH_TARGET,
-                   "If you want to use \"%\" texture as depth target add % usage on its creation",
-                   depth_target.texture.name,
-                   Texture.Usage.DEPTH_TARGET);
+            assert(textureFormatFlags(depth_target.view.format) & (.DEPTH | .STENCIL),
+                   "Depth target should have depth-stencil format");
 
-            assert(depth_target.texture.width == reference_texture.width && depth_target.texture.height == reference_texture.height,
+            assert(depth_target.view.texture.width == reference_texture.width && depth_target.view.texture.height == reference_texture.height,
                    "Depth target should have the same width and height as color targets have");
         }
     }
@@ -248,6 +270,9 @@ drawPrimitives :: (
 
     if #complete device.graphics_api == {
         case .VULKAN;
+            // @TOOD: #Bindings. Find a way to not do this for every draw call
+            commitVulkanBindings(cast(*VulkanDevice) device, command_buffer, cast(*VulkanShader) shader);
+
             drawVulkanPrimitives(command_buffer.handles[device.frame_index],
                                  cast(*VulkanShader) shader,
                                  ifx vertex_count   then vertex_count   else 1,
@@ -258,18 +283,51 @@ drawPrimitives :: (
 }
 
 // @TODO: Other shaders
-setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, stage : ShaderStage, data : *$T) {
-    #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can draw";
+setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, handle : PushConstantsHandle, data : *$T) {
+    #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use push constants for now";
 
     shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set shader before setting its push constants");
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            setVulkanPushConstants(command_buffer.handles[device.frame_index],
-                                   cast(*VulkanShader) shader,
-                                   stage,
-                                   data);
+            setVulkanPushConstants(command_buffer.handles[device.frame_index], cast(*VulkanShader) shader, handle, data);
+    }
+}
+
+// @TODO: Other shaders
+bindResource :: (
+    device         : *Device,
+    command_buffer : *CommandBuffer,
+    shader_manager : *ShaderManager,
+    handle         : BindingHandle,
+    resource       : *$Resource
+) {
+    #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use bindings for now";
+    #assert Resource == Buffer || Resource == TextureView;
+
+    shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
+    assert(shader, "You should set shader before setting its bindings");
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            #if Resource == {
+                case Buffer;
+                    bindVulkanBuffer(cast(*VulkanDevice) device,
+                                     command_buffer,
+                                     cast(*VulkanShaderManager) shader_manager,
+                                     cast(*VulkanShader) shader,
+                                     handle,
+                                     cast(*VulkanBuffer) resource);
+
+                case TextureView;
+                    bindVulkanTexture(cast(*VulkanDevice) device,
+                                     command_buffer,
+                                     cast(*VulkanShaderManager) shader_manager,
+                                     cast(*VulkanShader) shader,
+                                     handle,
+                                     cast(*VulkanTextureView) resource);
+            }
     }
 }
 
