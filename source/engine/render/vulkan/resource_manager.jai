@@ -16,6 +16,11 @@ VulkanResourceManager :: struct {
         names_subarena : Arena;
     }
 
+    MemorylessPool :: struct(VulkanResource : Type, capacity : s64) {
+        resources      : StaticArray(VulkanResource, capacity);
+        names_subarena : Arena;
+    }
+
     BufferMemory :: struct {
         Pool  :: MemoryPool(VulkanBuffer, MAX_BUFFERS);
         Pools :: [POOLS_COUNT] Pool;
@@ -34,7 +39,7 @@ VulkanResourceManager :: struct {
     }
 
     TextureViewMemory :: struct {
-        Pool :: MemoryPool(VulkanTextureView, MAX_TEXTURE_VIEWS);
+        Pool :: MemorylessPool(VulkanTextureView, MAX_TEXTURE_VIEWS);
 
         persistent : Pool;
         per_scene  : Pool;
@@ -47,7 +52,6 @@ VulkanResourceManager :: struct {
         persistent : Pool;
     }
 
-    max_allocation_size : VkDeviceSize;
     memory_type_indices : [POOLS_COUNT] u32;
 
     buffers            : BufferMemory;
@@ -60,7 +64,6 @@ VulkanResourceManager :: struct {
 
 createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManager #must {
     manager := pushToArena(*context.pet.persistent_arena, VulkanResourceManager);
-    manager.max_allocation_size = device.properties11.maxMemoryAllocationSize;
 
     #insert -> string { return generatePlatformVtableInitialization(ResourceManager, "manager", "Vulkan"); }
 
@@ -307,19 +310,19 @@ commitVulkanBufferMemoryPool :: (
         bind_infos_it += 1;
     }
 
-    if allocate_info.allocationSize > manager.max_allocation_size {
+    if allocate_info.allocationSize > device.properties11.maxMemoryAllocationSize {
         if lifetime == .PER_FRAME {
             assertMessage("Buffers/Frame #%/% memory pool allocation size (% MB) exceeds maximum allowed allocation size: % MB",
                           device.frame_index,
                           pool,
                           bytesToMegaBytes(allocate_info.allocationSize),
-                          bytesToMegaBytes(manager.max_allocation_size));
+                          bytesToMegaBytes(device.properties11.maxMemoryAllocationSize));
         } else {
             assertMessage("Buffers/%/% memory pool allocation size (% MB) exceeds maximum allowed allocation size: % MB",
                           lifetime,
                           pool,
                           bytesToMegaBytes(allocate_info.allocationSize),
-                          bytesToMegaBytes(manager.max_allocation_size));
+                          bytesToMegaBytes(device.properties11.maxMemoryAllocationSize));
         }
     }
 
@@ -445,17 +448,17 @@ commitVulkanTextureMemoryPool :: (
         bind_infos_it += 1;
     }
 
-    if allocate_info.allocationSize > manager.max_allocation_size {
+    if allocate_info.allocationSize > device.properties11.maxMemoryAllocationSize {
         if lifetime == .PER_FRAME {
             assertMessage("Textures/Frame #% memory pool allocation size (% MB) exceeds maximum allowed allocation size: % MB",
                           device.frame_index,
                           bytesToMegaBytes(allocate_info.allocationSize),
-                          bytesToMegaBytes(manager.max_allocation_size));
+                          bytesToMegaBytes(device.properties11.maxMemoryAllocationSize));
         } else {
             assertMessage("Textures/% memory pool allocation size (% MB) exceeds maximum allowed allocation size: % MB",
                           lifetime,
                           bytesToMegaBytes(allocate_info.allocationSize),
-                          bytesToMegaBytes(manager.max_allocation_size));
+                          bytesToMegaBytes(device.properties11.maxMemoryAllocationSize));
         }
     }
 
@@ -496,30 +499,27 @@ createVulkanTextureViewMemoryNamesSubarenas :: (
 }
 
 destroyVulkanTextureViewMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.TextureViewMemory) {
-    assert(memory.persistent.device_memory == VK_NULL_HANDLE);
     assert(memory.persistent.resources.count == 0);
     destroySubarena(*memory.persistent.names_subarena);
 
-    assert(memory.per_scene.device_memory == VK_NULL_HANDLE);
     assert(memory.per_scene.resources.count == 0);
     destroySubarena(*memory.per_scene.names_subarena);
 
     memory.per_frame.count = 0;
     for * memory.per_frame.data {
-        assert(it.device_memory == VK_NULL_HANDLE);
         assert(it.resources.count == 0);
         destroySubarena(*it.names_subarena);
     }
 }
 
-resetVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.MemoryPool) {
+resetVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.MemorylessPool) {
     for * memory_pool.resources {
         vkDestroyImageView(device.device, it.view, null);
         it.view = VK_NULL_HANDLE;
     }
     reset(*memory_pool.resources);
 
-    assert(memory_pool.device_memory == VK_NULL_HANDLE);
+    resetArena(*memory_pool.names_subarena);
 
     resetArena(*memory_pool.names_subarena);
 }
@@ -598,10 +598,10 @@ commitVulkanDescriptorBufferMemoryPool :: (
         bind_infos_it += 1;
     }
 
-    if allocate_info.allocationSize > manager.max_allocation_size {
+    if allocate_info.allocationSize > device.properties11.maxMemoryAllocationSize {
         assertMessage("Descriptor buffers/Persistent memory pool allocation size (% MB) exceeds maximum allowed allocation size: % MB",
                       bytesToMegaBytes(allocate_info.allocationSize),
-                      bytesToMegaBytes(manager.max_allocation_size));
+                      bytesToMegaBytes(device.properties11.maxMemoryAllocationSize));
     }
 
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory_pool.device_memory));

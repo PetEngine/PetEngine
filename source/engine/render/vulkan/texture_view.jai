@@ -91,7 +91,7 @@ createVulkanTextureView :: (
 // "Texture View/<lifetime>/<name>"
 composeVulkanTextureViewName :: (
     view        : *TextureView,
-    memory_pool : *VulkanResourceManager.MemoryPool,
+    memory_pool : *VulkanResourceManager.MemorylessPool,
     lifetime    : ResourceManager.Lifetime,
     name        : string
 ) {
