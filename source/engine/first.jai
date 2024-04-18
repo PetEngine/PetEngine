@@ -104,7 +104,7 @@ petMain :: () {
 
     depth_buffer_srv := createTextureView(device, resource_manager, depth_buffer, .SHADER_READ, lifetime = .PERSISTENT);
 
-    depth_sampler := createSampler(device, resource_manager, .PERSISTENT, "Depth sampler");
+    depth_sampler := createSampler(device, resource_manager, .{ anisotropy = Sampler.MAX_ANISOTROPY }, .PERSISTENT, "Depth sampler");
 
     // Create persistent buffers and textures here...
 

@@ -40,7 +40,7 @@ ResourceManager :: struct {
     createPlatformTextureView : (device : *Device, manager : *ResourceManager, view : *TextureView, lifetime : Lifetime, name : string);
 
     pushPlatformSampler   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime) -> *Sampler #must;
-    createPlatformSampler : (device : *Device, manager : *ResourceManager, sampler : *Sampler, lifetime : Lifetime, name : string);
+    createPlatformSampler : (device : *Device, manager : *ResourceManager, sampler : *Sampler, state : *SamplerState, lifetime : Lifetime, name : string);
 }
 
 createResourceManager :: (device : *Device) -> *ResourceManager #must {

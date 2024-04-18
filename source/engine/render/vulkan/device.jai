@@ -1207,6 +1207,8 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_features_1_2 };
 
         vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
+        // Anisotropy filtering support
+        assert(available_features.features.samplerAnisotropy == VK_TRUE);
         // UAV support
         assert(available_features.features.vertexPipelineStoresAndAtomics == VK_TRUE);
         assert(available_features.features.fragmentStoresAndAtomics == VK_TRUE);
@@ -1231,6 +1233,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     };
     features_to_enable := VkPhysicalDeviceFeatures2.{
         pNext                                   = *features_1_2_to_enable,
+        features.samplerAnisotropy              = VK_TRUE,
         features.vertexPipelineStoresAndAtomics = VK_TRUE,
         features.fragmentStoresAndAtomics       = VK_TRUE,
     };
