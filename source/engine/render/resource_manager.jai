@@ -3,6 +3,7 @@ ResourceManager :: struct {
     MAX_BUFFERS       :: 64;
     MAX_TEXTURES      :: 64;
     MAX_TEXTURE_VIEWS :: 32 * MAX_TEXTURES;
+    MAX_SAMPLERS      :: 64;
 
     MAX_RESOURCE_NAME_LENGTH      :: 512;
     MAX_RESOURCE_FULL_NAME_LENGTH :: 2 * MAX_RESOURCE_NAME_LENGTH;
@@ -37,6 +38,9 @@ ResourceManager :: struct {
 
     pushPlatformTextureView   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime) -> *TextureView #must;
     createPlatformTextureView : (device : *Device, manager : *ResourceManager, view : *TextureView, lifetime : Lifetime, name : string);
+
+    pushPlatformSampler   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime) -> *Sampler #must;
+    createPlatformSampler : (device : *Device, manager : *ResourceManager, sampler : *Sampler, state : *SamplerState, lifetime : Lifetime, name : string);
 }
 
 createResourceManager :: (device : *Device) -> *ResourceManager #must {
@@ -65,6 +69,7 @@ resetResourceMemory :: inline (device : *Device, manager : *ResourceManager, lif
 #load "buffer.jai";
 #load "texture.jai";
 #load "texture_view.jai";
+#load "sampler.jai";
 
 #scope_file
 

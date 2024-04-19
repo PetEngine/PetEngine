@@ -379,103 +379,89 @@ setVulkanPushConstants :: (command_buffer : VkCommandBuffer, shader : *VulkanSha
                        data);
 }
 
-bindVulkanBuffer :: (
+bindVulkanResource :: (
     device         : *VulkanDevice,
     command_buffer : *CommandBuffer,
     shader_manager : *VulkanShaderManager,
     shader         : *VulkanShader,
     handle         : BindingHandle,
-    buffer         : *VulkanBuffer
+    resource       : *$VulkanResource
 ) {
     if !shader.pipeline return;
 
+    #if VulkanResource == {
+        case VulkanBuffer;      RESOURCE_TYPE_NAME :: "buffer";
+        case VulkanTextureView; RESOURCE_TYPE_NAME :: "texture view";
+        case VulkanSampler;     RESOURCE_TYPE_NAME :: "sampler";
+        case;                   #assert false "Unhandled Vulkan resource type";
+    }
+
     if handle.set == BindingHandle.INVALID_SET || handle.binding == BindingHandle.INVALID_BINDING {
-        warningMessage("Invalid set and/or binding for shader \"%\", buffer \"%\"", shader.name, buffer.name);
+        warningMessage("Invalid set and/or binding for shader \"%\", % \"%\"", shader.name, RESOURCE_TYPE_NAME, resource.name);
         return;
     }
 
-    descriptor_range := shader.binding_table.bindings[handle.set][handle.binding];
+    binding := shader.binding_table.bindings[handle.set][handle.binding];
 
     descriptor_info := VkDescriptorGetInfoEXT.{
-        type = descriptorTypeToVulkanDescriptorType(descriptor_range.descriptor_type),
+        type = descriptorTypeToVulkanDescriptorType(binding.descriptor_type),
     };
 
-    if descriptor_range.descriptor_type == .UNKNOWN {
+    if binding.descriptor_type == .UNKNOWN {
         warningMessage("There is no any binding in descriptor set %, binding %", handle.set, handle.binding);
         return;
     }
 
-    descriptor_address_info := VkDescriptorAddressInfoEXT.{
-        address = cast(VkDeviceAddress) buffer.device_address,
-        range   = cast(VkDeviceSize) buffer.size,
-        format  = .VK_FORMAT_UNDEFINED
-    };
+    #if VulkanResource == {
+        case VulkanBuffer;
+            descriptor_address_info := VkDescriptorAddressInfoEXT.{
+                address = cast(VkDeviceAddress) resource.device_address,
+                range   = cast(VkDeviceSize) resource.size,
+                format  = .VK_FORMAT_UNDEFINED
+            };
 
-    // All types of buffers have the same descriptor data type, so whatever since data is union
-    descriptor_info.data.pUniformBuffer = *descriptor_address_info;
+            // All types of buffers have the same descriptor data type, so whatever since data is union
+            descriptor_info.data.pUniformBuffer = *descriptor_address_info;
 
-    // @TODO: #RobustAccess.
-    descriptor_size : u64;
-    if buffer.usage == {
-        case .UNIFORM;    descriptor_size = device.descriptor_buffer_properties.uniformBufferDescriptorSize;
-        case .READ_ONLY;  #through;
-        case .READ_WRITE; descriptor_size = device.descriptor_buffer_properties.storageBufferDescriptorSize;
-        case;
-            warningMessage("You cannot bind a buffer with % usage", buffer.usage);
-    }
+            // @TODO: #RobustAccess.
+            descriptor_size : u64;
+            if resource.usage == {
+                case .UNIFORM;    descriptor_size = device.descriptor_buffer_properties.uniformBufferDescriptorSize;
+                case .READ_ONLY;  #through;
+                case .READ_WRITE; descriptor_size = device.descriptor_buffer_properties.storageBufferDescriptorSize;
+                case;
+                    warningMessage("You cannot bind a buffer with % usage", resource.usage);
+            }
 
-    descriptor_memory := shader_manager.per_frame_bindings[device.frame_index].descriptor_buffer.mapped_memory
-                       + command_buffer.descriptor_buffer_set_offsets[handle.set]
-                       + cast(s64) shader.descriptor_set_layout_infos[handle.set].binding_offsets[handle.binding];
+        case VulkanTextureView;
+            descriptor_image_info := VkDescriptorImageInfo.{ imageView = resource.view };
 
-    device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
-}
+            // All types of textures have the same descriptor data type, so whatever since data is union
+            descriptor_info.data.pSampledImage = *descriptor_image_info;
 
-bindVulkanTexture :: (
-    device         : *VulkanDevice,
-    command_buffer : *CommandBuffer,
-    shader_manager : *VulkanShaderManager,
-    shader         : *VulkanShader,
-    handle         : BindingHandle,
-    view           : *VulkanTextureView
-) {
-    if !shader.pipeline return;
+            descriptor_size : u64;
+            if resource.usage == {
+                case .SHADER_READ;
+                    descriptor_size                   = device.descriptor_buffer_properties.sampledImageDescriptorSize;
+                    descriptor_image_info.imageLayout = ifx  textureFormatFlags(resource.format) & (.DEPTH | .STENCIL)
+                                                        then .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                                                        else .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    if handle.set == BindingHandle.INVALID_SET || handle.binding == BindingHandle.INVALID_BINDING {
-        warningMessage("Invalid set and/or binding for shader \"%\", texture view \"%\"", shader.name, view.name);
-        return;
-    }
+                case .SHADER_WRITE;
+                    descriptor_size                   = device.descriptor_buffer_properties.storageImageDescriptorSize;
+                    descriptor_image_info.imageLayout = .VK_IMAGE_LAYOUT_GENERAL;
 
-    descriptor_range := shader.binding_table.bindings[handle.set][handle.binding];
+                case;
+                    warningMessage("You cannot bind a texture view with % usage", resource.usage);
+            }
 
-    descriptor_info := VkDescriptorGetInfoEXT.{
-        type = descriptorTypeToVulkanDescriptorType(descriptor_range.descriptor_type),
-    };
+        case VulkanSampler;
+            descriptor_info.data.pSampler = resource.sampler;
 
-    if descriptor_range.descriptor_type == .UNKNOWN {
-        warningMessage("There is no any binding in descriptor set %, binding %", handle.set, handle.binding);
-        return;
-    }
-
-    descriptor_image_info := VkDescriptorImageInfo.{ imageView = view.view };
-
-    // All types of textures have the same descriptor data type, so whatever since data is union
-    descriptor_info.data.pSampledImage = *descriptor_image_info;
-
-    descriptor_size : u64;
-    if view.usage == {
-        case .SHADER_READ;
-            descriptor_size                   = device.descriptor_buffer_properties.sampledImageDescriptorSize;
-            descriptor_image_info.imageLayout = ifx  textureFormatFlags(view.format) & (.DEPTH | .STENCIL)
-                                                then .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
-                                                else .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-        case .SHADER_WRITE;
-            descriptor_size                   = device.descriptor_buffer_properties.storageImageDescriptorSize;
-            descriptor_image_info.imageLayout = .VK_IMAGE_LAYOUT_GENERAL;
+            descriptor_size := device.descriptor_buffer_properties.samplerDescriptorSize;
 
         case;
-            warningMessage("You cannot bind a texture view with % usage", view.usage);
+            #assert false "Unhandled Vulkan resource type";
     }
 
     descriptor_memory := shader_manager.per_frame_bindings[device.frame_index].descriptor_buffer.mapped_memory
