@@ -1,6 +1,7 @@
 Texture :: struct {
-    ALL_MIPS   : u8  : 0xFF;
-    ALL_LAYERS : u16 : 0xFFFF;
+    ALL_MIPS    : u8  : 0xFF;
+    ALL_LAYERS  : u16 : 0xFFFF;
+    MAX_SAMPLES : u8  : 0xFF;
 
     Dimension :: enum u8 {
         _1D;
@@ -111,13 +112,14 @@ createTexture :: (
            "COLOR_TARGET and DEPTH_TARGET usages cannot be combined");
     assert((usages & (.DEPTH_TARGET | .DEPTH_READ_ONLY)) == (.DEPTH_TARGET | .DEPTH_READ_ONLY) || !(usages & .DEPTH_READ_ONLY),
            "DEPTH_READ_ONLY usage should be used with DEPTH_TARGET usage");
-    assert(samples_count ==  1 ||
-           samples_count ==  2 ||
-           samples_count ==  4 ||
-           samples_count ==  8 ||
-           samples_count == 16 ||
-           samples_count == 32 ||
-           samples_count == 64);
+    assert(samples_count ==  1
+        || samples_count ==  2
+        || samples_count ==  4
+        || samples_count ==  8
+        || samples_count == 16
+        || samples_count == 32
+        || samples_count == 64
+        || samples_count == Texture.MAX_SAMPLES);
     assert(possible_owners.count > 0);
 
     // @TODO: Validate usage
