@@ -304,7 +304,7 @@ bindResource :: (
     resource       : *$Resource
 ) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use bindings for now";
-    #assert Resource == Buffer || Resource == TextureView;
+    #assert Resource == Buffer || Resource == TextureView || Resource == Sampler;
 
     shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set shader before setting its bindings");
@@ -312,22 +312,18 @@ bindResource :: (
     if #complete device.graphics_api == {
         case .VULKAN;
             #if Resource == {
-                case Buffer;
-                    bindVulkanBuffer(cast(*VulkanDevice) device,
-                                     command_buffer,
-                                     cast(*VulkanShaderManager) shader_manager,
-                                     cast(*VulkanShader) shader,
-                                     handle,
-                                     cast(*VulkanBuffer) resource);
-
-                case TextureView;
-                    bindVulkanTexture(cast(*VulkanDevice) device,
-                                     command_buffer,
-                                     cast(*VulkanShaderManager) shader_manager,
-                                     cast(*VulkanShader) shader,
-                                     handle,
-                                     cast(*VulkanTextureView) resource);
+                case Buffer;      VulkanResource :: VulkanBuffer;
+                case TextureView; VulkanResource :: VulkanTextureView;
+                case Sampler;     VulkanResource :: VulkanSampler;
+                case;             #assert false "Unhandled Vulkan resource type";
             }
+
+            bindVulkanResource(cast(*VulkanDevice) device,
+                               command_buffer,
+                               cast(*VulkanShaderManager) shader_manager,
+                               cast(*VulkanShader) shader,
+                               handle,
+                               cast(*VulkanResource) resource);
     }
 }
 
