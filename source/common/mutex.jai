@@ -33,7 +33,7 @@ tryLock :: (mutex : *Mutex, $shared := false) -> bool #no_context {
     }
 }
 
-scopedLock :: (mutex : *Mutex) #expand {
-    lock(mutex);
-    `defer unlock(mutex);
+scopedLock :: (mutex : *Mutex, $shared := false) #expand #no_context {
+    lock(mutex, shared);
+    `defer unlock(mutex, shared);
 }
