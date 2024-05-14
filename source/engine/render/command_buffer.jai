@@ -1,3 +1,7 @@
+// @TODO:
+//     - Move all the platform stuff to other file.
+//     - CommandBufferManager for vtable?
+
 CommandBuffer :: struct(usage : QueueType) {
     handles : StaticArray(*void, Device.MAX_FRAME_BUFFERING);
 
@@ -9,7 +13,9 @@ CommandBuffer :: struct(usage : QueueType) {
         inside_rendering : bool;
     }
 
-    descriptor_buffer_set_offsets : [ShaderCompiler.MAX_DESCRIPTOR_SETS] s64;
+    #if usage == .GRAPHICS || usage == .ASYNC_COMPUTE {
+        descriptor_buffer_set_offsets : [ShaderCompiler.MAX_DESCRIPTOR_SETS] s64;
+    }
 }
 
 Viewport :: struct {
@@ -73,11 +79,9 @@ createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(u
 
 resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, shader_manager : *ShaderManager) {
     // @TODO: #FrameBuffering.
-    //    - If device.frame_buffering > command_buffer.handles.count allocate new memory memory
-    //    - If device.frame_buffering < command_buffer.handles.count free unusused memory
-    assert(command_buffer.handles.count == cast,no_check(s64) device.frame_buffering,
-           "It's illegal to change frame buffering for now.");
-
+    //    - If command_buffer.handles.count < device.frame_buffering then allocate new memory
+    //    - If command_buffer.handles.count > device.frame_buffering then free unusused memory
+    assert(command_buffer.handles.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
     command_buffer.handles.count = cast,no_check(s64) device.frame_buffering;
 
     for * command_buffer.shaders {
@@ -162,11 +166,14 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader_manager 
     if #complete shader.kind == {
         case .UNKNOWN;
             // @TODO: Print some meaningful message why it's illegal
+
         case .GRAPHICS; #through;
         case .MESH;
             pipeline_bind_point = .GRAPHICS_OR_MESH;
+
         case .COMPUTE;
             pipeline_bind_point = .COMPUTE;
+
         case .RAY_TRACING;
             pipeline_bind_point = .RAY_TRACING;
     }

@@ -112,16 +112,22 @@ setVulkanShader :: (
     shader         : *VulkanShader,
     frame_index    : u8
 ) #no_context {
+    #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
+            "Only graphics and compute command buffers can set shaders";
+
     if !shader.pipeline return;
 
     if #complete shader.kind == {
         case .UNKNOWN;
             // @TODO: Print some meaningful message why it's illegal
+
         case .GRAPHICS; #through;
         case .MESH;
             vkCmdBindPipeline(command_buffer.handles[frame_index], .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
+
         case .COMPUTE;
             vkCmdBindPipeline(command_buffer.handles[frame_index], .VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline);
+
         case .RAY_TRACING;
             vkCmdBindPipeline(command_buffer.handles[frame_index], .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, shader.pipeline);
     }
@@ -309,12 +315,16 @@ endVulkanRendering :: inline (command_buffer : VkCommandBuffer) #no_context {
 }
 
 commitVulkanBindings :: (device : *VulkanDevice, command_buffer : *CommandBuffer, shader : *VulkanShader) #no_context {
+    #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
+            "Only graphics and compute command buffers can commit bindings";
+
     if !shader.pipeline return;
 
     bind_point : VkPipelineBindPoint;
     if #complete shader.kind == {
         case .UNKNOWN;
             // @TODO: Print some meaningful message why it's illegal
+
         case .GRAPHICS; #through;
         case .MESH;
             bind_point = .VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -387,6 +397,9 @@ bindVulkanResource :: (
     handle         : BindingHandle,
     resource       : *$VulkanResource
 ) {
+    #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
+            "Only graphics and compute command buffers can bind resources";
+
     if !shader.pipeline return;
 
     #if VulkanResource == {

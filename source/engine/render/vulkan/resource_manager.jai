@@ -1,9 +1,10 @@
-// @TODO: #VulkanTexture.
+// @TODO:
 //    - #SwapchainBuffers. Make a function for swapchain buffers initialization?
 //    - #ResourceLayout. Rework resource layout changing mechanism. If we gonna compile our command buffers concurrently,
 //      current tracking of current texture layout will not work.
 //    - Use reserved resources or something instead of freeing memory on reset. Use sparce bindings maybe?
 //    - #RobustAccess. Robust buffer and image access
+//    - #MTRendering. Thread safety for memory pools and name arenas.
 
 VulkanResourceManager :: struct {
     #as using public_data : ResourceManager;
@@ -196,14 +197,18 @@ resetVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, li
 
         case .PER_FRAME;
             // @TODO: #PerFrameTextures. #PerFrameBuffers. #FrameBuffering.
-            //    - If manager.*.per_frame.count < device.frame_buffering then allocate new memory memory
+            //    - If manager.*.per_frame.count < device.frame_buffering then allocate new memory
             //    - If manager.*.per_frame.count > device.frame_buffering then free unusused memory
 
-            assert(manager.buffers.per_frame.count  == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now.");
-            assert(manager.textures.per_frame.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now.");
+            assert(manager.buffers.per_frame.count       == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
+            assert(manager.textures.per_frame.count      == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
+            assert(manager.texture_views.per_frame.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
+            assert(manager.samplers.per_frame.count      == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
 
-            manager.buffers.per_frame.count  = cast,no_check(s64) device.frame_buffering;
-            manager.textures.per_frame.count = cast,no_check(s64) device.frame_buffering;
+            manager.buffers.per_frame.count       = cast,no_check(s64) device.frame_buffering;
+            manager.textures.per_frame.count      = cast,no_check(s64) device.frame_buffering;
+            manager.texture_views.per_frame.count = cast,no_check(s64) device.frame_buffering;
+            manager.samplers.per_frame.count      = cast,no_check(s64) device.frame_buffering;
 
             for * manager.buffers.per_frame[device.frame_index] {
                 resetVulkanBufferMemoryPool(device, it, cast(ResourceManager.Pool) it_index);

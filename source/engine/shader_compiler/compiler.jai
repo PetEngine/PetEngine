@@ -15,6 +15,7 @@ ShaderCompiler :: struct {
     INVALID_OFFSET             :: -1;
     INVALID_COLOR_TARGET_INDEX : u8 : 0xFF;
 
+    // @Cleanup: Move these maxs to ShaderManager?
     MAX_STAGES          :: #run Basic.enum_highest_value(ShaderStage) + 1;
     MAX_COLOR_TARGETS   :: 8;
     // @TODO: #BindingTable. Adequate number of sets and bindings for each stage

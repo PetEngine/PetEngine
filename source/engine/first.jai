@@ -111,7 +111,7 @@ petMain :: () {
     commitResourceMemory(device, resource_manager, .PERSISTENT);
     defer resetResourceMemory(device, resource_manager, .PERSISTENT);
 
-    triangle_shader := createShader(device, shader_manager, "triangle", .[ getBackBuffer(device).format ]);
+    triangle_shader       := createShader(device, shader_manager, "triangle", .[ getBackBuffer(device).format ]);
     push_constants_handle := getPushConstantsHandle(triangle_shader, "g_push_constants");
     per_view_handle       := getBindingHandle(triangle_shader, "g_per_view");
 
@@ -135,8 +135,7 @@ petMain :: () {
         }
 
         // @TODO: #FrameBuffering.
-        assert(per_view_uniform.buffers.count == cast(s64) device.frame_buffering,
-               "It's illegal to change frame buffering for now.");
+        assert(per_view_uniform.buffers.count == cast(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
 
         beginFrame(device, window);
         {
@@ -145,7 +144,6 @@ petMain :: () {
                 // @TODO: #PerFrameResources. Delete unused per frame resources memory when number of swapchain buffers is decreased.
                 resetResourceMemory(device, resource_manager, .PER_FRAME);
                 resetShaderManager(device, shader_manager);
-
                 resetCommandBuffer(device, *command_buffer, shader_manager);
             }
 

@@ -1,7 +1,6 @@
-#scope_export
-
 // @TODO:
 //     - Split into 2 files: shader_manager.jai and shader.jai
+//     - #MTRendering. Thread safety for shaders_storage
 
 VulkanShaderManager :: struct {
     #as using public_data : ShaderManager;
@@ -111,6 +110,15 @@ resetVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
 
     assertThreadKind(.MAIN);
 
+    // @TODO: #FrameBuffering.
+    //    - If manager.per_frame_*.count < device.frame_buffering then allocate new memory
+    //    - If manager.per_frame_*.count > device.frame_buffering then free unusused memory
+    assert(manager.per_frame_bindings.count   == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
+    assert(manager.per_frame_reset_data.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
+
+    manager.per_frame_bindings.count   = cast,no_check(s64) device.frame_buffering;
+    manager.per_frame_reset_data.count = cast,no_check(s64) device.frame_buffering;
+
     // No need to sync, that happens before we write commands to command buffers
     manager.per_frame_bindings[device.frame_index].descriptor_buffer_offset = 0;
 
@@ -146,13 +154,12 @@ resetVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
 findVulkanShader :: (manager_ : *ShaderManager, name : string) -> *Shader #must #no_context {
     manager := cast(*VulkanShaderManager) manager_;
 
-    shaders_it := manager.shaders_storage.data;
-    for 0 .. manager.shaders_count {
-        if shaders_it.name == name {
-            return shaders_it;
+    for * toView(manager.shaders_storage.data, manager.shaders_count) {
+        if it.name == name {
+            return it;
         }
-        shaders_it += 1;
     }
+
     return null;
 }
 
