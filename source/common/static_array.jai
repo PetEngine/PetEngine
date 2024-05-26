@@ -94,8 +94,6 @@ for_expansion :: (array : *StaticArray, body : Code, flags : For_Flags) #expand 
             `it := array.data[it_index];
         }
 
-        #insert(remove = #assert false) body;
+        #insert(remove = #assert false "You cannot use remove statement for StaticArray") body;
     }
 }
-
-#scope_file
