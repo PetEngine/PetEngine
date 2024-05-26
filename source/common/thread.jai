@@ -103,7 +103,7 @@ waitThread :: (thread : *Thread, milliseconds : u32 = 0xFFFF_FFFF, alertable := 
     return signaled;
 }
 
-exitThread :: (exit_code : u32 = 0) {
+exitThread :: (exit_code : u32 = 0xFFFF_FFFF) {
     #if OS == .WINDOWS {
         if exit_code == 0xFFFF_FFFF {
             exit_code = GetLastError();
