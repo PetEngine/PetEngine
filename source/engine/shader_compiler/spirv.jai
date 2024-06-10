@@ -24,7 +24,16 @@
 ** IN THE MATERIALS.
 */
 
-SpvId :: s32;
+SpvId :: u32;
+
+SPV_VERSION  :: 0x10600;
+SPV_REVISION :: 1;
+
+SpvMagicNumber    : u32 : 0x07230203;
+SpvVersion        : u32 : 0x00010600;
+SpvRevision       : u32 : 1;
+SpvOpCodeMask     : u32 : 0xffff;
+SpvWordCountShift : u32 : 16;
 
 SpvSourceLanguage :: enum s32 #specified {
     SpvSourceLanguageUnknown :: 0;
@@ -35,6 +44,8 @@ SpvSourceLanguage :: enum s32 #specified {
     SpvSourceLanguageHLSL :: 5;
     SpvSourceLanguageCPP_for_OpenCL :: 6;
     SpvSourceLanguageSYCL :: 7;
+    SpvSourceLanguageHERO_C :: 8;
+    SpvSourceLanguageNZSL :: 9;
     SpvSourceLanguageMax :: 0x7fffffff;
 }
 
@@ -104,6 +115,9 @@ SpvExecutionMode :: enum s32 #specified {
     SpvExecutionModeSubgroupsPerWorkgroupId :: 37;
     SpvExecutionModeLocalSizeId :: 38;
     SpvExecutionModeLocalSizeHintId :: 39;
+    SpvExecutionModeNonCoherentColorAttachmentReadEXT :: 4169;
+    SpvExecutionModeNonCoherentDepthAttachmentReadEXT :: 4170;
+    SpvExecutionModeNonCoherentStencilAttachmentReadEXT :: 4171;
     SpvExecutionModeSubgroupUniformControlFlowKHR :: 4421;
     SpvExecutionModePostDepthCoverage :: 4446;
     SpvExecutionModeDenormPreserve :: 4459;
@@ -143,6 +157,8 @@ SpvExecutionMode :: enum s32 #specified {
     SpvExecutionModeNoGlobalOffsetINTEL :: 5895;
     SpvExecutionModeNumSIMDWorkitemsINTEL :: 5896;
     SpvExecutionModeSchedulerTargetFmaxMhzINTEL :: 5903;
+    SpvExecutionModeStreamingInterfaceINTEL :: 6154;
+    SpvExecutionModeRegisterMapInterfaceINTEL :: 6160;
     SpvExecutionModeNamedBarrierCountINTEL :: 6417;
     SpvExecutionModeMax :: 0x7fffffff;
 }
@@ -161,6 +177,7 @@ SpvStorageClass :: enum s32 #specified {
     SpvStorageClassAtomicCounter :: 10;
     SpvStorageClassImage :: 11;
     SpvStorageClassStorageBuffer :: 12;
+    SpvStorageClassTileImageEXT :: 4172;
     SpvStorageClassCallableDataKHR :: 5328;
     SpvStorageClassCallableDataNV :: 5328;
     SpvStorageClassIncomingCallableDataKHR :: 5329;
@@ -175,6 +192,7 @@ SpvStorageClass :: enum s32 #specified {
     SpvStorageClassShaderRecordBufferNV :: 5343;
     SpvStorageClassPhysicalStorageBuffer :: 5349;
     SpvStorageClassPhysicalStorageBufferEXT :: 5349;
+    SpvStorageClassHitObjectAttributeNV :: 5385;
     SpvStorageClassTaskPayloadWorkgroupEXT :: 5402;
     SpvStorageClassCodeSectionINTEL :: 5605;
     SpvStorageClassDeviceOnlyINTEL :: 5936;
@@ -190,6 +208,7 @@ SpvDim :: enum s32 #specified {
     SpvDimRect :: 4;
     SpvDimBuffer :: 5;
     SpvDimSubpassData :: 6;
+    SpvDimTileImageDataEXT :: 4173;
     SpvDimMax :: 0x7fffffff;
 }
 
@@ -281,6 +300,11 @@ SpvBuiltIn :: enum s32 #specified {
     SpvBuiltInSubgroupLocalInvocationId :: 41;
     SpvBuiltInVertexIndex :: 42;
     SpvBuiltInInstanceIndex :: 43;
+    SpvBuiltInCoreIDARM :: 4160;
+    SpvBuiltInCoreCountARM :: 4161;
+    SpvBuiltInCoreMaxIDARM :: 4162;
+    SpvBuiltInWarpIDARM :: 4163;
+    SpvBuiltInWarpMaxIDARM :: 4164;
     SpvBuiltInSubgroupEqMask :: 4416;
     SpvBuiltInSubgroupEqMaskKHR :: 4416;
     SpvBuiltInSubgroupGeMask :: 4417;
@@ -358,6 +382,7 @@ SpvBuiltIn :: enum s32 #specified {
     SpvBuiltInHitKindKHR :: 5333;
     SpvBuiltInHitKindNV :: 5333;
     SpvBuiltInCurrentRayTimeNV :: 5334;
+    SpvBuiltInHitTriangleVertexPositionsKHR :: 5335;
     SpvBuiltInIncomingRayFlagsKHR :: 5351;
     SpvBuiltInIncomingRayFlagsNV :: 5351;
     SpvBuiltInRayGeometryIndexKHR :: 5352;
@@ -440,6 +465,10 @@ SpvCapability :: enum s32 #specified {
     SpvCapabilityShaderLayer :: 69;
     SpvCapabilityShaderViewportIndex :: 70;
     SpvCapabilityUniformDecoration :: 71;
+    SpvCapabilityCoreBuiltinsARM :: 4165;
+    SpvCapabilityTileImageColorReadAccessEXT :: 4166;
+    SpvCapabilityTileImageDepthReadAccessEXT :: 4167;
+    SpvCapabilityTileImageStencilReadAccessEXT :: 4168;
     SpvCapabilityFragmentShadingRateKHR :: 4422;
     SpvCapabilitySubgroupBallotKHR :: 4423;
     SpvCapabilityDrawParameters :: 4427;
@@ -471,6 +500,9 @@ SpvCapability :: enum s32 #specified {
     SpvCapabilityRayQueryKHR :: 4472;
     SpvCapabilityRayTraversalPrimitiveCullingKHR :: 4478;
     SpvCapabilityRayTracingKHR :: 4479;
+    SpvCapabilityTextureSampleWeightedQCOM :: 4484;
+    SpvCapabilityTextureBoxFilterQCOM :: 4485;
+    SpvCapabilityTextureBlockMatchQCOM :: 4486;
     SpvCapabilityFloat16ImageAMD :: 5008;
     SpvCapabilityImageGatherBiasLodAMD :: 5009;
     SpvCapabilityFragmentMaskAMD :: 5010;
@@ -519,6 +551,7 @@ SpvCapability :: enum s32 #specified {
     SpvCapabilityUniformTexelBufferArrayNonUniformIndexingEXT :: 5311;
     SpvCapabilityStorageTexelBufferArrayNonUniformIndexing :: 5312;
     SpvCapabilityStorageTexelBufferArrayNonUniformIndexingEXT :: 5312;
+    SpvCapabilityRayTracingPositionFetchKHR :: 5336;
     SpvCapabilityRayTracingNV :: 5340;
     SpvCapabilityRayTracingMotionBlurNV :: 5341;
     SpvCapabilityVulkanMemoryModel :: 5345;
@@ -536,7 +569,10 @@ SpvCapability :: enum s32 #specified {
     SpvCapabilityFragmentShaderPixelInterlockEXT :: 5378;
     SpvCapabilityDemoteToHelperInvocation :: 5379;
     SpvCapabilityDemoteToHelperInvocationEXT :: 5379;
+    SpvCapabilityRayTracingOpacityMicromapEXT :: 5381;
+    SpvCapabilityShaderInvocationReorderNV :: 5383;
     SpvCapabilityBindlessTextureNV :: 5390;
+    SpvCapabilityRayQueryPositionFetchKHR :: 5391;
     SpvCapabilitySubgroupShuffleINTEL :: 5568;
     SpvCapabilitySubgroupBufferBlockIOINTEL :: 5569;
     SpvCapabilitySubgroupImageBlockIOINTEL :: 5570;
@@ -569,10 +605,13 @@ SpvCapability :: enum s32 #specified {
     SpvCapabilityFPGAMemoryAccessesINTEL :: 5898;
     SpvCapabilityFPGAClusterAttributesINTEL :: 5904;
     SpvCapabilityLoopFuseINTEL :: 5906;
+    SpvCapabilityFPGADSPControlINTEL :: 5908;
     SpvCapabilityMemoryAccessAliasingINTEL :: 5910;
+    SpvCapabilityFPGAInvocationPipeliningAttributesINTEL :: 5916;
     SpvCapabilityFPGABufferLocationINTEL :: 5920;
     SpvCapabilityArbitraryPrecisionFixedPointINTEL :: 5922;
     SpvCapabilityUSMStorageClassesINTEL :: 5935;
+    SpvCapabilityRuntimeAlignedAttributeINTEL :: 5939;
     SpvCapabilityIOPipesINTEL :: 5943;
     SpvCapabilityBlockingPipesINTEL :: 5945;
     SpvCapabilityFPGARegINTEL :: 5948;
@@ -585,6 +624,7 @@ SpvCapability :: enum s32 #specified {
     SpvCapabilityDotProduct :: 6019;
     SpvCapabilityDotProductKHR :: 6019;
     SpvCapabilityRayCullMaskKHR :: 6020;
+    SpvCapabilityCooperativeMatrixKHR :: 6022;
     SpvCapabilityBitInstructions :: 6025;
     SpvCapabilityGroupNonUniformRotateKHR :: 6026;
     SpvCapabilityAtomicFloat32AddEXT :: 6033;
@@ -593,7 +633,11 @@ SpvCapability :: enum s32 #specified {
     SpvCapabilityOptNoneINTEL :: 6094;
     SpvCapabilityAtomicFloat16AddEXT :: 6095;
     SpvCapabilityDebugInfoModuleINTEL :: 6114;
+    SpvCapabilityBFloat16ConversionINTEL :: 6115;
     SpvCapabilitySplitBarrierINTEL :: 6141;
+    SpvCapabilityFPGAKernelAttributesv2INTEL :: 6161;
+    SpvCapabilityFPGALatencyControlINTEL :: 6171;
+    SpvCapabilityFPGAArgumentInterfacesINTEL :: 6174;
     SpvCapabilityGroupUniformArithmeticKHR :: 6400;
     SpvCapabilityMax :: 0x7fffffff;
 }
@@ -943,6 +987,9 @@ SpvOp :: enum s32 #specified {
     SpvOpPtrEqual :: 401;
     SpvOpPtrNotEqual :: 402;
     SpvOpPtrDiff :: 403;
+    SpvOpColorAttachmentReadEXT :: 4160;
+    SpvOpDepthAttachmentReadEXT :: 4161;
+    SpvOpStencilAttachmentReadEXT :: 4162;
     SpvOpTerminateInvocation :: 4416;
     SpvOpSubgroupBallotKHR :: 4421;
     SpvOpSubgroupFirstInvocationKHR :: 4422;
@@ -968,6 +1015,11 @@ SpvOp :: enum s32 #specified {
     SpvOpUDotAccSatKHR :: 4454;
     SpvOpSUDotAccSat :: 4455;
     SpvOpSUDotAccSatKHR :: 4455;
+    SpvOpTypeCooperativeMatrixKHR :: 4456;
+    SpvOpCooperativeMatrixLoadKHR :: 4457;
+    SpvOpCooperativeMatrixStoreKHR :: 4458;
+    SpvOpCooperativeMatrixMulAddKHR :: 4459;
+    SpvOpCooperativeMatrixLengthKHR :: 4460;
     SpvOpTypeRayQueryKHR :: 4472;
     SpvOpRayQueryInitializeKHR :: 4473;
     SpvOpRayQueryTerminateKHR :: 4474;
@@ -975,6 +1027,10 @@ SpvOp :: enum s32 #specified {
     SpvOpRayQueryConfirmIntersectionKHR :: 4476;
     SpvOpRayQueryProceedKHR :: 4477;
     SpvOpRayQueryGetIntersectionTypeKHR :: 4479;
+    SpvOpImageSampleWeightedQCOM :: 4480;
+    SpvOpImageBoxFilterQCOM :: 4481;
+    SpvOpImageBlockMatchSSDQCOM :: 4482;
+    SpvOpImageBlockMatchSADQCOM :: 4483;
     SpvOpGroupIAddNonUniformAMD :: 5000;
     SpvOpGroupFAddNonUniformAMD :: 5001;
     SpvOpGroupFMinNonUniformAMD :: 5002;
@@ -986,6 +1042,39 @@ SpvOp :: enum s32 #specified {
     SpvOpFragmentMaskFetchAMD :: 5011;
     SpvOpFragmentFetchAMD :: 5012;
     SpvOpReadClockKHR :: 5056;
+    SpvOpHitObjectRecordHitMotionNV :: 5249;
+    SpvOpHitObjectRecordHitWithIndexMotionNV :: 5250;
+    SpvOpHitObjectRecordMissMotionNV :: 5251;
+    SpvOpHitObjectGetWorldToObjectNV :: 5252;
+    SpvOpHitObjectGetObjectToWorldNV :: 5253;
+    SpvOpHitObjectGetObjectRayDirectionNV :: 5254;
+    SpvOpHitObjectGetObjectRayOriginNV :: 5255;
+    SpvOpHitObjectTraceRayMotionNV :: 5256;
+    SpvOpHitObjectGetShaderRecordBufferHandleNV :: 5257;
+    SpvOpHitObjectGetShaderBindingTableRecordIndexNV :: 5258;
+    SpvOpHitObjectRecordEmptyNV :: 5259;
+    SpvOpHitObjectTraceRayNV :: 5260;
+    SpvOpHitObjectRecordHitNV :: 5261;
+    SpvOpHitObjectRecordHitWithIndexNV :: 5262;
+    SpvOpHitObjectRecordMissNV :: 5263;
+    SpvOpHitObjectExecuteShaderNV :: 5264;
+    SpvOpHitObjectGetCurrentTimeNV :: 5265;
+    SpvOpHitObjectGetAttributesNV :: 5266;
+    SpvOpHitObjectGetHitKindNV :: 5267;
+    SpvOpHitObjectGetPrimitiveIndexNV :: 5268;
+    SpvOpHitObjectGetGeometryIndexNV :: 5269;
+    SpvOpHitObjectGetInstanceIdNV :: 5270;
+    SpvOpHitObjectGetInstanceCustomIndexNV :: 5271;
+    SpvOpHitObjectGetWorldRayDirectionNV :: 5272;
+    SpvOpHitObjectGetWorldRayOriginNV :: 5273;
+    SpvOpHitObjectGetRayTMaxNV :: 5274;
+    SpvOpHitObjectGetRayTMinNV :: 5275;
+    SpvOpHitObjectIsEmptyNV :: 5276;
+    SpvOpHitObjectIsHitNV :: 5277;
+    SpvOpHitObjectIsMissNV :: 5278;
+    SpvOpReorderThreadWithHitObjectNV :: 5279;
+    SpvOpReorderThreadWithHintNV :: 5280;
+    SpvOpTypeHitObjectNV :: 5281;
     SpvOpImageSampleFootprintNV :: 5283;
     SpvOpEmitMeshTasksEXT :: 5294;
     SpvOpSetMeshOutputsEXT :: 5295;
@@ -998,6 +1087,7 @@ SpvOp :: enum s32 #specified {
     SpvOpTraceNV :: 5337;
     SpvOpTraceMotionNV :: 5338;
     SpvOpTraceRayMotionNV :: 5339;
+    SpvOpRayQueryGetIntersectionTriangleVertexPositionsKHR :: 5340;
     SpvOpTypeAccelerationStructureKHR :: 5341;
     SpvOpTypeAccelerationStructureNV :: 5341;
     SpvOpExecuteCallableNV :: 5344;
@@ -1259,6 +1349,8 @@ SpvOp :: enum s32 #specified {
     SpvOpTypeStructContinuedINTEL :: 6090;
     SpvOpConstantCompositeContinuedINTEL :: 6091;
     SpvOpSpecConstantCompositeContinuedINTEL :: 6092;
+    SpvOpConvertFToBF16INTEL :: 6116;
+    SpvOpConvertBF16ToFINTEL :: 6117;
     SpvOpControlBarrierArriveINTEL :: 6142;
     SpvOpControlBarrierWaitINTEL :: 6143;
     SpvOpGroupIMulKHR :: 6401;

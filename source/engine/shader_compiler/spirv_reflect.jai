@@ -92,6 +92,9 @@ NOTE: HLSL row_major and column_major decorations are reversed
       SPIRV-Reflect reads the data as is and does not make any
       attempt to correct it to match what's in the source.
 
+      The Patch, PerVertex, and PerTask are used for Interface
+      variables that can have array
+
 */
 SpvReflectDecorationFlags :: enum_flags u32 #specified {
     SPV_REFLECT_DECORATION_NONE                :: 0x00000000;
@@ -110,6 +113,50 @@ SpvReflectDecorationFlags :: enum_flags u32 #specified {
     SPV_REFLECT_DECORATION_PER_TASK            :: 0x00001000;
     SPV_REFLECT_DECORATION_WEIGHT_TEXTURE      :: 0x00002000;
     SPV_REFLECT_DECORATION_BLOCK_MATCH_TEXTURE :: 0x00004000;
+}
+
+// Based of SPV_GOOGLE_user_type
+SpvReflectUserType :: enum s32 {
+    SPV_REFLECT_USER_TYPE_INVALID :: 0;
+    SPV_REFLECT_USER_TYPE_CBUFFER;
+    SPV_REFLECT_USER_TYPE_TBUFFER;
+    SPV_REFLECT_USER_TYPE_APPEND_STRUCTURED_BUFFER;
+    SPV_REFLECT_USER_TYPE_BUFFER;
+    SPV_REFLECT_USER_TYPE_BYTE_ADDRESS_BUFFER;
+    SPV_REFLECT_USER_TYPE_CONSTANT_BUFFER;
+    SPV_REFLECT_USER_TYPE_CONSUME_STRUCTURED_BUFFER;
+    SPV_REFLECT_USER_TYPE_INPUT_PATCH;
+    SPV_REFLECT_USER_TYPE_OUTPUT_PATCH;
+    SPV_REFLECT_USER_TYPE_RASTERIZER_ORDERED_BUFFER;
+    SPV_REFLECT_USER_TYPE_RASTERIZER_ORDERED_BYTE_ADDRESS_BUFFER;
+    SPV_REFLECT_USER_TYPE_RASTERIZER_ORDERED_STRUCTURED_BUFFER;
+    SPV_REFLECT_USER_TYPE_RASTERIZER_ORDERED_TEXTURE_1D;
+    SPV_REFLECT_USER_TYPE_RASTERIZER_ORDERED_TEXTURE_1D_ARRAY;
+    SPV_REFLECT_USER_TYPE_RASTERIZER_ORDERED_TEXTURE_2D;
+    SPV_REFLECT_USER_TYPE_RASTERIZER_ORDERED_TEXTURE_2D_ARRAY;
+    SPV_REFLECT_USER_TYPE_RASTERIZER_ORDERED_TEXTURE_3D;
+    SPV_REFLECT_USER_TYPE_RAYTRACING_ACCELERATION_STRUCTURE;
+    SPV_REFLECT_USER_TYPE_RW_BUFFER;
+    SPV_REFLECT_USER_TYPE_RW_BYTE_ADDRESS_BUFFER;
+    SPV_REFLECT_USER_TYPE_RW_STRUCTURED_BUFFER;
+    SPV_REFLECT_USER_TYPE_RW_TEXTURE_1D;
+    SPV_REFLECT_USER_TYPE_RW_TEXTURE_1D_ARRAY;
+    SPV_REFLECT_USER_TYPE_RW_TEXTURE_2D;
+    SPV_REFLECT_USER_TYPE_RW_TEXTURE_2D_ARRAY;
+    SPV_REFLECT_USER_TYPE_RW_TEXTURE_3D;
+    SPV_REFLECT_USER_TYPE_STRUCTURED_BUFFER;
+    SPV_REFLECT_USER_TYPE_SUBPASS_INPUT;
+    SPV_REFLECT_USER_TYPE_SUBPASS_INPUT_MS;
+    SPV_REFLECT_USER_TYPE_TEXTURE_1D;
+    SPV_REFLECT_USER_TYPE_TEXTURE_1D_ARRAY;
+    SPV_REFLECT_USER_TYPE_TEXTURE_2D;
+    SPV_REFLECT_USER_TYPE_TEXTURE_2D_ARRAY;
+    SPV_REFLECT_USER_TYPE_TEXTURE_2DMS;
+    SPV_REFLECT_USER_TYPE_TEXTURE_2DMS_ARRAY;
+    SPV_REFLECT_USER_TYPE_TEXTURE_3D;
+    SPV_REFLECT_USER_TYPE_TEXTURE_BUFFER;
+    SPV_REFLECT_USER_TYPE_TEXTURE_CUBE;
+    SPV_REFLECT_USER_TYPE_TEXTURE_CUBE_ARRAY;
 }
 
 /*! @enum SpvReflectResourceType
@@ -268,8 +315,7 @@ SpvReflectImageTraits :: struct {
 }
 
 SpvReflectArrayDimType :: enum u32 #specified {
-    SPV_REFLECT_ARRAY_DIM_RUNTIME       :: 0;          // OpTypeRuntimeArray
-    SPV_REFLECT_ARRAY_DIM_SPEC_CONSTANT :: 0xFFFFFFFF; // specialization constant
+    SPV_REFLECT_ARRAY_DIM_RUNTIME :: 0; // OpTypeRuntimeArray
 }
 
 SpvReflectArrayTraits :: struct {
@@ -384,29 +430,33 @@ SpvReflectBlockVariable :: struct {
 
 */
 SpvReflectDescriptorBinding :: struct {
-    spirv_id               : u32;
-    name                   : *s8;
-    binding                : u32;
-    input_attachment_index : u32;
-    set                    : u32;
-    descriptor_type        : SpvReflectDescriptorType;
-    resource_type          : SpvReflectResourceType;
-    image                  : SpvReflectImageTraits;
-    block                  : SpvReflectBlockVariable;
-    array                  : SpvReflectBindingArrayTraits;
-    count                  : u32;
-    accessed               : u32;
-    uav_counter_id         : u32;
-    uav_counter_binding    : *SpvReflectDescriptorBinding;
+    spirv_id                         : u32;
+    name                             : *s8;
+    binding                          : u32;
+    input_attachment_index           : u32;
+    set                              : u32;
+    descriptor_type                  : SpvReflectDescriptorType;
+    resource_type                    : SpvReflectResourceType;
+    image                            : SpvReflectImageTraits;
+    block                            : SpvReflectBlockVariable;
+    array                            : SpvReflectBindingArrayTraits;
+    count                            : u32;
+    accessed                         : u32;
+    uav_counter_id                   : u32;
+    uav_counter_binding              : *SpvReflectDescriptorBinding;
+    byte_address_buffer_offset_count : u32;
+    byte_address_buffer_offsets      : *u32;
 
-    type_description       : *SpvReflectTypeDescription;
+    type_description                 : *SpvReflectTypeDescription;
 
-    word_offset            : struct {
-        binding            : u32;
-        set                : u32;
+    word_offset                      : struct {
+        binding                      : u32;
+        set                          : u32;
     };
 
-    decoration_flags       : SpvReflectDecorationFlags;
+    decoration_flags                 : SpvReflectDecorationFlags;
+    // Requires SPV_GOOGLE_user_type
+    user_type                        : SpvReflectUserType;
 }
 
 /*! @struct SpvReflectDescriptorSet
@@ -457,9 +507,21 @@ SpvReflectEntryPoint :: struct {
     output_vertices          : u32; // valid for geometry, tesselation
 }
 
+/*! @struct SpvReflectCapability
+
+*/
 SpvReflectCapability :: struct {
     value       : SpvCapability;
     word_offset : u32;
+}
+
+/*! @struct SpvReflectSpecId
+
+*/
+SpvReflectSpecializationConstant :: struct {
+    spirv_id    : u32;
+    constant_id : u32;
+    name        : *s8;
 }
 
 /*! @struct SpvReflectShaderModule
@@ -491,6 +553,8 @@ SpvReflectShaderModule :: struct {
     interface_variables       : *SpvReflectInterfaceVariable;                              // Uses value(s) from first entry point
     push_constant_block_count : u32;                                                       // Uses value(s) from first entry point
     push_constant_blocks      : *SpvReflectBlockVariable;                                  // Uses value(s) from first entry point
+    spec_constant_count       : u32;                                                       // Uses value(s) from first entry point
+    spec_constants            : *SpvReflectSpecializationConstant;                         // Uses value(s) from first entry point
 
     Internal :: struct {
         module_flags     : SpvReflectModuleFlags;
@@ -529,27 +593,6 @@ spvReflectCreateShaderModule2 :: (
 spvReflectDestroyShaderModule :: (
     p_module : *SpvReflectShaderModule
 ) #foreign spirv_reflect;
-
-/*! @fn spvReflectGetCodeSize
-
- @param  p_module  Pointer to an instance of SpvReflectShaderModule.
- @return           Returns the size of the SPIR-V in bytes
-
-*/
-spvReflectGetCodeSize :: (
-    p_module : *SpvReflectShaderModule
-) -> u32 #foreign spirv_reflect;
-
-
-/*! @fn spvReflectGetCode
-
- @param  p_module  Pointer to an instance of SpvReflectShaderModule.
- @return           Returns a const pointer to the compiled SPIR-V bytecode.
-
-*/
-spvReflectGetCode :: (
-    p_module : *SpvReflectShaderModule
-) -> *u32 #foreign spirv_reflect;
 
 #scope_file
 
