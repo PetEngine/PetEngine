@@ -228,8 +228,8 @@ determinant :: inline (m : m4x4) -> f32 #no_context {
 
 // Left handed
 lookAtMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x4 {
-    assert(isNormal(world_up), "world_up vector should be normal");
-    assert(isNormal(direction), "direction vector should be normal");
+    assert(normalized(world_up), "world_up vector should be normal");
+    assert(normalized(direction), "direction vector should be normal");
 
     axis_z := direction;
     axis_x := cross(world_up, axis_z);
@@ -245,8 +245,8 @@ lookAtMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -
 
 // Left handed
 lookAtMatrixAndItsInverse :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> (view : m4x4, inv_view : m4x4) {
-    assert(isNormal(world_up), "world_up vector should be normal");
-    assert(isNormal(direction), "direction vector should be normal");
+    assert(normalized(world_up), "world_up vector should be normal");
+    assert(normalized(direction), "direction vector should be normal");
 
     axis_z := direction;
     axis_x := cross(world_up, axis_z);
