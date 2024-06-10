@@ -286,7 +286,7 @@ compileShader :: (name : string) -> bool {
     // 2. Get code for each shader stage and pipeline state
     //
 
-    shader_kind         := Shader.Kind.UNKNOWN;
+    shader_kind         : Shader.Kind = 0xFF;
     stage_codes         : [MAX_STAGES] string;
     pipeline_state_code : string;
 
@@ -298,7 +298,7 @@ compileShader :: (name : string) -> bool {
 
             if line == {
                 case "#vertex_shader";
-                    if shader_kind != .GRAPHICS && shader_kind != .UNKNOWN {
+                    if shader_kind != .GRAPHICS && shader_kind != 0xFF {
                         errorMessage("Vertex shader stage is unavailable for shader kind %", shader_kind);
                         return false;
                     }
@@ -306,7 +306,7 @@ compileShader :: (name : string) -> bool {
                     stage_codes[ShaderStage.VERTEX] = getShaderStageCode(*source);
 
                 case "#fragment_shader";
-                    if shader_kind != .GRAPHICS && shader_kind != .UNKNOWN {
+                    if shader_kind != .GRAPHICS && shader_kind != 0xFF {
                         errorMessage("Vertex shader stage is unavailable for shader kind %", shader_kind);
                         return false;
                     }

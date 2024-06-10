@@ -118,9 +118,6 @@ setVulkanShader :: (
     if !shader.pipeline return;
 
     if #complete shader.kind == {
-        case .UNKNOWN;
-            // @TODO: Print some meaningful message why it's illegal
-
         case .GRAPHICS; #through;
         case .MESH;
             vkCmdBindPipeline(command_buffer.handles[frame_index], .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
@@ -149,7 +146,6 @@ setVulkanShader :: (
 }
 
 // @TODO: #MSAA.
-//     - Mip selection
 //     - #Limits. maxColorAttachments, maxFramebufferWidth, maxFramebufferHeight
 beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] ColorTargetDesc, depth_target : *DepthTargetDesc) {
     barriers    := pushToArena(*context.pet.per_frame_arena, VkImageMemoryBarrier, color_targets.count + cast,no_check(s64) (depth_target != null));
@@ -322,9 +318,6 @@ commitVulkanBindings :: (device : *VulkanDevice, command_buffer : *CommandBuffer
 
     bind_point : VkPipelineBindPoint;
     if #complete shader.kind == {
-        case .UNKNOWN;
-            // @TODO: Print some meaningful message why it's illegal
-
         case .GRAPHICS; #through;
         case .MESH;
             bind_point = .VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -510,7 +503,7 @@ copyVulkanBuffer :: inline (
 
 #scope_file
 
-loadActionToVulkanLoadOp :: (action : TargetLoadAction) -> VkAttachmentLoadOp #no_context {
+loadActionToVulkanLoadOp :: inline (action : TargetLoadAction) -> VkAttachmentLoadOp #no_context {
     if #complete action == {
         case .NONE;  return .VK_ATTACHMENT_LOAD_OP_DONT_CARE; // @TODO: VK_ATTACHMENT_LOAD_OP_NONE_EXT
         case .CLEAR; return .VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -518,7 +511,7 @@ loadActionToVulkanLoadOp :: (action : TargetLoadAction) -> VkAttachmentLoadOp #n
     }
 }
 
-storeActionToVulkanStoreOp :: (action : TargetStoreAction) -> VkAttachmentStoreOp #no_context {
+storeActionToVulkanStoreOp :: inline (action : TargetStoreAction) -> VkAttachmentStoreOp #no_context {
     if #complete action == {
         case .NONE;  return .VK_ATTACHMENT_STORE_OP_DONT_CARE; // @TODO: VK_ATTACHMENT_STORE_OP_NONE
         case .STORE; return .VK_ATTACHMENT_STORE_OP_STORE;

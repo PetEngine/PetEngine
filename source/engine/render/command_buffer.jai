@@ -5,7 +5,7 @@
 CommandBuffer :: struct(usage : QueueType) {
     handles : StaticArray(*void, Device.MAX_FRAME_BUFFERING);
 
-    shaders : [#run Basic.enum_highest_value(PipelineBindPoint) + 1] *Shader;
+    shaders : [#run Basic.enum_highest_value(ShaderBindPoint) + 1] *Shader;
 
     #if usage == .GRAPHICS {
         viewport         : Viewport;
@@ -161,28 +161,13 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader_manager 
     #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
             "Only graphics and compute command buffers can set shaders";
 
-    pipeline_bind_point : PipelineBindPoint;
+    bind_point := shaderKindToShaderBindPoint(shader.kind);
 
-    if #complete shader.kind == {
-        case .UNKNOWN;
-            // @TODO: Print some meaningful message why it's illegal
-
-        case .GRAPHICS; #through;
-        case .MESH;
-            pipeline_bind_point = .GRAPHICS_OR_MESH;
-
-        case .COMPUTE;
-            pipeline_bind_point = .COMPUTE;
-
-        case .RAY_TRACING;
-            pipeline_bind_point = .RAY_TRACING;
-    }
-
-    if command_buffer.shaders[pipeline_bind_point] == shader {
+    if command_buffer.shaders[bind_point] == shader {
         return;
     }
 
-    command_buffer.shaders[pipeline_bind_point] = shader;
+    command_buffer.shaders[bind_point] = shader;
 
     if #complete device.graphics_api == {
         case .VULKAN;
@@ -272,7 +257,7 @@ drawPrimitives :: (
 
     assert(command_buffer.inside_rendering);
 
-    shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
+    shader := command_buffer.shaders[ShaderBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set graphics or mesh shader before calling %", #procedure_name());
 
     if #complete device.graphics_api == {
@@ -293,7 +278,7 @@ drawPrimitives :: (
 setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, handle : PushConstantsHandle, data : *$T) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use push constants for now";
 
-    shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
+    shader := command_buffer.shaders[ShaderBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set shader before setting its push constants");
 
     if #complete device.graphics_api == {
@@ -313,7 +298,7 @@ bindResource :: (
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use bindings for now";
     #assert Resource == Buffer || Resource == TextureView || Resource == Sampler;
 
-    shader := command_buffer.shaders[PipelineBindPoint.GRAPHICS_OR_MESH];
+    shader := command_buffer.shaders[ShaderBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set shader before setting its bindings");
 
     if #complete device.graphics_api == {
@@ -376,12 +361,26 @@ copyBuffer :: (
     }
 }
 
-#scope_file
-
-PipelineBindPoint :: enum u8 {
+ShaderBindPoint :: enum u8 {
     GRAPHICS_OR_MESH;
     COMPUTE;
     RAY_TRACING;
+}
+
+#scope_file
+
+shaderKindToShaderBindPoint :: inline (kind : Shader.Kind) -> ShaderBindPoint #no_context {
+    if #complete kind == {
+        case .GRAPHICS; #through;
+        case .MESH;
+            return .GRAPHICS_OR_MESH;
+
+        case .COMPUTE;
+            return .COMPUTE;
+
+        case .RAY_TRACING;
+            return .RAY_TRACING;
+    }
 }
 
 #load "vulkan/command_buffer.jai";

@@ -39,14 +39,13 @@ resetShaderManager :: inline (device : *Device, manager : *ShaderManager) {
 
 Shader :: struct {
     Kind :: enum u8 {
-        UNKNOWN;
         GRAPHICS;
         MESH;
         COMPUTE;
         RAY_TRACING;
     }
 
-    kind : Kind = .UNKNOWN;
+    kind : Kind;
     name : string;
 
     color_target_formats : StaticArray(Texture.Format, ShaderCompiler.MAX_COLOR_TARGETS);
@@ -87,9 +86,6 @@ createShader :: (
     if !shader_file_data return shader;
 
     if #complete shader.kind == {
-        case .UNKNOWN;
-            // @TODO: Print some meaningful message why it's illegal
-
         case .GRAPHICS;
             pushBack(*shader.color_target_formats, color_target_formats);
             shader.depth_target_format = depth_target_format;
@@ -114,9 +110,6 @@ reloadShader :: (device : *Device, manager : *ShaderManager, shader : *Shader) {
     if !shader_file_data return;
 
     if #complete shader.kind == {
-        case .UNKNOWN;
-            // @TODO: Print some meaningful message why it's illegal
-
         case .GRAPHICS;
             manager.reloadGraphicsPlatformShader(device, manager, shader, shader_file_data);
 
