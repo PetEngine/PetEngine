@@ -1083,8 +1083,8 @@ END;
 
 QUEUE_INFO_FORMAT_STRING :: #string END
     %:
-        Family flags: %
-        Family index: %
+        Family flags:    %
+        Family index:    %
         Index in family: %
 END;
 
@@ -1327,9 +1327,51 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     #if PRINT_VERBOSE_MESSAGES {
+        FORMAT_NAME_WIDTH :: #run -> s64 {
+            max_width := -1;
+            for type_info(VkFormat).names { max_width = max(max_width, it.count); }
+            assert(max_width != -1);
+            return max_width;
+        }
+
+        spaces : [FORMAT_NAME_WIDTH] u8 = ---;
+        for * spaces { it.* = #char " "; }
+
+        info := type_info(VkFormat);
+
         Basic.append(*builder, "Available surface formats:");
-        for surface_formats {
-            Basic.print(*builder, "\n    Format: %, space: %", it.format, it.colorSpace);
+        for format_it : surface_formats {
+            format_name : string;
+            for info.values {
+                if it == cast(s64) format_it.format {
+                    format_name = info.names[it_index];
+                    break;
+                }
+            }
+
+            Basic.append(*builder, "\n    Format: ");
+
+            spaces_to_append := 0;
+            if format_name {
+                Basic.append(*builder, format_name);
+                Basic.append(*builder, #char ",");
+
+                spaces_to_append = max(0, spaces.count - format_name.count);
+            } else {
+                length := Basic.builder_string_length(*builder);
+                Basic.append(*builder, "(enum out of range: ");
+                Basic.print_item_to_builder(*builder, cast(VkEnum) format_it.format);
+                Basic.append(*builder, "),");
+                printed := Basic.builder_string_length(*builder) - length - 1;
+
+                spaces_to_append = max(0, spaces.count - printed);
+            }
+
+            if spaces_to_append > 0 {
+                Basic.append(*builder, spaces.data, spaces_to_append);
+            }
+
+            Basic.print(*builder, " space: %", format_it.colorSpace);
         }
 
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));

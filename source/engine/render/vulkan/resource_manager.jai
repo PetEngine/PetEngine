@@ -91,7 +91,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
         Basic.print(*builder, "Available memory types (%):\n", device.memory_properties.memoryProperties.memoryTypeCount);
         for toView(device.memory_properties.memoryProperties.memoryTypes.data, device.memory_properties.memoryProperties.memoryTypeCount) {
             heap := memory_heaps[it.heapIndex];
-            Basic.print(*builder, "    [%]: Properties: %\n         Heap size: % GB\n         Heap flags: %\n",
+            Basic.print(*builder, "    [%]: Properties: %\n         Heap size:  % GB\n         Heap flags: %\n",
                         it_index,
                         it.propertyFlags,
                         bytesToGigaBytes(heap.size),
@@ -106,7 +106,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
     for manager.memory_type_indices {
         memory_type := device.memory_properties.memoryProperties.memoryTypes[it];
         heap := memory_heaps[memory_type.heapIndex];
-        Basic.print(*builder, "    %:\n        Properties: %\n        Heap size: % GB\n        Heap flags: %\n",
+        Basic.print(*builder, "    %:\n        Properties: %\n        Heap size:  % GB\n        Heap flags: %\n",
                     cast(ResourceManager.Pool) it_index,
                     memory_type.propertyFlags,
                     bytesToGigaBytes(heap.size),
