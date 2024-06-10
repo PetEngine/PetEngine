@@ -368,14 +368,16 @@ commitVulkanBufferMemoryPool :: (
         debugCheckVK(vkMapMemory(device.device, memory_pool.device_memory, 0, VK_WHOLE_SIZE, 0, *mapped_device_memory));
         assert(mapped_device_memory);
 
+        bind_infos_it = bind_infos;
         for * memory_pool.resources {
             assert(!it.mapped_memory);
-            it.mapped_memory = mapped_device_memory;
-            mapped_device_memory += it.size;
+            it.mapped_memory = mapped_device_memory + cast(u64) bind_infos_it.memoryOffset;
 
             info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
             it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
             assert(it.device_address);
+
+            bind_infos_it += 1;
         }
     } else {
         for * memory_pool.resources {
@@ -682,14 +684,16 @@ commitVulkanDescriptorBufferMemoryPool :: (
     debugCheckVK(vkMapMemory(device.device, memory_pool.device_memory, 0, VK_WHOLE_SIZE, 0, *mapped_device_memory));
     assert(mapped_device_memory);
 
+    bind_infos_it = bind_infos;
     for * memory_pool.resources {
         assert(!it.mapped_memory);
-        it.mapped_memory = mapped_device_memory;
-        mapped_device_memory += it.size;
+        it.mapped_memory = mapped_device_memory + cast(u64) bind_infos_it.memoryOffset;
 
         info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
         it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
         assert(it.device_address);
+
+        bind_infos_it += 1;
     }
 }
 
