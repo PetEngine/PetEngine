@@ -1,4 +1,8 @@
-// @Cleanup: Reorder fields
+// @TODO: #Device
+//     - Revisit submits and post frame job
+//     - #DeviceFeatures. Define optional and required features and validate it.
+//     - @Cleanup: Reorder fields
+
 VulkanDevice :: struct {
     #as using public_data : Device;
 
@@ -208,7 +212,6 @@ beginVulkanFrame :: (device_ : *Device, window : *Window) {
     }
 }
 
-// @TODO: Revisit submits and post frame job
 endVulkanFrame :: (device_ : *Device) {
     device := cast(*VulkanDevice) device_;
     assertThreadKind(.MAIN);
@@ -528,7 +531,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
                       VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION));
     }
 
-    defer Basic.reset_temporary_storage();
+    Basic.auto_release_temp();
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
@@ -712,8 +715,8 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
     #if DEBUG_BUILD {
         ENABLED_VALIDATION_FEATURES :: VkValidationFeatureEnableEXT.[
-            .VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
-//          .VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
+            .VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT, // Does not work properly with descriptor buffers yet
+            // .VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
             .VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
         ];
 
@@ -1020,7 +1023,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
     queue_family_properties.data = pushToArena(*context.pet.per_frame_arena, VkQueueFamilyProperties2, queue_family_properties.count);
     vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, cast(*u32) *queue_family_properties.count, queue_family_properties.data);
 
-    defer Basic.reset_temporary_storage();
+    Basic.auto_release_temp();
 
     // Print info about available queue families
     #if PRINT_VERBOSE_MESSAGES {
@@ -1132,7 +1135,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         }
     }
 
-    defer Basic.reset_temporary_storage();
+    Basic.auto_release_temp();
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
@@ -1219,7 +1222,6 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         assert(available_features_1_2.bufferDeviceAddress            == VK_TRUE);
     }
 
-    // @TODO: #Features. define optional and required features and validate it.
     descriptor_buffer_features_to_enable := VkPhysicalDeviceDescriptorBufferFeaturesEXT.{
         descriptorBuffer = VK_TRUE,
     };
@@ -1570,7 +1572,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     // @TODO: #Settings. Get back buffer clear color from settings.
     clear_color := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
 
-    // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to resource manager
+    // @TODO: #VulkanTexture. #SwapchainBuffers. Add these images to resource manager
     for * texture : device.swapchain_textures {
         texture.dimension             = ._2D;
         texture.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
