@@ -12,10 +12,6 @@ CommandBuffer :: struct(usage : QueueType) {
         scissor_rect     : ScissorRect;
         inside_rendering : bool;
     }
-
-    #if usage == .GRAPHICS || usage == .ASYNC_COMPUTE {
-        descriptor_buffer_set_offsets : [ShaderCompiler.MAX_DESCRIPTOR_SETS] s64;
-    }
 }
 
 Viewport :: struct {
@@ -77,7 +73,7 @@ createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(u
     return command_buffer;
 }
 
-resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, shader_manager : *ShaderManager) {
+resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, binding_manager : *BindingManager) {
     // @TODO: #FrameBuffering.
     //    - If command_buffer.handles.count < device.frame_buffering then allocate new memory
     //    - If command_buffer.handles.count > device.frame_buffering then free unusused memory
@@ -94,20 +90,22 @@ resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, shader
         command_buffer.inside_rendering = false;
     }
 
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            vulkan_device         := cast(*VulkanDevice)        device;
-            vulkan_shader_manager := cast(*VulkanShaderManager) shader_manager;
+    #if command_buffer.usage == .GRAPHICS {
+        if device.graphics_api == .VULKAN {
+            vulkan_device          := cast(*VulkanDevice) device;
+            vulkan_binding_manager := cast(*VulkanBindingManager) binding_manager;
 
-            binding_info := VkDescriptorBufferBindingInfoEXT.{
-                address = cast(VkDeviceAddress) vulkan_shader_manager.per_frame_bindings[device.frame_index].descriptor_buffer.device_address,
-                usage   = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT
-                        | .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT
-            };
+            binding_infos : [BindingManager.MAX_DESCRIPTOR_SETS] VkDescriptorBufferBindingInfoEXT;
+            for * binding_infos { it.usage = vulkan_binding_manager.descriptor_set_layouts[it_index].usage; }
+
+            binding_infos[DescriptorSet.PER_FRAME].address  = cast(VkDeviceAddress) vulkan_binding_manager.per_frame_bindings[device.frame_index].descriptor_buffer.device_address;
+            binding_infos[DescriptorSet.PER_SCENE].address  = cast(VkDeviceAddress) vulkan_binding_manager.per_scene_bindings.descriptor_buffer.device_address;
+            binding_infos[DescriptorSet.PERSISTENT].address = cast(VkDeviceAddress) vulkan_binding_manager.persistent_bindings.descriptor_buffer.device_address;
 
             vulkan_device.loader.extensions.device.required.vkCmdBindDescriptorBuffersEXT(command_buffer.handles[device.frame_index],
-                                                                                          1,
-                                                                                          *binding_info);
+                                                                                          binding_infos.count,
+                                                                                          binding_infos.data);
+        }
     }
 }
 
@@ -157,7 +155,13 @@ setScissorRect :: (device : *Device, command_buffer : *CommandBuffer, scissor_re
     command_buffer.scissor_rect = scissor_rect.*;
 }
 
-setShader :: (device : *Device, command_buffer : *CommandBuffer, shader_manager : *ShaderManager, shader : *Shader) #no_context {
+setShader :: (
+    device          : *Device,
+    command_buffer  : *CommandBuffer,
+    shader_manager  : *ShaderManager,
+    binding_manager : *BindingManager,
+    shader          : *Shader
+) {
     #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
             "Only graphics and compute command buffers can set shaders";
 
@@ -171,7 +175,11 @@ setShader :: (device : *Device, command_buffer : *CommandBuffer, shader_manager 
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            setVulkanShader(command_buffer, cast(*VulkanShaderManager) shader_manager, cast(*VulkanShader) shader, device.frame_index);
+            setVulkanShader(cast(*VulkanDevice) device,
+                            command_buffer,
+                            cast(*VulkanShaderManager) shader_manager,
+                            cast(*VulkanBindingManager) binding_manager,
+                            bind_point);
     }
 }
 
@@ -262,9 +270,6 @@ drawPrimitives :: (
 
     if #complete device.graphics_api == {
         case .VULKAN;
-            // @TOOD: #Bindings. Find a way to not do this for every draw call
-            commitVulkanBindings(cast(*VulkanDevice) device, command_buffer, cast(*VulkanShader) shader);
-
             drawVulkanPrimitives(command_buffer.handles[device.frame_index],
                                  cast(*VulkanShader) shader,
                                  ifx vertex_count   then vertex_count   else 1,
@@ -284,38 +289,6 @@ setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, h
     if #complete device.graphics_api == {
         case .VULKAN;
             setVulkanPushConstants(command_buffer.handles[device.frame_index], cast(*VulkanShader) shader, handle, data);
-    }
-}
-
-// @TODO: Other shaders
-bindResource :: (
-    device         : *Device,
-    command_buffer : *CommandBuffer,
-    shader_manager : *ShaderManager,
-    handle         : BindingHandle,
-    resource       : *$Resource
-) {
-    #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use bindings for now";
-    #assert Resource == Buffer || Resource == TextureView || Resource == Sampler;
-
-    shader := command_buffer.shaders[ShaderBindPoint.GRAPHICS_OR_MESH];
-    assert(shader, "You should set shader before setting its bindings");
-
-    if #complete device.graphics_api == {
-        case .VULKAN;
-            #if Resource == {
-                case Buffer;      VulkanResource :: VulkanBuffer;
-                case TextureView; VulkanResource :: VulkanTextureView;
-                case Sampler;     VulkanResource :: VulkanSampler;
-                case;             #assert false "Unhandled Vulkan resource type";
-            }
-
-            bindVulkanResource(cast(*VulkanDevice) device,
-                               command_buffer,
-                               cast(*VulkanShaderManager) shader_manager,
-                               cast(*VulkanShader) shader,
-                               handle,
-                               cast(*VulkanResource) resource);
     }
 }
 

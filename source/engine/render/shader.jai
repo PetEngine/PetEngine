@@ -12,10 +12,10 @@ ShaderManager :: struct {
 
     pushPlatformShader : (manager : *ShaderManager) -> *Shader #must;
 
-    createGraphicsPlatformShader : (device : *Device, manager : *ShaderManager, shader : *Shader, shader_file_data : string);
+    createGraphicsPlatformShader : (device : *Device, manager : *ShaderManager, binding_manager : *BindingManager, shader : *Shader, shader_file_data : string);
 
     findPlatformShader           : (manager : *ShaderManager, name : string) -> *Shader #must #no_context;
-    reloadGraphicsPlatformShader : (device : *Device, manager : *ShaderManager, shader : *Shader, shader_file_data : string);
+    reloadGraphicsPlatformShader : (device : *Device, manager : *ShaderManager, binding_manager : *BindingManager, shader : *Shader, shader_file_data : string);
 }
 
 createShaderManager :: (device : *Device, resource_manager : *ResourceManager) -> *ShaderManager #must {
@@ -51,8 +51,7 @@ Shader :: struct {
     color_target_formats : StaticArray(Texture.Format, ShaderCompiler.MAX_COLOR_TARGETS);
     depth_target_format  : Texture.Format;
 
-    binding_table       : ShaderCompiler.BindingTable;
-    binding_names_table : ShaderCompiler.RuntimeBindingNamesTable;
+    binding_table : ShaderCompiler.BindingTable;
 }
 
 PushConstantsHandle :: struct {
@@ -61,18 +60,10 @@ PushConstantsHandle :: struct {
     index : u8 = INVALID_INDEX;
 }
 
-BindingHandle :: struct {
-    INVALID_SET     :: ShaderCompiler.MAX_DESCRIPTOR_SETS;
-    INVALID_BINDING :: ShaderCompiler.MAX_BINDINGS;
-
-    set     : u8 = INVALID_SET;
-    binding : u8 = INVALID_BINDING;
-}
-
-
 createShader :: (
     device               : *Device,
     manager              : *ShaderManager,
+    binding_manager      : *BindingManager,
     name                 : string,
     color_target_formats : [] Texture.Format,
     depth_target_format  : Texture.Format = .UNKNOWN
@@ -90,7 +81,7 @@ createShader :: (
             pushBack(*shader.color_target_formats, color_target_formats);
             shader.depth_target_format = depth_target_format;
 
-            manager.createGraphicsPlatformShader(device, manager, shader, shader_file_data);
+            manager.createGraphicsPlatformShader(device, manager, binding_manager, shader, shader_file_data);
 
         case .MESH;        #through;
         case .COMPUTE;     #through;
@@ -105,13 +96,13 @@ findShader :: inline (manager : *ShaderManager, name : string) -> *Shader #must 
     return manager.findPlatformShader(manager, name);
 }
 
-reloadShader :: (device : *Device, manager : *ShaderManager, shader : *Shader) {
+reloadShader :: (device : *Device, manager : *ShaderManager, binding_manager : *BindingManager, shader : *Shader) {
     shader_file_data := deserializeShaderFile(shader);
     if !shader_file_data return;
 
     if #complete shader.kind == {
         case .GRAPHICS;
-            manager.reloadGraphicsPlatformShader(device, manager, shader, shader_file_data);
+            manager.reloadGraphicsPlatformShader(device, manager, binding_manager, shader, shader_file_data);
 
         case .MESH;        #through;
         case .COMPUTE;     #through;
@@ -122,29 +113,11 @@ reloadShader :: (device : *Device, manager : *ShaderManager, shader : *Shader) {
 
 getPushConstantsHandle :: (shader : *Shader, name : string) -> PushConstantsHandle {
     handle : PushConstantsHandle;
-    for toView(shader.binding_names_table.push_constants.data, shader.binding_table.push_constants_count) {
+    for toView(shader.binding_table.push_constants_names.data, shader.binding_table.push_constants_count) {
         name_in_table := string.{ count = it.length, data = it.buffer.data };
         if name_in_table == name {
             handle.index = cast(u8) it_index;
             break;
-        }
-    }
-    return handle;
-}
-
-getBindingHandle :: (shader : *Shader, name : string) -> BindingHandle {
-    handle : BindingHandle;
-    for set_names, set_index : toView(shader.binding_names_table.bindings.data, shader.binding_table.descriptor_sets_count) {
-        bindings_count := shader.binding_table.bindings_count[set_index];
-        if !bindings_count continue;
-
-        for binding_name, binding_index : toView(shader.binding_names_table.bindings[set_index].data, bindings_count) {
-            name_in_table := string.{ count = binding_name.length, data = binding_name.buffer.data };
-            if name_in_table == name {
-                handle.set     = cast(u8) set_index;
-                handle.binding = cast(u8) binding_index;
-                break set_names;
-            }
         }
     }
     return handle;
@@ -166,7 +139,6 @@ deserializeShaderFile :: (shader : *Shader) -> string {
 
     shader.kind          = shader_file_header.shader_kind;
     shader.binding_table = ShaderCompiler.getBindingTable(shader_file_data).*;
-    ShaderCompiler.deserializeBindingNamesTable(shader_file_data, *shader.binding_names_table);
 
     return shader_file_data;
 }

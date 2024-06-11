@@ -1,4 +1,4 @@
-#include "common_uniforms.shader_header"
+#include "graphics_bindings.shader_header"
 
 struct VertexOutput {
     vec4 color;
@@ -22,14 +22,17 @@ out VertexOutput vs_output;
 
 layout(push_constant) uniform PushConstants {
     float time;
+    uint  per_view_uniform_index;
 } g_push_constants;
 
 void main() {
     Vertex vertex = g_vertices[gl_VertexIndex];
     gl_Position   = vertex.position;
 
+    const vec3 camera_position = g_per_view_uniforms[g_push_constants.per_view_uniform_index].camera_position;
+
     const float alpha = cos(1.5 * g_push_constants.time) * 0.5 + 0.5;
-    vs_output.color = vertex.color * alpha;
+    vs_output.color = vertex.color * vec4(camera_position, 1.0) * alpha;
 }
 
 #fragment_shader

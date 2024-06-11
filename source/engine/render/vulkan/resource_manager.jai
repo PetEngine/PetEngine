@@ -9,7 +9,7 @@
 VulkanResourceManager :: struct {
     #as using public_data : ResourceManager;
 
-    MAX_DESCRIPTOR_BUFFERS :: Device.MAX_FRAME_BUFFERING;
+    MAX_DESCRIPTOR_BUFFERS :: 16;
 
     MemoryPool :: struct(VulkanResource : Type, capacity : s64) {
         device_memory  : VkDeviceMemory;

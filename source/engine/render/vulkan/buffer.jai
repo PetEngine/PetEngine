@@ -68,7 +68,13 @@ createVulkanBuffer :: (
     setVulkanObjectName(device, buffer.buffer, buffer.name);
 }
 
-createVulkanDescriptorBuffer :: (device : *VulkanDevice, manager : *VulkanResourceManager, buffer : *VulkanBuffer, name : string) {
+createVulkanDescriptorBuffer :: (
+    device  : *VulkanDevice,
+    manager : *VulkanResourceManager,
+    buffer  : *VulkanBuffer,
+    usage   : VkBufferUsageFlags,
+    name    : string
+) {
     queue_family_indices : [VulkanBuffer.possible_owners.capacity] u32;
     for buffer.possible_owners {
         queue_family_indices[it_index] = device.queues[it].family_index;
@@ -76,9 +82,7 @@ createVulkanDescriptorBuffer :: (device : *VulkanDevice, manager : *VulkanResour
 
     create_info := VkBufferCreateInfo.{
         size                  = cast(VkDeviceSize) buffer.size,
-        usage                 = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT
-                              | .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT
-                              | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        usage                 = usage | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         queueFamilyIndexCount = cast(u32) buffer.possible_owners.count,
         pQueueFamilyIndices   = queue_family_indices.data
     };

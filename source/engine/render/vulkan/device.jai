@@ -715,7 +715,11 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
     #if DEBUG_BUILD {
         ENABLED_VALIDATION_FEATURES :: VkValidationFeatureEnableEXT.[
-            .VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT, // Does not work properly with descriptor buffers yet
+            // @Important: GPU-AV breaks descriptor buffers. Hopefully will be fixed one day.
+            //
+            // .VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+            // .VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
+
             // .VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
             .VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
         ];
@@ -1210,11 +1214,14 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_features_1_2 };
 
         vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
+        // Image cube array support
+        assert(available_features.features.imageCubeArray == VK_TRUE);
         // Anisotropy filtering support
         assert(available_features.features.samplerAnisotropy == VK_TRUE);
         // UAV support
         assert(available_features.features.vertexPipelineStoresAndAtomics == VK_TRUE);
-        assert(available_features.features.fragmentStoresAndAtomics == VK_TRUE);
+        assert(available_features.features.fragmentStoresAndAtomics       == VK_TRUE);
+        assert(available_features.features.shaderStorageImageMultisample  == VK_TRUE);
         // Dynamic rendering support
         assert(available_dynamic_rendering_features.dynamicRendering == VK_TRUE);
         // Descriptor buffer support
@@ -1235,9 +1242,11 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     };
     features_to_enable := VkPhysicalDeviceFeatures2.{
         pNext                                   = *features_1_2_to_enable,
+        features.imageCubeArray                 = VK_TRUE,
         features.samplerAnisotropy              = VK_TRUE,
         features.vertexPipelineStoresAndAtomics = VK_TRUE,
         features.fragmentStoresAndAtomics       = VK_TRUE,
+        features.shaderStorageImageMultisample  = VK_TRUE,
     };
 
     device_create_info := VkDeviceCreateInfo.{

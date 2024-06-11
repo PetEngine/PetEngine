@@ -8,11 +8,17 @@ ShadersHotReload :: struct {
         stop_thread_event : HANDLE;
     }
 
-    device         : *Device;
-    shader_manager : *ShaderManager;
+    device          : *Device;
+    shader_manager  : *ShaderManager;
+    binding_manager : *BindingManager;
 }
 
-createShadersHotReload :: (hot_reload : *ShadersHotReload, device : *Device, shader_manager : *ShaderManager) -> bool {
+createShadersHotReload :: (
+    hot_reload      : *ShadersHotReload,
+    device          : *Device,
+    shader_manager  : *ShaderManager,
+    binding_manager : *BindingManager
+) -> bool {
     if !fileExists(ShaderCompiler.SOURCE_SHADERS_FOLDER) {
         #if DEBUG_BUILD warningMessage("Source shaders folder is not found: %", ShaderCompiler.SOURCE_SHADERS_FOLDER);
         return false;
@@ -53,8 +59,9 @@ createShadersHotReload :: (hot_reload : *ShadersHotReload, device : *Device, sha
         notImplemented();
     }
 
-    hot_reload.device         = device;
-    hot_reload.shader_manager = shader_manager;
+    hot_reload.device          = device;
+    hot_reload.shader_manager  = shader_manager;
+    hot_reload.binding_manager = binding_manager;
 
     recompileOutOfDateShaders(hot_reload);
     startThread(*hot_reload.thread);
@@ -130,7 +137,7 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload, was_created : bool) 
                         // Remove file extension
                         filename.count = String.find_index_from_right(filename, #char ".");
 
-                        reloadShader(hot_reload.device, hot_reload.shader_manager, filename);
+                        reloadShader(hot_reload.device, hot_reload.shader_manager, hot_reload.binding_manager, filename);
 
                         info = ifx  info.NextEntryOffset
                                then cast(*void) info + info.NextEntryOffset
@@ -152,11 +159,11 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload, was_created : bool) 
 }
 
 // @TODO: #ThreadPool
-reloadShader :: inline (device : *Device, manager : *ShaderManager, name : string) {
+reloadShader :: inline (device : *Device, manager : *ShaderManager, binding_manager : *BindingManager, name : string) {
     if compileShader(name) {
         shader := findShader(manager, name);
         if shader {
-            reloadShader(device, manager, shader);
+            reloadShader(device, manager, binding_manager, shader);
         }
     }
 }
