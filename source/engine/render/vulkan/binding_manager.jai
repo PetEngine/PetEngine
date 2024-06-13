@@ -139,13 +139,13 @@ pushVulkanBufferBinding  :: (
     }
     assert(bindings);
 
-    descriptor_index := bindings.descriptors_pushed[DescriptorSetSlot.UNIFORM];
-    assert(descriptor_index < max_descriptors, "Too much uniforms for % descriptor set. Max: %", descriptor_set, max_descriptors);
-
     layout := *manager.descriptor_set_layouts[descriptor_set];
     assert(layout.slot_offsets[DescriptorSetSlot.UNIFORM] != VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET,
-           "There is no slots left for uniforms in % descriptor set",
+           "There are no any slots for uniforms in % descriptor set",
            descriptor_set);
+
+    descriptor_index := bindings.descriptors_pushed[DescriptorSetSlot.UNIFORM];
+    assert(descriptor_index < max_descriptors, "Too much uniforms for % descriptor set. Max: %", descriptor_set, max_descriptors);
 
     address_info := VkDescriptorAddressInfoEXT.{
         address = cast(VkDeviceAddress) buffer.device_address,
@@ -226,14 +226,14 @@ pushVulkanTextureBinding :: (
             assert(false, "Usage can only be SHADER_READ or SHADER_WRITE");
     }
 
-    descriptor_index := bindings.descriptors_pushed[descriptor_set_slot];
-    assert(descriptor_index < max_descriptors, "Too much %s for % descriptor set. Max: %", descriptor_name, descriptor_set, max_descriptors);
-
     layout := *manager.descriptor_set_layouts[descriptor_set];
     assert(layout.slot_offsets[descriptor_set_slot] != VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET,
-           "There is no slots left for %s in % descriptor set",
+           "There are no any slots for %s in % descriptor set",
            descriptor_name,
            descriptor_set);
+
+    descriptor_index := bindings.descriptors_pushed[descriptor_set_slot];
+    assert(descriptor_index < max_descriptors, "Too much %s for % descriptor set. Max: %", descriptor_name, descriptor_set, max_descriptors);
 
     descriptor_memory := bindings.descriptor_buffer.mapped_memory
                        + cast(u64) layout.slot_offsets[descriptor_set_slot]
@@ -270,14 +270,14 @@ pushVulkanSamplerBinding :: (
     }
     assert(bindings);
 
+    layout := *manager.descriptor_set_layouts[descriptor_set];
+    assert(layout.slot_offsets[DescriptorSetSlot.SAMPLERS] != VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET,
+           "There are no any slots for samplers in % descriptor set",
+           descriptor_set);
+
     descriptor_index := bindings.descriptors_pushed[DescriptorSetSlot.SAMPLERS];
     MAX_DESCRIPTORS  :: BindingManager.MAX_SAMPLERS;
     assert(descriptor_index < MAX_DESCRIPTORS, "Too much samplers for % descriptor set. Max: %", descriptor_set, MAX_DESCRIPTORS);
-
-    layout := *manager.descriptor_set_layouts[descriptor_set];
-    assert(layout.slot_offsets[DescriptorSetSlot.SAMPLERS] != VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET,
-           "There is no slots left for samplers in % descriptor set",
-           descriptor_set);
 
     descriptor_info := VkDescriptorGetInfoEXT.{
         type          = .VK_DESCRIPTOR_TYPE_SAMPLER,
