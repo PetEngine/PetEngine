@@ -22,7 +22,6 @@ createVulkanSampler :: (
     manager_  : *ResourceManager,
     sampler_  : *Sampler,
     state     : *SamplerState,
-    lifetime  : ResourceManager.Lifetime,
     name      : string
 ) {
     device  := cast(*VulkanDevice) device_;
@@ -82,10 +81,10 @@ createVulkanSampler :: (
 
     debugCheckVK(vkCreateSampler(device.device, *create_info, null, *sampler.sampler));
 
-    if #complete lifetime == {
-        case .PERSISTENT; composeVulkanSamplerName(sampler, *manager.samplers.persistent,                    lifetime, name);
-        case .PER_SCENE;  composeVulkanSamplerName(sampler, *manager.samplers.per_scene,                     lifetime, name);
-        case .PER_FRAME;  composeVulkanSamplerName(sampler, *manager.samplers.per_frame[device.frame_index], lifetime, name);
+    if #complete sampler.lifetime == {
+        case .PERSISTENT; composeVulkanSamplerName(sampler, *manager.samplers.persistent,                    name);
+        case .PER_SCENE;  composeVulkanSamplerName(sampler, *manager.samplers.per_scene,                     name);
+        case .PER_FRAME;  composeVulkanSamplerName(sampler, *manager.samplers.per_frame[device.frame_index], name);
     }
 
     setVulkanObjectName(device, sampler.sampler, sampler.name);
@@ -97,10 +96,9 @@ createVulkanSampler :: (
 composeVulkanSamplerName :: (
     sampler     : *VulkanSampler,
     memory_pool : *VulkanResourceManager.MemorylessPool,
-    lifetime    : ResourceManager.Lifetime,
     name        : string
 ) {
-    lifetime_name := Reflection.enum_value_to_name(lifetime);
+    lifetime_name := Reflection.enum_value_to_name(sampler.lifetime);
     assert(lifetime_name);
 
     full_name_length := "Sampler/".count

@@ -11,6 +11,7 @@ TextureView :: struct {
     layers_count : u16;
     first_mip    : u8;
     mips_count   : u8;
+    lifetime     : ResourceManager.Lifetime;
     name         : string;
 }
 
@@ -94,17 +95,18 @@ createTextureView :: (
     view.flags        = flags;
     view.format       = format;
     view.usage        = usage;
-    view.first_mip    = first_mip;
-    view.mips_count   = mips_count;
     view.first_layer  = first_layer;
     view.layers_count = layers_count;
+    view.first_mip    = first_mip;
+    view.mips_count   = mips_count;
+    view.lifetime     = lifetime;
 
     last_slash_index := String.find_index_from_right(texture.name, #char "/");
     assert(last_slash_index != -1);
 
     name := substring(texture.name, last_slash_index + 1);
 
-    manager.createPlatformTextureView(device, manager, view, lifetime, name);
+    manager.createPlatformTextureView(device, manager, view, name);
 
     return view;
 }

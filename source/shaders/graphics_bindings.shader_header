@@ -4,6 +4,12 @@
 // @TODO: #Bindless.
 //     - GL_EXT_buffer_reference2
 
+// @Important: Should be synced with MAX_FRAME_BUFFERING constant in render/device.jai
+#define MAX_FRAME_BUFFERING 3
+
+// @Important: Should be synced with PerViewUniform.MAX_VERSIONS constant in first.jai
+#define MAX_PER_VIEW_UNIFORM_VERSIONS 1
+
 // @Important: Should be synced with DescriptorSet enum
 #define PER_FRAME_SET  0
 #define PER_SCENE_SET  1
@@ -15,8 +21,8 @@
 #define TEXTURES_SLOT 2
 #define IMAGES_SLOT   3
 
-// @Important: Should be synced with constants in BindingManager struct
-#define MAX_PER_VIEW_UNIFORMS 64
+// @Important: Should be synced with constants in BindingManager in render/binding_manager.jai
+#define MAX_PER_VIEW_UNIFORMS (MAX_FRAME_BUFFERING * MAX_PER_VIEW_UNIFORM_VERSIONS)
 #define MAX_SAMPLERS          64
 #define MAX_TEXTURES          1024
 #define MAX_IMAGES            512
@@ -25,7 +31,7 @@
 // Uniforms
 //
 
-layout(set = PER_FRAME_SET,  binding = UNIFORM_SLOT) uniform PerFrame {
+layout(set = PER_FRAME_SET, binding = UNIFORM_SLOT) uniform PerFrame {
     uint  frame;
     float time;
     float dtime;

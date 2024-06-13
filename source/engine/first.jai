@@ -42,9 +42,45 @@ PerViewUniform :: struct {
     } #no_padding
 
     buffers : StaticArray([MAX_VERSIONS] *Buffer, Device.MAX_FRAME_BUFFERING);
+    handles : StaticArray([MAX_VERSIONS] BindingHandle, Device.MAX_FRAME_BUFFERING);
     version : s32 = -1;
-    index   : u32;
     data    : Data;
+}
+
+createPerViewUniform :: (
+    device           : *Device,
+    resource_manager : *ResourceManager,
+    uniform          : *PerViewUniform
+) {
+    uniform.buffers.count = cast(s64) device.frame_buffering;
+    uniform.handles.count = cast(s64) device.frame_buffering;
+
+    for * buffers, frame_index : uniform.buffers {
+        for * buffer, version : buffers.* {
+            buffer.* = createBuffer(device,
+                                    resource_manager,
+                                    size_of(PerViewUniform.Data),
+                                    .PERSISTENT,
+                                    .UPLOAD,
+                                    .UNIFORM,
+                                    Basic.tprint("Per view for frame #%, version #%", frame_index, version));
+        }
+    }
+}
+
+createPerViewUniformBindings :: (
+    device           : *Device,
+    binding_manager  : *BindingManager,
+    resource_manager : *ResourceManager,
+    uniform          : *PerViewUniform
+) {
+    for * handles, frame_index : uniform.handles {
+        frame_buffers := *uniform.buffers[frame_index];
+
+        for * handle, version : handles.* {
+            handle.* = pushBinding(device, binding_manager, resource_manager, frame_buffers.*[version], .PERSISTENT);
+        }
+    }
 }
 
 resetPerViewUniform :: (device : *Device, uniform : *PerViewUniform) {
@@ -56,8 +92,6 @@ resetPerViewUniform :: (device : *Device, uniform : *PerViewUniform) {
 commitPerViewUniform :: (device : *Device, uniform : *PerViewUniform) {
     uniform.version += 1;
     assert(uniform.version < PerViewUniform.MAX_VERSIONS);
-
-    uniform.index = device.frame_index * PerViewUniform.MAX_VERSIONS + cast(u32) uniform.version;
 
     memcpy(uniform.buffers[device.frame_index][uniform.version].mapped_memory, *uniform.data, size_of(PerViewUniform.Data));
 }
@@ -109,18 +143,8 @@ petMain :: () {
     success := createShadersHotReload(*shaders_hot_reload, device, shader_manager, binding_manager);
     defer destroyShadersHotReload(*shaders_hot_reload, success);
 
-    per_view_uniform := PerViewUniform.{ buffers.count = cast(s64) device.frame_buffering };
-    for * buffer, frame_index : per_view_uniform.buffers {
-        for 0 .. PerViewUniform.MAX_VERSIONS - 1 {
-            buffer.*[it] = createBuffer(device,
-                                        resource_manager,
-                                        size_of(PerViewUniform.Data),
-                                        .PERSISTENT,
-                                        .UPLOAD,
-                                        .UNIFORM,
-                                        Basic.tprint("Per view for frame #%, version #%", frame_index, it));
-        }
-    }
+    per_view_uniform : PerViewUniform;
+    createPerViewUniform(device, resource_manager, *per_view_uniform);
 
     depth_buffer := createTexture(device,
                                   resource_manager,
@@ -141,7 +165,10 @@ petMain :: () {
     commitResourceMemory(device, resource_manager, .PERSISTENT);
     defer resetResourceMemory(device, resource_manager, .PERSISTENT);
 
-    commitBindings(device, binding_manager, resource_manager, .PERSISTENT);
+    // All persistent bindings should be pushed after persistent resource memory commit
+
+    createPerViewUniformBindings(device, binding_manager, resource_manager, *per_view_uniform);
+
     defer resetBindings(device, binding_manager, .PERSISTENT);
 
     test_shader           := createShader(device, shader_manager, binding_manager, "test", .[ getBackBuffer(device).format ]);
@@ -184,7 +211,6 @@ petMain :: () {
                 //        Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame resources
                 //        since we do not want to release memory which is in use by async queues.
                 commitResourceMemory(device, resource_manager, .PER_FRAME);
-                commitBindings(device, binding_manager, resource_manager, .PER_FRAME);
             }
 
             // Update per view uniform
@@ -218,7 +244,7 @@ petMain :: () {
 
                 setPushConstants(device, *command_buffer, push_constants_handle, *(PushConstants.{
                     time                   = cast(f32) Basic.seconds_since_init(),
-                    per_view_uniform_index = per_view_uniform.index,
+                    per_view_uniform_index = per_view_uniform.handles[device.frame_index][per_view_uniform.version].descriptor,
                 }));
 
                 drawPrimitives(device, *command_buffer, 4);

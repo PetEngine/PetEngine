@@ -30,7 +30,6 @@ createVulkanBuffer :: (
     device_  : *Device,
     manager_ : *ResourceManager,
     buffer_  : *Buffer,
-    lifetime : ResourceManager.Lifetime,
     pool     : ResourceManager.Pool,
     name     : string
 ) {
@@ -59,10 +58,10 @@ createVulkanBuffer :: (
 
     debugCheckVK(vkCreateBuffer(device.device, *create_info, null, *buffer.buffer));
 
-    if #complete lifetime == {
-        case .PERSISTENT; composeVulkanBufferName(buffer, *manager.buffers.persistent[pool],                    lifetime, pool, name);
-        case .PER_SCENE;  composeVulkanBufferName(buffer, *manager.buffers.per_scene[pool],                     lifetime, pool, name);
-        case .PER_FRAME;  composeVulkanBufferName(buffer, *manager.buffers.per_frame[device.frame_index][pool], lifetime, pool, name);
+    if #complete buffer.lifetime == {
+        case .PERSISTENT; composeVulkanBufferName(buffer, *manager.buffers.persistent[pool],                    pool, name);
+        case .PER_SCENE;  composeVulkanBufferName(buffer, *manager.buffers.per_scene[pool],                     pool, name);
+        case .PER_FRAME;  composeVulkanBufferName(buffer, *manager.buffers.per_frame[device.frame_index][pool], pool, name);
     }
 
     setVulkanObjectName(device, buffer.buffer, buffer.name);
@@ -119,11 +118,10 @@ bufferUsageToVkBufferUsageFlags :: inline (usage : Buffer.Usage) -> VkBufferUsag
 composeVulkanBufferName :: (
     buffer      : *VulkanBuffer,
     memory_pool : *VulkanResourceManager.MemoryPool,
-    lifetime    : ResourceManager.Lifetime,
     pool        : ResourceManager.Pool,
     name        : string
 ) {
-    lifetime_name := Reflection.enum_value_to_name(lifetime);
+    lifetime_name := Reflection.enum_value_to_name(buffer.lifetime);
     assert(lifetime_name);
 
     pool_name := Reflection.enum_value_to_name(pool);

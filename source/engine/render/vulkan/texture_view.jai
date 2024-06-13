@@ -21,7 +21,6 @@ createVulkanTextureView :: (
     device_  : *Device,
     manager_ : *ResourceManager,
     view_    : *TextureView,
-    lifetime : ResourceManager.Lifetime,
     name     : string
 ) {
     device  := cast(*VulkanDevice)          device_;
@@ -77,10 +76,10 @@ createVulkanTextureView :: (
 
     debugCheckVK(vkCreateImageView(device.device, *create_info, null, *view.view));
 
-    if #complete lifetime == {
-        case .PERSISTENT; composeVulkanTextureViewName(view, *manager.texture_views.persistent,                    lifetime, name);
-        case .PER_SCENE;  composeVulkanTextureViewName(view, *manager.texture_views.per_scene,                     lifetime, name);
-        case .PER_FRAME;  composeVulkanTextureViewName(view, *manager.texture_views.per_frame[device.frame_index], lifetime, name);
+    if #complete view.lifetime == {
+        case .PERSISTENT; composeVulkanTextureViewName(view, *manager.texture_views.persistent,                    name);
+        case .PER_SCENE;  composeVulkanTextureViewName(view, *manager.texture_views.per_scene,                     name);
+        case .PER_FRAME;  composeVulkanTextureViewName(view, *manager.texture_views.per_frame[device.frame_index], name);
     }
 
     setVulkanObjectName(device, view.view, view.name);
@@ -92,10 +91,9 @@ createVulkanTextureView :: (
 composeVulkanTextureViewName :: (
     view        : *VulkanTextureView,
     memory_pool : *VulkanResourceManager.MemorylessPool,
-    lifetime    : ResourceManager.Lifetime,
     name        : string
 ) {
-    lifetime_name := Reflection.enum_value_to_name(lifetime);
+    lifetime_name := Reflection.enum_value_to_name(view.lifetime);
     assert(lifetime_name);
 
     full_name_length := "Texture View/".count

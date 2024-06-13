@@ -11,12 +11,15 @@ VulkanBindingManager :: struct {
         layout       : VkDescriptorSetLayout;
         size         : VkDeviceSize;
         usage        : VkBufferUsageFlags;
-        slot_offsets : [BindingManager.MAX_DESCRIPTOR_SET_SLOTS] VkDeviceSize;
+        slot_offsets : [MAX_DESCRIPTOR_SET_SLOTS] VkDeviceSize;
     }
 
     DescriptorSetBindings :: struct {
-        descriptor_buffer : *VulkanBuffer;
-        mutex             : Mutex;
+        descriptor_buffer  : *VulkanBuffer;
+        descriptors_pushed : [MAX_DESCRIPTOR_SET_SLOTS] u16;
+
+        #place descriptors_pushed; descriptors_pushed_packed : u64;
+        #assert size_of(type_of(descriptors_pushed_packed)) == size_of(type_of(descriptors_pushed));
     }
 
     descriptor_set_layouts : [MAX_DESCRIPTOR_SETS] DescriptorSetLayout;
@@ -55,7 +58,7 @@ END;
 
     manager.per_frame_bindings.count = cast,no_check(s64) device.frame_buffering;
 
-    createVulkanDescriptorSetLayout(device, manager, .PER_FRAME,  .[ .UNIFORM, .SAMPLERS, .TEXTURES, .IMAGES ]);
+    createVulkanDescriptorSetLayout(device, manager, .PER_FRAME,  .[ .SAMPLERS, .TEXTURES, .IMAGES ]);
     createVulkanDescriptorSetLayout(device, manager, .PER_SCENE,  .[ .SAMPLERS, .TEXTURES, .IMAGES ]);
     createVulkanDescriptorSetLayout(device, manager, .PERSISTENT, .[ .UNIFORM, .SAMPLERS, .TEXTURES, .IMAGES ]);
 
@@ -83,100 +86,219 @@ resetVulkanBindings :: (device_ : *Device, manager_ : *BindingManager, descripto
 
     assertThreadKind(.MAIN);
 
-    // @TODO: #FrameBuffering.
-    //    - If manager.per_frame_*.count < device.frame_buffering then allocate new memory
-    //    - If manager.per_frame_*.count > device.frame_buffering then free unusused memory
-
+    bindings : *VulkanBindingManager.DescriptorSetBindings;
     if #complete descriptor_set == {
         case .PER_FRAME;
+            // @TODO: #FrameBuffering.
+            //    - If manager.per_frame_*.count < device.frame_buffering then allocate new memory
+            //    - If manager.per_frame_*.count > device.frame_buffering then free unusused memory
             assert(manager.per_frame_bindings.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
             manager.per_frame_bindings.count = cast,no_check(s64) device.frame_buffering;
 
-        case .PER_SCENE; #through;
-        case .PERSISTENT;
-            // Do nothing
-    }
-}
-
-commitVulkanBindings :: (
-    device_           : *Device,
-    manager_          : *BindingManager,
-    resource_manager_ : *ResourceManager,
-    descriptor_set    : DescriptorSet
-) {
-    device           := cast(*VulkanDevice)          device_;
-    manager          := cast(*VulkanBindingManager)  manager_;
-    resource_manager := cast(*VulkanResourceManager) resource_manager_;
-
-    layout := *manager.descriptor_set_layouts[descriptor_set];
-
-    // Commit of per view bindings may arrive from different threads except others,
-    // so we need to lock the mutex only for committing per view bindings.
-
-    if #complete descriptor_set == {
-        case .PER_FRAME;
-            assertThreadKind(.MAIN);
-
-            bindings   := *manager.per_frame_bindings[device.frame_index];
-            set_memory := bindings.descriptor_buffer.mapped_memory;
-
-            for slot_offset, slot : layout.slot_offsets {
-                if slot_offset == VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET {
-                    continue;
-                }
-
-                slot_memory := set_memory + cast(u64) slot_offset;
-
-                if #complete cast(DescriptorSetSlot) slot == {
-                    case .UNIFORM;  fillUniforms(device, resource_manager, .PER_FRAME, .PER_FRAME,     slot_memory);
-                    case .SAMPLERS; fillSamplers(device, resource_manager, .PER_FRAME, descriptor_set, slot_memory);
-                    case .TEXTURES; fillTextures(device, resource_manager, .PER_FRAME, descriptor_set, slot_memory);
-                    case .IMAGES;   fillImages(device,   resource_manager, .PER_FRAME, descriptor_set, slot_memory);
-                }
-            }
+            bindings = *manager.per_frame_bindings[device.frame_index];
 
         case .PER_SCENE;
-            assertThreadKind(.MAIN);
-
-            bindings   := *manager.per_scene_bindings;
-            set_memory := bindings.descriptor_buffer.mapped_memory;
-
-            for slot_offset, slot : layout.slot_offsets {
-                if slot_offset == VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET {
-                    continue;
-                }
-
-                slot_memory := set_memory + cast(u64) slot_offset;
-
-                if #complete cast(DescriptorSetSlot) slot == {
-                    case .UNIFORM;  fillUniforms(device, resource_manager, .PER_SCENE, .PER_SCENE,     slot_memory);
-                    case .SAMPLERS; fillSamplers(device, resource_manager, .PER_SCENE, descriptor_set, slot_memory);
-                    case .TEXTURES; fillTextures(device, resource_manager, .PER_SCENE, descriptor_set, slot_memory);
-                    case .IMAGES;   fillImages(device,   resource_manager, .PER_SCENE, descriptor_set, slot_memory);
-                }
-            }
+            bindings = *manager.per_scene_bindings;
 
         case .PERSISTENT;
-            assertThreadKind(.MAIN);
-
-            bindings   := *manager.persistent_bindings;
-            set_memory := bindings.descriptor_buffer.mapped_memory;
-
-            for slot_offset, slot : layout.slot_offsets {
-                if slot_offset == VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET {
-                    continue;
-                }
-
-                slot_memory := set_memory + cast(u64) slot_offset;
-
-                if #complete cast(DescriptorSetSlot) slot == {
-                    case .UNIFORM;  fillUniforms(device, resource_manager, .PERSISTENT, .PERSISTENT,    slot_memory);
-                    case .SAMPLERS; fillSamplers(device, resource_manager, .PERSISTENT, descriptor_set, slot_memory);
-                    case .TEXTURES; fillTextures(device, resource_manager, .PERSISTENT, descriptor_set, slot_memory);
-                    case .IMAGES;   fillImages(device,   resource_manager, .PERSISTENT, descriptor_set, slot_memory);
-                }
-            }
+            bindings = *manager.persistent_bindings;
     }
+    assert(bindings);
+
+    bindings.descriptors_pushed_packed = 0;
+}
+
+pushVulkanBufferBinding  :: (
+    device_        : *Device,
+    manager_       : *BindingManager,
+    resource       : *Buffer,
+    descriptor_set : DescriptorSet
+) -> BindingHandle #must {
+    device  := cast(*VulkanDevice)         device_;
+    manager := cast(*VulkanBindingManager) manager_;
+    buffer  := cast(*VulkanBuffer)         resource;
+
+    assertThreadKind(.MAIN);
+
+    assert(buffer.usage == .UNIFORM, "Only uniform bindings are supported right now");
+
+    bindings        : *VulkanBindingManager.DescriptorSetBindings;
+    max_descriptors : u32 = ---;
+    if #complete descriptor_set == {
+        case .PER_FRAME;
+            bindings        = *manager.per_frame_bindings[device.frame_index];
+            max_descriptors = 1;
+
+        case .PER_SCENE;
+            bindings        = *manager.per_scene_bindings;
+            max_descriptors = 1;
+
+        case .PERSISTENT;
+            bindings        = *manager.persistent_bindings;
+            max_descriptors = BindingManager.MAX_PER_VIEW_UNIFORMS;
+    }
+    assert(bindings);
+
+    descriptor_index := bindings.descriptors_pushed[DescriptorSetSlot.UNIFORM];
+    assert(descriptor_index < max_descriptors, "Too much uniforms for % descriptor set. Max: %", descriptor_set, max_descriptors);
+
+    layout := *manager.descriptor_set_layouts[descriptor_set];
+    assert(layout.slot_offsets[DescriptorSetSlot.UNIFORM] != VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET,
+           "There is no slots left for uniforms in % descriptor set",
+           descriptor_set);
+
+    address_info := VkDescriptorAddressInfoEXT.{
+        address = cast(VkDeviceAddress) buffer.device_address,
+        range   = cast(VkDeviceSize) buffer.size,
+        format  = .VK_FORMAT_UNDEFINED,
+    };
+
+    descriptor_info := VkDescriptorGetInfoEXT.{
+        type                = .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        data.pUniformBuffer = *address_info,
+    };
+
+    descriptor_size := device.descriptor_buffer_properties.uniformBufferDescriptorSize;
+
+    descriptor_memory := bindings.descriptor_buffer.mapped_memory
+                       + cast(u64) layout.slot_offsets[DescriptorSetSlot.UNIFORM]
+                       + descriptor_index * descriptor_size;
+
+    device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
+
+    bindings.descriptors_pushed[DescriptorSetSlot.UNIFORM] += 1;
+
+    return .{
+        set        = descriptor_set,
+        slot       = DescriptorSetSlot.UNIFORM,
+        descriptor = descriptor_index,
+    };
+}
+
+pushVulkanTextureBinding :: (
+    device_        : *Device,
+    manager_       : *BindingManager,
+    resource       : *TextureView,
+    descriptor_set : DescriptorSet
+) -> BindingHandle #must {
+    device       := cast(*VulkanDevice)         device_;
+    manager      := cast(*VulkanBindingManager) manager_;
+    texture_view := cast(*VulkanTextureView)    resource;
+
+    assertThreadKind(.MAIN);
+
+    bindings : *VulkanBindingManager.DescriptorSetBindings;
+    if #complete descriptor_set == {
+        case .PER_FRAME;  bindings = *manager.per_frame_bindings[device.frame_index];
+        case .PER_SCENE;  bindings = *manager.per_scene_bindings;
+        case .PERSISTENT; bindings = *manager.persistent_bindings;
+    }
+    assert(bindings);
+
+    max_descriptors     : u32               = ---;
+    descriptor_name     : string            = ---;
+    descriptor_set_slot : DescriptorSetSlot = ---;
+    descriptor_size     : u64               = ---;
+    image_info          := VkDescriptorImageInfo.{ imageView = texture_view.view };
+    descriptor_info     : VkDescriptorGetInfoEXT;
+    if texture_view.usage == {
+        case .SHADER_READ;
+            max_descriptors                    = BindingManager.MAX_TEXTURES;
+            descriptor_name                    = "texture";
+            descriptor_set_slot                = .TEXTURES;
+            descriptor_size                    = device.descriptor_buffer_properties.sampledImageDescriptorSize;
+            image_info.imageLayout             = ifx  textureFormatFlags(texture_view.format) & (.DEPTH | .STENCIL)
+                                                 then .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                                                 else .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            descriptor_info.type               = .VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            descriptor_info.data.pSampledImage = *image_info;
+
+        case .SHADER_WRITE;
+            max_descriptors                    = BindingManager.MAX_IMAGES;
+            descriptor_name                    = "image";
+            descriptor_set_slot                = .IMAGES;
+            descriptor_size                    = device.descriptor_buffer_properties.storageImageDescriptorSize;
+            image_info.imageLayout             = .VK_IMAGE_LAYOUT_GENERAL;
+            descriptor_info.type               = .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            descriptor_info.data.pStorageImage = *image_info;
+
+        case;
+            assert(false, "Usage can only be SHADER_READ or SHADER_WRITE");
+    }
+
+    descriptor_index := bindings.descriptors_pushed[descriptor_set_slot];
+    assert(descriptor_index < max_descriptors, "Too much %s for % descriptor set. Max: %", descriptor_name, descriptor_set, max_descriptors);
+
+    layout := *manager.descriptor_set_layouts[descriptor_set];
+    assert(layout.slot_offsets[descriptor_set_slot] != VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET,
+           "There is no slots left for %s in % descriptor set",
+           descriptor_name,
+           descriptor_set);
+
+    descriptor_memory := bindings.descriptor_buffer.mapped_memory
+                       + cast(u64) layout.slot_offsets[descriptor_set_slot]
+                       + descriptor_index * descriptor_size;
+
+    device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
+
+    bindings.descriptors_pushed[descriptor_set_slot] += 1;
+
+    return .{
+        set        = descriptor_set,
+        slot       = descriptor_set_slot,
+        descriptor = descriptor_index,
+    };
+}
+
+pushVulkanSamplerBinding :: (
+    device_        : *Device,
+    manager_       : *BindingManager,
+    resource       : *Sampler,
+    descriptor_set : DescriptorSet
+) -> BindingHandle #must {
+    device  := cast(*VulkanDevice)         device_;
+    manager := cast(*VulkanBindingManager) manager_;
+    sampler := cast(*VulkanSampler)        resource;
+
+    assertThreadKind(.MAIN);
+
+    bindings : *VulkanBindingManager.DescriptorSetBindings;
+    if #complete descriptor_set == {
+        case .PER_FRAME;  bindings = *manager.per_frame_bindings[device.frame_index];
+        case .PER_SCENE;  bindings = *manager.per_scene_bindings;
+        case .PERSISTENT; bindings = *manager.persistent_bindings;
+    }
+    assert(bindings);
+
+    descriptor_index := bindings.descriptors_pushed[DescriptorSetSlot.SAMPLERS];
+    MAX_DESCRIPTORS  :: BindingManager.MAX_SAMPLERS;
+    assert(descriptor_index < MAX_DESCRIPTORS, "Too much samplers for % descriptor set. Max: %", descriptor_set, MAX_DESCRIPTORS);
+
+    layout := *manager.descriptor_set_layouts[descriptor_set];
+    assert(layout.slot_offsets[DescriptorSetSlot.SAMPLERS] != VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET,
+           "There is no slots left for samplers in % descriptor set",
+           descriptor_set);
+
+    descriptor_info := VkDescriptorGetInfoEXT.{
+        type          = .VK_DESCRIPTOR_TYPE_SAMPLER,
+        data.pSampler = *sampler.sampler,
+    };
+
+    descriptor_size := device.descriptor_buffer_properties.uniformBufferDescriptorSize;
+
+    descriptor_memory := bindings.descriptor_buffer.mapped_memory
+                       + cast(u64) layout.slot_offsets[DescriptorSetSlot.SAMPLERS]
+                       + descriptor_index * descriptor_size;
+
+    device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
+
+    bindings.descriptors_pushed[DescriptorSetSlot.SAMPLERS] += 1;
+
+    return .{
+        set        = descriptor_set,
+        slot       = DescriptorSetSlot.SAMPLERS,
+        descriptor = descriptor_index,
+    };
 }
 
 createVulkanDescriptorSetBindings :: (
@@ -207,7 +329,7 @@ createVulkanDescriptorSetLayout :: (
 ) {
     assert(slots.count <= BindingManager.MAX_DESCRIPTOR_SET_SLOTS);
 
-    pushBinding :: (type : VkDescriptorType, count : u32) #expand {
+    pushBindingLayout :: (type : VkDescriptorType, count : u32) #expand {
         `binding_layouts_it.binding         = cast(u32) `it;
         `binding_layouts_it.descriptorType  = type;
         `binding_layouts_it.descriptorCount = count;
@@ -225,19 +347,19 @@ createVulkanDescriptorSetLayout :: (
         if #complete it == {
             case .UNIFORM;
                 count := ifx set == .PERSISTENT then cast(u32) BindingManager.MAX_PER_VIEW_UNIFORMS else 1;
-                pushBinding(.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, count);
+                pushBindingLayout(.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, count);
                 layout.usage |= .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
 
             case .SAMPLERS;
-                pushBinding(.VK_DESCRIPTOR_TYPE_SAMPLER, BindingManager.MAX_SAMPLERS);
+                pushBindingLayout(.VK_DESCRIPTOR_TYPE_SAMPLER, BindingManager.MAX_SAMPLERS);
                 layout.usage |= .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
 
             case .TEXTURES;
-                pushBinding(.VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, BindingManager.MAX_TEXTURES);
+                pushBindingLayout(.VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, BindingManager.MAX_TEXTURES);
                 layout.usage |= .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
 
             case .IMAGES;
-                pushBinding(.VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, BindingManager.MAX_IMAGES);
+                pushBindingLayout(.VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, BindingManager.MAX_IMAGES);
                 layout.usage |= .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
         }
     }
@@ -265,173 +387,5 @@ createVulkanDescriptorSetLayout :: (
                                                                                           layout.layout,
                                                                                           cast(u32) it,
                                                                                           *layout.slot_offsets[it]);
-    }
-}
-
-fillUniforms :: (
-    device           : *VulkanDevice,
-    resource_manager : *VulkanResourceManager,
-    $lifetime        : ResourceManager.Lifetime,
-    $descriptor_set  : DescriptorSet,
-    slot_memory      : *void
-) {
-    pool : *VulkanResourceManager.BufferMemory.Pool;
-    #if #complete lifetime == {
-        case .PER_FRAME;  pool = *resource_manager.buffers.per_frame[device.frame_index][ResourceManager.Pool.UPLOAD];
-        case .PER_SCENE;  pool = *resource_manager.buffers.per_scene[ResourceManager.Pool.UPLOAD];
-        case .PERSISTENT; pool = *resource_manager.buffers.persistent[ResourceManager.Pool.UPLOAD];
-    }
-    assert(pool);
-
-    descriptor_size   := device.descriptor_buffer_properties.uniformBufferDescriptorSize;
-    descriptor_memory := slot_memory;
-
-    descriptors_count := 0;
-    MAX_DESCRIPTORS   := #ifx descriptor_set == .PERSISTENT then BindingManager.MAX_PER_VIEW_UNIFORMS else 1;
-
-    for pool.resources {
-        if !(it.usage & .UNIFORM) continue;
-
-        assert(descriptors_count < MAX_DESCRIPTORS, "Too much uniforms for descriptor set %. Max: %", descriptor_set, MAX_DESCRIPTORS);
-        descriptors_count += 1;
-
-        address_info := VkDescriptorAddressInfoEXT.{
-            address = cast(VkDeviceAddress) it.device_address,
-            range   = cast(VkDeviceSize) it.size,
-            format  = .VK_FORMAT_UNDEFINED,
-        };
-
-        descriptor_info := VkDescriptorGetInfoEXT.{
-            type                = .VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            data.pUniformBuffer = *address_info,
-        };
-
-        device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
-
-        descriptor_memory += descriptor_size;
-    }
-}
-
-fillSamplers :: (
-    device           : *VulkanDevice,
-    resource_manager : *VulkanResourceManager,
-    $lifetime        : ResourceManager.Lifetime,
-    descriptor_set   : DescriptorSet,
-    slot_memory      : *void
-) {
-    pool : *VulkanResourceManager.SamplerMemory.Pool;
-    #if #complete lifetime == {
-        case .PER_FRAME;  pool = *resource_manager.samplers.per_frame[device.frame_index];
-        case .PER_SCENE;  pool = *resource_manager.samplers.per_scene;
-        case .PERSISTENT; pool = *resource_manager.samplers.persistent;
-    }
-    assert(pool);
-
-    descriptor_size   := device.descriptor_buffer_properties.samplerDescriptorSize;
-    descriptor_memory := slot_memory;
-
-    descriptors_count := 0;
-    MAX_DESCRIPTORS   :: BindingManager.MAX_SAMPLERS;
-
-    for pool.resources {
-        assert(descriptors_count < MAX_DESCRIPTORS, "Too much samplers for descriptor set %. Max: %", descriptor_set, MAX_DESCRIPTORS);
-        descriptors_count += 1;
-
-        descriptor_info := VkDescriptorGetInfoEXT.{
-            type          = .VK_DESCRIPTOR_TYPE_SAMPLER,
-            data.pSampler = *it.sampler,
-        };
-
-        device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
-
-        descriptor_memory += descriptor_size;
-    }
-}
-
-fillTextures :: (
-    device           : *VulkanDevice,
-    resource_manager : *VulkanResourceManager,
-    $lifetime        : ResourceManager.Lifetime,
-    descriptor_set   : DescriptorSet,
-    slot_memory      : *void
-) {
-    pool : *VulkanResourceManager.TextureViewMemory.Pool;
-    #if #complete lifetime == {
-        case .PER_FRAME;  pool = *resource_manager.texture_views.per_frame[device.frame_index];
-        case .PER_SCENE;  pool = *resource_manager.texture_views.per_scene;
-        case .PERSISTENT; pool = *resource_manager.texture_views.persistent;
-    }
-    assert(pool);
-
-    descriptor_size   := device.descriptor_buffer_properties.sampledImageDescriptorSize;
-    descriptor_memory := slot_memory;
-
-    descriptors_count := 0;
-    MAX_DESCRIPTORS   :: BindingManager.MAX_TEXTURES;
-
-    for pool.resources {
-        if it.usage != .SHADER_READ continue;
-
-        assert(descriptors_count < MAX_DESCRIPTORS, "Too much textures for descriptor set %. Max: %", descriptor_set, MAX_DESCRIPTORS);
-        descriptors_count += 1;
-
-        image_info := VkDescriptorImageInfo.{
-            imageView   = it.view,
-            imageLayout = ifx  textureFormatFlags(it.format) & (.DEPTH | .STENCIL)
-                          then .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
-                          else .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-
-        descriptor_info := VkDescriptorGetInfoEXT.{
-            type               = .VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            data.pSampledImage = *image_info,
-        };
-
-        device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
-
-        descriptor_memory += descriptor_size;
-    }
-}
-
-fillImages :: (
-    device           : *VulkanDevice,
-    resource_manager : *VulkanResourceManager,
-    $lifetime        : ResourceManager.Lifetime,
-    descriptor_set   : DescriptorSet,
-    slot_memory      : *void
-) {
-    pool : *VulkanResourceManager.TextureViewMemory.Pool;
-    #if #complete lifetime == {
-        case .PER_FRAME;  pool = *resource_manager.texture_views.per_frame[device.frame_index];
-        case .PER_SCENE;  pool = *resource_manager.texture_views.per_scene;
-        case .PERSISTENT; pool = *resource_manager.texture_views.persistent;
-    }
-    assert(pool);
-
-    descriptor_size   := device.descriptor_buffer_properties.storageImageDescriptorSize;
-    descriptor_memory := slot_memory;
-
-    descriptors_count := 0;
-    MAX_DESCRIPTORS   :: BindingManager.MAX_IMAGES;
-
-    for pool.resources {
-        if it.usage != .SHADER_WRITE continue;
-
-        assert(descriptors_count < MAX_DESCRIPTORS, "Too much images for descriptor set %. Max: %", descriptor_set, MAX_DESCRIPTORS);
-        descriptors_count += 1;
-
-        image_info := VkDescriptorImageInfo.{
-            imageView   = it.view,
-            imageLayout = .VK_IMAGE_LAYOUT_GENERAL,
-        };
-
-        descriptor_info := VkDescriptorGetInfoEXT.{
-            type               = .VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            data.pStorageImage = *image_info,
-        };
-
-        device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
-
-        descriptor_memory += descriptor_size;
     }
 }
