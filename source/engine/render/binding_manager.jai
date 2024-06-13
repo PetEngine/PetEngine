@@ -77,7 +77,7 @@ pushBinding :: (
     resource_manager : *ResourceManager,
     resource         : *$Resource,
     $descriptor_set  : DescriptorSet
-) -> BindingHandle #must {
+) -> BindingHandle {
     assert(resourceMemoryCommitted(resource_manager, resource.lifetime),
            "All % bindings should be pushed after % resource memory is commited",
            descriptor_set,

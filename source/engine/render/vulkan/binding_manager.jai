@@ -58,7 +58,7 @@ END;
 
     manager.per_frame_bindings.count = cast,no_check(s64) device.frame_buffering;
 
-    createVulkanDescriptorSetLayout(device, manager, .PER_FRAME,  .[ .SAMPLERS, .TEXTURES, .IMAGES ]);
+    createVulkanDescriptorSetLayout(device, manager, .PER_FRAME,  .[ .UNIFORM, .SAMPLERS, .TEXTURES, .IMAGES ]);
     createVulkanDescriptorSetLayout(device, manager, .PER_SCENE,  .[ .SAMPLERS, .TEXTURES, .IMAGES ]);
     createVulkanDescriptorSetLayout(device, manager, .PERSISTENT, .[ .UNIFORM, .SAMPLERS, .TEXTURES, .IMAGES ]);
 

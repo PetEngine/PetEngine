@@ -21,8 +21,7 @@ const Vertex g_vertices[] = {
 out VertexOutput vs_output;
 
 layout(push_constant) uniform PushConstants {
-    float time;
-    uint  per_view_uniform_index;
+    uint per_view_uniform_index;
 } g_push_constants;
 
 void main() {
@@ -31,7 +30,7 @@ void main() {
 
     const vec3 camera_position = g_per_view_uniforms[g_push_constants.per_view_uniform_index].camera_position;
 
-    const float alpha = cos(1.5 * g_push_constants.time) * 0.5 + 0.5;
+    const float alpha = cos(1.5 * g_per_frame_uniform.time) * 0.5 + 0.5;
     vs_output.color = vertex.color * vec4(camera_position, 1.0) * alpha;
 }
 

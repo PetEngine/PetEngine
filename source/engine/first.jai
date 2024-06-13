@@ -47,13 +47,8 @@ PerViewUniform :: struct {
     data    : Data;
 }
 
-createPerViewUniform :: (
-    device           : *Device,
-    resource_manager : *ResourceManager,
-    uniform          : *PerViewUniform
-) {
+createPerViewUniform :: (device : *Device, resource_manager : *ResourceManager, uniform : *PerViewUniform) {
     uniform.buffers.count = cast(s64) device.frame_buffering;
-    uniform.handles.count = cast(s64) device.frame_buffering;
 
     for * buffers, frame_index : uniform.buffers {
         for * buffer, version : buffers.* {
@@ -68,12 +63,14 @@ createPerViewUniform :: (
     }
 }
 
-createPerViewUniformBindings :: (
+bindPerViewUniform :: (
     device           : *Device,
     binding_manager  : *BindingManager,
     resource_manager : *ResourceManager,
     uniform          : *PerViewUniform
 ) {
+    uniform.handles.count = cast(s64) device.frame_buffering;
+
     for * handles, frame_index : uniform.handles {
         frame_buffers := *uniform.buffers[frame_index];
 
@@ -96,8 +93,36 @@ commitPerViewUniform :: (device : *Device, uniform : *PerViewUniform) {
     memcpy(uniform.buffers[device.frame_index][uniform.version].mapped_memory, *uniform.data, size_of(PerViewUniform.Data));
 }
 
+PerFrameUniform :: struct {
+    Data :: struct {
+        frame : u32;
+        time  : f32;
+        dtime : f32;
+    } #no_padding;
+
+    buffers : StaticArray(*Buffer, Device.MAX_FRAME_BUFFERING);
+    data    : Data;
+}
+
+createPerFrameUniform :: (device : *Device, resource_manager : *ResourceManager, uniform : *PerFrameUniform) {
+    uniform.buffers.count = cast(s64) device.frame_buffering;
+
+    for * uniform.buffers {
+        it.* = createBuffer(device,
+                            resource_manager,
+                            size_of(PerFrameUniform.Data),
+                            .PERSISTENT,
+                            .UPLOAD,
+                            .UNIFORM,
+                            Basic.tprint("Per frame for frame #%", it_index));
+    }
+}
+
+commitPerFrameUniform :: inline (device : *Device, uniform : *PerFrameUniform) {
+    memcpy(uniform.buffers[device.frame_index].mapped_memory, *uniform.data, size_of(PerFrameUniform.Data));
+}
+
 PushConstants :: struct {
-    time                   : f32;
     per_view_uniform_index : u32;
 } #no_padding
 
@@ -146,6 +171,9 @@ petMain :: () {
     per_view_uniform : PerViewUniform;
     createPerViewUniform(device, resource_manager, *per_view_uniform);
 
+    per_frame_uniform : PerFrameUniform;
+    createPerFrameUniform(device, resource_manager, *per_frame_uniform);
+
     depth_buffer := createTexture(device,
                                   resource_manager,
                                   .D32,
@@ -166,8 +194,7 @@ petMain :: () {
     defer resetResourceMemory(device, resource_manager, .PERSISTENT);
 
     // All persistent bindings should be pushed after persistent resource memory commit
-
-    createPerViewUniformBindings(device, binding_manager, resource_manager, *per_view_uniform);
+    bindPerViewUniform(device, binding_manager, resource_manager, *per_view_uniform);
 
     defer resetBindings(device, binding_manager, .PERSISTENT);
 
@@ -213,6 +240,16 @@ petMain :: () {
                 commitResourceMemory(device, resource_manager, .PER_FRAME);
             }
 
+            // Update per frame uniform
+            pushBinding(device, binding_manager, resource_manager, per_frame_uniform.buffers[device.frame_index], .PER_FRAME);
+            per_frame_uniform.data.frame += 1;
+            {
+                time_now := cast(f32) Basic.seconds_since_init();
+                per_frame_uniform.data.dtime = time_now - per_frame_uniform.data.time;
+                per_frame_uniform.data.time  = time_now;
+            }
+            commitPerFrameUniform(device, *per_frame_uniform);
+
             // Update per view uniform
             per_view_uniform.data.camera_pos  = v3f.{ 1.0, 2.0, 3.0 } * (1.0 + device.frame_index);
             per_view_uniform.data.view_matrix = identity(m3x4) * (1.0 + device.frame_index);
@@ -243,7 +280,6 @@ petMain :: () {
                 setShader(device, *command_buffer, shader_manager, binding_manager, test_shader);
 
                 setPushConstants(device, *command_buffer, push_constants_handle, *(PushConstants.{
-                    time                   = cast(f32) Basic.seconds_since_init(),
                     per_view_uniform_index = per_view_uniform.handles[device.frame_index][per_view_uniform.version].descriptor,
                 }));
 
