@@ -21,9 +21,9 @@ BindingManager :: struct {
 
     resetPlatformBindings : (device : *Device, manager : *BindingManager, descriptor_set : DescriptorSet);
 
-    pushPlatformBufferBinding  : (device : *Device, manager : *BindingManager, resource : *Buffer, descriptor_set : DescriptorSet) -> BindingHandle #must;
-    pushPlatformTextureBinding : (device : *Device, manager : *BindingManager, resource : *TextureView, descriptor_set : DescriptorSet) -> BindingHandle #must;
-    pushPlatformSamplerBinding : (device : *Device, manager : *BindingManager, resource : *Sampler, descriptor_set : DescriptorSet) -> BindingHandle #must;
+    pushPlatformBufferBinding  : (device : *Device, manager : *BindingManager, descriptor_set : DescriptorSet, resource : *Buffer, offset : u32, size : u32) -> BindingHandle #must;
+    pushPlatformTextureBinding : (device : *Device, manager : *BindingManager, descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle #must;
+    pushPlatformSamplerBinding : (device : *Device, manager : *BindingManager, descriptor_set : DescriptorSet, resource : *Sampler) -> BindingHandle #must;
 }
 
 // @Important: Should be synced with defines in graphics_bindings.shader_header
@@ -75,8 +75,33 @@ pushBinding :: (
     device           : *Device,
     manager          : *BindingManager,
     resource_manager : *ResourceManager,
-    resource         : *$Resource,
-    $descriptor_set  : DescriptorSet
+    $descriptor_set  : DescriptorSet,
+    buffer           : *Buffer,
+    offset           : u32 = 0,
+    size             : u32 = 0xFFFF_FFFF
+) -> BindingHandle {
+    assert(resourceMemoryCommitted(resource_manager, buffer.lifetime),
+           "All % bindings should be pushed after % resource memory is commited",
+           descriptor_set,
+           buffer.lifetime);
+
+    assert(offset < buffer.size);
+
+    if size == 0xFFFF_FFFF {
+        size = buffer.size - offset;
+    } else {
+        assert(size <= buffer.size - offset);
+    }
+
+    return manager.pushPlatformBufferBinding(device, manager, descriptor_set, buffer, offset, size);
+}
+
+pushBinding :: (
+    device           : *Device,
+    manager          : *BindingManager,
+    resource_manager : *ResourceManager,
+    $descriptor_set  : DescriptorSet,
+    resource         : *$Resource/Type.[TextureView, Sampler]
 ) -> BindingHandle {
     assert(resourceMemoryCommitted(resource_manager, resource.lifetime),
            "All % bindings should be pushed after % resource memory is commited",
@@ -84,17 +109,11 @@ pushBinding :: (
            resource.lifetime);
 
     #if Resource == {
-        case Buffer;
-            return manager.pushPlatformBufferBinding(device, manager, resource, descriptor_set);
-
         case TextureView;
-            return manager.pushPlatformTextureBinding(device, manager, resource, descriptor_set);
+            return manager.pushPlatformTextureBinding(device, manager, descriptor_set, resource);
 
         case Sampler;
-            return manager.pushPlatformSamplerBinding(device, manager, resource, descriptor_set);
-
-        case;
-            #assert false "Resource can be only Buffer, TextureView or Sampler";
+            return manager.pushPlatformSamplerBinding(device, manager, descriptor_set, resource);
     }
 }
 

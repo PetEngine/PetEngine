@@ -26,6 +26,7 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 
 PerViewUniform :: struct {
     MAX_VERSIONS :: 1;
+    BUFFER_SIZE  : u32 : cast(u32) size_of(Data) * MAX_VERSIONS * Device.MAX_FRAME_BUFFERING;
 
     Data :: struct {
         camera_pos : v3f;
@@ -41,26 +42,10 @@ PerViewUniform :: struct {
         inv_view_proj_matrix : m4x4;
     } #no_padding
 
-    buffers : StaticArray([MAX_VERSIONS] *Buffer, Device.MAX_FRAME_BUFFERING);
+    buffer  : *Buffer;
     handles : StaticArray([MAX_VERSIONS] BindingHandle, Device.MAX_FRAME_BUFFERING);
     version : s32 = -1;
     data    : Data;
-}
-
-createPerViewUniform :: (device : *Device, resource_manager : *ResourceManager, uniform : *PerViewUniform) {
-    uniform.buffers.count = cast(s64) device.frame_buffering;
-
-    for * buffers, frame_index : uniform.buffers {
-        for * buffer, version : buffers.* {
-            buffer.* = createBuffer(device,
-                                    resource_manager,
-                                    size_of(PerViewUniform.Data),
-                                    .PERSISTENT,
-                                    .UPLOAD,
-                                    .UNIFORM,
-                                    Basic.tprint("Per view for frame #%, version #%", frame_index, version));
-        }
-    }
 }
 
 bindPerViewUniform :: (
@@ -71,18 +56,18 @@ bindPerViewUniform :: (
 ) {
     uniform.handles.count = cast(s64) device.frame_buffering;
 
-    for * handles, frame_index : uniform.handles {
-        frame_buffers := *uniform.buffers[frame_index];
-
-        for * handle, version : handles.* {
-            handle.* = pushBinding(device, binding_manager, resource_manager, frame_buffers.*[version], .PERSISTENT);
+    offset : u32;
+    for * uniform.handles {
+        for * it.* {
+            it.* = pushBinding(device, binding_manager, resource_manager, .PERSISTENT, uniform.buffer, offset, size_of(PerViewUniform.Data));
+            offset += size_of(PerViewUniform.Data);
         }
     }
 }
 
-resetPerViewUniform :: (device : *Device, uniform : *PerViewUniform) {
+resetPerViewUniform :: inline (device : *Device, uniform : *PerViewUniform) {
     // @TODO: #FrameBuffering.
-    assert(uniform.buffers.count == cast(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
+    assert(uniform.handles.count == cast(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
     uniform.version = -1;
 }
 
@@ -90,36 +75,38 @@ commitPerViewUniform :: (device : *Device, uniform : *PerViewUniform) {
     uniform.version += 1;
     assert(uniform.version < PerViewUniform.MAX_VERSIONS);
 
-    memcpy(uniform.buffers[device.frame_index][uniform.version].mapped_memory, *uniform.data, size_of(PerViewUniform.Data));
+    offset := (device.frame_index * PerViewUniform.MAX_VERSIONS + uniform.version)
+            * size_of(PerViewUniform.Data);
+
+    memcpy(uniform.buffer.mapped_memory + offset, *uniform.data, size_of(PerViewUniform.Data));
 }
 
 PerFrameUniform :: struct {
+    BUFFER_SIZE : u32 : cast(u32) size_of(Data) * Device.MAX_FRAME_BUFFERING;
+
     Data :: struct {
         frame : u32;
         time  : f32;
         dtime : f32;
-    } #no_padding;
+    } #no_padding
 
-    buffers : StaticArray(*Buffer, Device.MAX_FRAME_BUFFERING);
-    data    : Data;
+    buffer : *Buffer;
+    data   : Data;
 }
 
-createPerFrameUniform :: (device : *Device, resource_manager : *ResourceManager, uniform : *PerFrameUniform) {
-    uniform.buffers.count = cast(s64) device.frame_buffering;
-
-    for * uniform.buffers {
-        it.* = createBuffer(device,
-                            resource_manager,
-                            size_of(PerFrameUniform.Data),
-                            .PERSISTENT,
-                            .UPLOAD,
-                            .UNIFORM,
-                            Basic.tprint("Per frame for frame #%", it_index));
-    }
+bindPerFrameUniform :: inline (
+    device           : *Device,
+    binding_manager  : *BindingManager,
+    resource_manager : *ResourceManager,
+    uniform          : *PerFrameUniform
+) {
+    offset := device.frame_index * size_of(PerFrameUniform.Data);
+    pushBinding(device, binding_manager, resource_manager, .PER_FRAME, uniform.buffer, offset, size_of(PerFrameUniform.Data));
 }
 
 commitPerFrameUniform :: inline (device : *Device, uniform : *PerFrameUniform) {
-    memcpy(uniform.buffers[device.frame_index].mapped_memory, *uniform.data, size_of(PerFrameUniform.Data));
+    offset := device.frame_index * size_of(PerFrameUniform.Data);
+    memcpy(uniform.buffer.mapped_memory + offset, *uniform.data, size_of(PerFrameUniform.Data));
 }
 
 PushConstants :: struct {
@@ -168,11 +155,13 @@ petMain :: () {
     success := createShadersHotReload(*shaders_hot_reload, device, shader_manager, binding_manager);
     defer destroyShadersHotReload(*shaders_hot_reload, success);
 
-    per_view_uniform : PerViewUniform;
-    createPerViewUniform(device, resource_manager, *per_view_uniform);
+    per_view_uniform := PerViewUniform.{
+        buffer = createBuffer(device, resource_manager, PerViewUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view")
+    };
 
-    per_frame_uniform : PerFrameUniform;
-    createPerFrameUniform(device, resource_manager, *per_frame_uniform);
+    per_frame_uniform := PerFrameUniform.{
+        buffer = createBuffer(device, resource_manager, PerFrameUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per frame")
+    };
 
     depth_buffer := createTexture(device,
                                   resource_manager,
@@ -241,7 +230,7 @@ petMain :: () {
             }
 
             // Update per frame uniform
-            pushBinding(device, binding_manager, resource_manager, per_frame_uniform.buffers[device.frame_index], .PER_FRAME);
+            bindPerFrameUniform(device, binding_manager, resource_manager, *per_frame_uniform);
             per_frame_uniform.data.frame += 1;
             {
                 time_now := cast(f32) Basic.seconds_since_init();

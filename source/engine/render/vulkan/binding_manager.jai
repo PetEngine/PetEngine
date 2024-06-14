@@ -111,8 +111,10 @@ resetVulkanBindings :: (device_ : *Device, manager_ : *BindingManager, descripto
 pushVulkanBufferBinding  :: (
     device_        : *Device,
     manager_       : *BindingManager,
+    descriptor_set : DescriptorSet,
     resource       : *Buffer,
-    descriptor_set : DescriptorSet
+    offset         : u32,
+    size           : u32
 ) -> BindingHandle #must {
     device  := cast(*VulkanDevice)         device_;
     manager := cast(*VulkanBindingManager) manager_;
@@ -148,8 +150,8 @@ pushVulkanBufferBinding  :: (
     assert(descriptor_index < max_descriptors, "Too much uniforms for % descriptor set. Max: %", descriptor_set, max_descriptors);
 
     address_info := VkDescriptorAddressInfoEXT.{
-        address = cast(VkDeviceAddress) buffer.device_address,
-        range   = cast(VkDeviceSize) buffer.size,
+        address = cast(VkDeviceAddress) (buffer.device_address + offset),
+        range   = cast(VkDeviceSize) size,
         format  = .VK_FORMAT_UNDEFINED,
     };
 
@@ -178,8 +180,8 @@ pushVulkanBufferBinding  :: (
 pushVulkanTextureBinding :: (
     device_        : *Device,
     manager_       : *BindingManager,
-    resource       : *TextureView,
-    descriptor_set : DescriptorSet
+    descriptor_set : DescriptorSet,
+    resource       : *TextureView
 ) -> BindingHandle #must {
     device       := cast(*VulkanDevice)         device_;
     manager      := cast(*VulkanBindingManager) manager_;
@@ -253,8 +255,8 @@ pushVulkanTextureBinding :: (
 pushVulkanSamplerBinding :: (
     device_        : *Device,
     manager_       : *BindingManager,
-    resource       : *Sampler,
-    descriptor_set : DescriptorSet
+    descriptor_set : DescriptorSet,
+    resource       : *Sampler
 ) -> BindingHandle #must {
     device  := cast(*VulkanDevice)         device_;
     manager := cast(*VulkanBindingManager) manager_;
