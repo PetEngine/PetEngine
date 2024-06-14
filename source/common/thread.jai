@@ -37,8 +37,18 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
 
             // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
             #if _STACK_TRACE {
-                stack_trace_sentinel : Stack_Trace_Node;
-                thread.jai_context.stack_trace = *stack_trace_sentinel;
+                this_frame_info := Stack_Trace_Procedure_Info.{
+                    name              = #procedure_name(),
+                    location          = #location(#this),
+                    procedure_address = cast(*void) #this,
+                };
+
+                this_frame := Stack_Trace_Node.{
+                    info        = *this_frame_info,
+                    line_number = cast(u32) #location(#this).line_number,
+                };
+
+                thread.jai_context.stack_trace = *this_frame;
             }
 
             push_context thread.jai_context {

@@ -307,8 +307,18 @@ Reflection :: #import "Reflection";
 
         // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
         #if _STACK_TRACE {
-            stack_trace_sentinel : Stack_Trace_Node;
-            first_context.stack_trace = *stack_trace_sentinel;
+            this_frame_info := Stack_Trace_Procedure_Info.{
+                name              = #procedure_name(),
+                location          = #location(#this),
+                procedure_address = cast(*void) #this,
+            };
+
+            this_frame := Stack_Trace_Node.{
+                info        = *this_frame_info,
+                line_number = cast(u32) #location(#this).line_number,
+            };
+
+            first_context.stack_trace = *this_frame;
         }
 
         push_context first_context {
@@ -425,8 +435,18 @@ Reflection :: #import "Reflection";
 
         // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
         #if _STACK_TRACE {
-            stack_trace_sentinel : Stack_Trace_Node;
-            first_context.stack_trace = *stack_trace_sentinel;
+            this_frame_info := Stack_Trace_Procedure_Info.{
+                name              = #procedure_name(),
+                location          = #location(#this),
+                procedure_address = cast(*void) #this,
+            };
+
+            this_frame := Stack_Trace_Node.{
+                info        = *this_frame_info,
+                line_number = cast(u32) #location(#this).line_number,
+            };
+
+            first_context.stack_trace = *this_frame;
         }
 
         push_context first_context {
@@ -445,6 +465,7 @@ initRuntimeAndCallEntryPoint :: () {
     context.print_style.default_format_struct.use_long_form_if_more_than_this_many_members = -1;
     context.print_style.default_format_struct.use_newlines_if_long_form                    = true;
     context.print_style.default_format_absolute_pointer.minimum_digits                     = 16;
+    context.print_style.default_format_absolute_pointer.comma_string                       = "'";
 
     temporary_storage : Temporary_Storage;
     context.temporary_storage = *temporary_storage;

@@ -94,7 +94,7 @@ substring :: inline (source : string, offset : s64, $$count : s64 = -1) -> strin
     assert(count  >= -1, "count should be >= -1, count = %", count);
 
     substr : string = ---;
-    substr.data  = source.data + offset;
+    substr.data = source.data + offset;
 
     #if is_constant(count) {
         #if count == -1 {

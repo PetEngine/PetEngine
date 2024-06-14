@@ -1,5 +1,10 @@
 #scope_export
 
+// @TODO:
+//     - #StackTrace. Find out how Visual Studio handles inline procedures
+//     - Tags
+//     - Log messages to files depending on tag
+
 MessagePriority :: enum u8 {
     VERBOSE;
     DEBUG;
@@ -258,7 +263,8 @@ message :: (
     }
 
     #if priority == .ASSERT {
-        // @TODO: Stack trace
+        Basic.append(*builder, "\nStack trace:\n");
+        printStackTrace(*builder);
     }
 
     message := Basic.builder_to_string(*builder,, allocator = Basic.temp);
@@ -319,5 +325,101 @@ formatOrExpression :: ($format : string, expression : Code) -> string #compile_t
         return format;
     } else {
         return codeToString(expression);
+    }
+}
+
+// We don't use context.stack_trace since it does not track external procedures which may be essential in stack trace
+printStackTrace :: (builder : *Basic.String_Builder) {
+    #if OS == .WINDOWS {
+        scopedLock(*g_mutex); // All DbgHelp functions are single threaded, so we have to synchronize their calls
+
+        MAX_FRAMES_TO_CAPTURE : u16 : 0xFFFF;
+        stack_trace := pushToArena(*context.pet.per_frame_arena, *void, MAX_FRAMES_TO_CAPTURE);
+
+        FRAMES_TO_SKIP :: 2; // Skip this function & message (caller)
+        frames_count := RtlCaptureStackBackTrace(FRAMES_TO_SKIP, MAX_FRAMES_TO_CAPTURE, stack_trace, null);
+        Basic.assert(frames_count > 0, "RtlCaptureStackBackTrace did not capture any frames which is impossible. Error: %", GetLastError());
+
+        pseudo_process_handle := GetCurrentProcess();
+        process : HANDLE;
+        success := DuplicateHandle(pseudo_process_handle, pseudo_process_handle, pseudo_process_handle, *process, 0, FALSE, DUPLICATE_SAME_ACCESS);
+        Basic.assert(success != FALSE, "DuplicateHandle has failed with error %", GetLastError());
+        defer {
+            success = CloseHandle(process);
+            Basic.assert(success != FALSE, "CloseHandle has failed with error %", GetLastError());
+        }
+
+        success = SymInitialize(process, null, TRUE);
+        Basic.assert(success != FALSE, "SymInitialize has failed with error %", GetLastError());
+        defer {
+            success = SymCleanup(process);
+            Basic.assert(success != FALSE, "SymCleanup has failed with error %", GetLastError());
+        }
+
+        line_info          := IMAGEHLP_LINE64.{ SizeOfStruct = size_of(IMAGEHLP_LINE64) };
+        module_info        := IMAGEHLP_MODULE64.{ SizeOfStruct = size_of(IMAGEHLP_MODULE64) };
+        symbol_info_memory : [size_of(SYMBOL_INFO) + MAX_SYM_NAME] u8;
+
+        symbol_info := cast(*SYMBOL_INFO) symbol_info_memory.data;
+        symbol_info.SizeOfStruct = size_of(SYMBOL_INFO);
+        symbol_info.MaxNameLen   = MAX_SYM_NAME;
+
+        for frame : toView(stack_trace, frames_count) {
+            Basic.append(builder, "    ");
+
+            column : u32;
+            if SymGetLineFromAddr64(process, cast(u64) frame, *column, *line_info) {
+                Basic.print(builder, "%(%,%): ", to_string(cast(*u8) line_info.FileName), line_info.LineNumber, column);
+            } else {
+                module_base := SymGetModuleBase64(process, cast(u64) frame);
+                Basic.assert(module_base != 0, "SymGetModuleBase64 has failed with error %", GetLastError());
+
+                success = SymGetModuleInfo64(process, cast(u64) frame, *module_info);
+                Basic.assert(success != FALSE, "SymGetModuleInfo64 has failed with error %", GetLastError());
+
+                Basic.print(builder, "%(%): ", to_string(cast(*u8) module_info.LoadedImageName.data), frame);
+            }
+
+            procedure_name : string = ---;
+            if SymFromAddr(process, cast(u64) frame, null, symbol_info) {
+                procedure_name.count = symbol_info.NameLen;
+                procedure_name.data  = cast(*u8) symbol_info.Name.data;
+            } else {
+                procedure_name = "<unknown procedure>";
+
+                last_error := GetLastError();
+                Basic.assert(last_error == ERROR_MOD_NOT_FOUND, "SymFromAddr has failed with error %", last_error);
+            }
+
+            Basic.print(builder, "%\n", procedure_name);
+        }
+    } else {
+        // @TODO: #StackTrace. This implementation is ok for now, but we have to rewrite it to something similar to what we do on Windows
+        printStackTraceFromJaiContext(builder);
+    }
+}
+
+printStackTraceFromJaiContext :: (builder : *Basic.String_Builder) {
+    // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
+    #if _STACK_TRACE {
+        Basic.assert(context.stack_trace != null, "Stack trace is empty which is impossible");
+
+        node := context.stack_trace;
+        while node {
+            if node.info {
+                Basic.print(builder, "    %(%): ", node.info.location.fully_pathed_filename, node.line_number);
+                if node.info.name {
+                    Basic.append(builder, node.info.name);
+                } else {
+                    Basic.print(builder, "<unknown procedure> %", node.info.procedure_address);
+                }
+                Basic.append(builder, "\n");
+            } else {
+                Basic.append(builder, "    Unknown procedure in unknown module\n");
+            }
+            node = node.next;
+        }
+    } else {
+        Basic.append(builder, "    <empty>\n");
     }
 }

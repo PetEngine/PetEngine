@@ -34,6 +34,7 @@ LPSTR   :: *s8;
 LPCSTR  :: *s8;
 LPWSTR  :: *WCHAR;
 LPCWSTR :: *WCHAR;
+PCSTR   :: *s8;
 PCWSTR  :: *WCHAR;
 
 WPARAM  :: UINT_PTR;
@@ -64,6 +65,7 @@ ERROR_NO_MORE_FILES        :: 18;
 ERROR_SHARING_VIOLATION    :: 32;
 ERROR_FILE_EXISTS          :: 80;
 ERROR_INSUFFICIENT_BUFFER  :: 122;
+ERROR_MOD_NOT_FOUND        :: 126;
 ERROR_ALREADY_EXISTS       :: 183;
 ERROR_OPERATION_ABORTED    :: 995;
 ERROR_DEVICE_NOT_CONNECTED :: 1167;
@@ -81,6 +83,26 @@ FAILED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
     return result < ERROR_SUCCESS;
 }
+
+GUID :: struct {
+    Data1 : u32;
+    Data2 : u16;
+    Data3 : u16;
+    Data4 : [8] u8;
+}
+
+DUPLICATE_CLOSE_SOURCE :: 0x00000001;
+DUPLICATE_SAME_ACCESS  :: 0x00000002;
+
+DuplicateHandle :: (
+    hSourceProcessHandle : HANDLE,
+    hSourceHandle        : HANDLE,
+    hTargetProcessHandle : HANDLE,
+    lpTargetHandle       : *HANDLE,
+    dwDesiredAccess      : u32,
+    bInheritHandle       : BOOL,
+    dwOptions            : u32
+) -> BOOL #foreign kernel32;
 
 CloseHandle :: (
     handle : HANDLE
@@ -342,6 +364,9 @@ SetWindowPos :: (
 
 GetCurrentThreadId :: (
 ) -> u32 #foreign kernel32;
+
+GetCurrentProcess :: (
+) -> HANDLE #foreign kernel32;
 
 SIZE_MINIMIZED : u32 : 1;
 SIZE_MAXIMIZED : u32 : 2;
@@ -1476,6 +1501,121 @@ PFN_XInputGetState :: #type (
     pState      : *XINPUT_STATE
 ) -> u32 #c_call;
 
+//
+// Stack trace
+//
+
+RtlCaptureStackBackTrace :: (
+    FramesToSkip    : u32,
+    FramesToCapture : u32,
+    BackTrace       : **void,
+    BackTraceHash   : *u32
+) -> u16 #foreign ntdll;
+
+SymInitialize :: (
+    hProcess       : HANDLE,
+    UserSearchPath : PCSTR,
+    fInvadeProcess : BOOL
+) -> BOOL #foreign dbghelp;
+
+SymCleanup :: (
+    hProcess : HANDLE
+) -> BOOL #foreign dbghelp;
+
+IMAGEHLP_LINE64 :: struct {
+    SizeOfStruct : u32;
+    Key          : *void;
+    LineNumber   : u32;
+    FileName     : *s8;
+    Address      : u64;
+}
+
+SymGetLineFromAddr64 :: (
+    hProcess        : HANDLE,
+    qwAddr          : u64,
+    pdwDisplacement : *u32,
+    Line64          : *IMAGEHLP_LINE64
+) -> BOOL #foreign dbghelp;
+
+SymGetModuleBase64 :: (
+    hProcess : HANDLE,
+    qwAddr   : u64
+) -> u64 #foreign dbghelp;
+
+SYM_TYPE :: enum s32 {
+    SymNone :: 0;
+    SymCoff;
+    SymCv;
+    SymPdb;
+    SymExport;
+    SymDeferred;
+    SymSym;
+    SymDia;
+    SymVirtual;
+    NumSymType;
+}
+
+IMAGEHLP_MODULE64 :: struct {
+    SizeOfStruct    : u32;
+    BaseOfImage     : u64;
+    ImageSize       : u32;
+    TimeDateStamp   : u32;
+    CheckSum        : u32;
+    NumSyms         : u32;
+    SymType         : SYM_TYPE;
+    ModuleName      : [32]  s8;
+    ImageName       : [256] s8;
+    LoadedImageName : [256] s8;
+    LoadedPdbName   : [256] s8;
+    CVSig           : u32;
+    CVData          : [MAX_PATH * 3] s8;
+    PdbSig          : u32;
+    PdbSig70        : GUID;
+    PdbAge          : u32;
+    PdbUnmatched    : BOOL;
+    DbgUnmatched    : BOOL;
+    LineNumbers     : BOOL;
+    GlobalSymbols   : BOOL;
+    TypeInfo        : BOOL;
+    SourceIndexed   : BOOL;
+    Publics         : BOOL;
+    MachineType     : u32;
+    Reserved        : u32;
+}
+
+SymGetModuleInfo64 :: (
+    hProcess   : HANDLE,
+    qwAddr     : u64,
+    ModuleInfo : *IMAGEHLP_MODULE64
+) -> BOOL #foreign dbghelp;
+
+MAX_SYM_NAME :: 2000;
+
+SYMBOL_INFO :: struct {
+    SizeOfStruct : u32;
+    TypeIndex    : u32;
+    Reserved     : [2] u64;
+    Index        : u32;
+    Size         : u32;
+    ModBase      : u64;
+    Flags        : u32;
+    Value        : u64;
+    Address      : u64;
+    Register     : u32;
+    Scope        : u32;
+    Tag          : u32;
+    NameLen      : u32;
+    MaxNameLen   : u32;
+    Name         : [1] s8;
+}
+
+SymFromAddr :: (
+    hProcess     : HANDLE,
+    Address      : u64,
+    Displacement : *u64,
+    Symbol       : *SYMBOL_INFO
+) -> BOOL #foreign dbghelp;
+
 #scope_file
 
 kernel32 :: #library,system "kernel32";
@@ -1483,3 +1623,5 @@ user32   :: #library,system "user32";
 dwmapi   :: #library,system "dwmapi";
 advapi32 :: #library,system "advapi32";
 hid      :: #library,system "hid";
+ntdll    :: #library,system "ntdll";
+dbghelp  :: #library,system "dbghelp";
