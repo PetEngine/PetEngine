@@ -453,11 +453,10 @@ initRuntimeAndCallEntryPoint :: () {
     temporary_storage_data : [TEMPORARY_STORAGE_SIZE] u8 #align 64;
     set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data.data);
 
-    // @TODO: Replace with rpmalloc when it will work properly
-    context.allocator = .{ Default_Allocator.allocator_proc, null };
+    context.allocator = .{ Allocator.rpmalloc_allocator_proc, null };
 
-    context.allocator.proc(.STARTUP, 0, 0, null, null);
-    defer context.allocator.proc(.SHUTDOWN, 0, 0, null, null);
+    context.allocator.proc(.STARTUP, 0, 0, null, context.allocator.data);
+    defer context.allocator.proc(.SHUTDOWN, 0, 0, null, context.allocator.data);
 
     #if OS == .WINDOWS {
         getWindowsCommandLine();
@@ -493,4 +492,14 @@ initRuntimeAndCallEntryPoint :: () {
     no_inline petMain();
 }
 
-Default_Allocator :: #import "Default_Allocator"(ENABLE_ASSERTS = DEBUG_BUILD, ENABLE_VALIDATE_ARGS = DEBUG_BUILD);
+#if !DEBUG_BUILD {
+    Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
+                                    ENABLE_ASSERTS       = DEBUG_BUILD,
+                                    ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
+                                    LINUX_FREE_ADVICE    = .FREE);
+} else {
+    Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
+                                    ENABLE_ASSERTS       = DEBUG_BUILD,
+                                    ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
+                                    LINUX_FREE_ADVICE    = .DONTNEED);
+}

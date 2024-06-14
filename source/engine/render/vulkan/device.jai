@@ -95,15 +95,11 @@ destroyVulkanDevice :: (device_ : *Device) {
 
     for device.frame_data {
         for it.command_pools {
-            if it != VK_NULL_HANDLE {
-                vkDestroyCommandPool(device.device, it, null);
-            }
+            vkDestroyCommandPool(device.device, it, null);
         }
 
         for it.fences {
-            if it != VK_NULL_HANDLE {
-                vkDestroyFence(device.device, it, null);
-            }
+            vkDestroyFence(device.device, it, null);
         }
 
         for it.semaphores {
@@ -113,7 +109,7 @@ destroyVulkanDevice :: (device_ : *Device) {
 
     for views : device.swapchain_texture_views {
         for views {
-            if it.view {
+            if it.view != VK_NULL_HANDLE  {
                 vkDestroyImageView(device.device, it.view, null);
             }
 
@@ -138,6 +134,8 @@ destroyVulkanDevice :: (device_ : *Device) {
     if device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT {
         device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT(device.instance, device.messenger, null);
     }
+
+    Basic.array_free(device.message_hashes);
 
     vkDestroyInstance(device.instance, null);
 }
