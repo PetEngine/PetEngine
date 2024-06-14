@@ -22,6 +22,9 @@ ResourceManager :: struct {
         READ_BACK;
     }
 
+    memory_committed : u8;
+    #assert size_of(type_of(memory_committed)) * 8 > Basic.enum_highest_value(Lifetime);
+
     //
     // VTable
     //
@@ -31,16 +34,16 @@ ResourceManager :: struct {
     resetPlatformResourceMemory    : (device : *Device, manager : *ResourceManager, lifetime : Lifetime);
 
     pushPlatformBuffer   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime, pool : Pool) -> *Buffer #must;
-    createPlatformBuffer : (device : *Device, manager : *ResourceManager, buffer : *Buffer, lifetime : Lifetime, pool : Pool, name : string);
+    createPlatformBuffer : (device : *Device, manager : *ResourceManager, buffer : *Buffer, pool : Pool, name : string);
 
     pushPlatformTexture   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime) -> *Texture #must;
     createPlatformTexture : (device : *Device, manager : *ResourceManager, texture : *Texture, lifetime : Lifetime, name : string);
 
     pushPlatformTextureView   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime) -> *TextureView #must;
-    createPlatformTextureView : (device : *Device, manager : *ResourceManager, view : *TextureView, lifetime : Lifetime, name : string);
+    createPlatformTextureView : (device : *Device, manager : *ResourceManager, view : *TextureView, name : string);
 
     pushPlatformSampler   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime) -> *Sampler #must;
-    createPlatformSampler : (device : *Device, manager : *ResourceManager, sampler : *Sampler, state : *SamplerState, lifetime : Lifetime, name : string);
+    createPlatformSampler : (device : *Device, manager : *ResourceManager, sampler : *Sampler, state : *SamplerState, name : string);
 }
 
 createResourceManager :: (device : *Device) -> *ResourceManager #must {
@@ -60,10 +63,16 @@ destroyResourceManager :: inline (device : *Device, manager : *ResourceManager) 
 
 commitResourceMemory :: inline (device : *Device, manager : *ResourceManager, lifetime : ResourceManager.Lifetime) {
     manager.commitPlatformResourceMemory(device, manager, lifetime);
+    manager.memory_committed |= cast(u8) 1 << lifetime;
 }
 
 resetResourceMemory :: inline (device : *Device, manager : *ResourceManager, lifetime : ResourceManager.Lifetime) {
     manager.resetPlatformResourceMemory(device, manager, lifetime);
+    manager.memory_committed &= ~(cast(u8) 1 << lifetime);
+}
+
+resourceMemoryCommitted :: inline (manager : *ResourceManager, lifetime : ResourceManager.Lifetime) -> bool #no_context {
+    return cast(bool) ((manager.memory_committed >> lifetime) & 1);
 }
 
 #load "buffer.jai";

@@ -8,6 +8,7 @@ Buffer :: struct {
 
     size            : u32;
     usage           : Usage;
+    lifetime        : ResourceManager.Lifetime;
     name            : string;
     mapped_memory   : *void;
     device_address  : u64;
@@ -37,11 +38,12 @@ createBuffer :: (
 
     buffer.size                  = size;
     buffer.usage                 = usage;
+    buffer.lifetime              = lifetime;
     buffer.current_owner         = possible_owners[0];
     buffer.possible_owners.count = possible_owners.count;
     memcpy(buffer.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
 
-    manager.createPlatformBuffer(device, manager, buffer, lifetime, pool, name);
+    manager.createPlatformBuffer(device, manager, buffer, pool, name);
 
     return buffer;
 }

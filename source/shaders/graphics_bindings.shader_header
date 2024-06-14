@@ -1,0 +1,249 @@
+#ifndef GRAPHICS_BINDINGS
+#define GRAPHICS_BINDINGS
+
+// @TODO: #Bindless.
+//     - GL_EXT_buffer_reference2
+
+// @Important: Should be synced with MAX_FRAME_BUFFERING constant in render/device.jai
+#define MAX_FRAME_BUFFERING 3
+
+// @Important: Should be synced with PerViewUniform.MAX_VERSIONS constant in first.jai
+#define MAX_PER_VIEW_UNIFORM_VERSIONS 1
+
+// @Important: Should be synced with DescriptorSet enum
+#define PER_FRAME_SET  0
+#define PER_SCENE_SET  1
+#define PERSISTENT_SET 2
+
+// @Important: Should be synced with DescriptorSetSlot enum
+#define UNIFORM_SLOT  0
+#define SAMPLERS_SLOT 1
+#define TEXTURES_SLOT 2
+#define IMAGES_SLOT   3
+
+// @Important: Should be synced with constants in BindingManager in render/binding_manager.jai
+#define MAX_PER_VIEW_UNIFORMS (MAX_FRAME_BUFFERING * MAX_PER_VIEW_UNIFORM_VERSIONS)
+#define MAX_SAMPLERS          64
+#define MAX_TEXTURES          1024
+#define MAX_IMAGES            512
+
+//
+// Uniforms
+//
+
+layout(set = PER_FRAME_SET, binding = UNIFORM_SLOT) uniform PerFrame {
+    uint  frame;
+    float time;
+    float dtime;
+} g_per_frame_uniform;
+
+layout(set = PERSISTENT_SET, binding = UNIFORM_SLOT) uniform PerView {
+    vec3 camera_position;
+
+    mat3x4 view_matrix;
+    mat3x4 inv_view_matrix;
+
+    mat4x4 proj_matrix;
+    mat4x4 inv_proj_matrix;
+
+    mat4x4 view_proj_matrix;
+    mat4x4 inv_view_proj_matrix;
+} g_per_view_uniforms[MAX_PER_VIEW_UNIFORMS];
+
+//
+// Samplers
+//
+
+layout(set = PER_FRAME_SET,  binding = SAMPLERS_SLOT) uniform sampler g_per_frame_samplers [MAX_SAMPLERS];
+layout(set = PER_SCENE_SET,  binding = SAMPLERS_SLOT) uniform sampler g_per_scene_samplers [MAX_SAMPLERS];
+layout(set = PERSISTENT_SET, binding = SAMPLERS_SLOT) uniform sampler g_persistent_samplers[MAX_SAMPLERS];
+
+//
+// Textures
+//
+
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform texture1D        g_per_frame_textures_1d         [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform texture2D        g_per_frame_textures_2d         [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform texture3D        g_per_frame_textures_3d         [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform textureCube      g_per_frame_textures_cube       [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform texture2DMS      g_per_frame_textures_2d_ms      [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform texture1DArray   g_per_frame_textures_1d_array   [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform texture2DArray   g_per_frame_textures_2d_array   [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform textureCubeArray g_per_frame_textures_cube_array [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform texture2DMSArray g_per_frame_textures_2d_ms_array[MAX_TEXTURES];
+
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform itexture1D        g_per_frame_itextures_1d         [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform itexture2D        g_per_frame_itextures_2d         [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform itexture3D        g_per_frame_itextures_3d         [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform itextureCube      g_per_frame_itextures_cube       [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform itexture2DMS      g_per_frame_itextures_2d_ms      [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform itexture1DArray   g_per_frame_itextures_1d_array   [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform itexture2DArray   g_per_frame_itextures_2d_array   [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform itextureCubeArray g_per_frame_itextures_cube_array [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform itexture2DMSArray g_per_frame_itextures_2d_ms_array[MAX_TEXTURES];
+
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform utexture1D        g_per_frame_utextures_1d         [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform utexture2D        g_per_frame_utextures_2d         [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform utexture3D        g_per_frame_utextures_3d         [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform utextureCube      g_per_frame_utextures_cube       [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform utexture2DMS      g_per_frame_utextures_2d_ms      [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform utexture1DArray   g_per_frame_utextures_1d_array   [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform utexture2DArray   g_per_frame_utextures_2d_array   [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform utextureCubeArray g_per_frame_utextures_cube_array [MAX_TEXTURES];
+layout(set = PER_FRAME_SET, binding = TEXTURES_SLOT) uniform utexture2DMSArray g_per_frame_utextures_2d_ms_array[MAX_TEXTURES];
+
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform texture1D        g_per_scene_textures_1d         [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform texture2D        g_per_scene_textures_2d         [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform texture3D        g_per_scene_textures_3d         [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform textureCube      g_per_scene_textures_cube       [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform texture2DMS      g_per_scene_textures_2d_ms      [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform texture1DArray   g_per_scene_textures_1d_array   [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform texture2DArray   g_per_scene_textures_2d_array   [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform textureCubeArray g_per_scene_textures_cube_array [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform texture2DMSArray g_per_scene_textures_2d_ms_array[MAX_TEXTURES];
+
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform itexture1D        g_per_scene_itextures_1d         [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform itexture2D        g_per_scene_itextures_2d         [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform itexture3D        g_per_scene_itextures_3d         [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform itextureCube      g_per_scene_itextures_cube       [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform itexture2DMS      g_per_scene_itextures_2d_ms      [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform itexture1DArray   g_per_scene_itextures_1d_array   [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform itexture2DArray   g_per_scene_itextures_2d_array   [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform itextureCubeArray g_per_scene_itextures_cube_array [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform itexture2DMSArray g_per_scene_itextures_2d_ms_array[MAX_TEXTURES];
+
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform utexture1D        g_per_scene_utextures_1d         [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform utexture2D        g_per_scene_utextures_2d         [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform utexture3D        g_per_scene_utextures_3d         [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform utextureCube      g_per_scene_utextures_cube       [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform utexture2DMS      g_per_scene_utextures_2d_ms      [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform utexture1DArray   g_per_scene_utextures_1d_array   [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform utexture2DArray   g_per_scene_utextures_2d_array   [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform utextureCubeArray g_per_scene_utextures_cube_array [MAX_TEXTURES];
+layout(set = PER_SCENE_SET, binding = TEXTURES_SLOT) uniform utexture2DMSArray g_per_scene_utextures_2d_ms_array[MAX_TEXTURES];
+
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform texture1D        g_persistent_textures_1d         [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform texture2D        g_persistent_textures_2d         [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform texture3D        g_persistent_textures_3d         [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform textureCube      g_persistent_textures_cube       [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform texture2DMS      g_persistent_textures_2d_ms      [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform texture1DArray   g_persistent_textures_1d_array   [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform texture2DArray   g_persistent_textures_2d_array   [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform textureCubeArray g_persistent_textures_cube_array [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform texture2DMSArray g_persistent_textures_2d_ms_array[MAX_TEXTURES];
+
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform itexture1D        g_persistent_itextures_1d         [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform itexture2D        g_persistent_itextures_2d         [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform itexture3D        g_persistent_itextures_3d         [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform itextureCube      g_persistent_itextures_cube       [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform itexture2DMS      g_persistent_itextures_2d_ms      [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform itexture1DArray   g_persistent_itextures_1d_array   [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform itexture2DArray   g_persistent_itextures_2d_array   [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform itextureCubeArray g_persistent_itextures_cube_array [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform itexture2DMSArray g_persistent_itextures_2d_ms_array[MAX_TEXTURES];
+
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform utexture1D        g_persistent_utextures_1d         [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform utexture2D        g_persistent_utextures_2d         [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform utexture3D        g_persistent_utextures_3d         [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform utextureCube      g_persistent_utextures_cube       [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform utexture2DMS      g_persistent_utextures_2d_ms      [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform utexture1DArray   g_persistent_utextures_1d_array   [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform utexture2DArray   g_persistent_utextures_2d_array   [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform utextureCubeArray g_persistent_utextures_cube_array [MAX_TEXTURES];
+layout(set = PERSISTENT_SET, binding = TEXTURES_SLOT) uniform utexture2DMSArray g_persistent_utextures_2d_ms_array[MAX_TEXTURES];
+
+//
+// Images
+//
+
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly image1D        g_per_frame_images_1d         [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly image2D        g_per_frame_images_2d         [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly image3D        g_per_frame_images_3d         [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly imageCube      g_per_frame_images_cube       [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly image2DMS      g_per_frame_images_2d_ms      [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly image1DArray   g_per_frame_images_1d_array   [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly image2DArray   g_per_frame_images_2d_array   [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly imageCubeArray g_per_frame_images_cube_array [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly image2DMSArray g_per_frame_images_2d_ms_array[MAX_IMAGES];
+
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly iimage1D        g_per_frame_iimages_1d         [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly iimage2D        g_per_frame_iimages_2d         [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly iimage3D        g_per_frame_iimages_3d         [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly iimageCube      g_per_frame_iimages_cube       [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly iimage2DMS      g_per_frame_iimages_2d_ms      [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly iimage1DArray   g_per_frame_iimages_1d_array   [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly iimage2DArray   g_per_frame_iimages_2d_array   [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly iimageCubeArray g_per_frame_iimages_cube_array [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly iimage2DMSArray g_per_frame_iimages_2d_ms_array[MAX_IMAGES];
+
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly uimage1D        g_per_frame_uimages_1d         [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly uimage2D        g_per_frame_uimages_2d         [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly uimage3D        g_per_frame_uimages_3d         [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly uimageCube      g_per_frame_uimages_cube       [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DMS      g_per_frame_uimages_2d_ms      [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly uimage1DArray   g_per_frame_uimages_1d_array   [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DArray   g_per_frame_uimages_2d_array   [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly uimageCubeArray g_per_frame_uimages_cube_array [MAX_IMAGES];
+layout(set = PER_FRAME_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DMSArray g_per_frame_uimages_2d_ms_array[MAX_IMAGES];
+
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly image1D        g_per_scene_images_1d         [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly image2D        g_per_scene_images_2d         [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly image3D        g_per_scene_images_3d         [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly imageCube      g_per_scene_images_cube       [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly image2DMS      g_per_scene_images_2d_ms      [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly image1DArray   g_per_scene_images_1d_array   [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly image2DArray   g_per_scene_images_2d_array   [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly imageCubeArray g_per_scene_images_cube_array [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly image2DMSArray g_per_scene_images_2d_ms_array[MAX_IMAGES];
+
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly iimage1D        g_per_scene_iimages_1d         [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly iimage2D        g_per_scene_iimages_2d         [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly iimage3D        g_per_scene_iimages_3d         [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly iimageCube      g_per_scene_iimages_cube       [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly iimage2DMS      g_per_scene_iimages_2d_ms      [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly iimage1DArray   g_per_scene_iimages_1d_array   [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly iimage2DArray   g_per_scene_iimages_2d_array   [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly iimageCubeArray g_per_scene_iimages_cube_array [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly iimage2DMSArray g_per_scene_iimages_2d_ms_array[MAX_IMAGES];
+
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly uimage1D        g_per_scene_uimages_1d         [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly uimage2D        g_per_scene_uimages_2d         [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly uimage3D        g_per_scene_uimages_3d         [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly uimageCube      g_per_scene_uimages_cube       [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DMS      g_per_scene_uimages_2d_ms      [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly uimage1DArray   g_per_scene_uimages_1d_array   [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DArray   g_per_scene_uimages_2d_array   [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly uimageCubeArray g_per_scene_uimages_cube_array [MAX_IMAGES];
+layout(set = PER_SCENE_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DMSArray g_per_scene_uimages_2d_ms_array[MAX_IMAGES];
+
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly image1D        g_persistent_images_1d         [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly image2D        g_persistent_images_2d         [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly image3D        g_persistent_images_3d         [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly imageCube      g_persistent_images_cube       [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly image2DMS      g_persistent_images_2d_ms      [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly image1DArray   g_persistent_images_1d_array   [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly image2DArray   g_persistent_images_2d_array   [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly imageCubeArray g_persistent_images_cube_array [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly image2DMSArray g_persistent_images_2d_ms_array[MAX_IMAGES];
+
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly iimage1D        g_persistent_iimages_1d         [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly iimage2D        g_persistent_iimages_2d         [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly iimage3D        g_persistent_iimages_3d         [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly iimageCube      g_persistent_iimages_cube       [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly iimage2DMS      g_persistent_iimages_2d_ms      [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly iimage1DArray   g_persistent_iimages_1d_array   [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly iimage2DArray   g_persistent_iimages_2d_array   [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly iimageCubeArray g_persistent_iimages_cube_array [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly iimage2DMSArray g_persistent_iimages_2d_ms_array[MAX_IMAGES];
+
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage1D        g_persistent_uimages_1d         [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage2D        g_persistent_uimages_2d         [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage3D        g_persistent_uimages_3d         [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimageCube      g_persistent_uimages_cube       [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DMS      g_persistent_uimages_2d_ms      [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage1DArray   g_persistent_uimages_1d_array   [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DArray   g_persistent_uimages_2d_array   [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimageCubeArray g_persistent_uimages_cube_array [MAX_IMAGES];
+layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DMSArray g_persistent_uimages_2d_ms_array[MAX_IMAGES];
+
+#endif

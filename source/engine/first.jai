@@ -3,9 +3,9 @@
 ENGINE_NAME    :: "PetEngine";
 ENGINE_VERSION :: #run makeEngineVersion(ENGINE_VERSION_MAJOR, ENGINE_VERSION_MINOR, ENGINE_VERSION_PATCH);
 
-ENGINE_VERSION_MAJOR : u32 : 0;
-ENGINE_VERSION_MINOR : u32 : 1;
-ENGINE_VERSION_PATCH : u32 : 0;
+ENGINE_VERSION_MAJOR :: 0;
+ENGINE_VERSION_MINOR :: 1;
+ENGINE_VERSION_PATCH :: 0;
 
 #assert ENGINE_VERSION_MAJOR <= 0x00FF;
 #assert ENGINE_VERSION_MINOR <= 0x00FF;
@@ -25,8 +25,12 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 };
 
 PerViewUniform :: struct {
+    MAX_VERSIONS :: 1;
+    BUFFER_SIZE  : u32 : cast(u32) size_of(Data) * MAX_VERSIONS * Device.MAX_FRAME_BUFFERING;
+
     Data :: struct {
         camera_pos : v3f;
+        __padding0 : f32;
 
         view_matrix     : m3x4;
         inv_view_matrix : m3x4;
@@ -38,8 +42,76 @@ PerViewUniform :: struct {
         inv_view_proj_matrix : m4x4;
     } #no_padding
 
-    buffers : StaticArray(*Buffer, Device.MAX_FRAME_BUFFERING);
+    buffer  : *Buffer;
+    handles : StaticArray([MAX_VERSIONS] BindingHandle, Device.MAX_FRAME_BUFFERING);
+    version : s32 = -1;
+    data    : Data;
 }
+
+bindPerViewUniform :: (
+    device           : *Device,
+    binding_manager  : *BindingManager,
+    resource_manager : *ResourceManager,
+    uniform          : *PerViewUniform
+) {
+    uniform.handles.count = cast(s64) device.frame_buffering;
+
+    offset : u32;
+    for * uniform.handles {
+        for * it.* {
+            it.* = pushBinding(device, binding_manager, resource_manager, .PERSISTENT, uniform.buffer, offset, size_of(PerViewUniform.Data));
+            offset += size_of(PerViewUniform.Data);
+        }
+    }
+}
+
+resetPerViewUniform :: inline (device : *Device, uniform : *PerViewUniform) {
+    // @TODO: #FrameBuffering.
+    assert(uniform.handles.count == cast(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
+    uniform.version = -1;
+}
+
+commitPerViewUniform :: (device : *Device, uniform : *PerViewUniform) {
+    uniform.version += 1;
+    assert(uniform.version < PerViewUniform.MAX_VERSIONS);
+
+    offset := (device.frame_index * PerViewUniform.MAX_VERSIONS + uniform.version)
+            * size_of(PerViewUniform.Data);
+
+    memcpy(uniform.buffer.mapped_memory + offset, *uniform.data, size_of(PerViewUniform.Data));
+}
+
+PerFrameUniform :: struct {
+    BUFFER_SIZE : u32 : cast(u32) size_of(Data) * Device.MAX_FRAME_BUFFERING;
+
+    Data :: struct {
+        frame : u32;
+        time  : f32;
+        dtime : f32;
+    } #no_padding
+
+    buffer : *Buffer;
+    data   : Data;
+}
+
+bindPerFrameUniform :: inline (
+    device           : *Device,
+    binding_manager  : *BindingManager,
+    resource_manager : *ResourceManager,
+    uniform          : *PerFrameUniform
+) {
+    offset := device.frame_index * size_of(PerFrameUniform.Data);
+    pushBinding(device, binding_manager, resource_manager, .PER_FRAME, uniform.buffer, offset, size_of(PerFrameUniform.Data));
+}
+
+commitPerFrameUniform :: inline (device : *Device, uniform : *PerFrameUniform) {
+    offset := device.frame_index * size_of(PerFrameUniform.Data);
+    memcpy(uniform.buffer.mapped_memory + offset, *uniform.data, size_of(PerFrameUniform.Data));
+}
+
+PushConstants :: struct {
+    per_view_uniform_index : u32;
+} #no_padding
 
 petMain :: () {
     context.pet.thread_name = "Main";
@@ -76,21 +148,20 @@ petMain :: () {
     shader_manager := createShaderManager(device, resource_manager);
     defer destroyShaderManager(device, shader_manager);
 
+    binding_manager := createBindingManager(device, resource_manager);
+    defer destroyBindingManager(device, binding_manager);
+
     shaders_hot_reload : ShadersHotReload;
-    success := createShadersHotReload(*shaders_hot_reload, device, shader_manager);
+    success := createShadersHotReload(*shaders_hot_reload, device, shader_manager, binding_manager);
     defer destroyShadersHotReload(*shaders_hot_reload, success);
 
-    per_view_uniform : PerViewUniform;
-    per_view_uniform.buffers.count = cast(s64) device.frame_buffering;
-    for * per_view_uniform.buffers {
-        it.* = createBuffer(device,
-                            resource_manager,
-                            size_of(PerViewUniform.Data),
-                            .PERSISTENT,
-                            .UPLOAD,
-                            .UNIFORM,
-                            Basic.tprint("Per view for frame #%", it_index));
-    }
+    per_view_uniform := PerViewUniform.{
+        buffer = createBuffer(device, resource_manager, PerViewUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view")
+    };
+
+    per_frame_uniform := PerFrameUniform.{
+        buffer = createBuffer(device, resource_manager, PerFrameUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per frame")
+    };
 
     depth_buffer := createTexture(device,
                                   resource_manager,
@@ -111,9 +182,13 @@ petMain :: () {
     commitResourceMemory(device, resource_manager, .PERSISTENT);
     defer resetResourceMemory(device, resource_manager, .PERSISTENT);
 
-    triangle_shader       := createShader(device, shader_manager, "triangle", .[ getBackBuffer(device).format ]);
-    push_constants_handle := getPushConstantsHandle(triangle_shader, "g_push_constants");
-    per_view_handle       := getBindingHandle(triangle_shader, "g_per_view");
+    // All persistent bindings should be pushed after persistent resource memory commit
+    bindPerViewUniform(device, binding_manager, resource_manager, *per_view_uniform);
+
+    defer resetBindings(device, binding_manager, .PERSISTENT);
+
+    test_shader           := createShader(device, shader_manager, binding_manager, "test", .[ getBackBuffer(device).format ]);
+    push_constants_handle := getPushConstantsHandle(test_shader, "g_push_constants");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 
@@ -121,6 +196,7 @@ petMain :: () {
     while processWindowEvents(window) {
         resetArena(*context.pet.per_frame_arena);
         Basic.reset_temporary_storage();
+        if window.flags & .MINIMIZED continue;
 
         //
         // Update
@@ -130,13 +206,6 @@ petMain :: () {
         // Render
         //
 
-        if window.flags & .MINIMIZED {
-            continue;
-        }
-
-        // @TODO: #FrameBuffering.
-        assert(per_view_uniform.buffers.count == cast(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
-
         beginFrame(device, window);
         {
             // Reset
@@ -144,7 +213,9 @@ petMain :: () {
                 // @TODO: #PerFrameResources. Delete unused per frame resources memory when number of swapchain buffers is decreased.
                 resetResourceMemory(device, resource_manager, .PER_FRAME);
                 resetShaderManager(device, shader_manager);
-                resetCommandBuffer(device, *command_buffer, shader_manager);
+                resetBindings(device, binding_manager, .PER_FRAME);
+                resetCommandBuffer(device, *command_buffer, binding_manager);
+                resetPerViewUniform(device, *per_view_uniform);
             }
 
             // Create per frame buffers and textures here...
@@ -158,11 +229,26 @@ petMain :: () {
                 commitResourceMemory(device, resource_manager, .PER_FRAME);
             }
 
-            // Update per view uniform buffer
+            // Update per frame uniform
+            bindPerFrameUniform(device, binding_manager, resource_manager, *per_frame_uniform);
+            per_frame_uniform.data.frame += 1;
             {
-                data : *PerViewUniform.Data = per_view_uniform.buffers[device.frame_index].mapped_memory;
-                data.camera_pos = v3f.{ 1.0, 2.0, 3.0 } + (3.0 * device.frame_index);
+                time_now := cast(f32) Basic.seconds_since_init();
+                per_frame_uniform.data.dtime = time_now - per_frame_uniform.data.time;
+                per_frame_uniform.data.time  = time_now;
             }
+            commitPerFrameUniform(device, *per_frame_uniform);
+
+            // Update per view uniform
+            per_view_uniform.data.camera_pos  = v3f.{ 1.0, 2.0, 3.0 } * (1.0 + device.frame_index);
+            per_view_uniform.data.view_matrix = identity(m3x4) * (1.0 + device.frame_index);
+            per_view_uniform.data.proj_matrix = .{
+                 1.0,  2.0,  3.0,  4.0,
+                 5.0,  6.0,  7.0,  8.0,
+                 9.0, 10.0, 11.0, 12.0,
+                13.0, 14.0, 15.0, 16.0,
+            };
+            commitPerViewUniform(device, *per_view_uniform);
 
             back_buffer_view := getBackBufferView(device, .COLOR_TARGET);
             back_buffer      := back_buffer_view.texture;
@@ -180,11 +266,11 @@ petMain :: () {
                 setViewport(device, *command_buffer, *(Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }), back_buffer.height);
                 setScissorRect(device, *command_buffer, *(ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height }));
 
-                setShader(device, *command_buffer, shader_manager, triangle_shader);
-                bindResource(device, *command_buffer, shader_manager, per_view_handle, per_view_uniform.buffers[device.frame_index]);
+                setShader(device, *command_buffer, shader_manager, binding_manager, test_shader);
 
-                time := cast(f32) Basic.seconds_since_init();
-                setPushConstants(device, *command_buffer, push_constants_handle, *time);
+                setPushConstants(device, *command_buffer, push_constants_handle, *(PushConstants.{
+                    per_view_uniform_index = per_view_uniform.handles[device.frame_index][per_view_uniform.version].descriptor,
+                }));
 
                 drawPrimitives(device, *command_buffer, 4);
             }
@@ -200,8 +286,9 @@ petMain :: () {
 
 #load "core/input.jai";
 #load "core/window.jai";
-#load "render/device.jai";
+#load "render/binding_manager.jai";
 #load "render/command_buffer.jai";
+#load "render/device.jai";
 #load "render/resource_manager.jai";
 #load "render/shader.jai";
 #load "shader_compiler/compiler.jai";

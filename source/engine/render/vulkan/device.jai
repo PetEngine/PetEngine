@@ -1,4 +1,8 @@
-// @Cleanup: Reorder fields
+// @TODO: #Device
+//     - Revisit submits and post frame job
+//     - #DeviceFeatures. Define optional and required features and validate it.
+//     - @Cleanup: Reorder fields
+
 VulkanDevice :: struct {
     #as using public_data : Device;
 
@@ -208,7 +212,6 @@ beginVulkanFrame :: (device_ : *Device, window : *Window) {
     }
 }
 
-// @TODO: Revisit submits and post frame job
 endVulkanFrame :: (device_ : *Device) {
     device := cast(*VulkanDevice) device_;
     assertThreadKind(.MAIN);
@@ -528,7 +531,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
                       VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION));
     }
 
-    defer Basic.reset_temporary_storage();
+    Basic.auto_release_temp();
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
@@ -712,8 +715,12 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
 
     #if DEBUG_BUILD {
         ENABLED_VALIDATION_FEATURES :: VkValidationFeatureEnableEXT.[
-            .VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
-//          .VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
+            // @Important: GPU-AV breaks descriptor buffers. Hopefully will be fixed one day.
+            //
+            // .VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+            // .VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
+
+            // .VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
             .VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
         ];
 
@@ -1020,7 +1027,7 @@ gatherQueuesInfo :: (device : *VulkanDevice) {
     queue_family_properties.data = pushToArena(*context.pet.per_frame_arena, VkQueueFamilyProperties2, queue_family_properties.count);
     vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, cast(*u32) *queue_family_properties.count, queue_family_properties.data);
 
-    defer Basic.reset_temporary_storage();
+    Basic.auto_release_temp();
 
     // Print info about available queue families
     #if PRINT_VERBOSE_MESSAGES {
@@ -1083,8 +1090,8 @@ END;
 
 QUEUE_INFO_FORMAT_STRING :: #string END
     %:
-        Family flags: %
-        Family index: %
+        Family flags:    %
+        Family index:    %
         Index in family: %
 END;
 
@@ -1132,7 +1139,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         }
     }
 
-    defer Basic.reset_temporary_storage();
+    Basic.auto_release_temp();
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
@@ -1207,11 +1214,14 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_features_1_2 };
 
         vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
+        // Image cube array support
+        assert(available_features.features.imageCubeArray == VK_TRUE);
         // Anisotropy filtering support
         assert(available_features.features.samplerAnisotropy == VK_TRUE);
         // UAV support
         assert(available_features.features.vertexPipelineStoresAndAtomics == VK_TRUE);
-        assert(available_features.features.fragmentStoresAndAtomics == VK_TRUE);
+        assert(available_features.features.fragmentStoresAndAtomics       == VK_TRUE);
+        assert(available_features.features.shaderStorageImageMultisample  == VK_TRUE);
         // Dynamic rendering support
         assert(available_dynamic_rendering_features.dynamicRendering == VK_TRUE);
         // Descriptor buffer support
@@ -1219,7 +1229,6 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         assert(available_features_1_2.bufferDeviceAddress            == VK_TRUE);
     }
 
-    // @TODO: #Features. define optional and required features and validate it.
     descriptor_buffer_features_to_enable := VkPhysicalDeviceDescriptorBufferFeaturesEXT.{
         descriptorBuffer = VK_TRUE,
     };
@@ -1233,9 +1242,11 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
     };
     features_to_enable := VkPhysicalDeviceFeatures2.{
         pNext                                   = *features_1_2_to_enable,
+        features.imageCubeArray                 = VK_TRUE,
         features.samplerAnisotropy              = VK_TRUE,
         features.vertexPipelineStoresAndAtomics = VK_TRUE,
         features.fragmentStoresAndAtomics       = VK_TRUE,
+        features.shaderStorageImageMultisample  = VK_TRUE,
     };
 
     device_create_info := VkDeviceCreateInfo.{
@@ -1327,9 +1338,51 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     #if PRINT_VERBOSE_MESSAGES {
+        FORMAT_NAME_WIDTH :: #run -> s64 {
+            max_width := -1;
+            for type_info(VkFormat).names { max_width = max(max_width, it.count); }
+            assert(max_width != -1);
+            return max_width;
+        }
+
+        spaces : [FORMAT_NAME_WIDTH] u8 = ---;
+        for * spaces { it.* = #char " "; }
+
+        info := type_info(VkFormat);
+
         Basic.append(*builder, "Available surface formats:");
-        for surface_formats {
-            Basic.print(*builder, "\n    Format: %, space: %", it.format, it.colorSpace);
+        for format_it : surface_formats {
+            format_name : string;
+            for info.values {
+                if it == cast(s64) format_it.format {
+                    format_name = info.names[it_index];
+                    break;
+                }
+            }
+
+            Basic.append(*builder, "\n    Format: ");
+
+            spaces_to_append := 0;
+            if format_name {
+                Basic.append(*builder, format_name);
+                Basic.append(*builder, #char ",");
+
+                spaces_to_append = max(0, spaces.count - format_name.count);
+            } else {
+                length := Basic.builder_string_length(*builder);
+                Basic.append(*builder, "(enum out of range: ");
+                Basic.print_item_to_builder(*builder, cast(VkEnum) format_it.format);
+                Basic.append(*builder, "),");
+                printed := Basic.builder_string_length(*builder) - length - 1;
+
+                spaces_to_append = max(0, spaces.count - printed);
+            }
+
+            if spaces_to_append > 0 {
+                Basic.append(*builder, spaces.data, spaces_to_append);
+            }
+
+            Basic.print(*builder, " space: %", format_it.colorSpace);
         }
 
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
@@ -1528,7 +1581,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
     // @TODO: #Settings. Get back buffer clear color from settings.
     clear_color := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
 
-    // @TODO: #VulkanTexture #SwapchainBuffers. Add these images to resource manager
+    // @TODO: #VulkanTexture. #SwapchainBuffers. Add these images to resource manager
     for * texture : device.swapchain_textures {
         texture.dimension             = ._2D;
         texture.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);

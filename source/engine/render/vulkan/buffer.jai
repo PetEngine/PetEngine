@@ -30,7 +30,6 @@ createVulkanBuffer :: (
     device_  : *Device,
     manager_ : *ResourceManager,
     buffer_  : *Buffer,
-    lifetime : ResourceManager.Lifetime,
     pool     : ResourceManager.Pool,
     name     : string
 ) {
@@ -59,16 +58,22 @@ createVulkanBuffer :: (
 
     debugCheckVK(vkCreateBuffer(device.device, *create_info, null, *buffer.buffer));
 
-    if #complete lifetime == {
-        case .PERSISTENT; composeVulkanBufferName(buffer, *manager.buffers.persistent[pool],                    lifetime, pool, name);
-        case .PER_SCENE;  composeVulkanBufferName(buffer, *manager.buffers.per_scene[pool],                     lifetime, pool, name);
-        case .PER_FRAME;  composeVulkanBufferName(buffer, *manager.buffers.per_frame[device.frame_index][pool], lifetime, pool, name);
+    if #complete buffer.lifetime == {
+        case .PERSISTENT; composeVulkanBufferName(buffer, *manager.buffers.persistent[pool],                    pool, name);
+        case .PER_SCENE;  composeVulkanBufferName(buffer, *manager.buffers.per_scene[pool],                     pool, name);
+        case .PER_FRAME;  composeVulkanBufferName(buffer, *manager.buffers.per_frame[device.frame_index][pool], pool, name);
     }
 
     setVulkanObjectName(device, buffer.buffer, buffer.name);
 }
 
-createVulkanDescriptorBuffer :: (device : *VulkanDevice, manager : *VulkanResourceManager, buffer : *VulkanBuffer, name : string) {
+createVulkanDescriptorBuffer :: (
+    device  : *VulkanDevice,
+    manager : *VulkanResourceManager,
+    buffer  : *VulkanBuffer,
+    usage   : VkBufferUsageFlags,
+    name    : string
+) {
     queue_family_indices : [VulkanBuffer.possible_owners.capacity] u32;
     for buffer.possible_owners {
         queue_family_indices[it_index] = device.queues[it].family_index;
@@ -76,9 +81,7 @@ createVulkanDescriptorBuffer :: (device : *VulkanDevice, manager : *VulkanResour
 
     create_info := VkBufferCreateInfo.{
         size                  = cast(VkDeviceSize) buffer.size,
-        usage                 = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT
-                              | .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT
-                              | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        usage                 = usage | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         queueFamilyIndexCount = cast(u32) buffer.possible_owners.count,
         pQueueFamilyIndices   = queue_family_indices.data
     };
@@ -115,11 +118,10 @@ bufferUsageToVkBufferUsageFlags :: inline (usage : Buffer.Usage) -> VkBufferUsag
 composeVulkanBufferName :: (
     buffer      : *VulkanBuffer,
     memory_pool : *VulkanResourceManager.MemoryPool,
-    lifetime    : ResourceManager.Lifetime,
     pool        : ResourceManager.Pool,
     name        : string
 ) {
-    lifetime_name := Reflection.enum_value_to_name(lifetime);
+    lifetime_name := Reflection.enum_value_to_name(buffer.lifetime);
     assert(lifetime_name);
 
     pool_name := Reflection.enum_value_to_name(pool);

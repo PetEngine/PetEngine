@@ -78,42 +78,42 @@ identity :: inline ($T : Type) -> T #no_context {
     }
 }
 
-operator + :: inline (a : m2x2, b : m2x2) -> m2x2 #no_context { return .{ a.rows[0] + b.rows[0], a.rows[1] + b.rows[1] }; }
-operator + :: inline (a : m3x3, b : m3x3) -> m3x3 #no_context { return .{ a.rows[0] + b.rows[0], a.rows[1] + b.rows[1], a.rows[2] + b.rows[2] }; }
-operator + :: inline (a : m3x4, b : m3x4) -> m3x4 #no_context { return .{ a.rows[0] + b.rows[0], a.rows[1] + b.rows[1], a.rows[2] + b.rows[2] }; }
-operator + :: inline (a : m4x3, b : m4x3) -> m4x3 #no_context { return .{ a.rows[0] + b.rows[0], a.rows[1] + b.rows[1], a.rows[2] + b.rows[2], a.rows[3] + b.rows[3] }; }
-operator + :: inline (a : m4x4, b : m4x4) -> m4x4 #no_context { return .{ a.rows[0] + b.rows[0], a.rows[1] + b.rows[1], a.rows[2] + b.rows[2], a.rows[3] + b.rows[3] }; }
-operator + :: inline (a : m2x2, b : f32) -> m2x2 #no_context #symmetric { return .{ a.rows[0] + b, a.rows[1] + b }; }
-operator + :: inline (a : m3x3, b : f32) -> m3x3 #no_context #symmetric { return .{ a.rows[0] + b, a.rows[1] + b, a.rows[2] + b }; }
-operator + :: inline (a : m3x4, b : f32) -> m3x4 #no_context #symmetric { return .{ a.rows[0] + b, a.rows[1] + b, a.rows[2] + b }; }
-operator + :: inline (a : m4x3, b : f32) -> m4x3 #no_context #symmetric { return .{ a.rows[0] + b, a.rows[1] + b, a.rows[2] + b, a.rows[3] + b }; }
-operator + :: inline (a : m4x4, b : f32) -> m4x4 #no_context #symmetric { return .{ a.rows[0] + b, a.rows[1] + b, a.rows[2] + b, a.rows[3] + b }; }
+operator + :: inline (a : m2x2, b : m2x2) -> m2x2 #no_context { return .{ rows[0] = a.rows[0] + b.rows[0], rows[1] = a.rows[1] + b.rows[1] }; }
+operator + :: inline (a : m3x3, b : m3x3) -> m3x3 #no_context { return .{ rows[0] = a.rows[0] + b.rows[0], rows[1] = a.rows[1] + b.rows[1], rows[2] = a.rows[2] + b.rows[2] }; }
+operator + :: inline (a : m3x4, b : m3x4) -> m3x4 #no_context { return .{ rows[0] = a.rows[0] + b.rows[0], rows[1] = a.rows[1] + b.rows[1], rows[2] = a.rows[2] + b.rows[2] }; }
+operator + :: inline (a : m4x3, b : m4x3) -> m4x3 #no_context { return .{ rows[0] = a.rows[0] + b.rows[0], rows[1] = a.rows[1] + b.rows[1], rows[2] = a.rows[2] + b.rows[2], rows[3] = a.rows[3] + b.rows[3] }; }
+operator + :: inline (a : m4x4, b : m4x4) -> m4x4 #no_context { return .{ rows[0] = a.rows[0] + b.rows[0], rows[1] = a.rows[1] + b.rows[1], rows[2] = a.rows[2] + b.rows[2], rows[3] = a.rows[3] + b.rows[3] }; }
+operator + :: inline (a : m2x2, b : f32) -> m2x2 #no_context #symmetric { return .{ rows[0] = a.rows[0] + b, rows[1] = a.rows[1] + b }; }
+operator + :: inline (a : m3x3, b : f32) -> m3x3 #no_context #symmetric { return .{ rows[0] = a.rows[0] + b, rows[1] = a.rows[1] + b, rows[2] = a.rows[2] + b }; }
+operator + :: inline (a : m3x4, b : f32) -> m3x4 #no_context #symmetric { return .{ rows[0] = a.rows[0] + b, rows[1] = a.rows[1] + b, rows[2] = a.rows[2] + b }; }
+operator + :: inline (a : m4x3, b : f32) -> m4x3 #no_context #symmetric { return .{ rows[0] = a.rows[0] + b, rows[1] = a.rows[1] + b, rows[2] = a.rows[2] + b, rows[3] = a.rows[3] + b }; }
+operator + :: inline (a : m4x4, b : f32) -> m4x4 #no_context #symmetric { return .{ rows[0] = a.rows[0] + b, rows[1] = a.rows[1] + b, rows[2] = a.rows[2] + b, rows[3] = a.rows[3] + b }; }
 
-operator - :: inline (a : m2x2, b : m2x2) -> m2x2 #no_context { return .{ a.rows[0] - b.rows[0], a.rows[1] - b.rows[1] }; }
-operator - :: inline (a : m3x3, b : m3x3) -> m3x3 #no_context { return .{ a.rows[0] - b.rows[0], a.rows[1] - b.rows[1], a.rows[2] - b.rows[2] }; }
-operator - :: inline (a : m3x4, b : m3x4) -> m3x4 #no_context { return .{ a.rows[0] - b.rows[0], a.rows[1] - b.rows[1], a.rows[2] - b.rows[2] }; }
-operator - :: inline (a : m4x3, b : m4x3) -> m4x3 #no_context { return .{ a.rows[0] - b.rows[0], a.rows[1] - b.rows[1], a.rows[2] - b.rows[2], a.rows[3] - b.rows[3] }; }
-operator - :: inline (a : m4x4, b : m4x4) -> m4x4 #no_context { return .{ a.rows[0] - b.rows[0], a.rows[1] - b.rows[1], a.rows[2] - b.rows[2], a.rows[3] - b.rows[3] }; }
-operator - :: inline (a : m2x2, b : f32) -> m2x2 #no_context { return .{ a.rows[0] - b, a.rows[1] - b }; }
-operator - :: inline (a : m3x3, b : f32) -> m3x3 #no_context { return .{ a.rows[0] - b, a.rows[1] - b, a.rows[2] - b }; }
-operator - :: inline (a : m3x4, b : f32) -> m3x4 #no_context { return .{ a.rows[0] - b, a.rows[1] - b, a.rows[2] - b }; }
-operator - :: inline (a : m4x3, b : f32) -> m4x3 #no_context { return .{ a.rows[0] - b, a.rows[1] - b, a.rows[2] - b, a.rows[3] - b }; }
-operator - :: inline (a : m4x4, b : f32) -> m4x4 #no_context { return .{ a.rows[0] - b, a.rows[1] - b, a.rows[2] - b, a.rows[3] - b }; }
+operator - :: inline (a : m2x2, b : m2x2) -> m2x2 #no_context { return .{ rows[0] = a.rows[0] - b.rows[0], rows[1] = a.rows[1] - b.rows[1] }; }
+operator - :: inline (a : m3x3, b : m3x3) -> m3x3 #no_context { return .{ rows[0] = a.rows[0] - b.rows[0], rows[1] = a.rows[1] - b.rows[1], rows[2] = a.rows[2] - b.rows[2] }; }
+operator - :: inline (a : m3x4, b : m3x4) -> m3x4 #no_context { return .{ rows[0] = a.rows[0] - b.rows[0], rows[1] = a.rows[1] - b.rows[1], rows[2] = a.rows[2] - b.rows[2] }; }
+operator - :: inline (a : m4x3, b : m4x3) -> m4x3 #no_context { return .{ rows[0] = a.rows[0] - b.rows[0], rows[1] = a.rows[1] - b.rows[1], rows[2] = a.rows[2] - b.rows[2], rows[3] = a.rows[3] - b.rows[3] }; }
+operator - :: inline (a : m4x4, b : m4x4) -> m4x4 #no_context { return .{ rows[0] = a.rows[0] - b.rows[0], rows[1] = a.rows[1] - b.rows[1], rows[2] = a.rows[2] - b.rows[2], rows[3] = a.rows[3] - b.rows[3] }; }
+operator - :: inline (a : m2x2, b : f32) -> m2x2 #no_context { return .{ rows[0] = a.rows[0] - b, rows[1] = a.rows[1] - b }; }
+operator - :: inline (a : m3x3, b : f32) -> m3x3 #no_context { return .{ rows[0] = a.rows[0] - b, rows[1] = a.rows[1] - b, rows[2] = a.rows[2] - b }; }
+operator - :: inline (a : m3x4, b : f32) -> m3x4 #no_context { return .{ rows[0] = a.rows[0] - b, rows[1] = a.rows[1] - b, rows[2] = a.rows[2] - b }; }
+operator - :: inline (a : m4x3, b : f32) -> m4x3 #no_context { return .{ rows[0] = a.rows[0] - b, rows[1] = a.rows[1] - b, rows[2] = a.rows[2] - b, rows[3] = a.rows[3] - b }; }
+operator - :: inline (a : m4x4, b : f32) -> m4x4 #no_context { return .{ rows[0] = a.rows[0] - b, rows[1] = a.rows[1] - b, rows[2] = a.rows[2] - b, rows[3] = a.rows[3] - b }; }
 
-operator * :: inline (a : m2x2, b : f32) -> m2x2 #no_context #symmetric { return .{ a.rows[0] * b, a.rows[1] * b }; }
-operator * :: inline (a : m3x3, b : f32) -> m3x3 #no_context #symmetric { return .{ a.rows[0] * b, a.rows[1] * b, a.rows[2] * b }; }
-operator * :: inline (a : m3x4, b : f32) -> m3x4 #no_context #symmetric { return .{ a.rows[0] * b, a.rows[1] * b, a.rows[2] * b }; }
-operator * :: inline (a : m4x4, b : f32) -> m4x4 #no_context #symmetric { return .{ a.rows[0] * b, a.rows[1] * b, a.rows[2] * b, a.rows[3] * b }; }
+operator * :: inline (a : m2x2, b : f32) -> m2x2 #no_context #symmetric { return .{ rows[0] = a.rows[0] * b, rows[1] = a.rows[1] * b }; }
+operator * :: inline (a : m3x3, b : f32) -> m3x3 #no_context #symmetric { return .{ rows[0] = a.rows[0] * b, rows[1] = a.rows[1] * b, rows[2] = a.rows[2] * b }; }
+operator * :: inline (a : m3x4, b : f32) -> m3x4 #no_context #symmetric { return .{ rows[0] = a.rows[0] * b, rows[1] = a.rows[1] * b, rows[2] = a.rows[2] * b }; }
+operator * :: inline (a : m4x4, b : f32) -> m4x4 #no_context #symmetric { return .{ rows[0] = a.rows[0] * b, rows[1] = a.rows[1] * b, rows[2] = a.rows[2] * b, rows[3] = a.rows[3] * b }; }
 operator * :: inline (m : m2x2, v : v2f) -> v2f #no_context { return .{ dot(m.rows[0], v), dot(m.rows[1], v) }; }
 operator * :: inline (m : m3x3, v : v3f) -> v3f #no_context { return .{ dot(m.rows[0], v), dot(m.rows[1], v), dot(m.rows[2], v) }; }
 operator * :: inline (m : m3x4, v : v4f) -> v3f #no_context { return .{ dot(m.rows[0], v), dot(m.rows[1], v), dot(m.rows[2], v) }; }
 operator * :: inline (m : m4x3, v : v3f) -> v4f #no_context { return .{ dot(m.rows[0], v), dot(m.rows[1], v), dot(m.rows[2], v), dot(m.rows[3], v) }; }
 operator * :: inline (m : m4x4, v : v4f) -> v4f #no_context { return .{ dot(m.rows[0], v), dot(m.rows[1], v), dot(m.rows[2], v), dot(m.rows[3], v) }; }
 
-operator / :: inline (a : m2x2, b : f32) -> m2x2 #no_context { return .{ a.rows[0] / b, a.rows[1] / b }; }
-operator / :: inline (a : m3x3, b : f32) -> m3x3 #no_context { return .{ a.rows[0] / b, a.rows[1] / b, a.rows[2] / b }; }
-operator / :: inline (a : m3x4, b : f32) -> m3x4 #no_context { return .{ a.rows[0] / b, a.rows[1] / b, a.rows[2] / b }; }
-operator / :: inline (a : m4x4, b : f32) -> m4x4 #no_context { return .{ a.rows[0] / b, a.rows[1] / b, a.rows[2] / b, a.rows[3] / b }; }
+operator / :: inline (a : m2x2, b : f32) -> m2x2 #no_context { return .{ rows[0] = a.rows[0] / b, rows[1] = a.rows[1] / b }; }
+operator / :: inline (a : m3x3, b : f32) -> m3x3 #no_context { return .{ rows[0] = a.rows[0] / b, rows[1] = a.rows[1] / b, rows[2] = a.rows[2] / b }; }
+operator / :: inline (a : m3x4, b : f32) -> m3x4 #no_context { return .{ rows[0] = a.rows[0] / b, rows[1] = a.rows[1] / b, rows[2] = a.rows[2] / b }; }
+operator / :: inline (a : m4x4, b : f32) -> m4x4 #no_context { return .{ rows[0] = a.rows[0] / b, rows[1] = a.rows[1] / b, rows[2] = a.rows[2] / b, rows[3] = a.rows[3] / b }; }
 
 operator * :: inline (a : m2x2, b : m2x2) -> m2x2 #no_context {
     bt := transpose(b);
@@ -228,8 +228,8 @@ determinant :: inline (m : m4x4) -> f32 #no_context {
 
 // Left handed
 lookAtMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x4 {
-    assert(isNormal(world_up), "world_up vector should be normal");
-    assert(isNormal(direction), "direction vector should be normal");
+    assert(normalized(world_up), "world_up vector should be normal");
+    assert(normalized(direction), "direction vector should be normal");
 
     axis_z := direction;
     axis_x := cross(world_up, axis_z);
@@ -245,8 +245,8 @@ lookAtMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -
 
 // Left handed
 lookAtMatrixAndItsInverse :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> (view : m4x4, inv_view : m4x4) {
-    assert(isNormal(world_up), "world_up vector should be normal");
-    assert(isNormal(direction), "direction vector should be normal");
+    assert(normalized(world_up), "world_up vector should be normal");
+    assert(normalized(direction), "direction vector should be normal");
 
     axis_z := direction;
     axis_x := cross(world_up, axis_z);

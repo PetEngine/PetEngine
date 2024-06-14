@@ -9,7 +9,7 @@ Texture :: struct {
         _3D;
     }
 
-    // Order: uncompressed: host-endian
+    // Order: uncompressed: little-endian
     //        packed:       from the least-significant to the most-significant
     Format :: enum u8 {
         UNKNOWN :: 0;

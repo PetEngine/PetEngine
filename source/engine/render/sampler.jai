@@ -33,7 +33,8 @@ Sampler :: struct {
         WHITE;
     }
 
-    name : string;
+    lifetime : ResourceManager.Lifetime;
+    name     : string;
 }
 
 SamplerState :: struct {
@@ -76,7 +77,9 @@ createSampler :: (
 
     sampler := manager.pushPlatformSampler(device, manager, lifetime);
 
-    manager.createPlatformSampler(device, manager, sampler, *state, lifetime, name);
+    sampler.lifetime = lifetime;
+
+    manager.createPlatformSampler(device, manager, sampler, *state, name);
 
     return sampler;
 }

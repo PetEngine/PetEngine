@@ -2,4 +2,5 @@ intermediates/
 output/
 vtune/
 .build/
-session.rdbg
+*.rdbg
+*.raddbg_project

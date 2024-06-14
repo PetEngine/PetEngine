@@ -107,49 +107,42 @@ setVulkanScissorRect :: inline (command_buffer : VkCommandBuffer, scissor_rect :
 }
 
 setVulkanShader :: (
-    command_buffer : *CommandBuffer,
-    shader_manager : *VulkanShaderManager,
-    shader         : *VulkanShader,
-    frame_index    : u8
-) #no_context {
+    device          : *VulkanDevice,
+    command_buffer  : *CommandBuffer,
+    shader_manager  : *VulkanShaderManager,
+    binding_manager : *VulkanBindingManager,
+    bind_point      : ShaderBindPoint
+) {
     #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
             "Only graphics and compute command buffers can set shaders";
 
+    shader := cast(*VulkanShader) command_buffer.shaders[bind_point];
     if !shader.pipeline return;
 
-    if #complete shader.kind == {
-        case .UNKNOWN;
-            // @TODO: Print some meaningful message why it's illegal
+    vk_command_buffer : VkCommandBuffer = command_buffer.handles[device.frame_index];
+    vk_bind_point     := shaderBindPointToVulkanPipelineBindPoint(bind_point);
 
-        case .GRAPHICS; #through;
-        case .MESH;
-            vkCmdBindPipeline(command_buffer.handles[frame_index], .VK_PIPELINE_BIND_POINT_GRAPHICS, shader.pipeline);
+    // Bind pipeline
 
-        case .COMPUTE;
-            vkCmdBindPipeline(command_buffer.handles[frame_index], .VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline);
+    vkCmdBindPipeline(vk_command_buffer, vk_bind_point, shader.pipeline);
 
-        case .RAY_TRACING;
-            vkCmdBindPipeline(command_buffer.handles[frame_index], .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, shader.pipeline);
-    }
+    // Update descriptor buffer offsets
 
-    bindings := *shader_manager.per_frame_bindings[frame_index];
-    lock(*bindings.mutex);
+    buffer_indices : [BindingManager.MAX_DESCRIPTOR_SETS] u32 = ---;
+    for type_info(DescriptorSet).values { buffer_indices[it_index] = cast(u32) it; }
 
-    old_offset := cast(s64) bindings.descriptor_buffer_offset;
-    for shader.descriptor_set_layout_infos {
-        command_buffer.descriptor_buffer_set_offsets[it_index] = cast(s64) bindings.descriptor_buffer_offset;
-        bindings.descriptor_buffer_offset += it.size;
-    }
-    new_offset := cast(s64) bindings.descriptor_buffer_offset;
+    buffer_offsets : [BindingManager.MAX_DESCRIPTOR_SETS] VkDeviceSize;
 
-    unlock(*bindings.mutex);
-
-    // Zero out old descriptors
-    memset(bindings.descriptor_buffer.mapped_memory + old_offset, 0, new_offset);
+    device.loader.extensions.device.required.vkCmdSetDescriptorBufferOffsetsEXT(vk_command_buffer,
+                                                                                vk_bind_point,
+                                                                                shader.pipeline_layout,
+                                                                                0,
+                                                                                BindingManager.MAX_DESCRIPTOR_SETS,
+                                                                                buffer_indices.data,
+                                                                                buffer_offsets.data);
 }
 
 // @TODO: #MSAA.
-//     - Mip selection
 //     - #Limits. maxColorAttachments, maxFramebufferWidth, maxFramebufferHeight
 beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] ColorTargetDesc, depth_target : *DepthTargetDesc) {
     barriers    := pushToArena(*context.pet.per_frame_arena, VkImageMemoryBarrier, color_targets.count + cast,no_check(s64) (depth_target != null));
@@ -314,44 +307,6 @@ endVulkanRendering :: inline (command_buffer : VkCommandBuffer) #no_context {
     vkCmdEndRendering(command_buffer);
 }
 
-commitVulkanBindings :: (device : *VulkanDevice, command_buffer : *CommandBuffer, shader : *VulkanShader) #no_context {
-    #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
-            "Only graphics and compute command buffers can commit bindings";
-
-    if !shader.pipeline return;
-
-    bind_point : VkPipelineBindPoint;
-    if #complete shader.kind == {
-        case .UNKNOWN;
-            // @TODO: Print some meaningful message why it's illegal
-
-        case .GRAPHICS; #through;
-        case .MESH;
-            bind_point = .VK_PIPELINE_BIND_POINT_GRAPHICS;
-
-        case .COMPUTE;
-            bind_point = .VK_PIPELINE_BIND_POINT_COMPUTE;
-
-        case .RAY_TRACING;
-            bind_point = .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
-    }
-
-    for shader.descriptor_set_layouts {
-        if !it continue;
-
-        buffer_index := cast(u32) it_index;
-        offset       := cast(VkDeviceSize) command_buffer.descriptor_buffer_set_offsets[it_index];
-
-        device.loader.extensions.device.required.vkCmdSetDescriptorBufferOffsetsEXT(command_buffer.handles[device.frame_index],
-                                                                                    bind_point,
-                                                                                    shader.pipeline_layout,
-                                                                                    cast(u32) it_index,
-                                                                                    1,
-                                                                                    *buffer_index,
-                                                                                    *offset);
-    }
-}
-
 drawVulkanPrimitives :: inline (
     command_buffer : VkCommandBuffer,
     shader         : *VulkanShader,
@@ -389,101 +344,6 @@ setVulkanPushConstants :: (command_buffer : VkCommandBuffer, shader : *VulkanSha
                        data);
 }
 
-bindVulkanResource :: (
-    device         : *VulkanDevice,
-    command_buffer : *CommandBuffer,
-    shader_manager : *VulkanShaderManager,
-    shader         : *VulkanShader,
-    handle         : BindingHandle,
-    resource       : *$VulkanResource
-) {
-    #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
-            "Only graphics and compute command buffers can bind resources";
-
-    if !shader.pipeline return;
-
-    #if VulkanResource == {
-        case VulkanBuffer;      RESOURCE_TYPE_NAME :: "buffer";
-        case VulkanTextureView; RESOURCE_TYPE_NAME :: "texture view";
-        case VulkanSampler;     RESOURCE_TYPE_NAME :: "sampler";
-        case;                   #assert false "Unhandled Vulkan resource type";
-    }
-
-    if handle.set == BindingHandle.INVALID_SET || handle.binding == BindingHandle.INVALID_BINDING {
-        warningMessage("Invalid set and/or binding for shader \"%\", % \"%\"", shader.name, RESOURCE_TYPE_NAME, resource.name);
-        return;
-    }
-
-    binding := shader.binding_table.bindings[handle.set][handle.binding];
-
-    descriptor_info := VkDescriptorGetInfoEXT.{
-        type = descriptorTypeToVulkanDescriptorType(binding.descriptor_type),
-    };
-
-    if binding.descriptor_type == .UNKNOWN {
-        warningMessage("There is no any binding in descriptor set %, binding %", handle.set, handle.binding);
-        return;
-    }
-
-    #if VulkanResource == {
-        case VulkanBuffer;
-            descriptor_address_info := VkDescriptorAddressInfoEXT.{
-                address = cast(VkDeviceAddress) resource.device_address,
-                range   = cast(VkDeviceSize) resource.size,
-                format  = .VK_FORMAT_UNDEFINED
-            };
-
-            // All types of buffers have the same descriptor data type, so whatever since data is union
-            descriptor_info.data.pUniformBuffer = *descriptor_address_info;
-
-            // @TODO: #RobustAccess.
-            descriptor_size : u64;
-            if resource.usage == {
-                case .UNIFORM;    descriptor_size = device.descriptor_buffer_properties.uniformBufferDescriptorSize;
-                case .READ_ONLY;  #through;
-                case .READ_WRITE; descriptor_size = device.descriptor_buffer_properties.storageBufferDescriptorSize;
-                case;
-                    warningMessage("You cannot bind a buffer with % usage", resource.usage);
-            }
-
-        case VulkanTextureView;
-            descriptor_image_info := VkDescriptorImageInfo.{ imageView = resource.view };
-
-            // All types of textures have the same descriptor data type, so whatever since data is union
-            descriptor_info.data.pSampledImage = *descriptor_image_info;
-
-            descriptor_size : u64;
-            if resource.usage == {
-                case .SHADER_READ;
-                    descriptor_size                   = device.descriptor_buffer_properties.sampledImageDescriptorSize;
-                    descriptor_image_info.imageLayout = ifx  textureFormatFlags(resource.format) & (.DEPTH | .STENCIL)
-                                                        then .VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
-                                                        else .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-                case .SHADER_WRITE;
-                    descriptor_size                   = device.descriptor_buffer_properties.storageImageDescriptorSize;
-                    descriptor_image_info.imageLayout = .VK_IMAGE_LAYOUT_GENERAL;
-
-                case;
-                    warningMessage("You cannot bind a texture view with % usage", resource.usage);
-            }
-
-        case VulkanSampler;
-            descriptor_info.data.pSampler = resource.sampler;
-
-            descriptor_size := device.descriptor_buffer_properties.samplerDescriptorSize;
-
-        case;
-            #assert false "Unhandled Vulkan resource type";
-    }
-
-    descriptor_memory := shader_manager.per_frame_bindings[device.frame_index].descriptor_buffer.mapped_memory
-                       + command_buffer.descriptor_buffer_set_offsets[handle.set]
-                       + cast(s64) shader.descriptor_set_layout_infos[handle.set].binding_offsets[handle.binding];
-
-    device.loader.extensions.device.required.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
-}
-
 copyVulkanBuffer :: inline (
     command_buffer : VkCommandBuffer,
     dest_buffer    : *VulkanBuffer,
@@ -510,7 +370,7 @@ copyVulkanBuffer :: inline (
 
 #scope_file
 
-loadActionToVulkanLoadOp :: (action : TargetLoadAction) -> VkAttachmentLoadOp #no_context {
+loadActionToVulkanLoadOp :: inline (action : TargetLoadAction) -> VkAttachmentLoadOp #no_context {
     if #complete action == {
         case .NONE;  return .VK_ATTACHMENT_LOAD_OP_DONT_CARE; // @TODO: VK_ATTACHMENT_LOAD_OP_NONE_EXT
         case .CLEAR; return .VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -518,9 +378,17 @@ loadActionToVulkanLoadOp :: (action : TargetLoadAction) -> VkAttachmentLoadOp #n
     }
 }
 
-storeActionToVulkanStoreOp :: (action : TargetStoreAction) -> VkAttachmentStoreOp #no_context {
+storeActionToVulkanStoreOp :: inline (action : TargetStoreAction) -> VkAttachmentStoreOp #no_context {
     if #complete action == {
         case .NONE;  return .VK_ATTACHMENT_STORE_OP_DONT_CARE; // @TODO: VK_ATTACHMENT_STORE_OP_NONE
         case .STORE; return .VK_ATTACHMENT_STORE_OP_STORE;
+    }
+}
+
+shaderBindPointToVulkanPipelineBindPoint :: inline (bind_point : ShaderBindPoint) -> VkPipelineBindPoint #no_context {
+    if #complete bind_point == {
+        case .GRAPHICS_OR_MESH; return .VK_PIPELINE_BIND_POINT_GRAPHICS;
+        case .COMPUTE;          return .VK_PIPELINE_BIND_POINT_COMPUTE;
+        case .RAY_TRACING;      return .VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
     }
 }

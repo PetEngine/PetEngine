@@ -9,7 +9,7 @@
 VulkanResourceManager :: struct {
     #as using public_data : ResourceManager;
 
-    MAX_DESCRIPTOR_BUFFERS :: Device.MAX_FRAME_BUFFERING;
+    MAX_DESCRIPTOR_BUFFERS :: 16;
 
     MemoryPool :: struct(VulkanResource : Type, capacity : s64) {
         device_memory  : VkDeviceMemory;
@@ -91,7 +91,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
         Basic.print(*builder, "Available memory types (%):\n", device.memory_properties.memoryProperties.memoryTypeCount);
         for toView(device.memory_properties.memoryProperties.memoryTypes.data, device.memory_properties.memoryProperties.memoryTypeCount) {
             heap := memory_heaps[it.heapIndex];
-            Basic.print(*builder, "    [%]: Properties: %\n         Heap size: % GB\n         Heap flags: %\n",
+            Basic.print(*builder, "    [%]: Properties: %\n         Heap size:  % GB\n         Heap flags: %\n",
                         it_index,
                         it.propertyFlags,
                         bytesToGigaBytes(heap.size),
@@ -106,7 +106,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
     for manager.memory_type_indices {
         memory_type := device.memory_properties.memoryProperties.memoryTypes[it];
         heap := memory_heaps[memory_type.heapIndex];
-        Basic.print(*builder, "    %:\n        Properties: %\n        Heap size: % GB\n        Heap flags: %\n",
+        Basic.print(*builder, "    %:\n        Properties: %\n        Heap size:  % GB\n        Heap flags: %\n",
                     cast(ResourceManager.Pool) it_index,
                     memory_type.propertyFlags,
                     bytesToGigaBytes(heap.size),
@@ -368,14 +368,16 @@ commitVulkanBufferMemoryPool :: (
         debugCheckVK(vkMapMemory(device.device, memory_pool.device_memory, 0, VK_WHOLE_SIZE, 0, *mapped_device_memory));
         assert(mapped_device_memory);
 
+        bind_infos_it = bind_infos;
         for * memory_pool.resources {
             assert(!it.mapped_memory);
-            it.mapped_memory = mapped_device_memory;
-            mapped_device_memory += it.size;
+            it.mapped_memory = mapped_device_memory + cast(u64) bind_infos_it.memoryOffset;
 
             info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
             it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
             assert(it.device_address);
+
+            bind_infos_it += 1;
         }
     } else {
         for * memory_pool.resources {
@@ -682,14 +684,16 @@ commitVulkanDescriptorBufferMemoryPool :: (
     debugCheckVK(vkMapMemory(device.device, memory_pool.device_memory, 0, VK_WHOLE_SIZE, 0, *mapped_device_memory));
     assert(mapped_device_memory);
 
+    bind_infos_it = bind_infos;
     for * memory_pool.resources {
         assert(!it.mapped_memory);
-        it.mapped_memory = mapped_device_memory;
-        mapped_device_memory += it.size;
+        it.mapped_memory = mapped_device_memory + cast(u64) bind_infos_it.memoryOffset;
 
         info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
         it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
         assert(it.device_address);
+
+        bind_infos_it += 1;
     }
 }
 
