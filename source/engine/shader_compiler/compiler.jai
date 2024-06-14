@@ -284,13 +284,14 @@ compileShader :: (name : string) -> bool {
     defer shaderc_compile_options_release(shaderc_options);
 
     shaderc_compile_options_set_source_language(shaderc_options, .shaderc_source_language_glsl);
+    // @Important: Always generate debug info otherwise we won't have push constants' names
+    shaderc_compile_options_set_generate_debug_info(shaderc_options);
     #if DEBUG_BUILD {
         shaderc_compile_options_add_macro_definition(shaderc_options,
                                                      cast(*s8) "DEBUG_BUILD".data,
                                                      "DEBUG_BUILD".count,
                                                      cast(*s8) "1".data,
                                                      "1".count);
-        shaderc_compile_options_set_generate_debug_info(shaderc_options);
         shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_zero);
     } else {
         shaderc_compile_options_add_macro_definition(shaderc_options,
@@ -306,8 +307,6 @@ compileShader :: (name : string) -> bool {
                                            .shaderc_target_env_vulkan,
                                            cast(u32) shaderc_env_version.shaderc_env_version_vulkan_1_3);
     shaderc_compile_options_set_target_spirv(shaderc_options, .shaderc_spirv_version_1_6);
-    shaderc_compile_options_set_auto_bind_uniforms(shaderc_options, true);
-    // @TODO: shaderc_compile_options_set_binding_base
     shaderc_compile_options_set_auto_map_locations(shaderc_options, true);
     // @TOOD: #Viewport. Experiment with shaderc_compile_options_set_invert_y
     shaderc_compile_options_set_include_callbacks(shaderc_options, resolveIncludeCallback, releaseIncludeResult, *context);
