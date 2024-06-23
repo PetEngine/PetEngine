@@ -1,0 +1,4 @@
+* text=auto
+
+source/shaders/**.shader        -binary text eol=lf diff=astextplain
+source/shaders/**.shader_header -binary text eol=lf diff=astextplain

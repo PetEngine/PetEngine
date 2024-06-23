@@ -217,7 +217,7 @@ compileShader :: (name : string) -> bool {
     // 1. Get common shader part
     //
 
-    common_code := getShaderStageCode(*source);
+    common_code := getShaderStageCode(*source, name);
 
     //
     // 2. Get code for each shader stage and pipeline state
@@ -228,7 +228,7 @@ compileShader :: (name : string) -> bool {
     pipeline_state_code : string;
 
     while source {
-        line := getLine(*source);
+        line := getLine(*source, name);
 
         if line && line[0] == #char "#" {
             line = String.trim_right(line);
@@ -240,7 +240,7 @@ compileShader :: (name : string) -> bool {
                         return false;
                     }
                     shader_kind = .GRAPHICS;
-                    stage_codes[ShaderStage.VERTEX] = getShaderStageCode(*source);
+                    stage_codes[ShaderStage.VERTEX] = getShaderStageCode(*source, name);
 
                 case "#fragment_shader";
                     if shader_kind != .GRAPHICS && shader_kind != 0xFF {
@@ -248,10 +248,10 @@ compileShader :: (name : string) -> bool {
                         return false;
                     }
                     shader_kind = .GRAPHICS;
-                    stage_codes[ShaderStage.FRAGMENT] = getShaderStageCode(*source);
+                    stage_codes[ShaderStage.FRAGMENT] = getShaderStageCode(*source, name);
 
                 case "#pipeline_state";
-                    pipeline_state_code = getShaderStageCode(*source);
+                    pipeline_state_code = getShaderStageCode(*source, name);
             }
         }
     }
@@ -262,7 +262,7 @@ compileShader :: (name : string) -> bool {
 
     pipeline_state : PipelineState;
     if shader_kind == .GRAPHICS {
-        if !parseGraphicsPipelineState(*pipeline_state.graphics, pipeline_state_code) {
+        if !parseGraphicsPipelineState(*pipeline_state.graphics, pipeline_state_code, name) {
             // Error message has already been printed in parseGraphicsPipelineState
             return false;
         }
@@ -467,7 +467,7 @@ makeBinaryShaderFilename :: inline (name : string) -> string {
 
 using ShaderCompiler;
 
-getLine :: (stream : *string) -> string {
+getLine :: (stream : *string, name : string) -> string {
     line := string.{ data = stream.data };
 
     while stream.* && stream.*[0] != #char "\n" {
@@ -475,6 +475,8 @@ getLine :: (stream : *string) -> string {
     }
 
     line.count = cast(s64) (stream.data - line.data);
+
+    assert(!line || line[line.count - 1] != #char "\r", "\"%.shader\": We do not support CRLF line endings in shaders", name);
 
     if stream.* {
         assert(stream.*[0] == #char "\n");
@@ -484,7 +486,7 @@ getLine :: (stream : *string) -> string {
     return line;
 }
 
-getShaderStageCode :: (stream : *string) -> string {
+getShaderStageCode :: (stream : *string, name : string) -> string {
     stream.* = String.trim_left(stream.*);
 
     stage_code := string.{ data = stream.data };
@@ -497,7 +499,7 @@ getShaderStageCode :: (stream : *string) -> string {
 
     line : string;
     while outer_loop := stream.* {
-        line = getLine(stream);
+        line = getLine(stream, name);
 
         if line && line[0] == #char "#" {
             line = String.trim_right(line);
@@ -521,9 +523,9 @@ getShaderStageCode :: (stream : *string) -> string {
     return String.trim_right(stage_code);
 }
 
-parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : string) -> bool {
+parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : string, name : string) -> bool {
     while state_code {
-        line := getLine(*state_code);
+        line := getLine(*state_code, name);
         line = Basic.eat_spaces(line);
 
         if String.starts_with(line, "//") || String.starts_with(line, "/*") {
