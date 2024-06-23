@@ -264,7 +264,11 @@ message :: (
 
     #if priority == .ASSERT {
         Basic.append(*builder, "\nStack trace:\n");
-        printStackTrace(*builder);
+        if #compile_time {
+            printStackTraceFromJaiContext(*builder);
+        } else {
+            printStackTrace(*builder);
+        }
     }
 
     message := Basic.builder_to_string(*builder,, allocator = Basic.temp);

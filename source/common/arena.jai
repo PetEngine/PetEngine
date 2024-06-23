@@ -9,7 +9,7 @@ Arena :: struct {
     memory       : *void;
     occupied     : s64;
     capacity     : s64;
-    marker       : s64;
+    marker       : s64 = -1;
     name         : string;
 #if DEBUG_BUILD {
     max_occupied : s64;
@@ -187,15 +187,19 @@ resetArena :: inline (arena : *Arena, $zero_memory := true) #no_context {
     }
 
     arena.occupied = 0;
-    arena.marker   = 0;
+    arena.marker   = -1;
 }
 
 resetArenaToMarker :: inline (arena : *Arena, $zero_memory := true) #no_context {
+    // Marker was not set, so this is not a valid call
+    if arena.marker == -1 return;
+
     #if zero_memory {
         memset(arena.memory + arena.marker, 0, arena.occupied - arena.marker);
     }
 
     arena.occupied = arena.marker;
+    arena.marker   = -1;
 }
 
 setArenaMarker :: inline (arena : *Arena) #no_context {

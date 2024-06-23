@@ -1,8 +1,10 @@
 #scope_export
 
 // @TODO: #File.
-//     1. Try more secure *FromAppW functions.
-//     2. Remove MAX_PATH limit prepending \\?\ to the filename when filename.count >= MAX_PATH.
+//     - Try more secure *FromAppW functions.
+//     - Remove MAX_PATH limit prepending \\?\ to the filename when filename.count >= MAX_PATH.
+//     - Return File.Error.PATH_NOT_FOUND in enumerateFiles when 'directory' does not exist.
+//     - NO_CACHE for readEntireFile?
 
 File :: struct {
     Flags :: enum_flags u16 {

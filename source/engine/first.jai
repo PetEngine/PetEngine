@@ -114,6 +114,8 @@ PushConstants :: struct {
 } #no_padding
 
 petMain :: () {
+    initial_time := Basic.current_time_monotonic();
+
     context.pet.thread_name = "Main";
     context.pet.thread_kind = .MAIN;
 
@@ -233,7 +235,7 @@ petMain :: () {
             bindPerFrameUniform(device, binding_manager, resource_manager, *per_frame_uniform);
             per_frame_uniform.data.frame += 1;
             {
-                time_now := cast(f32) Basic.seconds_since_init();
+                time_now := cast(f32) Basic.to_float64_seconds(apolloSub(Basic.current_time_monotonic(), initial_time));
                 per_frame_uniform.data.dtime = time_now - per_frame_uniform.data.time;
                 per_frame_uniform.data.time  = time_now;
             }
@@ -281,6 +283,9 @@ petMain :: () {
 
     waitDeviceIdle(device);
 }
+
+// @TODO: Figure out how to use operator- for Apollo_Time without this typedef
+apolloSub :: Basic.operator-;
 
 #import "common"()(DEBUG_BUILD = DEBUG_BUILD, PRINT_VERBOSE_MESSAGES = PRINT_VERBOSE_MESSAGES);
 

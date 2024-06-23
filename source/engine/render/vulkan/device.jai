@@ -135,7 +135,7 @@ destroyVulkanDevice :: (device_ : *Device) {
         device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT(device.instance, device.messenger, null);
     }
 
-    Basic.array_free(device.message_hashes);
+    Basic.array_reset(*device.message_hashes);
 
     vkDestroyInstance(device.instance, null);
 }

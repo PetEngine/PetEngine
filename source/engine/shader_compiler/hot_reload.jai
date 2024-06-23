@@ -158,7 +158,7 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload, was_created : bool) 
     notImplemented();
 }
 
-// @TODO: #ThreadPool
+// @TODO: #ThreadPool.
 reloadShader :: inline (device : *Device, manager : *ShaderManager, binding_manager : *BindingManager, name : string) {
     if compileShader(name) {
         shader := findShader(manager, name);
@@ -169,23 +169,20 @@ reloadShader :: inline (device : *Device, manager : *ShaderManager, binding_mana
 }
 
 recompileOutOfDateShaders :: inline (hot_reload : *ShadersHotReload) {
-    enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, file_info : *FileInfo) -> EnumerateFilesCallbackResult {
-        if String.path_extension(file_info.name) != "shader" {
+    enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, source_file_info : *FileInfo) -> EnumerateFilesCallbackResult {
+        if String.path_extension(source_file_info.name) != "shader" {
             return .CONTINUE;
         }
 
         shader_name := string.{
-            file_info.name.count - (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1) - ".shader".count,
-            file_info.name.data  + (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1)
+            source_file_info.name.count - (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + "/".count) - ".shader".count,
+            source_file_info.name.data  + (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + "/".count)
         };
 
         binary_filename := makeBinaryShaderFilename(shader_name);
 
-        source_file_info, source_file_error := getFileInfo(file_info.name);
-        assert(source_file_error == .NONE);
-
-        binary_file_info, binary_file_error := getFileInfo(binary_filename);
-        assert(binary_file_error == .NONE || binary_file_error == .FILE_NOT_FOUND || binary_file_error == .PATH_NOT_FOUND);
+        binary_file_info, error := getFileInfo(binary_filename);
+        assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
 
         if Basic.compare_apollo_times(binary_file_info.last_write_time, source_file_info.last_write_time) > 0 {
             return .CONTINUE;
