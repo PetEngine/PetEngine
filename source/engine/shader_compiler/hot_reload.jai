@@ -18,10 +18,10 @@ createShadersHotReload :: (
     device          : *Device,
     shader_manager  : *ShaderManager,
     binding_manager : *BindingManager
-) -> bool {
+) {
     if !fileExists(ShaderCompiler.SOURCE_SHADERS_FOLDER) {
         #if DEBUG_BUILD warningMessage("Source shaders folder is not found: %", ShaderCompiler.SOURCE_SHADERS_FOLDER);
-        return false;
+        return;
     }
 
     createThread(*hot_reload.thread, hotReloadProc, hot_reload, "Shaders Hot Reload", .SHADERS_HOT_RELOAD);
@@ -65,13 +65,12 @@ createShadersHotReload :: (
 
     recompileOutOfDateShaders(hot_reload);
     startThread(*hot_reload.thread);
-
-    return true;
 }
 
-// @Hack: Figure out better way than was_created
-destroyShadersHotReload :: (hot_reload : *ShadersHotReload, was_created : bool) {
-    if !was_created return;
+destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
+    if !fileExists(ShaderCompiler.SOURCE_SHADERS_FOLDER) {
+        return;
+    }
 
     #if OS == .WINDOWS {
         debugCheck(SetEvent(hot_reload.stop_thread_event), print_sys_error = true);
@@ -184,8 +183,16 @@ recompileOutOfDateShaders :: inline (hot_reload : *ShadersHotReload) {
         binary_file_info, error := getFileInfo(binary_filename);
         assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
 
-        if Basic.compare_apollo_times(binary_file_info.last_write_time, source_file_info.last_write_time) > 0 {
-            return .CONTINUE;
+        if binary_file_info.last_write_time > source_file_info.last_write_time {
+            binary_file:, error = openFile(binary_filename, .READ | .SHARED_READ | .EXISTS);
+            assert(error == .NONE);
+            defer closeFile(*binary_file);
+
+            header : ShaderCompiler.Header = ---;
+            readFile(binary_file, *header, size_of(ShaderCompiler.Header));
+            if header.version == ShaderCompiler.VERSION {
+                return .CONTINUE;
+            }
         }
 
         compileShader(shader_name);
