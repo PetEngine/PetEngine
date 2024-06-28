@@ -129,7 +129,7 @@ readFile :: inline (file : File, buffer : [] $T) {
 
 readEntireFile :: (
     filename  : string,
-    allocate  : (user_data : *$T, bytes : s64) -> *void,
+    allocate  : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
     user_data : *T
 ) -> (string #must, File.Error #must) {
     buffer : string;
@@ -140,7 +140,7 @@ readEntireFile :: (
         buffer.count = fileSize(file);
 
         if buffer.count > 0 {
-            buffer.data = allocate(user_data, buffer.count);
+            buffer.data = allocate(user_data, buffer.count, 64);
             readFile(file, buffer);
         }
 
@@ -268,7 +268,7 @@ fileExists :: (filename : string) -> bool {
 
 getAbsolutePath :: (
     relative_path : string,
-    allocate      : (user_data : *$T, bytes : s64) -> *void,
+    allocate      : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
     user_data     : *T
 ) -> string {
     #if OS == .WINDOWS {

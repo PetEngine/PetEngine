@@ -1,22 +1,16 @@
 #scope_export
 
-// @TODO:
-//     1. Place arena name in front of arena itself:
-//              memory   = [name|memory]
-//              capacity = name.count + capacity
-
 Arena :: struct {
     memory       : *void;
     occupied     : s64;
     capacity     : s64;
-    marker       : s64 = -1;
     name         : string;
 #if DEBUG_BUILD {
     max_occupied : s64;
 }
 }
 
-createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) {
+createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any, alignment := 0) {
     assert(capacity > 0);
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
@@ -30,38 +24,56 @@ createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any) 
 
     #if OS == .WINDOWS {
         system_info : SYSTEM_INFO = ---;
-        GetSystemInfo(*system_info);
+        GetNativeSystemInfo(*system_info);
 
-        page_size              : s64 = system_info.dwPageSize;
-        allocation_granularity : s64 = system_info.dwAllocationGranularity;
+        page_size : s64 = system_info.dwPageSize;
     } else {
-        page_size              : s64 : 4096;
-        allocation_granularity : s64 : 4096;
+        page_size : s64 : 4096;
         notImplemented();
     }
 
+CAPACITY_WARNING_STRING :: #string END
+"%" will be created with different capacity because given capacity does not match system page size alignment requirement.
+    Given capacity:   % bytes (% KB, % MB, % GB)
+    Aligned capacity: % bytes (% KB, % MB, % GB)
+    System page size: % bytes (% KB, % MB)
+END;
+
     arena.capacity = alignUpWithPowerOfTwo(capacity, page_size);
-    arena.capacity = alignUpWithPowerOfTwo(arena.capacity, allocation_granularity);
     if arena.capacity != capacity {
-        warningMessage("\"%\" will be created with different capacity since given capacity does not match system page size and allocation granularity alignment requirements. Given capacity: % bytes, aligned capacity: % byte, page size: % bytes, allocation granularity: % bytes",
+        warningMessage(CAPACITY_WARNING_STRING,
                        arena.name,
-                       capacity,
-                       arena.capacity,
-                       page_size,
-                       allocation_granularity);
+                       capacity,       bytesToKiloBytes(capacity),       bytesToMegaBytes(capacity),       bytesToGigaBytes(capacity),
+                       arena.capacity, bytesToKiloBytes(arena.capacity), bytesToMegaBytes(arena.capacity), bytesToGigaBytes(arena.capacity),
+                       page_size,      bytesToKiloBytes(page_size),      bytesToMegaBytes(page_size));
     }
 
     #if OS == .WINDOWS {
         // @TODO: MEM_LARGE_PAGES?
-        arena.memory = VirtualAlloc(null, cast(SIZE_T) arena.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if alignment > 0 {
+            assert(isPowerOfTwo(alignment));
+
+            mem_address_requirements := MEM_ADDRESS_REQUIREMENTS.{
+                Alignment = cast(SIZE_T) alignment
+            };
+
+            mem_extended_parameter := MEM_EXTENDED_PARAMETER.{
+                Type    = cast(u64) MEM_EXTENDED_PARAMETER_TYPE.MemExtendedParameterAddressRequirements,
+                Pointer = *mem_address_requirements
+            };
+
+            arena.memory = VirtualAlloc2FromApp(null, null, cast(SIZE_T) arena.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE, *mem_extended_parameter, 1);
+        } else {
+            arena.memory = VirtualAllocFromApp(null, cast(SIZE_T) arena.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        }
     } else {
         notImplemented();
     }
 
-    assert(arena.memory != null, print_sys_error = true);
+    assert(arena.memory, print_sys_error = true);
 }
 
-createSubarena :: (arena : *Arena, subarena : *Arena, subarena_capacity : s64, $format : string, args : ..Any) {
+createSubarena :: (arena : *Arena, subarena : *Arena, subarena_capacity : s64, $format : string, args : ..Any, alignment := 0) {
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     Basic.print(*builder, "%/", arena.name);
@@ -71,12 +83,12 @@ createSubarena :: (arena : *Arena, subarena : *Arena, subarena_capacity : s64, $
     // We need to preserve it, so do not use Basic.temp
     subarena.name = Basic.builder_to_string(*builder);
 
-    subarena.memory   = pushToArena(arena, subarena_capacity);
+    subarena.memory   = pushToArena(arena, subarena_capacity, alignment);
     subarena.capacity = subarena_capacity;
 }
 
 destroyArena :: (arena : *Arena) {
-    assert(arena.memory != null, "Initialize arena first");
+    assert(arena.memory, "Create arena first");
 
     #if OS == .WINDOWS {
         debugCheck(VirtualFree(arena.memory, 0, MEM_DECOMMIT), print_sys_error = true);
@@ -86,37 +98,40 @@ destroyArena :: (arena : *Arena) {
 
     #if DEBUG_BUILD {
         debugMessage("%: max occupied bytes: % / %", arena.name, arena.max_occupied, arena.capacity);
-        arena.max_occupied = 0;
     }
 
     Basic.free(arena.name);
-
     memset(arena, 0, size_of(Arena));
 }
 
 destroySubarena :: (subarena : *Arena) {
-    assert(subarena.memory != null, "Initialize subarena first");
+    assert(subarena.memory, "Create subarena first");
 
     #if DEBUG_BUILD {
         debugMessage("%: max occupied bytes: % / %", subarena.name, subarena.max_occupied, subarena.capacity);
-        subarena.max_occupied = 0;
     }
 
     Basic.free(subarena.name);
-
     memset(subarena, 0, size_of(Arena));
 }
 
-pushToArena :: (arena : *Arena, bytes : s64) -> *void #must {
-    assert(arena.memory && arena.capacity, "Initialize arena first");
+pushToArena :: (arena : *Arena, bytes : s64, alignment := 0) -> *void #must {
+    assert(arena.memory && arena.capacity, "Create arena first");
     assert(bytes > 0, "There is no sense in allocating <= 0 bytes");
 
-    assert(arena.occupied + bytes <= arena.capacity,
-           "There is no enough space in \"%\" arena for % bytes. Occupied: % bytes, capacity: % bytes",
-           arena.name, bytes, arena.occupied, arena.capacity);
+    aligned_address := arena.memory + arena.occupied;
+    if alignment > 0 {
+        aligned_address = cast(*void) alignUpWithPowerOfTwo(cast(u64) aligned_address, cast(u64) alignment);
+    }
 
-    pointer := arena.memory + arena.occupied;
-    arena.occupied += bytes;
+    assert(aligned_address + bytes <= arena.memory + arena.capacity,
+           "There is no enough space in \"%\" arena for % bytes. Aligned offset: % bytes, capacity: % bytes",
+           arena.name,
+           bytes,
+           aligned_address - arena.memory,
+           arena.capacity);
+
+    arena.occupied = aligned_address + bytes - arena.memory;
 
     #if DEBUG_BUILD {
         if arena.occupied > arena.max_occupied {
@@ -124,84 +139,47 @@ pushToArena :: (arena : *Arena, bytes : s64) -> *void #must {
         }
     }
 
-    return pointer;
+    return aligned_address;
 }
 
-pushToArena :: inline (arena : *Arena, $type : Type, count := 1) -> *type #must {
-    memory : *type = pushToArena(arena, size_of(type) * count);
+pushToArena :: inline (arena : *Arena, $type : Type, count := 1, alignment := 0) -> *type #must {
+    memory : *type = pushToArena(arena, size_of(type) * count, alignment);
 
     init :: initializer_of(type);
     #if init {
+        memory_it := memory;
         for 0 .. count - 1 {
-            init(memory + it);
+            init(memory_it);
+            memory_it += 1;
         }
     }
 
     return memory;
 }
 
-Align :: enum_flags u8 {
-    SIZE;
-    ADDRESS;
+resetArena :: (arena : *Arena, $zero_memory := true) {
+    assert(arena.memory, "Create arena first");
 
-    ALL :: SIZE | ADDRESS;
-}
-
-pushToArenaAligned :: (arena : *Arena, bytes : s64, alignment : s64, $align : Align) -> *void #must {
-    #assert align != 0 "If you do not want to align anything, then just use pushToArena function";
-
-    assert(arena.memory && arena.capacity, "Initialize arena first");
-    assert(bytes > 0, "There is no sense in allocating <= 0 bytes");
-
-    #if align & .SIZE {
-        aligned_bytes := alignUpWithPowerOfTwo(bytes, alignment);
-    } else {
-        aligned_bytes := bytes;
-    }
-
-    #if align & .ADDRESS {
-        aligned_offset := alignUpWithPowerOfTwo(arena.occupied, alignment);
-    } else {
-        aligned_offset := arena.occupied;
-    }
-
-    assert(aligned_offset + aligned_bytes < arena.capacity,
-           "There is not enough space in \"%\" arena for % bytes. Occupied: % bytes, capacity: % bytes",
-           arena.name, aligned_bytes, aligned_offset, arena.capacity);
-
-    pointer := arena.memory + aligned_offset;
-    arena.occupied = aligned_offset + aligned_bytes;
-
-    #if DEBUG_BUILD {
-        if arena.occupied > arena.max_occupied {
-            arena.max_occupied = arena.occupied;
-        }
-    }
-
-    return pointer;
-}
-
-resetArena :: inline (arena : *Arena, $zero_memory := true) #no_context {
     #if zero_memory {
         memset(arena.memory, 0, arena.occupied);
     }
 
     arena.occupied = 0;
-    arena.marker   = -1;
 }
 
-resetArenaToMarker :: inline (arena : *Arena, $zero_memory := true) #no_context {
-    // Marker was not set, so this is not a valid call
-    if arena.marker == -1 return;
+autoResetArenaScopeUsage :: (arena : *Arena, $zero_memory := true) #expand {
+    __arena_marker := arena.occupied;
+    `defer resetArenaToMarker(arena, __arena_marker, zero_memory);
+}
+
+#scope_file
+
+resetArenaToMarker :: (arena : *Arena, marker : s64, $zero_memory := true) {
+    assert(arena.memory, "Create arena first");
 
     #if zero_memory {
-        memset(arena.memory + arena.marker, 0, arena.occupied - arena.marker);
+        memset(arena.memory + marker, 0, arena.occupied - marker);
     }
 
-    arena.occupied = arena.marker;
-    arena.marker   = -1;
-}
-
-setArenaMarker :: inline (arena : *Arena) #no_context {
-    arena.marker = arena.occupied;
+    arena.occupied = marker;
 }

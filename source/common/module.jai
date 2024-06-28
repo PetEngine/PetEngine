@@ -46,10 +46,10 @@ f64 :: float64;
     wideToAscii :: (
         wide_string : *WCHAR,
         length      : s64,
-        allocate    : (user_data : *$T, bytes : s64) -> *void,
+        allocate    : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
         user_data   : *T
     ) -> string {
-        ascii_string := string.{ length, allocate(user_data, length) };
+        ascii_string := string.{ length, allocate(user_data, length, 0) };
 
         for 0 .. ascii_string.count - 1 {
             ascii_string[it] = cast(u8) wide_string[it];

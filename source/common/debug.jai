@@ -337,10 +337,12 @@ printStackTrace :: (builder : *Basic.String_Builder) {
     #if OS == .WINDOWS {
         scopedLock(*g_mutex); // All DbgHelp functions are single threaded, so we have to synchronize their calls
 
-        MAX_FRAMES_TO_CAPTURE : u16 : 0xFFFF;
-        stack_trace := pushToArena(*context.pet.per_frame_arena, *void, MAX_FRAMES_TO_CAPTURE);
+        FRAMES_TO_SKIP        :: 2; // Skip this function & message (caller)
+        MAX_FRAMES_TO_CAPTURE :: 0xFFFF;
 
-        FRAMES_TO_SKIP :: 2; // Skip this function & message (caller)
+        // We might not have per frame arena at this moment, so we use temporary storage
+        stack_trace : **void = Basic.talloc(MAX_FRAMES_TO_CAPTURE * size_of(*void));
+
         frames_count := RtlCaptureStackBackTrace(FRAMES_TO_SKIP, MAX_FRAMES_TO_CAPTURE, stack_trace, null);
         Basic.assert(frames_count > 0, "RtlCaptureStackBackTrace did not capture any frames which is impossible. Error: %", GetLastError());
 

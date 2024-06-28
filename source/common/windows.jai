@@ -557,12 +557,52 @@ MEM_LARGE_PAGES : u32 : 0x20000000;
 
 PAGE_READWRITE : u32 : 0x04;
 
-VirtualAlloc :: (
+VirtualAllocFromApp :: (
     lpAddress        : *void,
     dwSize           : SIZE_T,
     flAllocationType : u32,
     flProtect        : u32
-) -> *void #foreign kernel32;
+) -> *void #foreign windowsapp;
+
+MEM_EXTENDED_PARAMETER_TYPE_BITS :: 8;
+
+MEM_EXTENDED_PARAMETER_TYPE :: enum u32 {
+    MemExtendedParameterInvalidType :: 0;
+    MemExtendedParameterAddressRequirements;
+    MemExtendedParameterNumaNode;
+    MemExtendedParameterPartitionHandle;
+    MemExtendedParameterUserPhysicalHandle;
+    MemExtendedParameterAttributeFlags;
+    MemExtendedParameterImageMachine;
+    MemExtendedParameterMax;
+}
+
+MEM_ADDRESS_REQUIREMENTS :: struct {
+    LowestStartingAddress : *void;
+    HighestEndingAddress  : *void;
+    Alignment             : SIZE_T;
+}
+
+MEM_EXTENDED_PARAMETER :: struct {
+    Type : u64;
+    union {
+        ULong64 : u64;
+        Pointer : *void;
+        Size    : SIZE_T;
+        Handle  : HANDLE;
+        ULong   : u32;
+    }
+}
+
+VirtualAlloc2FromApp :: (
+    Process            : HANDLE,
+    BaseAddress        : *void,
+    Size               : SIZE_T,
+    AllocationType     : u32,
+    PageProtection     : u32,
+    ExtendedParameters : *MEM_EXTENDED_PARAMETER,
+    ParameterCount     : u32
+) -> *void #foreign windowsapp;
 
 VirtualFree :: (
     lpAddress  : *void,
@@ -589,7 +629,7 @@ SYSTEM_INFO :: struct {
     wProcessorRevision          : u16;
 }
 
-GetSystemInfo :: (
+GetNativeSystemInfo :: (
     lpSystemInfo : *SYSTEM_INFO
 ) -> void #foreign kernel32;
 
@@ -1618,10 +1658,11 @@ SymFromAddr :: (
 
 #scope_file
 
-kernel32 :: #library,system "kernel32";
-user32   :: #library,system "user32";
-dwmapi   :: #library,system "dwmapi";
-advapi32 :: #library,system "advapi32";
-hid      :: #library,system "hid";
-ntdll    :: #library,system "ntdll";
-dbghelp  :: #library,system "dbghelp";
+kernel32   :: #library,system "kernel32";
+user32     :: #library,system "user32";
+dwmapi     :: #library,system "dwmapi";
+advapi32   :: #library,system "advapi32";
+hid        :: #library,system "hid";
+ntdll      :: #library,system "ntdll";
+dbghelp    :: #library,system "dbghelp";
+windowsapp :: #library,system,no_dll "windowsapp";

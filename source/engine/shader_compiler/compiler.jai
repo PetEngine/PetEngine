@@ -195,8 +195,7 @@ ShaderStageFlags :: enum_flags u8 {
 compileShader :: (name : string) -> bool {
     infoMessage("Compiling shader \"%\"...", name);
 
-    setArenaMarker(*context.pet.per_frame_arena);
-    defer resetArenaToMarker(*context.pet.per_frame_arena);
+    autoResetArenaScopeUsage(*context.pet.per_frame_arena);
     Basic.auto_release_temp();
 
     source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader",, allocator = Basic.temp);
