@@ -114,14 +114,14 @@ destroyVulkanDevice :: (device_ : *Device) {
             }
 
             if it.name {
-                Basic.free(it.name.data);
+                Basic.free(it.name);
             }
         }
     }
 
     for device.swapchain_textures {
         if it.name {
-            Basic.free(it.name.data);
+            Basic.free(it.name);
         }
     }
 

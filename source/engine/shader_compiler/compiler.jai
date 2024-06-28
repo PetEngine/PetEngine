@@ -198,7 +198,7 @@ compileShader :: (name : string) -> bool {
     autoResetArenaScopeUsage(*context.pet.per_frame_arena);
     Basic.auto_release_temp();
 
-    source_filename := String.join(SOURCE_SHADERS_FOLDER, "/", name, ".shader",, allocator = Basic.temp);
+    source_filename := makeSourceShaderFilename(name);
 
     source     : string     = ---;
     file_error : File.Error = .SHARED_ACCESS_VIOLATION;
@@ -448,6 +448,15 @@ compileShader :: (name : string) -> bool {
 
     infoMessage("Shader \"%\" has been compiled", name);
     return true;
+}
+
+makeSourceShaderFilename :: inline (name : string) -> string {
+    capacity := SOURCE_SHADERS_FOLDER.count + "/".count + name.count + ".shader".count;
+
+    filename := string.{ data = pushToArena(*context.pet.per_frame_arena, capacity) };
+    appendToString(*filename, capacity, SOURCE_SHADERS_FOLDER, "/", name, ".shader");
+
+    return filename;
 }
 
 makeBinaryShaderFilename :: inline (name : string) -> string {
@@ -907,7 +916,7 @@ resolveIncludeCallback :: (
             include_result.content_length = cast(size_t) error_message.count;
 
         case;
-            error_message := Basic.tprint("There was an error in opening \"%\" file. Look at previous error messages to get what went wrong", include_filename);
+            error_message := Basic.tprint("There was an error in opening \"%\" file. Look at previous error messages to see what went wrong", include_filename);
             include_result.content        = cast(*s8)    error_message.data;
             include_result.content_length = cast(size_t) error_message.count;
     }
