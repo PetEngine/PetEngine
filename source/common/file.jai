@@ -1,7 +1,6 @@
 #scope_export
 
 // @TODO: #File.
-//     - Try more secure *FromAppW functions.
 //     - Remove MAX_PATH limit prepending \\?\ to the filename when filename.count >= MAX_PATH.
 //     - Return File.Error.PATH_NOT_FOUND in enumerateFiles when 'directory' does not exist.
 //     - NO_CACHE for readEntireFile?

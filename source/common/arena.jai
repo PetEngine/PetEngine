@@ -1,5 +1,8 @@
 #scope_export
 
+// @TODO: #Arena.
+//     - MEM_LARGE_PAGES?
+
 Arena :: struct {
     memory       : *void;
     occupied     : s64;
@@ -45,9 +48,10 @@ createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any, 
         system_info : SYSTEM_INFO = ---;
         GetNativeSystemInfo(*system_info);
 
-        page_size : s64 = system_info.dwPageSize;
+        page_size              : s64 = system_info.dwPageSize;
+        allocation_granularity : s64 = system_info.dwAllocationGranularity;
     } else {
-        page_size : s64 : 4096;
+        page_size : s64 : 4096; // On Linux allocation_granularity == page_size
         notImplemented();
     }
 
@@ -67,23 +71,41 @@ END;
                        page_size,      bytesToKiloBytes(page_size),      bytesToMegaBytes(page_size));
     }
 
+ALIGNMENT_WARNING_STRING :: #string END
+Alignment for "%" will be ignored since it is not multiple of system allocation granularity.
+    Alignment:              % bytes (% KB, % MB)
+    Allocation granularity: % bytes (% KB, % MB)
+END;
+
     #if OS == .WINDOWS {
-        // @TODO: MEM_LARGE_PAGES?
-        if alignment > 0 {
+        if alignment > 1 {
             assert(isPowerOfTwo(alignment));
 
-            mem_address_requirements := MEM_ADDRESS_REQUIREMENTS.{
-                Alignment = cast(SIZE_T) alignment
-            };
+            if !(alignment % allocation_granularity) {
+                mem_address_requirements := MEM_ADDRESS_REQUIREMENTS.{
+                    Alignment = cast(SIZE_T) alignment
+                };
 
-            mem_extended_parameter := MEM_EXTENDED_PARAMETER.{
-                Type    = cast(u64) MEM_EXTENDED_PARAMETER_TYPE.MemExtendedParameterAddressRequirements,
-                Pointer = *mem_address_requirements
-            };
+                mem_extended_parameter := MEM_EXTENDED_PARAMETER.{
+                    Type    = cast(u64) MEM_EXTENDED_PARAMETER_TYPE.MemExtendedParameterAddressRequirements,
+                    Pointer = *mem_address_requirements
+                };
 
-            arena.memory = VirtualAlloc2FromApp(null, null, cast(SIZE_T) arena.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE, *mem_extended_parameter, 1);
+                arena.memory = VirtualAlloc2(null, null, cast(SIZE_T) arena.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE, *mem_extended_parameter, 1);
+            } else {
+                warningMessage(ALIGNMENT_WARNING_STRING,
+                               arena.name,
+                               alignment,
+                               bytesToKiloBytes(alignment),
+                               bytesToMegaBytes(alignment),
+                               allocation_granularity,
+                               bytesToKiloBytes(allocation_granularity),
+                               bytesToMegaBytes(allocation_granularity));
+
+               arena.memory = VirtualAlloc(null, cast(SIZE_T) arena.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+            }
         } else {
-            arena.memory = VirtualAllocFromApp(null, cast(SIZE_T) arena.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+            arena.memory = VirtualAlloc(null, cast(SIZE_T) arena.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
         }
     } else {
         notImplemented();
@@ -155,7 +177,7 @@ pushToArena :: (arena : *Arena, bytes : s64, alignment := 0) -> *void #must {
     assert(bytes > 0, "There is no sense in allocating <= 0 bytes");
 
     aligned_address := arena.memory + arena.occupied;
-    if alignment > 0 {
+    if alignment > 1 {
         aligned_address = cast(*void) alignUpWithPowerOfTwo(cast(u64) aligned_address, cast(u64) alignment);
     }
 

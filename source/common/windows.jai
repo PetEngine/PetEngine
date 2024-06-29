@@ -557,12 +557,12 @@ MEM_LARGE_PAGES : u32 : 0x20000000;
 
 PAGE_READWRITE : u32 : 0x04;
 
-VirtualAllocFromApp :: (
+VirtualAlloc :: (
     lpAddress        : *void,
     dwSize           : SIZE_T,
     flAllocationType : u32,
     flProtect        : u32
-) -> *void #foreign windowsapp;
+) -> *void #foreign kernel32;
 
 MEM_EXTENDED_PARAMETER_TYPE_BITS :: 8;
 
@@ -594,7 +594,7 @@ MEM_EXTENDED_PARAMETER :: struct {
     }
 }
 
-VirtualAlloc2FromApp :: (
+VirtualAlloc2 :: (
     Process            : HANDLE,
     BaseAddress        : *void,
     Size               : SIZE_T,
@@ -602,7 +602,7 @@ VirtualAlloc2FromApp :: (
     PageProtection     : u32,
     ExtendedParameters : *MEM_EXTENDED_PARAMETER,
     ParameterCount     : u32
-) -> *void #foreign windowsapp;
+) -> *void #foreign onecore;
 
 VirtualFree :: (
     lpAddress  : *void,
@@ -1658,11 +1658,11 @@ SymFromAddr :: (
 
 #scope_file
 
-kernel32   :: #library,system "kernel32";
-user32     :: #library,system "user32";
-dwmapi     :: #library,system "dwmapi";
-advapi32   :: #library,system "advapi32";
-hid        :: #library,system "hid";
-ntdll      :: #library,system "ntdll";
-dbghelp    :: #library,system "dbghelp";
-windowsapp :: #library,system,no_dll "windowsapp";
+kernel32 :: #library,system "kernel32";
+user32   :: #library,system "user32";
+dwmapi   :: #library,system "dwmapi";
+advapi32 :: #library,system "advapi32";
+hid      :: #library,system "hid";
+ntdll    :: #library,system "ntdll";
+dbghelp  :: #library,system "dbghelp";
+onecore  :: #library,system,no_dll "onecore";
