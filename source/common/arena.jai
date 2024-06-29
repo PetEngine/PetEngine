@@ -4,23 +4,42 @@ Arena :: struct {
     memory       : *void;
     occupied     : s64;
     capacity     : s64;
-    name         : string;
 #if DEBUG_BUILD {
     max_occupied : s64;
 }
+    name         : string;
+    name_memory  : [128] u8;
 }
 
 createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any, alignment := 0) {
     assert(capacity > 0);
 
-    builder := Basic.String_Builder.{ allocator = Basic.temp };
+    // Make a name
+    {
+        builder := Basic.String_Builder.{ allocator = Basic.temp };
+        defer Basic.free_buffers(*builder);
 
-    Basic.print(*builder, "% thread/", context.pet.thread_name);
-    Basic.print(*builder, format, ..args);
-    Basic.append(*builder, " arena");
+        Basic.print(*builder, "% thread/", context.pet.thread_name);
+        Basic.print(*builder, format, ..args);
+        Basic.append(*builder, " arena");
 
-    // We need to preserve it, so do not use Basic.temp
-    arena.name = Basic.builder_to_string(*builder);
+        arena.name.data  = arena.name_memory.data;
+        arena.name.count = 0;
+
+        buffer  := Basic.get_base_buffer(*builder);
+        data_it := arena.name.data;
+        while buffer {
+            assert(arena.name.count + buffer.count <= arena.name_memory.count,
+                   "Arena name is too long, consider increasing Arena.name_memory");
+
+            memcpy(data_it, Basic.get_buffer_data(buffer), buffer.count);
+            data_it += buffer.count;
+
+            arena.name.count += buffer.count;
+
+            buffer = buffer.next;
+        }
+    }
 
     #if OS == .WINDOWS {
         system_info : SYSTEM_INFO = ---;
@@ -74,14 +93,32 @@ END;
 }
 
 createSubarena :: (arena : *Arena, subarena : *Arena, subarena_capacity : s64, $format : string, args : ..Any, alignment := 0) {
-    builder := Basic.String_Builder.{ allocator = Basic.temp };
+    // Make a name
+    {
+        builder := Basic.String_Builder.{ allocator = Basic.temp };
+        defer Basic.free_buffers(*builder);
 
-    Basic.print(*builder, "%/", arena.name);
-    Basic.print(*builder, format, ..args);
-    Basic.append(*builder, " subarena");
+        Basic.print(*builder, "%/", arena.name);
+        Basic.print(*builder, format, ..args);
+        Basic.append(*builder, " subarena");
 
-    // We need to preserve it, so do not use Basic.temp
-    subarena.name = Basic.builder_to_string(*builder);
+        subarena.name.data  = subarena.name_memory.data;
+        subarena.name.count = 0;
+
+        buffer  := Basic.get_base_buffer(*builder);
+        data_it := subarena.name.data;
+        while buffer {
+            assert(subarena.name.count + buffer.count <= subarena.name_memory.count,
+                   "Arena name is too long, consider increasing Arena.name_memory");
+
+            memcpy(data_it, Basic.get_buffer_data(buffer), buffer.count);
+            data_it += buffer.count;
+
+            subarena.name.count += buffer.count;
+
+            buffer = buffer.next;
+        }
+    }
 
     subarena.memory   = pushToArena(arena, subarena_capacity, alignment);
     subarena.capacity = subarena_capacity;
@@ -100,7 +137,6 @@ destroyArena :: (arena : *Arena) {
         debugMessage("%: max occupied bytes: % / %", arena.name, arena.max_occupied, arena.capacity);
     }
 
-    Basic.free(arena.name);
     memset(arena, 0, size_of(Arena));
 }
 
@@ -111,7 +147,6 @@ destroySubarena :: (subarena : *Arena) {
         debugMessage("%: max occupied bytes: % / %", subarena.name, subarena.max_occupied, subarena.capacity);
     }
 
-    Basic.free(subarena.name);
     memset(subarena, 0, size_of(Arena));
 }
 
