@@ -434,17 +434,16 @@ compileShader :: (name : string) -> bool {
 
     output_filename := makeBinaryShaderFilename(name);
     output_file, file_error= := openFile(output_filename, .WRITE | .TRUNCATE | .SEQ, true);
-    if file_error == .NONE {
-        writeFile(output_file, *header, size_of(Header));
-        writeFile(output_file, *pipeline_state, size_of(PipelineState));
-        writeFile(output_file, *binding_table, size_of(BindingTable));
-        for stage_spirvs { if it writeFile(output_file, it); }
-
-        closeFile(*output_file);
-    } else {
+    if file_error != .NONE {
         errorMessage("Compilation failed: Unable to open output shader file \"%\"", output_filename);
         return false;
     }
+    defer closeFile(*output_file);
+
+    writeFile(output_file, *header, size_of(Header));
+    writeFile(output_file, *pipeline_state, size_of(PipelineState));
+    writeFile(output_file, *binding_table, size_of(BindingTable));
+    for stage_spirvs { if it writeFile(output_file, it); }
 
     infoMessage("Shader \"%\" has been compiled", name);
     return true;
