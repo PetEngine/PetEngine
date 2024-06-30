@@ -177,6 +177,18 @@ fileSize :: (file : File) -> s64 {
     return file_size;
 }
 
+getFileCursorPosition :: (file : File) -> s64 {
+    cursor_position : s64;
+
+    #if OS == .WINDOWS {
+        debugCheck(SetFilePointerEx(file.handle, .{}, cast(*LARGE_INTEGER) *cursor_position, FILE_CURRENT), print_sys_error = true);
+    } else {
+        notImplemented();
+    }
+
+    return cursor_position;
+}
+
 FileInfo :: struct {
     name             : string;
     creation_time    : Basic.Apollo_Time;
