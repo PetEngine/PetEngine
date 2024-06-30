@@ -5,7 +5,7 @@ convertObjMesh :: (exchange_filename : string, name : string) -> bool {
     assert(error == .NONE, "The error must be NONE because we know that the file exists");
 
     obj_mesh : ObjMesh;
-    if !parseObjFile(data, *obj_mesh, name, true) {
+    if !parseObjFile(data, *obj_mesh, name) {
         return false;
     }
     defer destroyObjMesh(*obj_mesh);
@@ -18,9 +18,9 @@ convertObjMesh :: (exchange_filename : string, name : string) -> bool {
     }
 
     if obj_mesh.face_groups.count > 0 {
-        remapTriplets(*obj_mesh, *vertices, *indices, name, true);
+        remapTriplets(*obj_mesh, *vertices, *indices);
     } else {
-        convertVertices(*obj_mesh, *vertices, name, true);
+        convertVertices(*obj_mesh, *vertices);
     }
 
     // @Continue: Save converted mesh
@@ -75,37 +75,7 @@ destroyObjMesh :: (mesh : *ObjMesh) {
     reset(*mesh.face_groups);
 }
 
-parseObjFile :: (stream : string, mesh : *ObjMesh, name : string, $collect_statistics := false) -> bool {
-    #if collect_statistics {
-        file_size_mb := bytesToMegaBytes(stream.count);
-        time_start   := Basic.current_time_monotonic();
-        defer {
-            duration := Basic.to_float64_seconds(Basic.current_time_monotonic() - time_start);
-
-            builder := Basic.String_Builder.{ allocator = Basic.temp };
-            Basic.print(*builder, "File \"%.obj\" is parsed:\n", name);
-            Basic.print(*builder, "    Size:     % MB\n", file_size_mb);
-            Basic.print(*builder, "    Duration: % s\n", duration);
-            Basic.print(*builder, "    Speed:    % MB/s\n", file_size_mb / duration);
-
-            Basic.print(*builder, "    Vertex groups (%):\n", mesh.vertex_groups.count);
-            for mesh.vertex_groups {
-                Basic.print(*builder, "        [%] \"%\":\n", it_index, it.name);
-                for it.attributes {
-                    Basic.print(*builder, "            %s: %\n", cast(ObjMesh.Attribute) it_index, it.count);
-                }
-            }
-
-            Basic.print(*builder, "    Face groups (%):\n", mesh.face_groups.count);
-            for mesh.face_groups {
-                Basic.print(*builder, "        [%] \"%\":\n", it_index, it.name);
-                Basic.print(*builder, "            triplets: %\n", it.triplets.count);
-            }
-
-            infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
-        }
-    }
-
+parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
     new_group_name : string;
 
     while stream {
@@ -120,6 +90,7 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string, $collect_stati
         if String.starts_with(line, "g ") {
             advance(*line, "g ".count);
             line = Basic.eat_spaces(line);
+
             new_group_name = line;
         } else if String.starts_with(line, "v ") {
             advance(*line, "v ".count);
@@ -196,7 +167,7 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string, $collect_stati
     }
 
 GROUPS_COUNT_ERROR_STRING :: #string END
-"%.obj\: We do not support different number of vertex and face groups except when number of vertex groups is 1.
+%.obj: We do not support different number of vertex and face groups except when number of vertex groups is 1 or number of face groups is 0.
     Number of vertex groups: %
     Number of face groups:   %
 END;
@@ -377,38 +348,10 @@ getFaceGroup :: (obj_mesh : *ObjMesh, group_name : string) -> *ObjMesh.FaceGroup
 }
 
 remapTriplets :: (
-    obj_mesh            : *ObjMesh,
-    vertices            : *[Mesh.MAX_SUBMESHES][..] VertexFormats.Default,
-    indices             : *[Mesh.MAX_SUBMESHES][..] u32,
-    name                : string,
-    $collect_statistics := false
+    obj_mesh : *ObjMesh,
+    vertices : *[Mesh.MAX_SUBMESHES][..] VertexFormats.Default,
+    indices  : *[Mesh.MAX_SUBMESHES][..] u32
 ) {
-    #if collect_statistics {
-        time_start := Basic.current_time_monotonic();
-        defer {
-            duration := Basic.to_float64_seconds(Basic.current_time_monotonic() - time_start);
-
-            size : s64;
-            for obj_mesh.vertex_groups {
-                for it.attributes {
-                    size += max(0, it.count) * size_of(v3f);
-                }
-            }
-            for obj_mesh.face_groups {
-                size += max(0, it.triplets.count) * size_of(ObjMesh.Triplet);
-            }
-            size_mb := bytesToMegaBytes(size);
-
-            builder := Basic.String_Builder.{ allocator = Basic.temp };
-            Basic.print(*builder, "Obj mesh \"%\" is remapped:\n", name);
-            Basic.print(*builder, "    Size:     % MB\n", size_mb);
-            Basic.print(*builder, "    Duration: % s\n", duration);
-            Basic.print(*builder, "    Speed:    % MB/s\n", size_mb / duration);
-
-            infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
-        }
-    }
-
     Triplet :: [ObjMesh.MAX_ATTRIBUTES] u32;
     triplet_to_index : Hash_Table.Table(Triplet, u32, given_compare_function = (a : Triplet, b : Triplet) -> bool {
         return !memcmp(a.data, b.data, size_of(Triplet));
@@ -475,35 +418,7 @@ remapTriplets :: (
     }
 }
 
-convertVertices :: (
-    obj_mesh            : *ObjMesh,
-    vertices            : *[Mesh.MAX_SUBMESHES][..] VertexFormats.Default,
-    name                : string,
-    $collect_statistics := false
-) {
-    #if collect_statistics {
-        time_start := Basic.current_time_monotonic();
-        defer {
-            duration := Basic.to_float64_seconds(Basic.current_time_monotonic() - time_start);
-
-            size : s64;
-            for obj_mesh.vertex_groups {
-                for it.attributes {
-                    size += max(0, it.count) * size_of(v3f);
-                }
-            }
-            size_mb := bytesToMegaBytes(size);
-
-            builder := Basic.String_Builder.{ allocator = Basic.temp };
-            Basic.print(*builder, "Obj mesh \"%\" vertices are converted:\n", name);
-            Basic.print(*builder, "    Size:     % MB\n", size_mb);
-            Basic.print(*builder, "    Duration: % s\n", duration);
-            Basic.print(*builder, "    Speed:    % MB/s\n", size_mb / duration);
-
-            infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
-        }
-    }
-
+convertVertices :: (obj_mesh : *ObjMesh, vertices : *[Mesh.MAX_SUBMESHES][..] VertexFormats.Default) {
     for obj_mesh.vertex_groups {
         vertex_positions := *it.attributes[ObjMesh.Attribute.POSITION];
         vertex_texcoords := *it.attributes[ObjMesh.Attribute.TEXCOORD];
