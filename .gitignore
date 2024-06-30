@@ -2,5 +2,6 @@ intermediates/
 output/
 vtune/
 .build/
+source/assets/meshes/runtime/
 *.rdbg
 *.raddbg_project

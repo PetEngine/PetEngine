@@ -157,6 +157,8 @@ petMain :: () {
     createShadersHotReload(*shaders_hot_reload, device, shader_manager, binding_manager);
     defer destroyShadersHotReload(*shaders_hot_reload);
 
+    convertAssetsToRuntime();
+
     per_view_uniform := PerViewUniform.{
         buffer = createBuffer(device, resource_manager, PerViewUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view")
     };
@@ -289,6 +291,7 @@ operator> :: Basic.operator>;
 
 #import "common"()(DEBUG_BUILD = DEBUG_BUILD, PRINT_VERBOSE_MESSAGES = PRINT_VERBOSE_MESSAGES);
 
+#load "assets/converter.jai";
 #load "core/input.jai";
 #load "core/window.jai";
 #load "render/binding_manager.jai";
