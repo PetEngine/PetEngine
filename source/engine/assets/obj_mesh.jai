@@ -10,10 +10,20 @@ convertObjMesh :: (exchange_filename : string, name : string) -> bool {
     }
     defer destroyObjMesh(*obj_mesh);
 
-    // @Continue:
-    //     - Remap triplets to linear indices
-    //     - Unite N vertex attribute streams to 1 position and 1 varying streams
-    //     - Convert to our vertex format
+    vertices : [Mesh.MAX_SUBMESHES][..] VertexFormats.Default;
+    indices  : [Mesh.MAX_SUBMESHES][..] u32;
+    defer {
+        for indices  if it Basic.array_free(it);
+        for vertices if it Basic.array_free(it);
+    }
+
+    if obj_mesh.face_groups.count > 0 {
+        remapTriplets(*obj_mesh, *vertices, *indices, name, true);
+    } else {
+        convertVertices(*obj_mesh, *vertices, name, true);
+    }
+
+    // @Continue: Save converted mesh
 
     infoMessage("\"%.obj\" has been converted", name);
     return true;
@@ -365,3 +375,160 @@ getFaceGroup :: (obj_mesh : *ObjMesh, group_name : string) -> *ObjMesh.FaceGroup
 
     return *obj_mesh.face_groups[obj_mesh.face_groups.count - 1];
 }
+
+remapTriplets :: (
+    obj_mesh            : *ObjMesh,
+    vertices            : *[Mesh.MAX_SUBMESHES][..] VertexFormats.Default,
+    indices             : *[Mesh.MAX_SUBMESHES][..] u32,
+    name                : string,
+    $collect_statistics := false
+) {
+    #if collect_statistics {
+        time_start := Basic.current_time_monotonic();
+        defer {
+            duration := Basic.to_float64_seconds(Basic.current_time_monotonic() - time_start);
+
+            size : s64;
+            for obj_mesh.vertex_groups {
+                for it.attributes {
+                    size += max(0, it.count) * size_of(v3f);
+                }
+            }
+            for obj_mesh.face_groups {
+                size += max(0, it.triplets.count) * size_of(ObjMesh.Triplet);
+            }
+            size_mb := bytesToMegaBytes(size);
+
+            builder := Basic.String_Builder.{ allocator = Basic.temp };
+            Basic.print(*builder, "Obj mesh \"%\" is remapped:\n", name);
+            Basic.print(*builder, "    Size:     % MB\n", size_mb);
+            Basic.print(*builder, "    Duration: % s\n", duration);
+            Basic.print(*builder, "    Speed:    % MB/s\n", size_mb / duration);
+
+            infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
+        }
+    }
+
+    Triplet :: [ObjMesh.MAX_ATTRIBUTES] u32;
+    triplet_to_index : Hash_Table.Table(Triplet, u32, given_compare_function = (a : Triplet, b : Triplet) -> bool {
+        return !memcmp(a.data, b.data, size_of(Triplet));
+    });
+    Hash_Table.init(*triplet_to_index);
+    defer Hash_Table.deinit(*triplet_to_index);
+
+    for face_group, group_index : obj_mesh.face_groups {
+        assert(face_group.triplets.count);
+
+        Hash_Table.table_reset(*triplet_to_index);
+
+        vertex_group := ifx  obj_mesh.vertex_groups.count == 1 && obj_mesh.face_groups.count > 1
+                        then *obj_mesh.vertex_groups[0]
+                        else *obj_mesh.vertex_groups[group_index];
+
+        vertex_positions := *vertex_group.attributes[ObjMesh.Attribute.POSITION];
+        vertex_texcoords := *vertex_group.attributes[ObjMesh.Attribute.TEXCOORD];
+        vertex_normals   := *vertex_group.attributes[ObjMesh.Attribute.NORMAL];
+
+        submesh_vertices := *vertices.*[group_index];
+        submesh_indices  := *indices.*[group_index];
+
+        max_vertices := max(vertex_positions.count, vertex_texcoords.count, vertex_normals.count);
+        assert(max_vertices);
+
+        Basic.array_reserve(submesh_vertices, max_vertices);
+        Basic.array_reserve(submesh_indices, face_group.triplets.count);
+
+        next_vertex_index : u32;
+
+        for triplet : face_group.triplets {
+            vertex_index_ptr := Hash_Table.table_find_pointer(*triplet_to_index, triplet);
+
+            if !vertex_index_ptr {
+                vertex_index_ptr = Hash_Table.table_add(*triplet_to_index, triplet, next_vertex_index);
+
+                position_index := triplet[ObjMesh.Attribute.POSITION];
+                texcoord_index := triplet[ObjMesh.Attribute.TEXCOORD];
+                normal_index   := triplet[ObjMesh.Attribute.NORMAL];
+
+                assert(position_index != 0, "Obj files store indices starting with 1");
+                assert(texcoord_index != 0, "Obj files store indices starting with 1");
+                assert(normal_index   != 0, "Obj files store indices starting with 1");
+
+                position_index -= 1;
+                texcoord_index -= 1;
+                normal_index   -= 1;
+
+                texcoord := vertex_texcoords.*[texcoord_index];
+
+                new_vertex := Basic.array_add(submesh_vertices);
+                new_vertex.position_u.xyz = vertex_positions.*[position_index];
+                new_vertex.position_u.w   = texcoord.x;
+                new_vertex.normal_v.xyz   = vertex_normals.*[normal_index];
+                new_vertex.normal_v.w     = texcoord.y;
+
+                next_vertex_index += 1;
+            }
+
+            assert(vertex_index_ptr);
+            Basic.array_add(submesh_indices, vertex_index_ptr.*);
+        }
+    }
+}
+
+convertVertices :: (
+    obj_mesh            : *ObjMesh,
+    vertices            : *[Mesh.MAX_SUBMESHES][..] VertexFormats.Default,
+    name                : string,
+    $collect_statistics := false
+) {
+    #if collect_statistics {
+        time_start := Basic.current_time_monotonic();
+        defer {
+            duration := Basic.to_float64_seconds(Basic.current_time_monotonic() - time_start);
+
+            size : s64;
+            for obj_mesh.vertex_groups {
+                for it.attributes {
+                    size += max(0, it.count) * size_of(v3f);
+                }
+            }
+            size_mb := bytesToMegaBytes(size);
+
+            builder := Basic.String_Builder.{ allocator = Basic.temp };
+            Basic.print(*builder, "Obj mesh \"%\" vertices are converted:\n", name);
+            Basic.print(*builder, "    Size:     % MB\n", size_mb);
+            Basic.print(*builder, "    Duration: % s\n", duration);
+            Basic.print(*builder, "    Speed:    % MB/s\n", size_mb / duration);
+
+            infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
+        }
+    }
+
+    for obj_mesh.vertex_groups {
+        vertex_positions := *it.attributes[ObjMesh.Attribute.POSITION];
+        vertex_texcoords := *it.attributes[ObjMesh.Attribute.TEXCOORD];
+        vertex_normals   := *it.attributes[ObjMesh.Attribute.NORMAL];
+
+        submesh_vertices := *vertices.*[it_index];
+
+        assert(vertex_positions.count == vertex_texcoords.count && vertex_positions.count == vertex_normals.count);
+
+        Basic.array_reserve(submesh_vertices, vertex_positions.count);
+
+        vertex_texcoords_it := vertex_texcoords.data;
+        vertex_normals_it   := vertex_normals.data;
+
+        for vertex_positions.* {
+            new_vertex := Basic.array_add(submesh_vertices);
+            new_vertex.position_u.xyz = it;
+            new_vertex.position_u.w   = vertex_texcoords_it.x;
+            new_vertex.normal_v.xyz   = vertex_normals_it.*;
+            new_vertex.normal_v.w     = vertex_texcoords_it.y;
+
+            vertex_texcoords_it += 1;
+            vertex_normals_it   += 1;
+        }
+    }
+}
+
+Hash_Table :: #import "Hash_Table";
