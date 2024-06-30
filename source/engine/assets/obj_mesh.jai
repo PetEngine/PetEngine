@@ -10,20 +10,23 @@ convertObjMesh :: (exchange_filename : string, name : string) -> bool {
     }
     defer destroyObjMesh(*obj_mesh);
 
-    vertices : [Mesh.MAX_SUBMESHES][..] VertexFormats.Default;
+    vertices : [Mesh.MAX_SUBMESHES][..] VertexTypes.Default;
     indices  : [Mesh.MAX_SUBMESHES][..] u32;
     defer {
         for indices  if it Basic.array_free(it);
         for vertices if it Basic.array_free(it);
     }
 
+    submeshes_count : u8 = ---;
     if obj_mesh.face_groups.count > 0 {
-        remapTriplets(*obj_mesh, *vertices, *indices);
+        submeshes_count = remapTriplets(*obj_mesh, *vertices, *indices);
     } else {
-        convertVertices(*obj_mesh, *vertices);
+        submeshes_count = convertVertices(*obj_mesh, *vertices);
     }
 
-    // @Continue: Save converted mesh
+    if !serializeMesh(*vertices, *indices, submeshes_count, name) {
+        return false;
+    }
 
     infoMessage("\"%.obj\" has been converted", name);
     return true;
@@ -349,9 +352,9 @@ getFaceGroup :: (obj_mesh : *ObjMesh, group_name : string) -> *ObjMesh.FaceGroup
 
 remapTriplets :: (
     obj_mesh : *ObjMesh,
-    vertices : *[Mesh.MAX_SUBMESHES][..] VertexFormats.Default,
+    vertices : *[Mesh.MAX_SUBMESHES][..] VertexTypes.Default,
     indices  : *[Mesh.MAX_SUBMESHES][..] u32
-) {
+) -> u8 {
     Triplet :: [ObjMesh.MAX_ATTRIBUTES] u32;
     triplet_to_index : Hash_Table.Table(Triplet, u32, given_compare_function = (a : Triplet, b : Triplet) -> bool {
         return !memcmp(a.data, b.data, size_of(Triplet));
@@ -416,9 +419,11 @@ remapTriplets :: (
             Basic.array_add(submesh_indices, vertex_index_ptr.*);
         }
     }
+
+    return cast(u8) obj_mesh.face_groups.count;
 }
 
-convertVertices :: (obj_mesh : *ObjMesh, vertices : *[Mesh.MAX_SUBMESHES][..] VertexFormats.Default) {
+convertVertices :: (obj_mesh : *ObjMesh, vertices : *[Mesh.MAX_SUBMESHES][..] VertexTypes.Default) -> u8 {
     for obj_mesh.vertex_groups {
         vertex_positions := *it.attributes[ObjMesh.Attribute.POSITION];
         vertex_texcoords := *it.attributes[ObjMesh.Attribute.TEXCOORD];
@@ -444,6 +449,8 @@ convertVertices :: (obj_mesh : *ObjMesh, vertices : *[Mesh.MAX_SUBMESHES][..] Ve
             vertex_normals_it   += 1;
         }
     }
+
+    return cast(u8) obj_mesh.vertex_groups.count;
 }
 
 Hash_Table :: #import "Hash_Table";
