@@ -1,4 +1,7 @@
 * text=auto
 
+source/assets/**                      binary -text
+source/assets/meshes/exchange/**.obj -binary  text eol=lf diff=astextplain
+
 source/shaders/**.shader        -binary text eol=lf diff=astextplain
 source/shaders/**.shader_header -binary text eol=lf diff=astextplain

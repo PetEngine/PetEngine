@@ -887,6 +887,17 @@ GetFileSizeEx :: (
     lpFileSize : *LARGE_INTEGER
 ) -> BOOL #foreign kernel32;
 
+FILE_BEGIN   :: 0;
+FILE_CURRENT :: 1;
+FILE_END     :: 2;
+
+SetFilePointerEx :: (
+    hFile            : HANDLE,
+    liDistanceToMove : LARGE_INTEGER,
+    lpNewFilePointer : *LARGE_INTEGER,
+    dwMoveMethod     : u32
+) -> BOOL #foreign kernel32;
+
 GetOverlappedResult :: (
     hFile                      : HANDLE,
     lpOverlapped               : *OVERLAPPED,
