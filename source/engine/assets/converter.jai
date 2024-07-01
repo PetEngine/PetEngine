@@ -26,7 +26,7 @@ makeRuntimeMeshFilename :: (name : string) -> string {
     return filename;
 }
 
-#load "mesh.jai";
+#load "mesh_file.jai";
 
 #scope_file
 
@@ -60,9 +60,9 @@ convertMeshesCallback :: (user_data : *void, exchange_file_info : *FileInfo) -> 
         assert(error == .NONE);
         defer closeFile(*runtime_file);
 
-        header : Mesh.Header = ---;
-        readFile(runtime_file, *header, size_of(Mesh.Header));
-        if header.version == Mesh.VERSION {
+        header : MeshFile.Header = ---;
+        readFile(runtime_file, *header, size_of(MeshFile.Header));
+        if header.version == MeshFile.VERSION {
             return .CONTINUE;
         }
     }

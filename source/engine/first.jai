@@ -297,6 +297,7 @@ operator> :: Basic.operator>;
 #load "render/binding_manager.jai";
 #load "render/command_buffer.jai";
 #load "render/device.jai";
+#load "render/mesh.jai";
 #load "render/resource_manager.jai";
 #load "render/shader.jai";
 #load "shader_compiler/compiler.jai";
