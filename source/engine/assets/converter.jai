@@ -9,7 +9,7 @@ AssetConverter :: struct {
     RUNTIME_MESHES_FOLDER  :: "../../../source/assets/meshes/runtime";
 }
 
-convertAssetsToRuntime :: () {
+convertExchangeAssetsToRuntime :: () {
     if fileExists(AssetConverter.EXCHANGE_MESHES_FOLDER) {
         enumerateFiles(AssetConverter.EXCHANGE_MESHES_FOLDER, convertMeshesCallback, null, recursively = true);
     } else {

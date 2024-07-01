@@ -127,6 +127,8 @@ petMain :: () {
     createArena(*context.pet.per_frame_arena, megaBytes(512), "Per frame");
     defer destroyArena(*context.pet.per_frame_arena);
 
+    convertExchangeAssetsToRuntime();
+
     window_manager := createWindowManager();
     defer destroyWindowManager(window_manager);
 
@@ -156,8 +158,6 @@ petMain :: () {
     shaders_hot_reload : ShadersHotReload;
     createShadersHotReload(*shaders_hot_reload, device, shader_manager, binding_manager);
     defer destroyShadersHotReload(*shaders_hot_reload);
-
-    convertAssetsToRuntime();
 
     per_view_uniform := PerViewUniform.{
         buffer = createBuffer(device, resource_manager, PerViewUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view")
@@ -200,6 +200,7 @@ petMain :: () {
     while processWindowEvents(window) {
         resetArena(*context.pet.per_frame_arena);
         Basic.reset_temporary_storage();
+
         if window.flags & .MINIMIZED continue;
 
         //
