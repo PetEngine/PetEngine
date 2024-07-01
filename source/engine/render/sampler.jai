@@ -68,6 +68,8 @@ createSampler :: (
     lifetime : ResourceManager.Lifetime,
     name     : string
 ) -> *Sampler {
+    assert(!resourceMemoryCommitted(manager, lifetime), "You cannot create %1 sampler after %1 memory is committed", lifetime);
+
     assert(state.min_lod <= state.max_lod);
     assert(state.anisotropy <= 2
         || state.anisotropy == 4

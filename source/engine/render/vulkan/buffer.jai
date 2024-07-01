@@ -74,6 +74,10 @@ createVulkanDescriptorBuffer :: (
     usage   : VkBufferUsageFlags,
     name    : string
 ) {
+    assert(!resourceMemoryCommitted(manager, .PERSISTENT),
+           "You cannot create %1 descriptor buffer after %1 memory is committed",
+           ResourceManager.Lifetime.PERSISTENT);
+
     queue_family_indices : [VulkanBuffer.possible_owners.capacity] u32;
     for buffer.possible_owners {
         queue_family_indices[it_index] = device.queues[it].family_index;
