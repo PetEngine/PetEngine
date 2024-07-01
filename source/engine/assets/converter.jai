@@ -42,8 +42,7 @@ convertMeshesCallback :: (user_data : *void, exchange_file_info : *FileInfo) -> 
         return .CONTINUE;
     }
 
-    autoResetArenaScopeUsage(*context.pet.per_frame_arena);
-    Basic.auto_release_temp();
+    autoResetPerFrameArenas();
 
     mesh_name := string.{
         exchange_file_info.name.count - (AssetConverter.EXCHANGE_MESHES_FOLDER.count + "/".count) - (".".count + extension.count),

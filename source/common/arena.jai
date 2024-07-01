@@ -224,9 +224,19 @@ resetArena :: (arena : *Arena, $zero_memory := true) {
     arena.occupied = 0;
 }
 
-autoResetArenaScopeUsage :: (arena : *Arena, $zero_memory := true) #expand {
+autoResetArena :: (arena : *Arena, $zero_memory := true) #expand {
     __arena_marker := arena.occupied;
     `defer resetArenaToMarker(arena, __arena_marker, zero_memory);
+}
+
+autoResetPerFrameArenas :: ($zero_memory := true, location := #caller_location) #expand {
+    __arena_marker := context.pet.per_frame_arena.occupied;
+    __temp_marker  := Basic.get_temporary_storage_mark();
+
+    `defer {
+        resetArenaToMarker(*context.pet.per_frame_arena, __arena_marker, zero_memory);
+        Basic.set_temporary_storage_mark(__temp_marker, location);
+    }
 }
 
 #scope_file
