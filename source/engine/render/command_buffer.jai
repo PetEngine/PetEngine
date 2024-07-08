@@ -1,11 +1,14 @@
 // @TODO:
 //     - Move all the platform stuff to other file.
 //     - CommandBufferManager for vtable?
+//     - Rename CommandBuffer.usage to owner or type
 
 CommandBuffer :: struct(usage : QueueType) {
     handles : StaticArray(*void, Device.MAX_FRAME_BUFFERING);
 
-    shaders : [#run Basic.enum_highest_value(ShaderBindPoint) + 1] *Shader;
+    #if usage == .GRAPHICS || usage == .ASYNC_COMPUTE {
+        shaders : [#run Basic.enum_highest_value(ShaderBindPoint) + 1] *Shader;
+    }
 
     #if usage == .GRAPHICS {
         viewport         : Viewport;
@@ -80,18 +83,18 @@ resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, bindin
     assert(command_buffer.handles.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
     command_buffer.handles.count = cast,no_check(s64) device.frame_buffering;
 
-    for * command_buffer.shaders {
-        it.* = null;
+    #if command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE {
+        for * command_buffer.shaders {
+            it.* = null;
+        }
     }
 
     #if command_buffer.usage == .GRAPHICS {
         command_buffer.viewport         = .{};
         command_buffer.scissor_rect     = .{};
         command_buffer.inside_rendering = false;
-    }
 
-    #if command_buffer.usage == .GRAPHICS {
-        if device.graphics_api == .VULKAN {
+        if device.graphics_api == .VULKAN && binding_manager {
             vulkan_device          := cast(*VulkanDevice) device;
             vulkan_binding_manager := cast(*VulkanBindingManager) binding_manager;
 
