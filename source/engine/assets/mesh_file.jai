@@ -99,7 +99,7 @@ serializeMesh :: (
     return true;
 }
 
-getVertexStride :: (format : VertexFormat) {
+getVertexStride :: (format : VertexFormat) -> s64 {
     if #complete format == {
         case .DEFAULT; return size_of(VertexTypes.Default);
     }
