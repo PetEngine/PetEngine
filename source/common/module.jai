@@ -77,7 +77,7 @@ f64 :: float64;
     }
 }
 
-advance :: inline (str : *string, amount : s64 = 1) {
+advance :: inline (str : *string, amount := 1) {
     assert(amount > 0, "amount should be > 0. amount = %", amount);
     assert(str.count >= amount, "str.count should be >= amount. str.count = %, amount = %", str.count, amount);
 

@@ -315,15 +315,15 @@ copyBuffer :: (
            command_buffer.usage,
            dest_buffer.current_owner);
 
-    assert(dest_offset   < dest_buffer.bytes);
-    assert(source_offset < source_buffer.bytes);
+    assert(dest_offset   < dest_buffer.size);
+    assert(source_offset < source_buffer.size);
 
     if bytes == 0xFFFF_FFFF {
-        bytes = source_buffer.bytes;
-        assert(source_buffer.bytes == dest_buffer.bytes);
+        bytes = source_buffer.size;
+        assert(source_buffer.size == dest_buffer.size);
     } else {
-        assert(dest_offset   + bytes <= dest_buffer.bytes);
-        assert(source_offset + bytes <= source_buffer.bytes);
+        assert(dest_offset   + bytes <= dest_buffer.size);
+        assert(source_offset + bytes <= source_buffer.size);
     }
 
     if #complete device.graphics_api == {

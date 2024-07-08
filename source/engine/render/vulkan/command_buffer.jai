@@ -353,9 +353,9 @@ copyVulkanBuffer :: inline (
     bytes          : u32
 ) #no_context {
     region := VkBufferCopy2.{
-        srcOffset = source_offset,
-        dstOffset = dest_offset,
-        size      = bytes
+        srcOffset = cast(VkDeviceSize) source_offset,
+        dstOffset = cast(VkDeviceSize) dest_offset,
+        size      = cast(VkDeviceSize) bytes
     };
 
     info := VkCopyBufferInfo2.{

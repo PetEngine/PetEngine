@@ -149,6 +149,8 @@ petMain :: () {
     resource_manager := createResourceManager(device);
     defer destroyResourceManager(device, resource_manager);
 
+    asset_manager := createAssetManager(device, resource_manager);
+
     shader_manager := createShaderManager(device, resource_manager);
     defer destroyShaderManager(device, shader_manager);
 
@@ -196,6 +198,8 @@ petMain :: () {
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 
+    mesh : Mesh;
+
     showWindow(window);
     while processWindowEvents(window) {
         resetArena(*context.pet.per_frame_arena);
@@ -217,13 +221,14 @@ petMain :: () {
             {
                 // @TODO: #PerFrameResources. Delete unused per frame resources memory when number of swapchain buffers is decreased.
                 resetResourceMemory(device, resource_manager, .PER_FRAME);
+                resetAssetManager(device, asset_manager);
                 resetShaderManager(device, shader_manager);
                 resetBindings(device, binding_manager, .PER_FRAME);
                 resetCommandBuffer(device, *command_buffer, binding_manager);
                 resetPerViewUniform(device, *per_view_uniform);
             }
 
-            // Create per frame buffers and textures here...
+            // Create per frame resources here...
 
             // Commit
             {
@@ -232,6 +237,19 @@ petMain :: () {
                 //        Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame resources
                 //        since we do not want to release memory which is in use by async queues.
                 commitResourceMemory(device, resource_manager, .PER_FRAME);
+            }
+
+            // Open new scene
+            if window.input.keyboard[Input.Key.O] & .PRESSED {
+                // Reset
+                resetResourceMemory(device, resource_manager, .PER_SCENE);
+                resetBindings(device, binding_manager, .PER_SCENE);
+
+                // Create per scene resources here...
+                mesh = loadMesh(device, asset_manager, resource_manager, "HumanHeart_OBJ");
+
+                // Commit
+                commitResourceMemory(device, resource_manager, .PER_SCENE);
             }
 
             // Update per frame uniform
@@ -293,6 +311,7 @@ operator> :: Basic.operator>;
 #import "common"()(DEBUG_BUILD = DEBUG_BUILD, PRINT_VERBOSE_MESSAGES = PRINT_VERBOSE_MESSAGES);
 
 #load "assets/converter.jai";
+#load "assets/manager.jai";
 #load "core/input.jai";
 #load "core/window.jai";
 #load "render/binding_manager.jai";
