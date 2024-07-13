@@ -534,10 +534,14 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
         line := getLine(*state_code, name);
         line = Basic.eat_spaces(line);
 
-        if String.starts_with(line, "//") || String.starts_with(line, "/*") {
-            errorMessage("Compilation failed: Comments are not allowed yet in pipeline state description.");
+        if !line || String.starts_with(line, "//") {
+            continue;
+        }
+
+        if String.starts_with(line, "/*") {
+            errorMessage("Compilation failed: Multi line comments are not allowed yet in pipeline state description.");
             return false;
-        } else  if String.starts_with(line, "ColorTarget") {
+        } else if String.starts_with(line, "ColorTarget") {
             advance(*line, "ColorTarget".count);
 
             color_target_index, line := getColorTargetIndex(line);
