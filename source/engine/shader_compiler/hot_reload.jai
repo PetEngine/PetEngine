@@ -133,10 +133,12 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
                                                 pushToArena,
                                                 *context.pet.per_frame_arena);
 
-                        // Remove file extension
-                        filename.count = String.find_index_from_right(filename, #char ".");
+                        if String.path_extension(filename) == "shader" {
+                            // Remove file extension
+                            filename.count = String.find_index_from_right(filename, #char ".");
 
-                        reloadShader(hot_reload.device, hot_reload.shader_manager, hot_reload.binding_manager, filename);
+                            reloadShader(hot_reload.device, hot_reload.shader_manager, hot_reload.binding_manager, filename);
+                        }
 
                         info = ifx  info.NextEntryOffset
                                then cast(*void) info + info.NextEntryOffset
