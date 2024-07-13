@@ -1,6 +1,7 @@
 // @TODO: #AssetManager.
 //     - Possible owners for resource
 //     - Transfer command buffer
+//     - Pipeline barriers before and after copies
 
 AssetManager :: struct {
     UploadRingBuffer :: struct {
@@ -15,8 +16,8 @@ AssetManager :: struct {
         all_vertices_bytes : u64;
         all_indices_bytes  : u64;
 
-        vertices_offset : u32;
-        indices_offset  : u32;
+        upload_buffer_vertices_offset : u32;
+        upload_buffer_indices_offset  : u32;
 
         name : string;
     }
@@ -75,9 +76,9 @@ processRequestedAssets :: (device : *Device, manager : *AssetManager, resource_m
             stream := file_data;
             advance(*stream, size_of(MeshFile.Header));
 
-            assert(manager.upload_buffer.read_index == it.vertices_offset);
+            assert(manager.upload_buffer.read_index == it.upload_buffer_vertices_offset);
 
-            offset_start    := it.vertices_offset;
+            offset_start    := it.upload_buffer_vertices_offset;
             remaining_bytes := it.all_vertices_bytes;
             while remaining_bytes {
                 chunk_bytes := cast(u32) min(remaining_bytes, manager.upload_buffer.buffer.size);
@@ -98,9 +99,9 @@ processRequestedAssets :: (device : *Device, manager : *AssetManager, resource_m
             stream := file_data;
             advance(*stream, size_of(MeshFile.Header) + cast(s64) it.all_vertices_bytes);
 
-            assert(manager.upload_buffer.read_index == it.indices_offset);
+            assert(manager.upload_buffer.read_index == it.upload_buffer_indices_offset);
 
-            offset_start    := it.indices_offset;
+            offset_start    := it.upload_buffer_indices_offset;
             remaining_bytes := it.all_indices_bytes;
             while remaining_bytes {
                 chunk_bytes := cast(u32) min(remaining_bytes, manager.upload_buffer.buffer.size);
@@ -145,8 +146,10 @@ requestMesh :: (device : *Device, manager : *AssetManager, resource_manager : *R
 
     submesh_infos_it := mesh.submesh_infos.data;
     for toView(header.submesh_infos.data, mesh.submeshes_count) {
-        submesh_infos_it.vertices_offset = cast(u64) mesh.all_vertices_bytes;
         submesh_infos_it.indices_offset  = cast(u64) mesh.all_indices_bytes;
+        submesh_infos_it.vertices_offset = cast(u64) mesh.all_vertices_bytes;
+        submesh_infos_it.indices_count   = it.indices_count;
+        submesh_infos_it.vertices_count  = it.vertices_count;
 
         mesh.all_vertices_bytes += it.vertices_count * vertex_stride;
         mesh.all_indices_bytes  += it.indices_count  * size_of(u32);
@@ -172,8 +175,8 @@ requestMesh :: (device : *Device, manager : *AssetManager, resource_manager : *R
 
         upload_buffer_size_mask := manager.upload_buffer.buffer.size - 1;
 
-        mesh.vertices_offset = cast(u32) (old_index & upload_buffer_size_mask);
-        mesh.indices_offset  = cast(u32) ((old_index + mesh.all_vertices_bytes) & upload_buffer_size_mask);
+        mesh.upload_buffer_vertices_offset = cast(u32) (old_index & upload_buffer_size_mask);
+        mesh.upload_buffer_indices_offset  = cast(u32) ((old_index + mesh.all_vertices_bytes) & upload_buffer_size_mask);
     }
 
     //
