@@ -110,7 +110,8 @@ commitPerFrameUniform :: inline (device : *Device, uniform : *PerFrameUniform) {
 }
 
 PushConstants :: struct {
-    per_view_uniform_index : u32;
+    index_buffer_reference  : u64;
+    vertex_buffer_reference : u64;
 } #no_padding
 
 petMain :: () {
@@ -196,6 +197,7 @@ petMain :: () {
     // @TODO: #Scene.
     defer {
         resetResourceMemory(device, resource_manager, .PER_SCENE);
+        resetAssetManagerAssets(device, asset_manager);
         resetBindings(device, binding_manager, .PER_SCENE);
     }
 
@@ -241,7 +243,7 @@ petMain :: () {
             if window.input.keyboard[Input.Key.O] & .PRESSED {
                 // Reset
                 resetResourceMemory(device, resource_manager, .PER_SCENE);
-                resetAssetManagerAssets(asset_manager);
+                resetAssetManagerAssets(device, asset_manager);
                 resetBindings(device, binding_manager, .PER_SCENE);
 
                 // Create per scene resources here...
@@ -287,17 +289,18 @@ petMain :: () {
                     store_action = .STORE,
                 },
             ]);
-            {
+            if isMeshReady(device, mesh) {
                 setViewport(device, *command_buffer, *(Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }), back_buffer.height);
                 setScissorRect(device, *command_buffer, *(ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height }));
 
                 setShader(device, *command_buffer, shader_manager, binding_manager, test_shader);
 
                 setPushConstants(device, *command_buffer, push_constants_handle, *(PushConstants.{
-                    per_view_uniform_index = per_view_uniform.handles[device.frame_index][per_view_uniform.version].descriptor,
+                    index_buffer_reference  = mesh.index_buffer.device_address,
+                    vertex_buffer_reference = mesh.vertex_buffer.device_address,
                 }));
 
-                drawPrimitives(device, *command_buffer, 4);
+                // drawPrimitives(device, *command_buffer, mesh.submesh_infos[0].indices_count);
             }
             endRendering(device, *command_buffer);
         }

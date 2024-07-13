@@ -2,6 +2,7 @@
 //     - Possible owners for resource
 //     - Transfer command buffer
 //     - Pipeline barriers before and after copies
+//     - @Cleanup vulkan stuff
 
 AssetManager :: struct {
     UploadRingBuffer :: struct {
@@ -10,22 +11,25 @@ AssetManager :: struct {
         write_index : u64;
     }
 
-    MeshAsset :: struct {
-        #as using mesh : Mesh;
-
-        all_vertices_bytes : u64;
-        all_indices_bytes  : u64;
-
-        upload_buffer_vertices_offset : u32;
-        upload_buffer_indices_offset  : u32;
-
-        name : string;
-    }
-
     command_buffer : CommandBuffer(.GRAPHICS);
     upload_buffer  : UploadRingBuffer;
 
     mesh_assets : StaticArray(MeshAsset, 1024);
+}
+
+MeshAsset :: struct {
+    #as using mesh : Mesh;
+
+    all_vertices_bytes : u64;
+    all_indices_bytes  : u64;
+
+    upload_buffer_vertices_offset : u32;
+    upload_buffer_indices_offset  : u32;
+
+    ready_event : *void;
+    is_ready    : bool;
+
+    name : string;
 }
 
 createAssetManager :: (device : *Device, resource_manager : *ResourceManager) -> *AssetManager {
@@ -54,8 +58,20 @@ resetAssetManager :: (device : *Device, manager : *AssetManager) {
     resetCommandBuffer(device, *manager.command_buffer, null);
 }
 
-resetAssetManagerAssets :: (manager : *AssetManager) {
+resetAssetManagerAssets :: (device : *Device, manager : *AssetManager) {
     assertThreadKind(.MAIN);
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            vulkan_device := cast(*VulkanDevice) device;
+
+            for manager.mesh_assets {
+                if it.ready_event {
+                    vkDestroyEvent(vulkan_device.device, cast(VkEvent) it.ready_event, null);
+                }
+            }
+    }
+
     reset(*manager.mesh_assets);
 }
 
@@ -116,6 +132,12 @@ processRequestedAssets :: (device : *Device, manager : *AssetManager, resource_m
                 offset_start     = (offset_start + chunk_bytes) & upload_buffer_size_mask;
                 remaining_bytes -= chunk_bytes;
             }
+        }
+
+        if #complete device.graphics_api == {
+            case .VULKAN;
+                vk_command_buffer := manager.command_buffer.handles[device.frame_index];
+                vkCmdSetEvent(vk_command_buffer, cast(VkEvent) it.ready_event, .VK_PIPELINE_STAGE_TRANSFER_BIT);
         }
     }
 }
@@ -202,5 +224,36 @@ requestMesh :: (device : *Device, manager : *AssetManager, resource_manager : *R
                                          String.join(mesh.name, " indices",, allocator = Basic.temp));
     }
 
+    //
+    // Create event
+    //
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            vulkan_device := cast(*VulkanDevice) device;
+
+            create_info : VkEventCreateInfo;
+            debugCheckVK(vkCreateEvent(vulkan_device.device, *create_info, null, cast(*VkEvent) *mesh.ready_event));
+    }
+
     return mesh;
+}
+
+isMeshReady :: (device : *Device, mesh : *Mesh) -> bool {
+    mesh_asset := cast(*MeshAsset) mesh;
+
+    if !mesh_asset         return false;
+    if mesh_asset.is_ready return true;
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            vulkan_device := cast(*VulkanDevice) device;
+
+            result := vkGetEventStatus(vulkan_device.device, cast(VkEvent) mesh_asset.ready_event);
+            assert(result == .VK_EVENT_SET || result == .VK_EVENT_RESET, "vkGetEventStatus returned %", result);
+
+            mesh_asset.is_ready = result == .VK_EVENT_SET;
+    }
+
+    return mesh_asset.is_ready;
 }

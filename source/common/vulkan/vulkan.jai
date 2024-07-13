@@ -143,6 +143,7 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO                       :: 5;
     VK_STRUCTURE_TYPE_FENCE_CREATE_INFO                          :: 8;
     VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO                      :: 9;
+    VK_STRUCTURE_TYPE_EVENT_CREATE_INFO                          :: 10;
     VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO                         :: 12;
     VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO                    :: 13;
     VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO                          :: 14;
@@ -400,6 +401,7 @@ VkFramebuffer :: *VkFramebuffer_T; VkFramebuffer_T :: struct {}
 
 #scope_module
 
+#load "event.jai";
 #load "instance.jai";
 #load "physcial_device.jai";
 #load "device.jai";
