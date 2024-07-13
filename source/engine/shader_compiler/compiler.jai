@@ -852,9 +852,7 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvRe
 
             push_constant_binding.stage_flags = stage_flag;
             push_constant_binding.offset      = push_constant_block.offset;
-            for toView(push_constant_block.members, push_constant_block.member_count) {
-                push_constant_binding.bytes += it.size;
-            }
+            push_constant_binding.bytes       = push_constant_block.padded_size;
 
             assert(push_constant_block.name,
                    "A name for push constants instance #%, stage: % is null for some reason. It can be 0 length, but have to be non-null",
