@@ -209,8 +209,8 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         pStencilAttachment   = null,
     };
 
-    depth_attachment   : VkRenderingAttachmentInfo = ---;
-    stencil_attachment : VkRenderingAttachmentInfo = ---;
+    depth_attachment   : VkRenderingAttachmentInfo;
+    stencil_attachment : VkRenderingAttachmentInfo;
 
     if depth_target {
         view    := cast(*VulkanTextureView) depth_target.view;
@@ -308,16 +308,16 @@ endVulkanRendering :: inline (command_buffer : VkCommandBuffer) #no_context {
 }
 
 drawVulkanPrimitives :: inline (
-    command_buffer : VkCommandBuffer,
-    shader         : *VulkanShader,
-    vertex_count   : u32,
-    instance_count : u32,
-    first_vertex   : u32,
-    first_instance : u32
+    command_buffer  : VkCommandBuffer,
+    shader          : *VulkanShader,
+    vertices_count  : u32,
+    instances_count : u32,
+    first_vertex    : u32,
+    first_instance  : u32
 ) #no_context {
     if !shader.pipeline return;
 
-    vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
+    vkCmdDraw(command_buffer, vertices_count, instances_count, first_vertex, first_instance);
 }
 
 setVulkanPushConstants :: (command_buffer : VkCommandBuffer, shader : *VulkanShader, handle : PushConstantsHandle, data : *$T) {

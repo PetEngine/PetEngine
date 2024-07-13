@@ -257,12 +257,12 @@ endRendering :: (device : *Device, command_buffer : *CommandBuffer) {
 }
 
 drawPrimitives :: (
-    device         : *Device,
-    command_buffer : *CommandBuffer,
-    vertex_count   : u32,
-    instance_count : u32 = 1,
-    first_vertex   : u32 = 0,
-    first_instance : u32 = 0
+    device          : *Device,
+    command_buffer  : *CommandBuffer,
+    vertices_count  : u32,
+    instances_count : u32 = 1,
+    first_vertex    : u32 = 0,
+    first_instance  : u32 = 0
 ) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can draw";
 
@@ -275,8 +275,8 @@ drawPrimitives :: (
         case .VULKAN;
             drawVulkanPrimitives(command_buffer.handles[device.frame_index],
                                  cast(*VulkanShader) shader,
-                                 ifx vertex_count   then vertex_count   else 1,
-                                 ifx instance_count then instance_count else 1,
+                                 ifx vertices_count  then vertices_count  else 1,
+                                 ifx instances_count then instances_count else 1,
                                  first_vertex,
                                  first_instance);
     }
