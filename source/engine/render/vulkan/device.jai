@@ -1228,8 +1228,6 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         // Descriptor buffer support
         assert(available_descriptor_buffer_features.descriptorBuffer == VK_TRUE);
         assert(available_features_1_2.bufferDeviceAddress            == VK_TRUE);
-        // Maintenance 6 support (required for not binding index buffer when calling vkCmdDrawIndexed)
-        assert(available_maintenance6_feature.maintenance6 == VK_TRUE);
     }
 
     descriptor_buffer_features_to_enable := VkPhysicalDeviceDescriptorBufferFeaturesEXT.{
