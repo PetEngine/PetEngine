@@ -193,12 +193,18 @@ petMain :: () {
 
     defer resetBindings(device, binding_manager, .PERSISTENT);
 
+    // @TODO: #Scene.
+    defer {
+        resetResourceMemory(device, resource_manager, .PER_SCENE);
+        resetBindings(device, binding_manager, .PER_SCENE);
+    }
+
     test_shader           := createShader(device, shader_manager, binding_manager, "test", .[ getBackBuffer(device).format ]);
     push_constants_handle := getPushConstantsHandle(test_shader, "g_push_constants");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 
-    mesh : Mesh;
+    mesh : *Mesh;
 
     showWindow(window);
     while processWindowEvents(window) {
@@ -206,14 +212,6 @@ petMain :: () {
         Basic.reset_temporary_storage();
 
         if window.flags & .MINIMIZED continue;
-
-        //
-        // Update
-        //
-
-        //
-        // Render
-        //
 
         beginFrame(device, window);
         {
@@ -239,17 +237,21 @@ petMain :: () {
                 commitResourceMemory(device, resource_manager, .PER_FRAME);
             }
 
-            // Open new scene
+            // @TODO: #Scene. New scene
             if window.input.keyboard[Input.Key.O] & .PRESSED {
                 // Reset
                 resetResourceMemory(device, resource_manager, .PER_SCENE);
+                resetAssetManagerAssets(asset_manager);
                 resetBindings(device, binding_manager, .PER_SCENE);
 
                 // Create per scene resources here...
-                mesh = loadMesh(device, asset_manager, resource_manager, "HumanHeart_OBJ");
+                mesh = requestMesh(device, asset_manager, resource_manager, "HumanHeart_OBJ");
 
                 // Commit
                 commitResourceMemory(device, resource_manager, .PER_SCENE);
+
+                // @Important: Should be after per scene memory commit
+                processRequestedAssets(device, asset_manager, resource_manager);
             }
 
             // Update per frame uniform
