@@ -213,19 +213,18 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
     struct_info = type_info(type_of(loader.extensions.instance.optional));
     assert(struct_info.type == .STRUCT);
 
-    for members_it : struct_info.members {
-        member_extension_name := members_it.notes[0];
-
+    for struct_info.members {
+        member_extension_name := it.notes[0];
         if !Basic.array_find(enabled_instance_extensions.*, member_extension_name) {
             continue;
         }
 
-        function := vkGetInstanceProcAddr(instance, cast(*s8) members_it.name.data);
+        function := vkGetInstanceProcAddr(instance, cast(*s8) it.name.data);
         if function == null {
-            assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled", members_it.name, member_extension_name);
+            assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled", it.name, member_extension_name);
         }
 
-        member_address   := cast(**void) (base_address + members_it.offset_in_bytes);
+        member_address   := cast(**void) (base_address + it.offset_in_bytes);
         member_address.*  = cast(*void) function;
     }
 }
@@ -251,19 +250,18 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
     struct_info = type_info(type_of(loader.extensions.device.optional));
     assert(struct_info.type == .STRUCT);
 
-    for members_it : struct_info.members {
-        member_extension_name := members_it.notes[0];
-
+    for struct_info.members {
+        member_extension_name := it.notes[0];
         if !Basic.array_find(enabled_device_extensions.*, member_extension_name) {
             continue;
         }
 
-        function := vkGetDeviceProcAddr(device, cast(*s8) members_it.name.data);
+        function := vkGetDeviceProcAddr(device, cast(*s8) it.name.data);
         if function == null {
-            assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled", members_it.name, member_extension_name);
+            assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled", it.name, member_extension_name);
         }
 
-        member_address   := cast(**void) (base_address + members_it.offset_in_bytes);
+        member_address   := cast(**void) (base_address + it.offset_in_bytes);
         member_address.*  = cast(*void) function;
     }
 }
