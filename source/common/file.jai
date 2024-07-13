@@ -126,6 +126,10 @@ readFile :: inline (file : File, buffer : [] $T) {
     readFile(file, buffer.data, buffer.count * size_of(T));
 }
 
+readFile :: inline (file : File, data : *$T) {
+    readFile(file, data, size_of(T));
+}
+
 readEntireFile :: (
     filename  : string,
     allocate  : (user_data : *$T, bytes : s64, alignment : s64) -> *void,

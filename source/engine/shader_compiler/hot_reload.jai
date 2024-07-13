@@ -189,7 +189,7 @@ recompileOutOfDateShaders :: inline (hot_reload : *ShadersHotReload) {
             defer closeFile(*binary_file);
 
             header : ShaderCompiler.Header = ---;
-            readFile(binary_file, *header, size_of(ShaderCompiler.Header));
+            readFile(binary_file, *header);
             if header.version == ShaderCompiler.VERSION {
                 return .CONTINUE;
             }

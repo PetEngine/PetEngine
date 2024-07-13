@@ -60,7 +60,7 @@ convertMeshesCallback :: (user_data : *void, exchange_file_info : *FileInfo) -> 
         defer closeFile(*runtime_file);
 
         header : MeshFile.Header = ---;
-        readFile(runtime_file, *header, size_of(MeshFile.Header));
+        readFile(runtime_file, *header);
         if header.version == MeshFile.VERSION {
             return .CONTINUE;
         }
