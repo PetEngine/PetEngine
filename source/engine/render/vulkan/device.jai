@@ -1220,11 +1220,16 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         assert(available_features.features.vertexPipelineStoresAndAtomics == VK_TRUE);
         assert(available_features.features.fragmentStoresAndAtomics       == VK_TRUE);
         assert(available_features.features.shaderStorageImageMultisample  == VK_TRUE);
+        // GL_EXT_shader_explicit_arithmetic_types support
+        assert(available_features.features.shaderInt64 == VK_TRUE);
+        assert(available_features.features.shaderInt16 == VK_TRUE);
         // Dynamic rendering support
         assert(available_dynamic_rendering_features.dynamicRendering == VK_TRUE);
         // Descriptor buffer support
         assert(available_descriptor_buffer_features.descriptorBuffer == VK_TRUE);
         assert(available_features_1_2.bufferDeviceAddress            == VK_TRUE);
+        // Maintenance 6 support (required for not binding index buffer when calling vkCmdDrawIndexed)
+        assert(available_maintenance6_feature.maintenance6 == VK_TRUE);
     }
 
     descriptor_buffer_features_to_enable := VkPhysicalDeviceDescriptorBufferFeaturesEXT.{
@@ -1245,6 +1250,8 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         features.vertexPipelineStoresAndAtomics = VK_TRUE,
         features.fragmentStoresAndAtomics       = VK_TRUE,
         features.shaderStorageImageMultisample  = VK_TRUE,
+        features.shaderInt64                    = VK_TRUE,
+        features.shaderInt16                    = VK_TRUE,
     };
 
     device_create_info := VkDeviceCreateInfo.{
