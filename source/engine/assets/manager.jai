@@ -20,11 +20,7 @@ AssetManager :: struct {
 MeshAsset :: struct {
     #as using mesh : Mesh;
 
-    all_vertices_bytes : u64;
-    all_indices_bytes  : u64;
-
-    upload_buffer_vertices_offset : u32;
-    upload_buffer_indices_offset  : u32;
+    upload_buffer_offset : u32;
 
     ready_event : *void;
     is_ready    : bool;
@@ -77,67 +73,83 @@ resetAssetManagerAssets :: (device : *Device, manager : *AssetManager) {
 
 processRequestedAssets :: (device : *Device, manager : *AssetManager, resource_manager : *ResourceManager) {
     assertThreadKind(.MAIN);
+    assert(resourceMemoryCommitted(resource_manager, .PERSISTENT));
     assert(resourceMemoryCommitted(resource_manager, .PER_SCENE));
 
-    for manager.mesh_assets {
+    for mesh_asset : manager.mesh_assets {
         autoResetPerFrameArenas();
 
-        file_data, error := readEntireFile(makeRuntimeMeshFilename(it.name), pushToArena, *context.pet.per_frame_arena);
+        file_data, error := readEntireFile(makeRuntimeMeshFilename(mesh_asset.name), pushToArena, *context.pet.per_frame_arena);
         assert(error == .NONE);
 
+        header := MeshFile.getHeader(file_data);
+        assert(header.version == MeshFile.VERSION);
+
+        stream := file_data;
+        advance(*stream, size_of(MeshFile.Header));
+
+        vertex_stride           := cast(u32) getVertexStride(mesh_asset.vertex_format);
         upload_buffer_size_mask := manager.upload_buffer.buffer.size - 1;
 
-        assert(it.vertex_buffer);
-        {
-            stream := file_data;
-            advance(*stream, size_of(MeshFile.Header));
+        upload_offset := mesh_asset.upload_buffer_offset;
+        vertex_offset : u32;
+        index_offset  : u32;
 
-            assert(manager.upload_buffer.read_index == it.upload_buffer_vertices_offset);
+        // +1 because only one submesh may cycle (have 2 copy regions), otherwise we overflow upload buffer
+        vertex_buffer_regions : StaticArray(CopyRegion, Mesh.MAX_SUBMESHES + 1);
+        index_buffer_regions  : StaticArray(CopyRegion, Mesh.MAX_SUBMESHES + 1);
 
-            offset_start    := it.upload_buffer_vertices_offset;
-            remaining_bytes := it.all_vertices_bytes;
-            while remaining_bytes {
-                chunk_bytes := cast(u32) min(remaining_bytes, manager.upload_buffer.buffer.size);
+        for toView(mesh_asset.submesh_infos.data, mesh_asset.submeshes_count) {
+            assert(cast(u64) (stream.data - file_data.data) == header.submesh_infos[it_index].offset);
 
-                memcpy(manager.upload_buffer.buffer.mapped_memory + offset_start, stream.data, chunk_bytes);
-                copyBuffer(device, *manager.command_buffer, it.vertex_buffer, manager.upload_buffer.buffer, 0, offset_start, chunk_bytes);
+            remaining_vertices_bytes := it.vertices_count * vertex_stride;
+            while remaining_vertices_bytes {
+                chunk_bytes := min(remaining_vertices_bytes, manager.upload_buffer.buffer.size - upload_offset);
 
-                // We cannot read or write to read_index during processRequestedAssets, so there is no sense for atomic increment
-                manager.upload_buffer.read_index += chunk_bytes;
+                memcpy(manager.upload_buffer.buffer.mapped_memory + upload_offset, stream.data, chunk_bytes);
 
-                advance(*stream, chunk_bytes);
-                offset_start     = (offset_start + chunk_bytes) & upload_buffer_size_mask;
-                remaining_bytes -= chunk_bytes;
-            }
-        }
-
-        if it.all_indices_bytes {
-            stream := file_data;
-            advance(*stream, size_of(MeshFile.Header) + cast(s64) it.all_vertices_bytes);
-
-            assert(manager.upload_buffer.read_index == it.upload_buffer_indices_offset);
-
-            offset_start    := it.upload_buffer_indices_offset;
-            remaining_bytes := it.all_indices_bytes;
-            while remaining_bytes {
-                chunk_bytes := cast(u32) min(remaining_bytes, manager.upload_buffer.buffer.size);
-
-                memcpy(manager.upload_buffer.buffer.mapped_memory + offset_start, stream.data, chunk_bytes);
-                copyBuffer(device, *manager.command_buffer, it.index_buffer, manager.upload_buffer.buffer, 0, offset_start, chunk_bytes);
+                region := pushBack(*vertex_buffer_regions);
+                region.dest_offset   = vertex_offset;
+                region.source_offset = upload_offset;
+                region.bytes         = chunk_bytes;
 
                 // We cannot read or write to read_index during processRequestedAssets, so there is no sense for atomic increment
                 manager.upload_buffer.read_index += chunk_bytes;
 
                 advance(*stream, chunk_bytes);
-                offset_start     = (offset_start + chunk_bytes) & upload_buffer_size_mask;
-                remaining_bytes -= chunk_bytes;
+                upload_offset             = (upload_offset + chunk_bytes) & upload_buffer_size_mask;
+                vertex_offset            += chunk_bytes;
+                remaining_vertices_bytes -= chunk_bytes;
+            }
+
+            remaining_indices_bytes := it.indices_count * size_of(u32);
+            while remaining_indices_bytes {
+                chunk_bytes := min(remaining_indices_bytes, manager.upload_buffer.buffer.size - upload_offset);
+
+                memcpy(manager.upload_buffer.buffer.mapped_memory + upload_offset, stream.data, chunk_bytes);
+
+                region := pushBack(*index_buffer_regions);
+                region.dest_offset   = index_offset;
+                region.source_offset = upload_offset;
+                region.bytes         = chunk_bytes;
+
+                // We cannot read or write to read_index during processRequestedAssets, so there is no sense for atomic increment
+                manager.upload_buffer.read_index += chunk_bytes;
+
+                advance(*stream, chunk_bytes);
+                upload_offset            = (upload_offset + chunk_bytes) & upload_buffer_size_mask;
+                index_offset            += chunk_bytes;
+                remaining_indices_bytes -= chunk_bytes;
             }
         }
+
+        copyBufferRegions(device, *manager.command_buffer, mesh_asset.vertex_buffer, manager.upload_buffer.buffer, toView(vertex_buffer_regions));
+        copyBufferRegions(device, *manager.command_buffer, mesh_asset.index_buffer,  manager.upload_buffer.buffer, toView(index_buffer_regions));
 
         if #complete device.graphics_api == {
             case .VULKAN;
                 vk_command_buffer := manager.command_buffer.handles[device.frame_index];
-                vkCmdSetEvent(vk_command_buffer, cast(VkEvent) it.ready_event, .VK_PIPELINE_STAGE_TRANSFER_BIT);
+                vkCmdSetEvent(vk_command_buffer, cast(VkEvent) mesh_asset.ready_event, .VK_PIPELINE_STAGE_TRANSFER_BIT);
         }
     }
 }
@@ -164,27 +176,33 @@ requestMesh :: (device : *Device, manager : *AssetManager, resource_manager : *R
     // Calculate vertices and indices total size, fill submesh infos
     //
 
-    vertex_stride := cast(u64) getVertexStride(mesh.vertex_format);
+    vertex_stride := cast(u32) getVertexStride(mesh.vertex_format);
+
+    all_vertices_bytes : u32;
+    all_indices_bytes  : u32;
 
     submesh_infos_it := mesh.submesh_infos.data;
-    for toView(header.submesh_infos.data, mesh.submeshes_count) {
-        submesh_infos_it.indices_offset  = cast(u64) mesh.all_indices_bytes;
-        submesh_infos_it.vertices_offset = cast(u64) mesh.all_vertices_bytes;
-        submesh_infos_it.indices_count   = it.indices_count;
-        submesh_infos_it.vertices_count  = it.vertices_count;
+    for toView(header.submesh_infos.data, header.submeshes_count) {
+        submesh_infos_it.vertices_skip  = all_vertices_bytes;
+        submesh_infos_it.vertices_count = it.vertices_count;
+        submesh_infos_it.indices_skip   = all_indices_bytes;
+        submesh_infos_it.indices_count  = it.indices_count;
 
-        mesh.all_vertices_bytes += it.vertices_count * vertex_stride;
-        mesh.all_indices_bytes  += it.indices_count  * size_of(u32);
+        all_vertices_bytes += it.vertices_count;
+        all_indices_bytes  += it.indices_count;
 
         submesh_infos_it += 1;
     }
+
+    all_vertices_bytes *= vertex_stride;
+    all_indices_bytes  *= size_of(u32);
 
     //
     // Calculate offsets in upload buffer
     //
 
     {
-        all_bytes := mesh.all_vertices_bytes + mesh.all_indices_bytes;
+        all_bytes : u64 = all_vertices_bytes + all_indices_bytes;
 
         old_index := manager.upload_buffer.write_index;
         new_index := old_index + all_bytes;
@@ -195,29 +213,26 @@ requestMesh :: (device : *Device, manager : *AssetManager, resource_manager : *R
 
         assert(new_index - manager.upload_buffer.read_index <= manager.upload_buffer.buffer.size, "Upload ring buffer overflow");
 
-        upload_buffer_size_mask := manager.upload_buffer.buffer.size - 1;
-
-        mesh.upload_buffer_vertices_offset = cast(u32) (old_index & upload_buffer_size_mask);
-        mesh.upload_buffer_indices_offset  = cast(u32) ((old_index + mesh.all_vertices_bytes) & upload_buffer_size_mask);
+        mesh.upload_buffer_offset = cast(u32) (old_index & (manager.upload_buffer.buffer.size - 1));
     }
 
     //
     // Create buffers
     //
 
-    assert(mesh.all_vertices_bytes);
+    assert(all_vertices_bytes);
     mesh.vertex_buffer = createBuffer(device,
                                       resource_manager,
-                                      cast(u32) mesh.all_vertices_bytes,
+                                      all_vertices_bytes,
                                       .PER_SCENE,
                                       .DEFAULT,
                                       .READ_ONLY,
                                       String.join(mesh.name, " vertices",, allocator = Basic.temp));
 
-    if mesh.all_indices_bytes {
+    if all_indices_bytes {
         mesh.index_buffer = createBuffer(device,
                                          resource_manager,
-                                         cast(u32) mesh.all_indices_bytes,
+                                         all_indices_bytes,
                                          .PER_SCENE,
                                          .DEFAULT,
                                          .READ_ONLY,

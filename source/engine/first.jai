@@ -300,7 +300,10 @@ petMain :: () {
                     vertex_buffer_reference = mesh.vertex_buffer.device_address,
                 }));
 
-                // drawPrimitives(device, *command_buffer, mesh.submesh_infos[0].indices_count);
+                for toView(mesh.submesh_infos.data, mesh.submeshes_count) {
+                    drawPrimitives(device, *command_buffer, it.indices_count, 1, it.indices_skip);
+                }
+
             }
             endRendering(device, *command_buffer);
         }

@@ -2,10 +2,10 @@ Mesh :: struct {
     MAX_SUBMESHES :: 16;
 
     SubmeshInfo :: struct {
-        indices_offset  : u64;
-        vertices_offset : u64;
-        indices_count   : u32;
-        vertices_count  : u32;
+        vertices_skip  : u32;
+        vertices_count : u32;
+        indices_skip   : u32;
+        indices_count  : u32;
     }
 
     vertex_format   : VertexFormat;

@@ -52,23 +52,21 @@ serializeMesh :: (
 
     submesh_offset := size_of(MeshFile.Header);
 
-    vertices_it      := vertices.data;
-    indices_it       := indices.data;
-    submesh_infos_it := header.submesh_infos.data;
-
-    for 0 .. header.submeshes_count - 1 {
+    submeshes   := toView(header.submesh_infos.data, header.submeshes_count);
+    vertices_it := vertices.data;
+    indices_it  := indices.data;
+    for * submeshes {
         assert(vertices_it.count > 0);
 
-        submesh_infos_it.offset         = cast(u64) submesh_offset;
-        submesh_infos_it.vertices_count = cast(u32) vertices_it.count;
-        submesh_infos_it.indices_count  = cast(u32) max(0, indices_it.count);
+        it.offset         = cast(u64) submesh_offset;
+        it.vertices_count = cast(u32) vertices_it.count;
+        it.indices_count  = cast(u32) max(0, indices_it.count);
 
-        submesh_offset += submesh_infos_it.vertices_count * size_of(Vertex)
-                       +  submesh_infos_it.indices_count  * size_of(u32);
+        submesh_offset += it.vertices_count * size_of(Vertex)
+                       +  it.indices_count  * size_of(u32);
 
-        vertices_it      += 1;
-        indices_it       += 1;
-        submesh_infos_it += 1;
+        vertices_it += 1;
+        indices_it  += 1;
     }
 
     filename := makeRuntimeMeshFilename(name);
@@ -80,12 +78,12 @@ serializeMesh :: (
     }
     defer closeFile(*file);
 
+    writeFile(file, *header, size_of(MeshFile.Header));
+
     vertices_it = vertices.data;
     indices_it  = indices.data;
-
-    writeFile(file, *header, size_of(MeshFile.Header));
-    for 0 .. header.submeshes_count - 1 {
-        assert(getFileCursorPosition(file) == cast(s64) header.submesh_infos[it].offset);
+    for submeshes {
+        assert(getFileCursorPosition(file) == cast(s64) it.offset);
 
         writeFile(file, vertices_it.*);
         if indices_it.* {
