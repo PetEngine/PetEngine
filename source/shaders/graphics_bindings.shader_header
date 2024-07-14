@@ -250,19 +250,16 @@ layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DMS
 // Buffers
 //
 
-#define sizeof(RefType)                      uint64_t(RefType(uint64_t(0)) + 1)
-#define subscript(RefType, reference, index) RefType(uint64_t(reference) + index * sizeof(RefType))
-
 layout(buffer_reference) readonly buffer DefaultVertexRef {
-    vec4 position_u;
-    vec4 normal_v;
+    f32vec4 position_u;
+    f32vec4 normal_v;
 };
 
-layout(buffer_reference) readonly buffer Indices32Ref {
+layout(buffer_reference, buffer_reference_align = 4) readonly buffer Indices32Ref {
     uint32_t index;
 };
 
-layout(buffer_reference) readonly buffer Indices16Ref {
+layout(buffer_reference, buffer_reference_align = 2) readonly buffer Indices16Ref {
     uint16_t index;
 };
 
