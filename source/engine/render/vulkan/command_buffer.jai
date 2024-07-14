@@ -368,6 +368,35 @@ copyVulkanBuffer :: inline (
     vkCmdCopyBuffer2(command_buffer, *info);
 }
 
+copyVulkanBufferRegions :: (
+    command_buffer : VkCommandBuffer,
+    dest_buffer    : *VulkanBuffer,
+    source_buffer  : *VulkanBuffer,
+    regions        : [] CopyRegion
+) {
+    vk_regions : [] VkBufferCopy2 = ---;
+    vk_regions.count = regions.count;
+    vk_regions.data  = pushToArena(*context.pet.per_frame_arena, VkBufferCopy2, regions.count);
+
+    regions_it := regions.data;
+    for * vk_regions {
+        it.srcOffset = cast(VkDeviceSize) regions_it.source_offset;
+        it.dstOffset = cast(VkDeviceSize) regions_it.dest_offset;
+        it.size      = cast(VkDeviceSize) regions_it.bytes;
+
+        regions_it += 1;
+    }
+
+    info := VkCopyBufferInfo2.{
+        srcBuffer   = source_buffer.buffer,
+        dstBuffer   = dest_buffer.buffer,
+        regionCount = cast(u32) vk_regions.count,
+        pRegions    = vk_regions.data
+    };
+
+    vkCmdCopyBuffer2(command_buffer, *info);
+}
+
 #scope_file
 
 loadActionToVulkanLoadOp :: inline (action : TargetLoadAction) -> VkAttachmentLoadOp #no_context {

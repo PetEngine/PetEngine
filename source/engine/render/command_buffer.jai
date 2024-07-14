@@ -61,6 +61,20 @@ DepthTargetDesc :: struct {
     stencil_store_action : TargetStoreAction;
 }
 
+ShaderBindPoint :: enum u8 {
+    GRAPHICS_OR_MESH;
+    COMPUTE;
+    RAY_TRACING;
+}
+
+CopyRegion :: struct {
+    REMAINING_BYTES :: 0xFFFF_FFFF;
+
+    dest_offset   : u32;
+    source_offset : u32;
+    bytes         : u32 = REMAINING_BYTES;
+}
+
 // @TODO: Per-frame command buffers
 createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(usage) #must {
     command_buffer : CommandBuffer(usage);
@@ -319,12 +333,11 @@ copyBuffer :: (
     assert(source_offset < source_buffer.size);
 
     if bytes == 0xFFFF_FFFF {
-        bytes = source_buffer.size;
-        assert(source_buffer.size == dest_buffer.size);
+        bytes = source_buffer.size - source_offset;
     } else {
-        assert(dest_offset   + bytes <= dest_buffer.size);
         assert(source_offset + bytes <= source_buffer.size);
     }
+    assert(dest_offset + bytes <= dest_buffer.size);
 
     if #complete device.graphics_api == {
         case .VULKAN;
@@ -337,10 +350,46 @@ copyBuffer :: (
     }
 }
 
-ShaderBindPoint :: enum u8 {
-    GRAPHICS_OR_MESH;
-    COMPUTE;
-    RAY_TRACING;
+copyBufferRegions :: (
+    device         : *Device,
+    command_buffer : *CommandBuffer,
+    dest_buffer    : *Buffer,
+    source_buffer  : *Buffer,
+    regions        : [] CopyRegion
+) {
+    if regions.count <= 0 return;
+
+    assert(source_buffer.current_owner == command_buffer.usage,
+           "You are trying to copy from buffer \"%\" in % command buffer, but buffer's current owner is %. Change buffers's owner first to do so.",
+           source_buffer.name,
+           command_buffer.usage,
+           source_buffer.current_owner);
+    assert(dest_buffer.current_owner == command_buffer.usage,
+           "You are trying to copy to buffer \"%\" in % command buffer, but buffer's current owner is %. Change buffers's owner first to do so.",
+           dest_buffer.name,
+           command_buffer.usage,
+           dest_buffer.current_owner);
+
+    for * regions {
+        assert(it.dest_offset   < dest_buffer.size);
+        assert(it.source_offset < source_buffer.size);
+
+        if it.bytes == CopyRegion.REMAINING_BYTES {
+            assert(regions.count == 1, "Using CopyRegion.REMAINING_BYTES in CopyRegion.bytes field is allowed only when you copy 1 region");
+            it.bytes = source_buffer.size - it.source_offset;
+        } else {
+            assert(it.source_offset + it.bytes <= source_buffer.size);
+        }
+        assert(it.dest_offset + it.bytes <= dest_buffer.size);
+    }
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            copyVulkanBufferRegions(command_buffer.handles[device.frame_index],
+                                    cast(*VulkanBuffer) dest_buffer,
+                                    cast(*VulkanBuffer) source_buffer,
+                                    regions);
+    }
 }
 
 #scope_file
