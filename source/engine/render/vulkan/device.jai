@@ -1209,7 +1209,8 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         available_descriptor_buffer_features :  VkPhysicalDeviceDescriptorBufferFeaturesEXT;
         available_dynamic_rendering_features := VkPhysicalDeviceDynamicRenderingFeatures.{ pNext = *available_descriptor_buffer_features };
         available_features_1_2               := VkPhysicalDeviceVulkan12Features.{ pNext = *available_dynamic_rendering_features };
-        available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_features_1_2 };
+        available_features_1_1               := VkPhysicalDeviceVulkan11Features.{ pNext = *available_features_1_2 };
+        available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_features_1_1 };
 
         vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
         // Image cube array support
@@ -1228,6 +1229,8 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         // Descriptor buffer support
         assert(available_descriptor_buffer_features.descriptorBuffer == VK_TRUE);
         assert(available_features_1_2.bufferDeviceAddress            == VK_TRUE);
+        // gl_BaseInstance etc support
+        assert(available_features_1_1.shaderDrawParameters == VK_TRUE);
     }
 
     descriptor_buffer_features_to_enable := VkPhysicalDeviceDescriptorBufferFeaturesEXT.{
@@ -1241,8 +1244,12 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         pNext               = *dynamic_rendering_features_to_enable,
         bufferDeviceAddress = VK_TRUE,
     };
+    features_1_1_to_enable := VkPhysicalDeviceVulkan11Features.{
+        pNext                = *features_1_2_to_enable,
+        shaderDrawParameters = VK_TRUE,
+    };
     features_to_enable := VkPhysicalDeviceFeatures2.{
-        pNext                                   = *features_1_2_to_enable,
+        pNext                                   = *features_1_1_to_enable,
         features.imageCubeArray                 = VK_TRUE,
         features.samplerAnisotropy              = VK_TRUE,
         features.vertexPipelineStoresAndAtomics = VK_TRUE,
