@@ -170,13 +170,23 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
     }
 
 GROUPS_COUNT_ERROR_STRING :: #string END
-%.obj: We do not support different number of vertex and face groups except when number of vertex groups is 1 or number of face groups is 0.
+"%.obj": We do not support different number of vertex and face groups except when number of vertex groups is 1 or number of face groups is 0.
     Number of vertex groups: %
     Number of face groups:   %
 END;
     if mesh.vertex_groups.count != mesh.face_groups.count && mesh.face_groups.count > 0 && mesh.vertex_groups.count > 1 {
         errorMessage(GROUPS_COUNT_ERROR_STRING, name, mesh.vertex_groups.count, mesh.face_groups.count);
         return false;
+    }
+
+    for mesh.face_groups {
+        if it.triplets.count % 3 {
+            errorMessage("\"%.obj\": Expected triplets count be multiple of 3. Face group '%' (#%), triplets count: %",
+                         it.name,
+                         it_index,
+                         it.triplets.count);
+            return false;
+        }
     }
 
     return true;
@@ -245,7 +255,7 @@ getTriplets :: (line : *string, group : *ObjMesh.FaceGroup, name : string) -> bo
 
             // There is no index for 'it_index' attribute, go to the next one
             if line.*[0] == #char "/" {
-                advance(line, "/".count);
+                advance(line);
                 continue;
             }
 
@@ -272,14 +282,14 @@ getTriplets :: (line : *string, group : *ObjMesh.FaceGroup, name : string) -> bo
                 assert(digit < 10);
 
                 index = index * 10 + digit;
-                advance(line, 1);
+                advance(line);
             }
 
             it.* = index;
 
             if !line.* break;
             if line.*[0] == #char "/" {
-                advance(line, "/".count);
+                advance(line);
             }
         }
 
@@ -355,19 +365,19 @@ remapTriplets :: (
     vertices : *[Mesh.MAX_SUBMESHES][..] VertexTypes.Default,
     indices  : *[Mesh.MAX_SUBMESHES][..] u32
 ) -> u8 {
-    Triplet :: [ObjMesh.MAX_ATTRIBUTES] u32;
-    triplet_to_index : Hash_Table.Table(Triplet, u32, given_compare_function = (a : Triplet, b : Triplet) -> bool {
-        return !memcmp(a.data, b.data, size_of(Triplet));
+    triplet_to_index : Hash_Table.Table(ObjMesh.Triplet, u32, given_compare_function = (a : ObjMesh.Triplet, b : ObjMesh.Triplet) -> bool {
+        return !memcmp(a.data, b.data, size_of(ObjMesh.Triplet));
     });
+
     Hash_Table.init(*triplet_to_index);
     defer Hash_Table.deinit(*triplet_to_index);
 
     for face_group, group_index : obj_mesh.face_groups {
-        assert(face_group.triplets.count);
+        assert(face_group.triplets.count > 0);
 
         Hash_Table.table_reset(*triplet_to_index);
 
-        vertex_group := ifx  obj_mesh.vertex_groups.count == 1 && obj_mesh.face_groups.count > 1
+        vertex_group := ifx  obj_mesh.vertex_groups.count == 1
                         then *obj_mesh.vertex_groups[0]
                         else *obj_mesh.vertex_groups[group_index];
 
@@ -379,7 +389,7 @@ remapTriplets :: (
         submesh_indices  := *indices.*[group_index];
 
         max_vertices := max(vertex_positions.count, vertex_texcoords.count, vertex_normals.count);
-        assert(max_vertices);
+        assert(max_vertices > 0);
 
         Basic.array_reserve(submesh_vertices, max_vertices);
         Basic.array_reserve(submesh_indices, face_group.triplets.count);
@@ -396,9 +406,9 @@ remapTriplets :: (
                 texcoord_index := triplet[ObjMesh.Attribute.TEXCOORD];
                 normal_index   := triplet[ObjMesh.Attribute.NORMAL];
 
-                assert(position_index != 0, "Obj files store indices starting with 1");
-                assert(texcoord_index != 0, "Obj files store indices starting with 1");
-                assert(normal_index   != 0, "Obj files store indices starting with 1");
+                assert(position_index > 0, "Obj files store indices starting with 1");
+                assert(texcoord_index > 0, "Obj files store indices starting with 1");
+                assert(normal_index   > 0, "Obj files store indices starting with 1");
 
                 position_index -= 1;
                 texcoord_index -= 1;
