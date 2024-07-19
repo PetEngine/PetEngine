@@ -289,8 +289,8 @@ drawPrimitives :: (
         case .VULKAN;
             drawVulkanPrimitives(command_buffer.handles[device.frame_index],
                                  cast(*VulkanShader) shader,
-                                 ifx vertices_count  then vertices_count  else 1,
-                                 ifx instances_count then instances_count else 1,
+                                 max(vertices_count, 1),
+                                 max(instances_count, 1),
                                  first_vertex,
                                  first_instance);
     }

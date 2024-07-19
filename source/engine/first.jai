@@ -175,12 +175,12 @@ petMain :: () {
                                   .D32,
                                   device.render_resolution.width,
                                   device.render_resolution.height,
-                                  clear_value = .{ depth = 1.0 },
-                                  .DEPTH_TARGET | .SHADER_READ,
+                                  clear_value = .{ depth = 0.0 },
+                                  .DEPTH_TARGET,
                                   .PERSISTENT,
                                   "Depth");
 
-    depth_buffer_srv := createTextureView(device, resource_manager, depth_buffer, .SHADER_READ, lifetime = .PERSISTENT);
+    depth_buffer_dsv := createTextureView(device, resource_manager, depth_buffer, .DEPTH_TARGET, lifetime = .PERSISTENT);
 
     depth_sampler := createSampler(device, resource_manager, .{ anisotropy = Sampler.MAX_ANISOTROPY }, .PERSISTENT, "Depth sampler");
 
@@ -201,12 +201,13 @@ petMain :: () {
         resetBindings(device, binding_manager, .PER_SCENE);
     }
 
-    test_shader           := createShader(device, shader_manager, binding_manager, "test", .[ getBackBuffer(device).format ]);
+    test_shader           := createShader(device, shader_manager, binding_manager, "test", .[ getBackBuffer(device).format ], depth_buffer.format );
     push_constants_handle := getPushConstantsHandle(test_shader, "g_push_constants");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
 
     mesh : *Mesh;
+    submesh_index : s64;
 
     showWindow(window);
     while processWindowEvents(window) {
@@ -214,6 +215,13 @@ petMain :: () {
         Basic.reset_temporary_storage();
 
         if window.flags & .MINIMIZED continue;
+
+        for Input.Key.KEY_0 .. Input.Key.KEY_7 {
+            if window.input.keyboard[it] & .PRESSED {
+                submesh_index = cast(s64) (it - Input.Key.KEY_0);
+                break;
+            }
+        }
 
         beginFrame(device, window);
         {
@@ -280,15 +288,17 @@ petMain :: () {
             back_buffer_view := getBackBufferView(device, .COLOR_TARGET);
             back_buffer      := back_buffer_view.texture;
 
-            clearTexture(device, *command_buffer, depth_buffer);
-
             beginRendering(device, *command_buffer, .[
                 .{
                     view         = back_buffer_view,
                     load_action  = .CLEAR,
                     store_action = .STORE,
                 },
-            ]);
+            ], *(DepthTargetDesc.{
+                view               = depth_buffer_dsv,
+                depth_load_action  = .CLEAR,
+                depth_store_action = .STORE,
+            }));
             if isMeshReady(device, mesh) {
                 setViewport(device, *command_buffer, *(Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }), back_buffer.height);
                 setScissorRect(device, *command_buffer, *(ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height }));
@@ -300,10 +310,14 @@ petMain :: () {
                     vertex_buffer_reference = mesh.vertex_buffer.device_address,
                 }));
 
-                for toView(mesh.submesh_infos.data, mesh.submeshes_count) {
-                    drawPrimitives(device, *command_buffer, it.indices_count, 1, it.indices_skip);
+                if submesh_index == 0 {
+                    for toView(mesh.submesh_infos.data, mesh.submeshes_count) {
+                        drawPrimitives(device, *command_buffer, it.indices_count, 1, it.indices_skip, it.vertices_skip);
+                    }
+                } else {
+                    submesh := *mesh.submesh_infos[submesh_index - 1];
+                    drawPrimitives(device, *command_buffer, submesh.indices_count, 1, submesh.indices_skip, submesh.vertices_skip);
                 }
-
             }
             endRendering(device, *command_buffer);
         }

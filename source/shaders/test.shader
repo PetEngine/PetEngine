@@ -11,9 +11,12 @@ out vec3 o_color;
 
 void main() {
     Indices32Ref     index_ref  = g_push_constants.indices_ref[gl_VertexIndex];
-    DefaultVertexRef vertex_ref = g_push_constants.vertices_ref[index_ref.index];
+    DefaultVertexRef vertex_ref = g_push_constants.vertices_ref[gl_BaseInstance + index_ref.index];
 
-    gl_Position = vec4(vertex_ref.position_u.xyz * 0.125, 1.0);
+    f32vec3 position = vertex_ref.position_u.xyz * 0.125;
+    position.z = position.z * 0.5 + 0.5;
+
+    gl_Position = vec4(position, 1.0);
 
     const float alpha = cos(1.5 * g_per_frame_uniform.time) * 0.5 + 0.5;
     o_color = vertex_ref.normal_v.xyz * alpha;
@@ -30,9 +33,9 @@ void main() {
 
 #pipeline_state
 
-// @TODO: #FixViews.
-FrontFace        = COUNTER_CLOCKWISE;
-CullMode         = BACK_FACE;
-DepthTestEnable  = false;
-DepthWriteEnable = false;
+FrontFace                = COUNTER_CLOCKWISE;
+CullMode                 = BACK_FACE;
+DepthTestEnable          = true;
+DepthWriteEnable         = true;
+DepthCompareOp           = GREATER;
 ColorTarget[0].WriteMask = RED | GREEN | BLUE;
