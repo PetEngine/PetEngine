@@ -205,8 +205,6 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         viewMask             = 0,
         colorAttachmentCount = cast(u32) color_targets.count,
         pColorAttachments    = color_attachments,
-        pDepthAttachment     = null,
-        pStencilAttachment   = null,
     };
 
     depth_attachment   : VkRenderingAttachmentInfo;
@@ -243,7 +241,7 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
             aspectMask = .VK_IMAGE_ASPECT_STENCIL_BIT;
         }
 
-        {
+        if texture.current_layout != new_layout {
             barriers_it.srcAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
             barriers_it.dstAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
             barriers_it.oldLayout                       = texture.current_layout;
