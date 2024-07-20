@@ -195,8 +195,7 @@ ShaderStageFlags :: enum_flags u8 {
 compileShader :: (name : string) -> bool {
     infoMessage("Compiling shader \"%\"...", name);
 
-    autoResetArenaScopeUsage(*context.pet.per_frame_arena);
-    Basic.auto_release_temp();
+    autoResetPerFrameArenas();
 
     source_filename := makeSourceShaderFilename(name);
 
@@ -535,10 +534,14 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
         line := getLine(*state_code, name);
         line = Basic.eat_spaces(line);
 
-        if String.starts_with(line, "//") || String.starts_with(line, "/*") {
-            errorMessage("Compilation failed: Comments are not allowed yet in pipeline state description.");
+        if !line || String.starts_with(line, "//") {
+            continue;
+        }
+
+        if String.starts_with(line, "/*") {
+            errorMessage("Compilation failed: Multi line comments are not allowed yet in pipeline state description.");
             return false;
-        } else  if String.starts_with(line, "ColorTarget") {
+        } else if String.starts_with(line, "ColorTarget") {
             advance(*line, "ColorTarget".count);
 
             color_target_index, line := getColorTargetIndex(line);
@@ -849,9 +852,7 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvRe
 
             push_constant_binding.stage_flags = stage_flag;
             push_constant_binding.offset      = push_constant_block.offset;
-            for toView(push_constant_block.members, push_constant_block.member_count) {
-                push_constant_binding.bytes += it.size;
-            }
+            push_constant_binding.bytes       = push_constant_block.padded_size;
 
             assert(push_constant_block.name,
                    "A name for push constants instance #%, stage: % is null for some reason. It can be 0 length, but have to be non-null",

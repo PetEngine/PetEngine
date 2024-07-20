@@ -75,6 +75,10 @@ reset :: inline (array : *StaticArray) #no_context {
     array.count = 0;
 }
 
+toView :: inline (array : StaticArray) -> [] array.T #no_context {
+    return toView(array.data.data, array.count);
+}
+
 for_expansion :: (array : *StaticArray, body : Code, flags : For_Flags) #expand {
     REVERSE    :: cast(bool) (flags & .REVERSE);
     BY_POINTER :: cast(bool) (flags & .POINTER);

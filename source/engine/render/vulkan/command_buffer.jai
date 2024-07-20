@@ -205,12 +205,10 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
         viewMask             = 0,
         colorAttachmentCount = cast(u32) color_targets.count,
         pColorAttachments    = color_attachments,
-        pDepthAttachment     = null,
-        pStencilAttachment   = null,
     };
 
-    depth_attachment   : VkRenderingAttachmentInfo = ---;
-    stencil_attachment : VkRenderingAttachmentInfo = ---;
+    depth_attachment   : VkRenderingAttachmentInfo;
+    stencil_attachment : VkRenderingAttachmentInfo;
 
     if depth_target {
         view    := cast(*VulkanTextureView) depth_target.view;
@@ -243,7 +241,7 @@ beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] Co
             aspectMask = .VK_IMAGE_ASPECT_STENCIL_BIT;
         }
 
-        {
+        if texture.current_layout != new_layout {
             barriers_it.srcAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
             barriers_it.dstAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT;
             barriers_it.oldLayout                       = texture.current_layout;
@@ -308,16 +306,16 @@ endVulkanRendering :: inline (command_buffer : VkCommandBuffer) #no_context {
 }
 
 drawVulkanPrimitives :: inline (
-    command_buffer : VkCommandBuffer,
-    shader         : *VulkanShader,
-    vertex_count   : u32,
-    instance_count : u32,
-    first_vertex   : u32,
-    first_instance : u32
+    command_buffer  : VkCommandBuffer,
+    shader          : *VulkanShader,
+    vertices_count  : u32,
+    instances_count : u32,
+    first_vertex    : u32,
+    first_instance  : u32
 ) #no_context {
     if !shader.pipeline return;
 
-    vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance);
+    vkCmdDraw(command_buffer, vertices_count, instances_count, first_vertex, first_instance);
 }
 
 setVulkanPushConstants :: (command_buffer : VkCommandBuffer, shader : *VulkanShader, handle : PushConstantsHandle, data : *$T) {
@@ -353,9 +351,9 @@ copyVulkanBuffer :: inline (
     bytes          : u32
 ) #no_context {
     region := VkBufferCopy2.{
-        srcOffset = source_offset,
-        dstOffset = dest_offset,
-        size      = bytes
+        srcOffset = cast(VkDeviceSize) source_offset,
+        dstOffset = cast(VkDeviceSize) dest_offset,
+        size      = cast(VkDeviceSize) bytes
     };
 
     info := VkCopyBufferInfo2.{
@@ -363,6 +361,35 @@ copyVulkanBuffer :: inline (
         dstBuffer   = dest_buffer.buffer,
         regionCount = 1,
         pRegions    = *region
+    };
+
+    vkCmdCopyBuffer2(command_buffer, *info);
+}
+
+copyVulkanBufferRegions :: (
+    command_buffer : VkCommandBuffer,
+    dest_buffer    : *VulkanBuffer,
+    source_buffer  : *VulkanBuffer,
+    regions        : [] CopyRegion
+) {
+    vk_regions : [] VkBufferCopy2 = ---;
+    vk_regions.count = regions.count;
+    vk_regions.data  = pushToArena(*context.pet.per_frame_arena, VkBufferCopy2, regions.count);
+
+    regions_it := regions.data;
+    for * vk_regions {
+        it.srcOffset = cast(VkDeviceSize) regions_it.source_offset;
+        it.dstOffset = cast(VkDeviceSize) regions_it.dest_offset;
+        it.size      = cast(VkDeviceSize) regions_it.bytes;
+
+        regions_it += 1;
+    }
+
+    info := VkCopyBufferInfo2.{
+        srcBuffer   = source_buffer.buffer,
+        dstBuffer   = dest_buffer.buffer,
+        regionCount = cast(u32) vk_regions.count,
+        pRegions    = vk_regions.data
     };
 
     vkCmdCopyBuffer2(command_buffer, *info);

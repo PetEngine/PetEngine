@@ -104,6 +104,8 @@ createTexture :: (
     name                : string,
     possible_owners     : ..QueueType = .[ .GRAPHICS ]
 ) -> *Texture #must {
+    assert(!resourceMemoryCommitted(manager, lifetime), "You cannot create %1 texture after %1 memory is committed", lifetime);
+
     assert(!(flags & .SWAPCHAIN),
            "You cannot explicitly set SWAPCHAIN flag");
     assert(depth_or_array_size > 0 || !(flags & .ARRAY),

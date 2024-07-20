@@ -57,6 +57,8 @@ createTextureView :: (
     layers_count : u16 = Texture.ALL_LAYERS,
     lifetime     : ResourceManager.Lifetime
 ) -> *TextureView #must {
+    assert(!resourceMemoryCommitted(manager, lifetime), "You cannot create %1 texture view after %1 memory is committed", lifetime);
+
     assert(dimension != ._1D || texture.dimension == ._1D,
            "1D texture view can be created only to a 1D texture");
     assert(dimension != ._2D || texture.dimension == ._2D || texture.dimension == ._3D,

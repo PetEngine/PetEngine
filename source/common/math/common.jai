@@ -21,6 +21,16 @@ alignUpWithPowerOfTwo :: inline (value : $T, alignment : T) -> T {
     return (value + mask) & ~mask;
 }
 
+nextPowerOfTwo :: inline (value : $T/Type.[u8, u16, u32, u64]) -> T #no_context {
+    value |= value >> 1;
+    value |= value >> 2;
+    value |= value >> 4;
+    #if size_of(T) > 1 then value |= value >> 8;
+    #if size_of(T) > 2 then value |= value >> 16;
+    #if size_of(T) > 4 then value |= value >> 32;
+    return value + 1;
+}
+
 kiloBytes :: inline (value : $T/Type.[s16, u16, s32, u32, s64, u64]) -> T #no_context {
     return value << 10;
 }

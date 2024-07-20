@@ -1,11 +1,14 @@
 // @TODO:
 //     - Move all the platform stuff to other file.
 //     - CommandBufferManager for vtable?
+//     - Rename CommandBuffer.usage to owner or type
 
 CommandBuffer :: struct(usage : QueueType) {
     handles : StaticArray(*void, Device.MAX_FRAME_BUFFERING);
 
-    shaders : [#run Basic.enum_highest_value(ShaderBindPoint) + 1] *Shader;
+    #if usage == .GRAPHICS || usage == .ASYNC_COMPUTE {
+        shaders : [#run Basic.enum_highest_value(ShaderBindPoint) + 1] *Shader;
+    }
 
     #if usage == .GRAPHICS {
         viewport         : Viewport;
@@ -58,6 +61,20 @@ DepthTargetDesc :: struct {
     stencil_store_action : TargetStoreAction;
 }
 
+ShaderBindPoint :: enum u8 {
+    GRAPHICS_OR_MESH;
+    COMPUTE;
+    RAY_TRACING;
+}
+
+CopyRegion :: struct {
+    REMAINING_BYTES :: 0xFFFF_FFFF;
+
+    dest_offset   : u32;
+    source_offset : u32;
+    bytes         : u32 = REMAINING_BYTES;
+}
+
 // @TODO: Per-frame command buffers
 createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(usage) #must {
     command_buffer : CommandBuffer(usage);
@@ -80,18 +97,18 @@ resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, bindin
     assert(command_buffer.handles.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
     command_buffer.handles.count = cast,no_check(s64) device.frame_buffering;
 
-    for * command_buffer.shaders {
-        it.* = null;
+    #if command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE {
+        for * command_buffer.shaders {
+            it.* = null;
+        }
     }
 
     #if command_buffer.usage == .GRAPHICS {
         command_buffer.viewport         = .{};
         command_buffer.scissor_rect     = .{};
         command_buffer.inside_rendering = false;
-    }
 
-    #if command_buffer.usage == .GRAPHICS {
-        if device.graphics_api == .VULKAN {
+        if device.graphics_api == .VULKAN && binding_manager {
             vulkan_device          := cast(*VulkanDevice) device;
             vulkan_binding_manager := cast(*VulkanBindingManager) binding_manager;
 
@@ -254,12 +271,12 @@ endRendering :: (device : *Device, command_buffer : *CommandBuffer) {
 }
 
 drawPrimitives :: (
-    device         : *Device,
-    command_buffer : *CommandBuffer,
-    vertex_count   : u32,
-    instance_count : u32 = 1,
-    first_vertex   : u32 = 0,
-    first_instance : u32 = 0
+    device          : *Device,
+    command_buffer  : *CommandBuffer,
+    vertices_count  : u32,
+    instances_count : u32 = 1,
+    first_vertex    : u32 = 0,
+    first_instance  : u32 = 0
 ) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can draw";
 
@@ -272,8 +289,8 @@ drawPrimitives :: (
         case .VULKAN;
             drawVulkanPrimitives(command_buffer.handles[device.frame_index],
                                  cast(*VulkanShader) shader,
-                                 ifx vertex_count   then vertex_count   else 1,
-                                 ifx instance_count then instance_count else 1,
+                                 max(vertices_count, 1),
+                                 max(instances_count, 1),
                                  first_vertex,
                                  first_instance);
     }
@@ -312,16 +329,15 @@ copyBuffer :: (
            command_buffer.usage,
            dest_buffer.current_owner);
 
-    assert(dest_offset   < dest_buffer.bytes);
-    assert(source_offset < source_buffer.bytes);
+    assert(dest_offset   < dest_buffer.size);
+    assert(source_offset < source_buffer.size);
 
     if bytes == 0xFFFF_FFFF {
-        bytes = source_buffer.bytes;
-        assert(source_buffer.bytes == dest_buffer.bytes);
+        bytes = source_buffer.size - source_offset;
     } else {
-        assert(dest_offset   + bytes <= dest_buffer.bytes);
-        assert(source_offset + bytes <= source_buffer.bytes);
+        assert(source_offset + bytes <= source_buffer.size);
     }
+    assert(dest_offset + bytes <= dest_buffer.size);
 
     if #complete device.graphics_api == {
         case .VULKAN;
@@ -334,10 +350,46 @@ copyBuffer :: (
     }
 }
 
-ShaderBindPoint :: enum u8 {
-    GRAPHICS_OR_MESH;
-    COMPUTE;
-    RAY_TRACING;
+copyBufferRegions :: (
+    device         : *Device,
+    command_buffer : *CommandBuffer,
+    dest_buffer    : *Buffer,
+    source_buffer  : *Buffer,
+    regions        : [] CopyRegion
+) {
+    if regions.count <= 0 return;
+
+    assert(source_buffer.current_owner == command_buffer.usage,
+           "You are trying to copy from buffer \"%\" in % command buffer, but buffer's current owner is %. Change buffers's owner first to do so.",
+           source_buffer.name,
+           command_buffer.usage,
+           source_buffer.current_owner);
+    assert(dest_buffer.current_owner == command_buffer.usage,
+           "You are trying to copy to buffer \"%\" in % command buffer, but buffer's current owner is %. Change buffers's owner first to do so.",
+           dest_buffer.name,
+           command_buffer.usage,
+           dest_buffer.current_owner);
+
+    for * regions {
+        assert(it.dest_offset   < dest_buffer.size);
+        assert(it.source_offset < source_buffer.size);
+
+        if it.bytes == CopyRegion.REMAINING_BYTES {
+            assert(regions.count == 1, "Using CopyRegion.REMAINING_BYTES in CopyRegion.bytes field is allowed only when you copy 1 region");
+            it.bytes = source_buffer.size - it.source_offset;
+        } else {
+            assert(it.source_offset + it.bytes <= source_buffer.size);
+        }
+        assert(it.dest_offset + it.bytes <= dest_buffer.size);
+    }
+
+    if #complete device.graphics_api == {
+        case .VULKAN;
+            copyVulkanBufferRegions(command_buffer.handles[device.frame_index],
+                                    cast(*VulkanBuffer) dest_buffer,
+                                    cast(*VulkanBuffer) source_buffer,
+                                    regions);
+    }
 }
 
 #scope_file

@@ -9,7 +9,7 @@ AssetConverter :: struct {
     RUNTIME_MESHES_FOLDER  :: "../../../source/assets/meshes/runtime";
 }
 
-convertAssetsToRuntime :: () {
+convertExchangeAssetsToRuntime :: () {
     if fileExists(AssetConverter.EXCHANGE_MESHES_FOLDER) {
         enumerateFiles(AssetConverter.EXCHANGE_MESHES_FOLDER, convertMeshesCallback, null, recursively = true);
     } else {
@@ -26,7 +26,7 @@ makeRuntimeMeshFilename :: (name : string) -> string {
     return filename;
 }
 
-#load "mesh.jai";
+#load "mesh_file.jai";
 
 #scope_file
 
@@ -42,8 +42,7 @@ convertMeshesCallback :: (user_data : *void, exchange_file_info : *FileInfo) -> 
         return .CONTINUE;
     }
 
-    autoResetArenaScopeUsage(*context.pet.per_frame_arena);
-    Basic.auto_release_temp();
+    autoResetPerFrameArenas();
 
     mesh_name := string.{
         exchange_file_info.name.count - (AssetConverter.EXCHANGE_MESHES_FOLDER.count + "/".count) - (".".count + extension.count),
@@ -60,9 +59,9 @@ convertMeshesCallback :: (user_data : *void, exchange_file_info : *FileInfo) -> 
         assert(error == .NONE);
         defer closeFile(*runtime_file);
 
-        header : Mesh.Header = ---;
-        readFile(runtime_file, *header, size_of(Mesh.Header));
-        if header.version == Mesh.VERSION {
+        header : MeshFile.Header = ---;
+        readFile(runtime_file, *header);
+        if header.version == MeshFile.VERSION {
             return .CONTINUE;
         }
     }

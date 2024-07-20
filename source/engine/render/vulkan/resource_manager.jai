@@ -161,6 +161,7 @@ commitVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, l
                 commitVulkanBufferMemoryPool(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
             }
             commitVulkanTextureMemoryPool(device, manager, *manager.textures.persistent, lifetime);
+            commitVulkanTextureViewMemoryPool(device, *manager.texture_views.persistent);
             commitVulkanDescriptorBufferMemoryPool(device, manager, *manager.descriptor_buffers.persistent);
 
         case .PER_SCENE;
@@ -168,12 +169,14 @@ commitVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, l
                 commitVulkanBufferMemoryPool(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
             }
             commitVulkanTextureMemoryPool(device, manager, *manager.textures.per_scene, lifetime);
+            commitVulkanTextureViewMemoryPool(device, *manager.texture_views.per_scene);
 
         case .PER_FRAME;
             for * manager.buffers.per_frame[device.frame_index] {
                 commitVulkanBufferMemoryPool(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
             }
             commitVulkanTextureMemoryPool(device, manager, *manager.textures.per_frame[device.frame_index], lifetime);
+            commitVulkanTextureViewMemoryPool(device, *manager.texture_views.per_frame[device.frame_index]);
     }
 }
 
@@ -535,7 +538,7 @@ destroyVulkanTextureViewMemory :: (device : *VulkanDevice, memory : *VulkanResou
     }
 }
 
-resetVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.MemorylessPool) {
+resetVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.TextureViewMemory.Pool) {
     for * memory_pool.resources {
         vkDestroyImageView(device.device, it.view, null);
         it.view = VK_NULL_HANDLE;
@@ -543,6 +546,62 @@ resetVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *Vulk
     reset(*memory_pool.resources);
 
     resetArena(*memory_pool.names_subarena);
+}
+
+commitVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.TextureViewMemory.Pool) {
+    for * memory_pool.resources {
+        texture := cast(*VulkanTexture) it.texture;
+
+        usage_info := VkImageViewUsageCreateInfo.{
+            usage = textureUsageToVulkanUsageFlags(it.usage, false)
+        };
+
+        create_info := VkImageViewCreateInfo.{
+            pNext            = *usage_info,
+            flags            = 0,
+            image            = texture.image,
+            format           = textureFormatToVulkanFormat(it.format),
+            components       = .{
+                r = .VK_COMPONENT_SWIZZLE_R,
+                g = .VK_COMPONENT_SWIZZLE_G,
+                b = .VK_COMPONENT_SWIZZLE_B,
+                a = .VK_COMPONENT_SWIZZLE_A,
+            },
+            subresourceRange = .{
+                aspectMask     = getVulkanImageAspectFlags(it.format),
+                baseMipLevel   = it.first_mip,
+                levelCount     = it.mips_count,
+                baseArrayLayer = it.first_layer,
+                layerCount     = max(it.layers_count, 1),
+            },
+        };
+
+        if it.flags & .ARRAY {
+            if it.dimension == {
+                case ._1D;
+                    create_info.viewType = .VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+                case ._2D;
+                    create_info.viewType = ifx  it.flags & .CUBE
+                                           then .VK_IMAGE_VIEW_TYPE_CUBE_ARRAY
+                                           else .VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+            }
+        } else {
+            if #complete it.dimension == {
+                case ._1D;
+                    create_info.viewType = .VK_IMAGE_VIEW_TYPE_1D;
+                case ._2D;
+                    create_info.viewType = ifx  it.flags & .CUBE
+                                           then .VK_IMAGE_VIEW_TYPE_CUBE
+                                           else .VK_IMAGE_VIEW_TYPE_2D;
+                case ._3D;
+                    create_info.viewType = .VK_IMAGE_VIEW_TYPE_3D;
+            }
+        }
+
+        debugCheckVK(vkCreateImageView(device.device, *create_info, null, *it.view));
+
+        setVulkanObjectName(device, it.view, it.name);
+    }
 }
 
 //

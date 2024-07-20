@@ -1,16 +1,15 @@
 // @TODO: #AssetConverter.
 //     - Vertex format for 1 position and 1 varying streams?
+//     - u16 indices
 
-Mesh :: struct {
+MeshFile :: struct {
     VERSION :: 1;
-
-    MAX_SUBMESHES :: 16;
 
     Header :: struct {
         version         : u8 = VERSION;
         submeshes_count : u8;
         vertex_format   : VertexFormat;
-        submesh_infos   : [MAX_SUBMESHES] SubmeshInfo;
+        submesh_infos   : [Mesh.MAX_SUBMESHES] SubmeshInfo;
     } #no_padding
 
     SubmeshInfo :: struct {
@@ -18,6 +17,10 @@ Mesh :: struct {
         vertices_count : u32;
         indices_count  : u32;
     } #no_padding
+
+    getHeader :: inline (file_data : string) -> *Header {
+        return cast(*Header) file_data.data;
+    }
 }
 
 VertexFormat :: enum u8 {
@@ -42,30 +45,28 @@ serializeMesh :: (
 
     assert(0 < submeshes_count && submeshes_count <= Mesh.MAX_SUBMESHES);
 
-    header := Mesh.Header.{
+    header := MeshFile.Header.{
         submeshes_count = submeshes_count,
         vertex_format   = VERTEX_FORMAT,
     };
 
-    submesh_offset := size_of(Mesh.Header);
+    submesh_offset := size_of(MeshFile.Header);
 
-    vertices_it      := vertices.data;
-    indices_it       := indices.data;
-    submesh_infos_it := header.submesh_infos.data;
-
-    for 0 .. header.submeshes_count - 1 {
+    submeshes   := toView(header.submesh_infos.data, header.submeshes_count);
+    vertices_it := vertices.data;
+    indices_it  := indices.data;
+    for * submeshes {
         assert(vertices_it.count > 0);
 
-        submesh_infos_it.offset         = cast(u64) submesh_offset;
-        submesh_infos_it.vertices_count = cast(u32) vertices_it.count;
-        submesh_infos_it.indices_count  = cast(u32) max(0, indices_it.count);
+        it.offset         = cast(u64) submesh_offset;
+        it.vertices_count = cast(u32) vertices_it.count;
+        it.indices_count  = cast(u32) max(0, indices_it.count);
 
-        submesh_offset += submesh_infos_it.vertices_count * size_of(Vertex)
-                       +  submesh_infos_it.indices_count  * size_of(u32);
+        submesh_offset += it.vertices_count * size_of(Vertex)
+                       +  it.indices_count  * size_of(u32);
 
-        vertices_it      += 1;
-        indices_it       += 1;
-        submesh_infos_it += 1;
+        vertices_it += 1;
+        indices_it  += 1;
     }
 
     filename := makeRuntimeMeshFilename(name);
@@ -77,12 +78,12 @@ serializeMesh :: (
     }
     defer closeFile(*file);
 
+    writeFile(file, *header, size_of(MeshFile.Header));
+
     vertices_it = vertices.data;
     indices_it  = indices.data;
-
-    writeFile(file, *header, size_of(Mesh.Header));
-    for 0 .. header.submeshes_count - 1 {
-        assert(getFileCursorPosition(file) == cast(s64) header.submesh_infos[it].offset);
+    for submeshes {
+        assert(getFileCursorPosition(file) == cast(s64) it.offset);
 
         writeFile(file, vertices_it.*);
         if indices_it.* {
@@ -94,6 +95,12 @@ serializeMesh :: (
     }
 
     return true;
+}
+
+getVertexStride :: (format : VertexFormat) -> s64 {
+    if #complete format == {
+        case .DEFAULT; return size_of(VertexTypes.Default);
+    }
 }
 
 #scope_file

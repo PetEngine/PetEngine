@@ -110,7 +110,8 @@ commitPerFrameUniform :: inline (device : *Device, uniform : *PerFrameUniform) {
 }
 
 PushConstants :: struct {
-    per_view_uniform_index : u32;
+    index_buffer_reference  : u64;
+    vertex_buffer_reference : u64;
 } #no_padding
 
 petMain :: () {
@@ -126,6 +127,8 @@ petMain :: () {
     // @TODO: #Settings. Get per frame arena capacity from settings.
     createArena(*context.pet.per_frame_arena, megaBytes(512), "Per frame");
     defer destroyArena(*context.pet.per_frame_arena);
+
+    convertExchangeAssetsToRuntime();
 
     window_manager := createWindowManager();
     defer destroyWindowManager(window_manager);
@@ -147,6 +150,8 @@ petMain :: () {
     resource_manager := createResourceManager(device);
     defer destroyResourceManager(device, resource_manager);
 
+    asset_manager := createAssetManager(device, resource_manager);
+
     shader_manager := createShaderManager(device, resource_manager);
     defer destroyShaderManager(device, shader_manager);
 
@@ -156,8 +161,6 @@ petMain :: () {
     shaders_hot_reload : ShadersHotReload;
     createShadersHotReload(*shaders_hot_reload, device, shader_manager, binding_manager);
     defer destroyShadersHotReload(*shaders_hot_reload);
-
-    convertAssetsToRuntime();
 
     per_view_uniform := PerViewUniform.{
         buffer = createBuffer(device, resource_manager, PerViewUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view")
@@ -172,12 +175,12 @@ petMain :: () {
                                   .D32,
                                   device.render_resolution.width,
                                   device.render_resolution.height,
-                                  clear_value = .{ depth = 1.0 },
-                                  .DEPTH_TARGET | .SHADER_READ,
+                                  clear_value = .{ depth = 0.0 },
+                                  .DEPTH_TARGET,
                                   .PERSISTENT,
                                   "Depth");
 
-    depth_buffer_srv := createTextureView(device, resource_manager, depth_buffer, .SHADER_READ, lifetime = .PERSISTENT);
+    depth_buffer_dsv := createTextureView(device, resource_manager, depth_buffer, .DEPTH_TARGET, lifetime = .PERSISTENT);
 
     depth_sampler := createSampler(device, resource_manager, .{ anisotropy = Sampler.MAX_ANISOTROPY }, .PERSISTENT, "Depth sampler");
 
@@ -191,24 +194,34 @@ petMain :: () {
 
     defer resetBindings(device, binding_manager, .PERSISTENT);
 
-    test_shader           := createShader(device, shader_manager, binding_manager, "test", .[ getBackBuffer(device).format ]);
+    // @TODO: #Scene.
+    defer {
+        resetResourceMemory(device, resource_manager, .PER_SCENE);
+        resetAssetManagerAssets(device, asset_manager);
+        resetBindings(device, binding_manager, .PER_SCENE);
+    }
+
+    test_shader           := createShader(device, shader_manager, binding_manager, "test", .[ getBackBuffer(device).format ], depth_buffer.format );
     push_constants_handle := getPushConstantsHandle(test_shader, "g_push_constants");
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
+
+    mesh : *Mesh;
+    submesh_index : s64;
 
     showWindow(window);
     while processWindowEvents(window) {
         resetArena(*context.pet.per_frame_arena);
         Basic.reset_temporary_storage();
+
         if window.flags & .MINIMIZED continue;
 
-        //
-        // Update
-        //
-
-        //
-        // Render
-        //
+        for Input.Key.KEY_0 .. Input.Key.KEY_7 {
+            if window.input.keyboard[it] & .PRESSED {
+                submesh_index = cast(s64) (it - Input.Key.KEY_0);
+                break;
+            }
+        }
 
         beginFrame(device, window);
         {
@@ -216,13 +229,14 @@ petMain :: () {
             {
                 // @TODO: #PerFrameResources. Delete unused per frame resources memory when number of swapchain buffers is decreased.
                 resetResourceMemory(device, resource_manager, .PER_FRAME);
+                resetAssetManager(device, asset_manager);
                 resetShaderManager(device, shader_manager);
                 resetBindings(device, binding_manager, .PER_FRAME);
                 resetCommandBuffer(device, *command_buffer, binding_manager);
                 resetPerViewUniform(device, *per_view_uniform);
             }
 
-            // Create per frame buffers and textures here...
+            // Create per frame resources here...
 
             // Commit
             {
@@ -231,6 +245,23 @@ petMain :: () {
                 //        Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame resources
                 //        since we do not want to release memory which is in use by async queues.
                 commitResourceMemory(device, resource_manager, .PER_FRAME);
+            }
+
+            // @TODO: #Scene. New scene
+            if window.input.keyboard[Input.Key.O] & .PRESSED {
+                // Reset
+                resetResourceMemory(device, resource_manager, .PER_SCENE);
+                resetAssetManagerAssets(device, asset_manager);
+                resetBindings(device, binding_manager, .PER_SCENE);
+
+                // Create per scene resources here...
+                mesh = requestMesh(device, asset_manager, resource_manager, "HumanHeart_OBJ");
+
+                // Commit
+                commitResourceMemory(device, resource_manager, .PER_SCENE);
+
+                // @Important: Should be after per scene memory commit
+                processRequestedAssets(device, asset_manager, resource_manager);
             }
 
             // Update per frame uniform
@@ -257,26 +288,36 @@ petMain :: () {
             back_buffer_view := getBackBufferView(device, .COLOR_TARGET);
             back_buffer      := back_buffer_view.texture;
 
-            clearTexture(device, *command_buffer, depth_buffer);
-
             beginRendering(device, *command_buffer, .[
                 .{
                     view         = back_buffer_view,
                     load_action  = .CLEAR,
                     store_action = .STORE,
                 },
-            ]);
-            {
+            ], *(DepthTargetDesc.{
+                view               = depth_buffer_dsv,
+                depth_load_action  = .CLEAR,
+                depth_store_action = .STORE,
+            }));
+            if isMeshReady(device, mesh) {
                 setViewport(device, *command_buffer, *(Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }), back_buffer.height);
                 setScissorRect(device, *command_buffer, *(ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height }));
 
                 setShader(device, *command_buffer, shader_manager, binding_manager, test_shader);
 
                 setPushConstants(device, *command_buffer, push_constants_handle, *(PushConstants.{
-                    per_view_uniform_index = per_view_uniform.handles[device.frame_index][per_view_uniform.version].descriptor,
+                    index_buffer_reference  = mesh.index_buffer.device_address,
+                    vertex_buffer_reference = mesh.vertex_buffer.device_address,
                 }));
 
-                drawPrimitives(device, *command_buffer, 4);
+                if submesh_index == 0 {
+                    for toView(mesh.submesh_infos.data, mesh.submeshes_count) {
+                        drawPrimitives(device, *command_buffer, it.indices_count, 1, it.indices_skip, it.vertices_skip);
+                    }
+                } else {
+                    submesh := *mesh.submesh_infos[submesh_index - 1];
+                    drawPrimitives(device, *command_buffer, submesh.indices_count, 1, submesh.indices_skip, submesh.vertices_skip);
+                }
             }
             endRendering(device, *command_buffer);
         }
@@ -292,11 +333,13 @@ operator> :: Basic.operator>;
 #import "common"()(DEBUG_BUILD = DEBUG_BUILD, PRINT_VERBOSE_MESSAGES = PRINT_VERBOSE_MESSAGES);
 
 #load "assets/converter.jai";
+#load "assets/manager.jai";
 #load "core/input.jai";
 #load "core/window.jai";
 #load "render/binding_manager.jai";
 #load "render/command_buffer.jai";
 #load "render/device.jai";
+#load "render/mesh.jai";
 #load "render/resource_manager.jai";
 #load "render/shader.jai";
 #load "shader_compiler/compiler.jai";
