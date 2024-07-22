@@ -1,5 +1,7 @@
 #scope_export
 
+PI : f32 : Math.PI;
+
 F32_EPSILON : f32 : 0h34C0_0000;           // 0h3400_0000 is too small and still fails sometimes
 F64_EPSILON : f64 : 0h3CB0_0000_0000_0000;
 
@@ -168,6 +170,14 @@ linearToGamma :: inline (value : $T/Type.[f32, f64], gamma : T = 2.2) {
 
 gammaToLinear :: inline (value : $T/Type.[f32, f64], gamma : T = 2.2) {
     return Math.pow(value, gamma);
+}
+
+degToRad :: inline (deg : f32) -> f32 #no_context {
+    return deg * PI / 180.0;
+}
+
+radToDeg :: inline (rad : f32) -> f32 #no_context {
+    return rad * 180.0 / PI;
 }
 
 #scope_file
