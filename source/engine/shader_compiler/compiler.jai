@@ -520,11 +520,13 @@ getShaderStageCode :: (stream : *string, name : string) -> string {
         }
     }
 
-    if line {
+    if stream.count == 0 {
+        stage_code.count = cast(s64) (line.data + line.count - stage_code.data);
+    } else if line {
         stage_code.count = cast(s64) (line.data - stage_code.data);
 
         stream.data   = line.data;
-        stream.count += line.count;
+        stream.count += line.count + 1; // + skipped new line
     }
 
     return String.trim_right(stage_code);
