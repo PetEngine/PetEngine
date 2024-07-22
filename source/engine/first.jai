@@ -24,16 +24,28 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
     per_frame_arena  : Arena;
 };
 
+//
+// PerViewUniform
+//
+
 PerViewUniform :: struct {
     MAX_VERSIONS :: 1;
     BUFFER_SIZE  : u32 : cast(u32) size_of(Data) * MAX_VERSIONS * Device.MAX_FRAME_BUFFERING;
 
+    // @Cleanup: Move to camera.jai
+    CAMERA_NEAR :: 0.1;
+    CAMERA_FAR  :: 100.0;
+    CAMERA_FOV  :: #run degToRad(60.0);
+
     Data :: struct {
-        camera_pos : v3f;
+        camera_pos : v3f = .{ 2.0, 10.0, -17.0 };
         __padding0 : f32;
 
-        view_matrix     : m3x4;
-        inv_view_matrix : m3x4;
+        camera_dir : v3f = .{ -0.1, -0.2, 0.9 };
+        __padding1 : f32;
+
+        view_matrix     : m4x4;
+        inv_view_matrix : m4x4;
 
         proj_matrix     : m4x4;
         inv_proj_matrix : m4x4;
@@ -81,6 +93,10 @@ commitPerViewUniform :: (device : *Device, uniform : *PerViewUniform) {
     memcpy(uniform.buffer.mapped_memory + offset, *uniform.data, size_of(PerViewUniform.Data));
 }
 
+//
+// PerFrameUniform
+//
+
 PerFrameUniform :: struct {
     BUFFER_SIZE : u32 : cast(u32) size_of(Data) * Device.MAX_FRAME_BUFFERING;
 
@@ -109,10 +125,9 @@ commitPerFrameUniform :: inline (device : *Device, uniform : *PerFrameUniform) {
     memcpy(uniform.buffer.mapped_memory + offset, *uniform.data, size_of(PerFrameUniform.Data));
 }
 
-PushConstants :: struct {
-    index_buffer_reference  : u64;
-    vertex_buffer_reference : u64;
-} #no_padding
+//
+// Main
+//
 
 petMain :: () {
     initial_time := Basic.current_time_monotonic();
@@ -201,13 +216,10 @@ petMain :: () {
         resetBindings(device, binding_manager, .PER_SCENE);
     }
 
-    test_shader           := createShader(device, shader_manager, binding_manager, "test", .[ getBackBuffer(device).format ], depth_buffer.format );
-    push_constants_handle := getPushConstantsHandle(test_shader, "g_push_constants");
+    floor := createFloor(device, shader_manager, binding_manager, depth_buffer.format);
+    heart := createHeart(device, shader_manager, binding_manager, depth_buffer.format);
 
     command_buffer := createCommandBuffer(device, .GRAPHICS);
-
-    mesh : *Mesh;
-    submesh_index : s64;
 
     showWindow(window);
     while processWindowEvents(window) {
@@ -216,12 +228,7 @@ petMain :: () {
 
         if window.flags & .MINIMIZED continue;
 
-        for Input.Key.KEY_0 .. Input.Key.KEY_7 {
-            if window.input.keyboard[it] & .PRESSED {
-                submesh_index = cast(s64) (it - Input.Key.KEY_0);
-                break;
-            }
-        }
+        updateHeart(*heart, *window.input);
 
         beginFrame(device, window);
         {
@@ -255,7 +262,7 @@ petMain :: () {
                 resetBindings(device, binding_manager, .PER_SCENE);
 
                 // Create per scene resources here...
-                mesh = requestMesh(device, asset_manager, resource_manager, "HumanHeart_OBJ");
+                loadHeartMesh(device, asset_manager, resource_manager, *heart);
 
                 // Commit
                 commitResourceMemory(device, resource_manager, .PER_SCENE);
@@ -274,50 +281,54 @@ petMain :: () {
             }
             commitPerFrameUniform(device, *per_frame_uniform);
 
-            // Update per view uniform
-            per_view_uniform.data.camera_pos  = v3f.{ 1.0, 2.0, 3.0 } * (1.0 + device.frame_index);
-            per_view_uniform.data.view_matrix = identity(m3x4) * (1.0 + device.frame_index);
-            per_view_uniform.data.proj_matrix = .{
-                 1.0,  2.0,  3.0,  4.0,
-                 5.0,  6.0,  7.0,  8.0,
-                 9.0, 10.0, 11.0, 12.0,
-                13.0, 14.0, 15.0, 16.0,
-            };
-            commitPerViewUniform(device, *per_view_uniform);
-
             back_buffer_view := getBackBufferView(device, .COLOR_TARGET);
             back_buffer      := back_buffer_view.texture;
 
-            beginRendering(device, *command_buffer, .[
-                .{
-                    view         = back_buffer_view,
-                    load_action  = .CLEAR,
-                    store_action = .STORE,
-                },
-            ], *(DepthTargetDesc.{
-                view               = depth_buffer_dsv,
-                depth_load_action  = .CLEAR,
-                depth_store_action = .STORE,
-            }));
-            if isMeshReady(device, mesh) {
-                setViewport(device, *command_buffer, *(Viewport.{ 0.0, 0.0, cast(f32) back_buffer.width, cast(f32) back_buffer.height, 0.0, 1.0 }), back_buffer.height);
-                setScissorRect(device, *command_buffer, *(ScissorRect.{ 0, 0, back_buffer.width, back_buffer.height }));
+            // Update per view uniform
+            {
+                using per_view_uniform.data;
 
-                setShader(device, *command_buffer, shader_manager, binding_manager, test_shader);
+                speed := ifx window.input.keyboard[Input.Key.LEFT_SHIFT] & .DOWN then 4.0 else 1.0;
 
-                setPushConstants(device, *command_buffer, push_constants_handle, *(PushConstants.{
-                    index_buffer_reference  = mesh.index_buffer.device_address,
-                    vertex_buffer_reference = mesh.vertex_buffer.device_address,
-                }));
+                if window.input.keyboard[Input.Key.W] & .DOWN then camera_pos.z += speed * per_frame_uniform.data.dtime;
+                if window.input.keyboard[Input.Key.S] & .DOWN then camera_pos.z -= speed * per_frame_uniform.data.dtime;
+                if window.input.keyboard[Input.Key.A] & .DOWN then camera_pos.x -= speed * per_frame_uniform.data.dtime;
+                if window.input.keyboard[Input.Key.D] & .DOWN then camera_pos.x += speed * per_frame_uniform.data.dtime;
+                if window.input.keyboard[Input.Key.E] & .DOWN then camera_pos.y += speed * per_frame_uniform.data.dtime;
+                if window.input.keyboard[Input.Key.Q] & .DOWN then camera_pos.y -= speed * per_frame_uniform.data.dtime;
 
-                if submesh_index == 0 {
-                    for toView(mesh.submesh_infos.data, mesh.submeshes_count) {
-                        drawPrimitives(device, *command_buffer, it.indices_count, 1, it.indices_skip, it.vertices_skip);
-                    }
+                if window.input.mouse.button_right & .DOWN {
+                    camera_dir = rotationY(window.input.mouse.dx * per_frame_uniform.data.dtime) * camera_dir;
+                    camera_dir = rotationX(window.input.mouse.dy * per_frame_uniform.data.dtime) * camera_dir;
                 } else {
-                    submesh := *mesh.submesh_infos[submesh_index - 1];
-                    drawPrimitives(device, *command_buffer, submesh.indices_count, 1, submesh.indices_skip, submesh.vertices_skip);
+                    angleXY : v2f;
+                    if window.input.keyboard[Input.Key.LEFT]  & .DOWN then angleXY.x -= speed * per_frame_uniform.data.dtime;
+                    if window.input.keyboard[Input.Key.RIGHT] & .DOWN then angleXY.x += speed * per_frame_uniform.data.dtime;
+                    if window.input.keyboard[Input.Key.UP]    & .DOWN then angleXY.y -= speed * per_frame_uniform.data.dtime;
+                    if window.input.keyboard[Input.Key.DOWN]  & .DOWN then angleXY.y += speed * per_frame_uniform.data.dtime;
+
+                    camera_dir = rotationY(angleXY.x) * camera_dir;
+                    camera_dir = rotationX(angleXY.y) * camera_dir;
                 }
+                camera_dir = normalize(camera_dir);
+
+                view_matrix, inv_view_matrix = lookToMatrixAndItsInverse(camera_pos, camera_dir);
+                proj_matrix, inv_proj_matrix = perspectiveProjectionMatrixFromFovAndItsInverse(cast(f32) back_buffer.width / cast(f32) back_buffer.height,
+                                                                                               PerViewUniform.CAMERA_FOV,
+                                                                                               PerViewUniform.CAMERA_NEAR,
+                                                                                               PerViewUniform.CAMERA_FAR);
+                view_proj_matrix     = proj_matrix     * view_matrix;
+                inv_view_proj_matrix = inv_view_matrix * inv_proj_matrix;
+            }
+            commitPerViewUniform(device, *per_view_uniform);
+
+            beginRendering(device,
+                           *command_buffer,
+                           .[ .{ back_buffer_view, .CLEAR, .STORE } ],
+                           *(DepthTargetDesc.{ view = depth_buffer_dsv, depth_load_action = .CLEAR, depth_store_action = .NONE }));
+            {
+                drawFloor(device, shader_manager, binding_manager, *command_buffer, *floor, *per_view_uniform);
+                drawHeart(device, shader_manager, binding_manager, *command_buffer, *heart, *per_view_uniform);
             }
             endRendering(device, *command_buffer);
         }
@@ -344,6 +355,8 @@ operator> :: Basic.operator>;
 #load "render/shader.jai";
 #load "shader_compiler/compiler.jai";
 #load "shader_compiler/hot_reload.jai";
+#load "floor.jai";
+#load "heart.jai";
 
 Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
 String     :: #import "String";
@@ -513,6 +526,8 @@ initRuntimeAndCallEntryPoint :: () {
 
     context.print_style.default_format_int.digits_per_comma                                = 3;
     context.print_style.default_format_int.comma_string                                    = "'";
+    context.print_style.default_format_float.thousand_separators                           = true;
+    context.print_style.default_format_float.thousand_separator_character                  = #char "'";
     context.print_style.default_format_struct.use_long_form_if_more_than_this_many_members = -1;
     context.print_style.default_format_struct.use_newlines_if_long_form                    = true;
     context.print_style.default_format_absolute_pointer.minimum_digits                     = 16;

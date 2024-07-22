@@ -31,6 +31,8 @@
 // Uniforms
 //
 
+layout(row_major) uniform;
+
 layout(set = PER_FRAME_SET, binding = UNIFORM_SLOT) uniform PerFrame {
     uint32_t frame;
     float    time;
@@ -39,9 +41,10 @@ layout(set = PER_FRAME_SET, binding = UNIFORM_SLOT) uniform PerFrame {
 
 layout(set = PERSISTENT_SET, binding = UNIFORM_SLOT) uniform PerView {
     vec3 camera_position;
+    vec3 camera_direction;
 
-    mat3x4 view_matrix;
-    mat3x4 inv_view_matrix;
+    mat4x4 view_matrix;
+    mat4x4 inv_view_matrix;
 
     mat4x4 proj_matrix;
     mat4x4 inv_proj_matrix;
