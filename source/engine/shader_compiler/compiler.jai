@@ -305,6 +305,7 @@ compileShader :: (name : string) -> bool {
                                            .shaderc_target_env_vulkan,
                                            cast(u32) shaderc_env_version.shaderc_env_version_vulkan_1_3);
     shaderc_compile_options_set_target_spirv(shaderc_options, .shaderc_spirv_version_1_6);
+    shaderc_compile_options_set_auto_bind_uniforms(shaderc_options, false);
     shaderc_compile_options_set_auto_map_locations(shaderc_options, true);
     // @TOOD: #Viewport. Experiment with shaderc_compile_options_set_invert_y
     shaderc_compile_options_set_include_callbacks(shaderc_options, resolveIncludeCallback, releaseIncludeResult, *context);
