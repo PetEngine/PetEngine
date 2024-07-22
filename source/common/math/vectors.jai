@@ -162,9 +162,9 @@ dot :: inline (a : $T/Type.[v4f, v4s, v4u], b : T) -> type_of(T.x) #no_context {
 distance :: inline (a : $T/Type.[v2f, v3f, v4f], b : T) -> f32 { return Math.sqrt(dot(a, b)); }
 length   :: inline (v : $T/Type.[v2f, v3f, v4f]) -> f32 { return Math.sqrt(dot(v, v)); }
 
-normalize :: inline (v : $T/Type.[v2f, v3f, v4f]) -> T { l := length(v); return ifx l then v / l else .{}; }
+normalize :: inline (v : $T/Type.[v2f, v3f, v4f], fallback : T = .{}) -> T { l := length(v); return ifx l >= F32_EPSILON then v / l else fallback; }
 
-normalized :: inline (v : $T/Type.[v2f, v3f, v4f]) -> bool #no_context { return dot(v, v) == 1.0; }
+normalized :: inline (v : $T/Type.[v2f, v3f, v4f]) -> bool #no_context { return almostEquals(dot(v, v), 1.0); }
 
 cross :: inline (a : v3f, b : v3f) -> v3f #no_context { return .{ a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
 
@@ -175,6 +175,11 @@ operator == :: inline (a : $T/Type.[v4f, v4s, v4u], b : T) -> bool #no_context {
 operator != :: inline (a : $T/Type.[v2f, v2s, v2u], b : T) -> bool #no_context { return a.x != b.x || a.y != b.y; }
 operator != :: inline (a : $T/Type.[v3f, v3s, v3u], b : T) -> bool #no_context { return a.x != b.x || a.y != b.y || a.z != b.z; }
 operator != :: inline (a : $T/Type.[v4f, v4s, v4u], b : T) -> bool #no_context { return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w; }
+
+// @Speed: Maybe at least here there is a sense to use SIMD?
+abs :: inline (v : $T/Type.[v2f, v2s]) -> T #no_context { return .{ abs(v.x), abs(v.y) }; }
+abs :: inline (v : $T/Type.[v3f, v3s]) -> T #no_context { return .{ abs(v.x), abs(v.y), abs(v.z) }; }
+abs :: inline (v : $T/Type.[v4f, v4s]) -> T #no_context { return .{ abs(v.x), abs(v.y), abs(v.z), abs(v.w) }; }
 
 min :: inline (a : $T/Type.[v2f, v2s, v2u], b : T) -> T #no_context { return .{ min(a.x, b.x), min(a.y, b.y) }; }
 min :: inline (a : $T/Type.[v3f, v3s, v3u], b : T) -> T #no_context { return .{ min(a.x, b.x), min(a.y, b.y), min(a.z, b.z) }; }
@@ -200,6 +205,6 @@ gammaToLinear :: inline (v : v2f, gamma : f32 = 2.2) -> v2f { return .{ Math.pow
 gammaToLinear :: inline (v : v3f, gamma : f32 = 2.2) -> v3f { return .{ Math.pow(v.x, gamma), Math.pow(v.y, gamma), Math.pow(v.z, gamma) }; }
 gammaToLinear :: inline (v : v4f, gamma : f32 = 2.2) -> v4f { return .{ Math.pow(v.x, gamma), Math.pow(v.y, gamma), Math.pow(v.z, gamma), v.w }; }
 
-linearToGamma :: inline (v : v2f, gamma : f32 = 2.2) -> v2f { return .{ Math.pow(v.x, 1.0 / gamma), Math.pow(v.y, 1.0 / gamma) }; }
-linearToGamma :: inline (v : v3f, gamma : f32 = 2.2) -> v3f { return .{ Math.pow(v.x, 1.0 / gamma), Math.pow(v.y, 1.0 / gamma), Math.pow(v.z, 1.0 / gamma) }; }
-linearToGamma :: inline (v : v4f, gamma : f32 = 2.2) -> v4f { return .{ Math.pow(v.x, 1.0 / gamma), Math.pow(v.y, 1.0 / gamma), Math.pow(v.z, 1.0 / gamma), v.w }; }
+linearToGamma :: inline (v : v2f, gamma : f32 = 2.2) -> v2f { ig := 1.0 / gamma; return .{ Math.pow(v.x, ig), Math.pow(v.y, ig) }; }
+linearToGamma :: inline (v : v3f, gamma : f32 = 2.2) -> v3f { ig := 1.0 / gamma; return .{ Math.pow(v.x, ig), Math.pow(v.y, ig), Math.pow(v.z, ig) }; }
+linearToGamma :: inline (v : v4f, gamma : f32 = 2.2) -> v4f { ig := 1.0 / gamma; return .{ Math.pow(v.x, ig), Math.pow(v.y, ig), Math.pow(v.z, ig), v.w }; }

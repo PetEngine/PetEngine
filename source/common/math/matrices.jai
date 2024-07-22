@@ -227,9 +227,9 @@ determinant :: inline (m : m4x4) -> f32 #no_context {
 }
 
 // Left handed
-lookAtMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x4 {
-    assert(normalized(world_up), "world_up vector should be normal");
-    assert(normalized(direction), "direction vector should be normal");
+lookToMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x4 {
+    assert(normalized(world_up), "world_up vector should be normal. world_up = %, dot = %", formatInline(world_up), dot(world_up, world_up));
+    assert(normalized(direction), "direction vector should be normal. direction = %, dot = %", formatInline(direction), dot(direction, direction));
 
     axis_z := direction;
     axis_x := cross(world_up, axis_z);
@@ -244,9 +244,9 @@ lookAtMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -
 }
 
 // Left handed
-lookAtMatrixAndItsInverse :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> (view : m4x4, inv_view : m4x4) {
-    assert(normalized(world_up), "world_up vector should be normal");
-    assert(normalized(direction), "direction vector should be normal");
+lookToMatrixAndItsInverse :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> (view : m4x4, inv_view : m4x4) {
+    assert(normalized(world_up), "world_up vector should be normal. world_up = %, dot = %", formatInline(world_up), dot(world_up, world_up));
+    assert(normalized(direction), "direction vector should be normal. direction = %, dot = %", formatInline(direction), dot(direction, direction));
 
     axis_z := direction;
     axis_x := cross(world_up, axis_z);
@@ -266,141 +266,116 @@ lookAtMatrixAndItsInverse :: (camera : v3f, direction : v3f, world_up : v3f = .{
 }
 
 // Left handed
-lookAtMatrixFromTarget :: inline (camera : v3f, target : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x4 {
-    return lookAtMatrix(camera, normalize(target - camera), world_up);
+lookAtMatrix :: inline (camera : v3f, target : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x4 {
+    return lookToMatrix(camera, normalize(target - camera), world_up);
 }
 
 // Left handed
-lookAtMatrixFromTargetAndItsInverse :: inline (camera : v3f, target : v3f, world_up : v3f = .{ 0, 1, 0 }) -> (view : m4x4, inverse_view : m4x4) {
-    view, inverse_view := lookAtMatrixAndItsInverse(camera, normalize(target - camera), world_up);
+lookAtMatrixAndItsInverse :: inline (camera : v3f, target : v3f, world_up : v3f = .{ 0, 1, 0 }) -> (view : m4x4, inverse_view : m4x4) {
+    view, inverse_view := lookToMatrixAndItsInverse(camera, normalize(target - camera), world_up);
     return view, inverse_view;
 }
 
-// Left handed
+// Left handed: camera z axis looks forward
 perspectiveProjectionMatrixFromFov :: (aspect_ratio : f32, fov : f32, near : f32, far : f32, $reverse_z := true) -> m4x4 {
-    t      := Math.tan(0.5 * fov);
+    cot    := cast(f32) Math.cot(0.5 * fov);
     neg_nf := -(near * far);
 
     #if reverse_z {
         depth := near - far;
-
-        e22 := near   / depth;
-        e23 := neg_nf / depth;
+        e22   := near / depth;
     } else {
         depth := far - near;
-
-        e22 := far    / depth;
-        e23 := neg_nf / depth;
+        e22   := far / depth;
     }
 
     return .{
-        e00 = 1.0 / (aspect_ratio * t),
-        e11 = 1.0 / t,
+        e00 = cot / aspect_ratio,
+        e11 = cot,
         e22 = e22,
-        e23 = e23,
+        e23 = neg_nf / depth,
         e32 = 1.0
     };
 }
 
-// Left handed
+// Left handed: camera z axis looks forward
 perspectiveProjectionMatrixFromFovAndItsInverse :: (aspect_ratio : f32, fov : f32, near : f32, far : f32, $reverse_z := true) -> (projection : m4x4, inverse_projection : m4x4) {
-    t      := Math.tan(0.5 * fov);
+    cot    := cast(f32) Math.cot(0.5 * fov);
     neg_nf := -(near * far);
-    at     := aspect_ratio * t;
 
     #if reverse_z {
         depth := near - far;
-
-        e22 := near   / depth;
-        e23 := neg_nf / depth;
-
-        inv_e32 := depth / neg_nf;
-        inv_e33 := 1.0   / far;
+        e22   := near / depth;
+        ie33  := 1.0  / far;
     } else {
         depth := far - near;
-
-        e22 := far    / depth;
-        e23 := neg_nf / depth;
-
-        inv_e32 := depth / neg_nf;
-        inv_e33 := 1.0   / near;
+        e22   := far / depth;
+        ie33  := 1.0 / near;
     }
 
     return .{
-        e00 = 1.0 / at,
-        e11 = 1.0 / t,
+        e00 = cot / aspect_ratio,
+        e11 = cot,
         e22 = e22,
-        e23 = e23,
+        e23 = neg_nf / depth,
         e32 = 1.0
     }, .{
-        e00 = at,
-        e11 = t,
+        e00 = aspect_ratio / cot,
+        e11 = 1.0 / cot,
         e23 = 1.0,
-        e32 = inv_e32,
-        e33 = inv_e33
+        e32 = depth / neg_nf,
+        e33 = ie33
     };
 }
 
-// Left handed
-perspectiveProjectionMatrix :: (width : f32, heigt : f32, near : f32, far : f32, $reverse_z := true) -> m4x4 #no_context {
+// Left handed: camera z axis looks forward
+perspectiveProjectionMatrix :: (width : f32, height : f32, near : f32, far : f32, $reverse_z := true) -> m4x4 #no_context {
     _2n    := 2.0 * near;
     neg_nf := -(near * far);
 
     #if reverse_z {
         depth := near - far;
-
-        e22 := near   / depth;
-        e23 := neg_nf / depth;
+        e22   := near / depth;
     } else {
         depth := far - near;
-
-        e22 := far    / depth;
-        e23 := neg_nf / depth;
+        e22   := far / depth;
     }
 
     return .{
         e00 = _2n / width,
-        e11 = _2n / heigt,
+        e11 = _2n / height,
         e22 = e22,
-        e23 = e23,
+        e23 = neg_nf / depth,
         e32 = 1.0
     };
 }
 
-// Left handed
-perspectiveProjectionMatrixAndItsInverse :: (width : f32, heigt : f32, near : f32, far : f32, $reverse_z := true) -> (projection : m4x4, inverse_projection : m4x4) #no_context {
+// Left handed: camera z axis looks forward
+perspectiveProjectionMatrixAndItsInverse :: (width : f32, height : f32, near : f32, far : f32, $reverse_z := true) -> (projection : m4x4, inverse_projection : m4x4) #no_context {
     _2n    := 2.0 * near;
     neg_nf := -(near * far);
 
     #if reverse_z {
         depth := near - far;
-
-        e22 := near   / depth;
-        e23 := neg_nf / depth;
-
-        inv_e32 := depth / neg_nf;
-        inv_e33 := 1.0   / far;
+        e22   := near / depth;
+        ie33  := 1.0  / far;
     } else {
         depth := far - near;
-
-        e22 := far    / depth;
-        e23 := neg_nf / depth;
-
-        inv_e32 := depth / neg_nf;
-        inv_e33 := 1.0   / near;
+        e22   := far / depth;
+        ie33  := 1.0 / near;
     }
 
     return .{
         e00 = _2n / width,
-        e11 = _2n / heigt,
+        e11 = _2n / height,
         e22 = e22,
-        e23 = e23,
+        e23 = neg_nf / depth,
         e32 = 1.0
     }, .{
         e00 = width  / _2n,
         e11 = height / _2n,
         e23 = 1.0,
-        e32 = inv_e32,
-        e33 = inv_e33
+        e32 = depth / neg_nf,
+        e33 = ie33
     };
 }

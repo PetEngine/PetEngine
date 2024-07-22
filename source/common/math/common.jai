@@ -1,5 +1,8 @@
 #scope_export
 
+F32_EPSILON : f32 : 0h34C0_0000;           // 0h3400_0000 is too small and still fails sometimes
+F64_EPSILON : f64 : 0h3CB0_0000_0000_0000;
+
 isPowerOfTwo :: inline (value : $T) -> bool #no_context {
     #assert T != f32 && T != f64;
 
@@ -87,6 +90,28 @@ sign :: inline (value : $T/Type.[s8, s16, s32, s64, f32, f64]) -> T #no_context 
 
 sign :: inline (value : $T/Type.[u8, u16, u32, u64]) -> T #no_context {
     return value != 0;
+}
+
+abs :: inline (value : $T/Type.[f32, f64]) -> T #no_context #modify { return rejectVectors(T); } {
+    U :: #ifx T == f32 then u32 else u64;
+    union { _float : T; uint : U; }
+    _float = value;
+    MASK : U : (1 << size_of(T)) - 1;
+    uint &= MASK;
+    return _float;
+}
+
+abs :: inline (value : $T/Type.[s8, s16, s32, s64]) -> T #no_context #modify { return rejectVectors(T); } {
+    MASK : T : (1 << size_of(T)) - 1;
+    return value & MASK;
+}
+
+almostEquals :: (a : $T/Type.[f32, f64], b : T) -> bool #no_context {
+    #if T == f32 {
+        return abs(a - b) <= F32_EPSILON;
+    } else {
+        return abs(a - b) <= F64_EPSILON;
+    }
 }
 
 min :: inline (a : $T, b : T) -> T #no_context #modify { return rejectVectors(T) && rejectMatrices(T); } {
