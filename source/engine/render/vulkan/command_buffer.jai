@@ -85,25 +85,21 @@ clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTextur
 }
 
 setVulkanViewport :: inline (command_buffer : VkCommandBuffer, viewport : *Viewport, render_target_height : u16) #no_context {
-    vk_viewport := VkViewport.{
+    vkCmdSetViewport(command_buffer, 0, 1, *(VkViewport.{
         x        = viewport.x,
         y        = cast(f32) render_target_height - viewport.y,
         width    = viewport.width,
         height   = -viewport.height,
-        minDepth = 0.0,
-        maxDepth = 1.0,
-    };
-
-    vkCmdSetViewport(command_buffer, 0, 1, *vk_viewport);
+        minDepth = viewport.min_depth,
+        maxDepth = viewport.max_depth,
+    }));
 }
 
 setVulkanScissorRect :: inline (command_buffer : VkCommandBuffer, scissor_rect : *ScissorRect) #no_context {
-    vk_scissor_rect := VkRect2D.{
+    vkCmdSetScissor(command_buffer, 0, 1, *(VkRect2D.{
         offset = .{ scissor_rect.x,     scissor_rect.y      },
         extent = .{ scissor_rect.width, scissor_rect.height },
-    };
-
-    vkCmdSetScissor(command_buffer, 0, 1, *vk_scissor_rect);
+    }));
 }
 
 setVulkanShader :: (
