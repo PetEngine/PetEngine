@@ -5,6 +5,10 @@
 f32 :: float32;
 f64 :: float64;
 
+DEFAULT_CACHE_LINE_SIZE :: 64;
+DEFAULT_PAGE_SIZE       :: 4096;
+DEFAULT_ALIGNMENT       :: size_of(*void);
+
 #if OS == .WINDOWS {
     asciiToWide :: (wide_string : *[] WCHAR, ascii_string : string, $null_terminated : bool) #no_context {
         wide_string.count = ascii_string.count;
@@ -43,13 +47,32 @@ f64 :: float64;
         }
     }
 
+    asciiToWide :: (
+        ascii_string     : string,
+        allocate         : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
+        user_data        : *T,
+        $null_terminated : bool
+    ) -> LPWSTR {
+        wide_string : LPWSTR = allocate(user_data, (ascii_string.count + cast(s64) null_terminated) * size_of(WCHAR), size_of(WCHAR));
+
+        for 0 .. ascii_string.count - 1 {
+            wide_string[it] = ascii_string[it];
+        }
+
+        #if null_terminated {
+            wide_string[ascii_string.count] = 0;
+        }
+
+        return wide_string;
+    }
+
     wideToAscii :: (
         wide_string : *WCHAR,
         length      : s64,
         allocate    : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
         user_data   : *T
     ) -> string {
-        ascii_string := string.{ length, allocate(user_data, length, 0) };
+        ascii_string := string.{ count = length, data = allocate(user_data, length, size_of(u8)) };
 
         for 0 .. ascii_string.count - 1 {
             ascii_string[it] = cast(u8) wide_string[it];
@@ -66,15 +89,23 @@ f64 :: float64;
             ascii_string.*[it] = cast(u8) wide_string[it];
         }
     }
+}
 
-    wideLength :: inline (wide_string : [$wide_string_capacity] WCHAR) -> s64 #no_context {
-        length := 0;
-        for wide_string {
-            if it == 0 break;
-            length += 1;
+ntStringLength :: inline (nt_string : [] $T) -> s64 #no_context {
+    for nt_string {
+        if it == 0 {
+            return it_index;
         }
-        return length;
     }
+    return nt_string.count;
+}
+
+ntStringLength :: inline (nt_string : *$T) -> s64 #no_context {
+    start := nt_string;
+    while nt_string.* {
+        nt_string += 1;
+    }
+    return nt_string - start;
 }
 
 advance :: inline (str : *string, amount := 1) {
@@ -205,8 +236,21 @@ generatePlatformVtableInitialization :: (
     notImplemented();
 }
 
+#if DEBUG_BUILD {
+    Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
+                                    ENABLE_ASSERTS       = DEBUG_BUILD,
+                                    ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
+                                    LINUX_FREE_ADVICE    = .DONTNEED);
+} else {
+    Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
+                                    ENABLE_ASSERTS       = DEBUG_BUILD,
+                                    ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
+                                    LINUX_FREE_ADVICE    = .FREE);
+}
+
 #scope_module
 
-Basic  :: #import "Basic";
-Math   :: #import "Math";
-String :: #import "String";
+Basic    :: #import "Basic";
+Math     :: #import "Math";
+String   :: #import "String";
+Compiler :: #import "Compiler";

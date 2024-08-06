@@ -21,8 +21,12 @@ VulkanShaderManager :: struct {
     per_frame_reset_data : StaticArray(PerFrameResetData, Device.MAX_FRAME_BUFFERING);
 }
 
-createVulkanShaderManager :: (device : *VulkanDevice, resource_manager : *VulkanResourceManager) -> *VulkanShaderManager #must {
-    manager := pushToArena(*context.pet.persistent_arena, VulkanShaderManager);
+createVulkanShaderManager :: () {
+    manager := pushToArena(*context.pet.arenas.persistent, VulkanShaderManager);
+    context.pet.render.shader_manager = manager;
+
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     manager.per_frame_reset_data.count = cast,no_check(s64) device.frame_buffering;
 
     #insert -> string { return generatePlatformVtableInitialization(ShaderManager, "manager", "Vulkan"); }
@@ -30,13 +34,11 @@ createVulkanShaderManager :: (device : *VulkanDevice, resource_manager : *Vulkan
     // @TODO: #PipelineCache. Initial data.
     create_info : VkPipelineCacheCreateInfo;
     debugCheckVK(vkCreatePipelineCache(device.device, *create_info, null, *manager.pipeline_cache));
-
-    return manager;
 }
 
-destroyVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
-    device  := cast(*VulkanDevice)        device_;
-    manager := cast(*VulkanShaderManager) manager_;
+destroyVulkanShaderManager :: () {
+    device  := cast(*VulkanDevice)        context.pet.render.device;
+    manager := cast(*VulkanShaderManager) context.pet.render.shader_manager;
 
     vkDestroyPipelineCache(device.device, manager.pipeline_cache, null);
 
@@ -46,11 +48,11 @@ destroyVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
     }
 }
 
-resetVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
-    device  := cast(*VulkanDevice)        device_;
-    manager := cast(*VulkanShaderManager) manager_;
-
+resetVulkanShaderManager :: () {
     assertThreadKind(.MAIN);
+
+    device  := cast(*VulkanDevice)        context.pet.render.device;
+    manager := cast(*VulkanShaderManager) context.pet.render.shader_manager;
 
     // @TODO: #FrameBuffering.
     //    - If manager.per_frame_*.count < device.frame_buffering then allocate new memory
@@ -62,7 +64,7 @@ resetVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
     if reset_data.data.count > 0 {
         scopedLock(*reset_data.mutex);
 
-        waitVulkanDeviceIdle(device);
+        waitVulkanDeviceIdle();
 
         for reset_data.data {
             if it.pipeline {
@@ -80,8 +82,8 @@ resetVulkanShaderManager :: (device_ : *Device, manager_ : *ShaderManager) {
     }
 }
 
-findVulkanShader :: (manager_ : *ShaderManager, name : string) -> *Shader #must #no_context {
-    manager := cast(*VulkanShaderManager) manager_;
+findVulkanShader :: (name : string) -> *Shader #must {
+    manager := cast(*VulkanShaderManager) context.pet.render.shader_manager;
 
     for * toView(manager.shaders_storage.data, manager.shaders_count) {
         if it.name == name {
@@ -99,8 +101,8 @@ VulkanShader :: struct {
     pipeline        : VkPipeline;
 }
 
-pushVulkanShader :: (manager_ : *ShaderManager) -> *Shader #must {
-    manager := cast(*VulkanShaderManager) manager_;
+pushVulkanShader :: () -> *Shader #must {
+    manager := cast(*VulkanShaderManager) context.pet.render.shader_manager;
 
     assert(manager.shaders_count < manager.shaders_storage.count,
            "Too many shaders were created. Consider increasing ShaderManager.MAX_SHADERS");
@@ -111,17 +113,9 @@ pushVulkanShader :: (manager_ : *ShaderManager) -> *Shader #must {
     return shader;
 }
 
-createGraphicsVulkanShader :: (
-    device_          : *Device,
-    manager_         : *ShaderManager,
-    binding_manager_ : *BindingManager,
-    shader_          : *Shader,
-    shader_file_data : string
-) {
-    device          := cast(*VulkanDevice)         device_;
-    manager         := cast(*VulkanShaderManager)  manager_;
-    binding_manager := cast(*VulkanBindingManager) binding_manager_;
-    shader          := cast(*VulkanShader)         shader_;
+createGraphicsVulkanShader :: (shader_ : *Shader, shader_file_data : string) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+    shader := cast(*VulkanShader) shader_;
 
     shader_file_header := ShaderCompiler.getHeader(shader_file_data);
 
@@ -149,20 +143,22 @@ createGraphicsVulkanShader :: (
 
         spirv := string.{ next_stage_offset - this_stage_offset, *shader_file_data[this_stage_offset] };
 
-        it.* = createShaderStage(device, spirv, cast(ShaderStage) it_index, shader.name);
+        it.* = createShaderStage(spirv, cast(ShaderStage) it_index, shader.name);
     }
     defer for shader_stages {
         vkDestroyShaderModule(device.device, it, null);
     }
 
     {
-        ranges : [ShaderCompiler.MAX_PUSH_CONSTANTS] VkPushConstantRange;
-        fillPushConstantRanges(ranges, *shader.binding_table);
+        binding_manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
 
         descriptor_set_layouts : [BindingManager.MAX_DESCRIPTOR_SETS] VkDescriptorSetLayout;
         for binding_manager.descriptor_set_layouts {
             descriptor_set_layouts[it_index] = it.layout;
         }
+
+        ranges : [ShaderCompiler.MAX_PUSH_CONSTANTS] VkPushConstantRange;
+        fillPushConstantRanges(ranges, *shader.binding_table);
 
         create_info := VkPipelineLayoutCreateInfo.{
             setLayoutCount         = descriptor_set_layouts.count,
@@ -173,7 +169,7 @@ createGraphicsVulkanShader :: (
 
         debugCheckVK(vkCreatePipelineLayout(device.device, *create_info, null, *shader.pipeline_layout));
 
-        setVulkanObjectName(device, shader.pipeline_layout, "% pipeline layout", shader.name);
+        setVulkanObjectName(shader.pipeline_layout, "% pipeline layout", shader.name);
     }
 
     #if DEBUG_BUILD {
@@ -196,14 +192,15 @@ createGraphicsVulkanShader :: (
     pipeline_state          := ShaderCompiler.getPipelineState(shader_file_data);
     graphics_pipeline_state := *pipeline_state.graphics;
 
-    vertex_input_state : VkPipelineVertexInputStateCreateInfo = ---;
-    initVertexInputState(*vertex_input_state);
+    vertex_input_state : VkPipelineVertexInputStateCreateInfo;
 
-    input_assembly_state : VkPipelineInputAssemblyStateCreateInfo = ---;
+    input_assembly_state : VkPipelineInputAssemblyStateCreateInfo;
     initInputAssemblyState(*input_assembly_state, graphics_pipeline_state);
 
-    viewport_state : VkPipelineViewportStateCreateInfo = ---;
-    initViewportState(*viewport_state);
+    viewport_state := VkPipelineViewportStateCreateInfo.{
+        viewportCount = 1,
+        scissorCount  = 1,
+    };
 
     rasterization_state : VkPipelineRasterizationStateCreateInfo = ---;
     initRasterizationState(*rasterization_state, graphics_pipeline_state);
@@ -260,13 +257,15 @@ createGraphicsVulkanShader :: (
         basePipelineIndex   = 0
     };
 
+    manager := cast(*VulkanShaderManager) context.pet.render.shader_manager;
+
     debugCheckVK(vkCreateGraphicsPipelines(device.device, manager.pipeline_cache, 1, *create_info, null, *shader.pipeline));
 
-    setVulkanObjectName(device, shader.pipeline, "% graphics pipeline", shader.name);
+    setVulkanObjectName(shader.pipeline, "% graphics pipeline", shader.name);
 }
 
-reloadGraphicsVulkanShader :: (device : *Device, manager_ : *ShaderManager, binding_manager : *BindingManager, shader_ : *Shader, shader_file_data : string) {
-    manager := cast(*VulkanShaderManager) manager_;
+reloadGraphicsVulkanShader :: (shader_ : *Shader, shader_file_data : string) {
+    manager := cast(*VulkanShaderManager) context.pet.render.shader_manager;
     shader  := cast(*VulkanShader)        shader_;
 
     reset_data := VulkanShaderManager.ResetData.{
@@ -274,9 +273,9 @@ reloadGraphicsVulkanShader :: (device : *Device, manager_ : *ShaderManager, bind
         pipeline_layout = shader.pipeline_layout
     };
 
-    createGraphicsVulkanShader(device, manager, binding_manager, shader, shader_file_data);
+    createGraphicsVulkanShader(shader, shader_file_data);
 
-    per_frame_reset_data := *manager.per_frame_reset_data[device.frame_index];
+    per_frame_reset_data := *manager.per_frame_reset_data[context.pet.render.device.frame_index];
     scopedLock(*per_frame_reset_data.mutex);
 
     pushBack(*per_frame_reset_data.data).* = reset_data;
@@ -299,7 +298,9 @@ shaderStageFlagsToVulkanStageFlags :: inline (stage : ShaderStageFlags) -> VkSha
 
 #scope_file
 
-createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStage, shader_name : string) -> VkShaderModule #must {
+createShaderStage :: (spirv : string, stage : ShaderStage, shader_name : string) -> VkShaderModule #must {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     create_info := VkShaderModuleCreateInfo.{
         codeSize = cast(size_t) spirv.count,
         pCode    = cast(*u32)   spirv.data,
@@ -308,7 +309,7 @@ createShaderStage :: (device : *VulkanDevice, spirv : string, stage : ShaderStag
     module : VkShaderModule;
     debugCheckVK(vkCreateShaderModule(device.device, *create_info, null, *module));
 
-    setVulkanObjectName(device, module, "% stage % shader module", stage, shader_name);
+    setVulkanObjectName(module, "% stage % shader module", stage, shader_name);
 
     return module;
 }
@@ -322,22 +323,7 @@ fillPushConstantRanges :: inline (ranges : [] VkPushConstantRange, binding_table
     }
 }
 
-// @TODO: #ShaderCompiler. Get vertex shader input from shader.
-initVertexInputState :: inline (this : *VkPipelineVertexInputStateCreateInfo) #no_context {
-    this.sType                           = .VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    this.pNext                           = null;
-    this.flags                           = 0;
-    this.vertexBindingDescriptionCount   = 0;
-    this.pVertexBindingDescriptions      = null;
-    this.vertexAttributeDescriptionCount = 0;
-    this.pVertexAttributeDescriptions    = null;
-}
-
 initInputAssemblyState :: inline (this : *VkPipelineInputAssemblyStateCreateInfo, state : *ShaderCompiler.GraphicsPipelineState) {
-    this.sType = .VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    this.pNext = null;
-    this.flags = 0;
-
     if #complete state.primitive_topology == {
         case .POINT_LIST;     this.topology = .VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
         case .LINE_LIST;      this.topology = .VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
@@ -352,16 +338,6 @@ initInputAssemblyState :: inline (this : *VkPipelineInputAssemblyStateCreateInfo
                                                            || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN
                                                            || this.topology == .VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY
                                                            || this.topology == .VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY);
-}
-
-initViewportState :: inline (this : *VkPipelineViewportStateCreateInfo) #no_context {
-    this.sType         = .VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    this.pNext         = null;
-    this.flags         = 0;
-    this.viewportCount = 1;
-    this.pViewports    = null;
-    this.scissorCount  = 1;
-    this.pScissors     = null;
 }
 
 initRasterizationState :: inline (this : *VkPipelineRasterizationStateCreateInfo, state : *ShaderCompiler.GraphicsPipelineState) {
@@ -469,7 +445,7 @@ initColorBlendState :: inline (this : *VkPipelineColorBlendStateCreateInfo, stat
     this.blendConstants  = .[ 0.0, 0.0, 0.0, 0.0 ];
     this.attachmentCount = state.color_targets_count;
     if this.attachmentCount {
-        this.pAttachments = pushToArena(*context.pet.per_frame_arena, VkPipelineColorBlendAttachmentState, this.attachmentCount);
+        this.pAttachments = pushToArena(*context.pet.arenas.per_frame, VkPipelineColorBlendAttachmentState, this.attachmentCount);
 
         for * toView(this.pAttachments, this.attachmentCount) {
             color_target := *state.color_targets[it_index];

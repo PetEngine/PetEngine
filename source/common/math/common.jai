@@ -5,21 +5,34 @@ PI : f32 : Math.PI;
 F32_EPSILON : f32 : 0h34C0_0000;           // 0h3400_0000 is too small and still fails sometimes
 F64_EPSILON : f64 : 0h3CB0_0000_0000_0000;
 
+Rect :: struct {
+    x : s16;
+    y : s16;
+    using resolution : Resolution;
+}
+
+Resolution :: struct {
+    width  : u16;
+    height : u16;
+}
+
 isPowerOfTwo :: inline (value : $T) -> bool #no_context {
-    #assert T != f32 && T != f64;
+    #assert isAnyOf(T, .INTEGER, .ENUM, .POINTER);
 
     return value && !(value & (value - 1));
 }
 
-alignDownWithPowerOfTwo :: inline (value : $T, alignment : T) -> T {
-    #assert T != f32 && T != f64;
+alignDownWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T {
+    #assert isAnyOf(T, .INTEGER, .ENUM, .POINTER);
+    #assert isAnyOf(U, .INTEGER, .ENUM);
     assert(isPowerOfTwo(alignment));
 
     return value & ~(alignment - 1);
 }
 
-alignUpWithPowerOfTwo :: inline (value : $T, alignment : T) -> T {
-    #assert T != f32 && T != f64;
+alignUpWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T {
+    #assert isAnyOf(T, .INTEGER, .ENUM, .POINTER);
+    #assert isAnyOf(U, .INTEGER, .ENUM);
     assert(isPowerOfTwo(alignment));
 
     mask := alignment - 1;
@@ -94,7 +107,7 @@ sign :: inline (value : $T/Type.[u8, u16, u32, u64]) -> T #no_context {
     return value != 0;
 }
 
-abs :: inline (value : $T/Type.[f32, f64]) -> T #no_context #modify { return rejectVectors(T); } {
+abs :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
     U :: #ifx T == f32 then u32 else u64;
     union { _float : T; uint : U; }
     _float = value;
@@ -103,7 +116,7 @@ abs :: inline (value : $T/Type.[f32, f64]) -> T #no_context #modify { return rej
     return _float;
 }
 
-abs :: inline (value : $T/Type.[s8, s16, s32, s64]) -> T #no_context #modify { return rejectVectors(T); } {
+abs :: inline (value : $T/Type.[s8, s16, s32, s64]) -> T #no_context {
     MASK : T : (1 << size_of(T)) - 1;
     return value & MASK;
 }
@@ -120,9 +133,9 @@ min :: inline (a : $T, b : T) -> T #no_context #modify { return rejectVectors(T)
     return ifx a < b then a else b;
 }
 
-min :: inline (first : $T, rest : ..T) -> T #no_context #modify { return rejectVectors(T) && rejectMatrices(T); } {
+min :: inline (first : $T, rest : ..T) -> T #no_context {
     result := first;
-    for rest if it < result then result = it;
+    for rest { result = min(result, it); }
     return result;
 }
 
@@ -130,9 +143,9 @@ max :: inline (a : $T, b : T) -> T #no_context #modify { return rejectVectors(T)
     return ifx a > b then a else b;
 }
 
-max :: inline (first : $T, rest : ..T) -> T #no_context #modify { return rejectVectors(T) && rejectMatrices(T); } {
+max :: inline (first : $T, rest : ..T) -> T #no_context {
     result := first;
-    for rest if it > result then result = it;
+    for rest { result = max(result, it); }
     return result;
 }
 
@@ -140,7 +153,7 @@ clamp :: inline (v : $T, a : T, b : T) -> T #no_context {
     return min(max(v, a), b);
 }
 
-saturate :: inline (v : $T/Type.[s8, s16, s32, s64, u8, u16, u32, u64, f32, f64]) -> T #no_context {
+saturate :: inline (v : $T) -> T #no_context #modify { return rejectVectors(T) && rejectMatrices(T); } {
     return min(max(v, 0), 1);
 }
 
@@ -173,11 +186,11 @@ gammaToLinear :: inline (value : $T/Type.[f32, f64], gamma : T = 2.2) {
 }
 
 degToRad :: inline (deg : f32) -> f32 #no_context {
-    return deg * PI / 180.0;
+    return deg * (PI / 180.0);
 }
 
 radToDeg :: inline (rad : f32) -> f32 #no_context {
-    return rad * 180.0 / PI;
+    return rad * (180.0 / PI);
 }
 
 #scope_file
@@ -194,4 +207,25 @@ rejectMatrices :: inline (T : Type) -> bool #compile_time {
     assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
 
     return T != m2x2 && T != m3x3 && T != m3x4 && T != m4x3 && T != m4x4;
+}
+
+isAnyOf :: (type : Type, types : ..Type_Info_Tag) -> bool #compile_time {
+    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
+
+    info := cast(*Type_Info) type;
+
+    while info.type == .VARIANT {
+        info = (cast(*Type_Info_Variant) info).variant_of;
+    }
+
+    for types {
+        assert(it != .VARIANT);
+        assert(it != .ANY);
+
+        if info.type == it {
+            return true;
+        }
+    }
+
+    return false;
 }

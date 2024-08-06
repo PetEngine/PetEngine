@@ -13,44 +13,31 @@ Floor :: struct {
     push_constants_handle : PushConstantsHandle;
 }
 
-createFloor :: (
-    device          : *Device,
-    shader_manager  : *ShaderManager,
-    binding_manager : *BindingManager,
-    depth_format    : Texture.Format
-) -> Floor {
+createFloor :: (depth_format : Texture.Format) -> Floor {
     floor : Floor;
-    floor.shader                = createShader(device, shader_manager, binding_manager, "floor", .[ getBackBuffer(device).format ], depth_format );
+    floor.shader                = createShader("floor", .[ context.pet.render.device.back_buffer_format ], depth_format );
     floor.push_constants_handle = getPushConstantsHandle(floor.shader, "g_push_constants");
     return floor;
 }
 
-drawFloor :: (
-    device           : *Device,
-    shader_manager   : *ShaderManager,
-    binding_manager  : *BindingManager,
-    command_buffer   : *CommandBuffer,
-    floor            : *Floor,
-    per_view_uniform : *PerViewUniform
-) {
-    viewport := Viewport.{
-        width     = cast(f32) device.render_resolution.width,
-        height    = cast(f32) device.render_resolution.height,
-        min_depth = 0.0,
-        max_depth = 1.0,
-    };
-    setViewport(device, command_buffer, *viewport, device.render_resolution.height);
+drawFloor :: (command_buffer : *CommandBuffer, floor : *Floor, per_view_uniform : *PerViewUniform) {
+    render_resolution := context.pet.render.device.render_resolution;
 
-    setScissorRect(device, command_buffer, *(ScissorRect.{
-        width  = device.render_resolution.width,
-        height = device.render_resolution.height,
+    setViewport(command_buffer, *(Viewport.{
+        width  = cast(f32) render_resolution.width,
+        height = cast(f32) render_resolution.height,
+    }), render_resolution.height);
+
+    setScissorRect(command_buffer, *(ScissorRect.{
+        width  = render_resolution.width,
+        height = render_resolution.height,
     }));
 
-    setShader(device, command_buffer, shader_manager, binding_manager, floor.shader);
+    setShader(command_buffer, floor.shader);
 
-    setPushConstants(device, command_buffer, floor.push_constants_handle, *(Floor.PushConstants.{
-        per_view_uniform_index = per_view_uniform.handles[device.frame_index][per_view_uniform.version].descriptor
+    setPushConstants(command_buffer, floor.push_constants_handle, *(Floor.PushConstants.{
+        per_view_uniform_index = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor
     }));
 
-    drawPrimitives(device, command_buffer, 4);
+    drawPrimitives(command_buffer, 4);
 }

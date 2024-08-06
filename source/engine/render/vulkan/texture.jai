@@ -5,28 +5,21 @@ VulkanTexture :: struct {
     current_layout : VkImageLayout; // @TODO: Rename to just layout
 }
 
-pushVulkanTexture :: (device_ : *Device, manager_ : *ResourceManager, lifetime : ResourceManager.Lifetime) -> *Texture #must {
-    device  := cast(*VulkanDevice)          device_;
-    manager := cast(*VulkanResourceManager) manager_;
+pushVulkanTexture :: (lifetime : ResourceManager.Lifetime) -> *Texture #must {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     texture : *VulkanTexture;
     if #complete lifetime == {
         case .PERSISTENT; texture = pushBack(*manager.textures.persistent.resources);
         case .PER_SCENE;  texture = pushBack(*manager.textures.per_scene.resources);
-        case .PER_FRAME;  texture = pushBack(*manager.textures.per_frame[device.frame_index].resources);
+        case .PER_FRAME;  texture = pushBack(*manager.textures.per_frame[context.pet.render.device.frame_index].resources);
     }
     return texture;
 }
 
-createVulkanTexture :: (
-    device_  : *Device,
-    manager_ : *ResourceManager,
-    texture_ : *Texture,
-    lifetime : ResourceManager.Lifetime,
-    name     : string
-) {
-    device  := cast(*VulkanDevice)          device_;
-    manager := cast(*VulkanResourceManager) manager_;
+createVulkanTexture :: (texture_ : *Texture, lifetime : ResourceManager.Lifetime, name : string) {
+    device  := cast(*VulkanDevice)          context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
     texture := cast(*VulkanTexture)         texture_;
 
     texture.current_layout = .VK_IMAGE_LAYOUT_UNDEFINED;
@@ -84,8 +77,8 @@ createVulkanTexture :: (
         create_info.sharingMode = .VK_SHARING_MODE_EXCLUSIVE;
     }
 
-    checkCreateInfoLimits(device, *create_info, textureFormatFlags(texture.format));
-    checkImageProperties(device, texture, *create_info);
+    checkCreateInfoLimits(*create_info, textureFormatFlags(texture.format));
+    checkImageProperties(texture, *create_info);
 
     debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
 
@@ -95,7 +88,7 @@ createVulkanTexture :: (
         case .PER_FRAME;  composeVulkanTextureName(texture, *manager.textures.per_frame[device.frame_index], lifetime, name);
     }
 
-    setVulkanObjectName(device, texture.image, texture.name);
+    setVulkanObjectName(texture.image, texture.name);
 }
 
 textureFormatToVulkanFormat :: inline (format : Texture.Format) -> VkFormat #no_context {
@@ -178,7 +171,9 @@ getVulkanImageAspectFlags :: inline (format : Texture.Format) -> VkImageAspectFl
 
 #scope_file
 
-checkCreateInfoLimits :: (device : *VulkanDevice, create_info : *VkImageCreateInfo, format_flags : Texture.FormatFlags) {
+checkCreateInfoLimits :: (create_info : *VkImageCreateInfo, format_flags : Texture.FormatFlags) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     if #complete create_info.imageType == {
         case .VK_IMAGE_TYPE_1D;
             if create_info.extent.width > device.limits.maxImageDimension1D {
@@ -287,7 +282,9 @@ checkCreateInfoLimits :: (device : *VulkanDevice, create_info : *VkImageCreateIn
     }
 }
 
-checkImageProperties :: (device : *VulkanDevice, texture : *VulkanTexture, create_info : *VkImageCreateInfo) {
+checkImageProperties :: (texture : *VulkanTexture, create_info : *VkImageCreateInfo) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     image_format_info := VkPhysicalDeviceImageFormatInfo2.{
         format = create_info.format,
         type   = create_info.imageType,

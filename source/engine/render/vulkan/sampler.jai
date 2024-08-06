@@ -4,41 +4,34 @@ VulkanSampler :: struct {
     sampler : VkSampler;
 }
 
-pushVulkanSampler :: (device_ : *Device, manager_ : *ResourceManager, lifetime : ResourceManager.Lifetime) -> *Sampler #must {
-    device  := cast(*VulkanDevice)          device_;
-    manager := cast(*VulkanResourceManager) manager_;
+pushVulkanSampler :: (lifetime : ResourceManager.Lifetime) -> *Sampler #must {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     sampler : *VulkanSampler;
     if #complete lifetime == {
         case .PERSISTENT; sampler = pushBack(*manager.samplers.persistent.resources);
         case .PER_SCENE;  sampler = pushBack(*manager.samplers.per_scene.resources);
-        case .PER_FRAME;  sampler = pushBack(*manager.samplers.per_frame[device.frame_index].resources);
+        case .PER_FRAME;  sampler = pushBack(*manager.samplers.per_frame[context.pet.render.device.frame_index].resources);
     }
     return sampler;
 }
 
-createVulkanSampler :: (
-    device_   : *Device,
-    manager_  : *ResourceManager,
-    sampler_  : *Sampler,
-    state     : *SamplerState,
-    name      : string
-) {
-    device  := cast(*VulkanDevice) device_;
-    manager := cast(*VulkanResourceManager) manager_;
-    sampler := cast(*VulkanSampler) sampler_;
+createVulkanSampler :: (sampler_ : *Sampler, state : *SamplerState, name : string) {
+    device  := cast(*VulkanDevice)          context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
+    sampler := cast(*VulkanSampler)         sampler_;
 
     create_info := VkSamplerCreateInfo.{
-        magFilter        = samplerFilterToVkFilter(state.mag_filter),
-        minFilter        = samplerFilterToVkFilter(state.min_filter),
-        mipmapMode       = samplerFilterToVkSamplerMipmapMode(state.mip_filter),
-        addressModeU     = samplerAddressModeToVkSamplerAddressMode(state.address_mode_u),
-        addressModeV     = samplerAddressModeToVkSamplerAddressMode(state.address_mode_v),
-        addressModeW     = samplerAddressModeToVkSamplerAddressMode(state.address_mode_w),
-        mipLodBias       = state.lod_bias,
-        minLod           = cast(f32) state.min_lod,
-        maxLod           = ifx state.max_lod == Sampler.MAX_LOD_NONE then VK_LOD_CLAMP_NONE else cast(f32) state.max_lod,
-        borderColor      = samplerBorderColorToVkBorderColor(state.border_color),
+        magFilter    = samplerFilterToVkFilter(state.mag_filter),
+        minFilter    = samplerFilterToVkFilter(state.min_filter),
+        mipmapMode   = samplerFilterToVkSamplerMipmapMode(state.mip_filter),
+        addressModeU = samplerAddressModeToVkSamplerAddressMode(state.address_mode_u),
+        addressModeV = samplerAddressModeToVkSamplerAddressMode(state.address_mode_v),
+        addressModeW = samplerAddressModeToVkSamplerAddressMode(state.address_mode_w),
+        mipLodBias   = state.lod_bias,
+        minLod       = cast(f32) state.min_lod,
+        maxLod       = ifx state.max_lod == Sampler.MAX_LOD_NONE then VK_LOD_CLAMP_NONE else cast(f32) state.max_lod,
+        borderColor  = samplerBorderColorToVkBorderColor(state.border_color),
     };
 
     if state.anisotropy == {
@@ -87,17 +80,13 @@ createVulkanSampler :: (
         case .PER_FRAME;  composeVulkanSamplerName(sampler, *manager.samplers.per_frame[device.frame_index], name);
     }
 
-    setVulkanObjectName(device, sampler.sampler, sampler.name);
+    setVulkanObjectName(sampler.sampler, sampler.name);
 }
 
 #scope_file
 
 // "Sampler/<lifetime>/<name>"
-composeVulkanSamplerName :: (
-    sampler     : *VulkanSampler,
-    memory_pool : *VulkanResourceManager.MemorylessPool,
-    name        : string
-) {
+composeVulkanSamplerName :: (sampler : *VulkanSampler, memory_pool : *VulkanResourceManager.MemorylessPool, name : string) {
     lifetime_name := Reflection.enum_value_to_name(sampler.lifetime);
     assert(lifetime_name);
 

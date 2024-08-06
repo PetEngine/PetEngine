@@ -83,12 +83,13 @@ END;
 }
 
 processRawInput :: (window : *Win32Window) {
-    data_buffer : [1024 / size_of(RAWINPUT)] RAWINPUT #align size_of(*void);
+    data_buffer : [1024 / size_of(RAWINPUT)] RAWINPUT #align RAWINPUT_ALIGNMENT;
 
     while true {
-        data_size : u32 = data_buffer.count * size_of(RAWINPUT);
-        data_count := GetRawInputBuffer(data_buffer.data, *data_size, size_of(RAWINPUTHEADER));
+        data_capacity : u32 = data_buffer.count * size_of(RAWINPUT);
+        data_count    := GetRawInputBuffer(data_buffer.data, *data_capacity, size_of(RAWINPUTHEADER));
         assert(data_count != 0xFFFF_FFFF, print_sys_error = true);
+        assert(data_count <= data_buffer.count);
 
         if !data_count break;
 
@@ -211,7 +212,7 @@ getRawInputDeviceNames :: (ri_device : HANDLE) -> (device_name : string, manufac
     assert(ri_result && ri_result != 0xFFFF_FFFF, print_sys_error = true);
 
     if ri_result < device_name_length then device_name_length = ri_result;
-    device_name := wideToAscii(device_wide_name.data, device_name_length, pushToArena, *context.pet.per_frame_arena);
+    device_name := wideToAscii(device_wide_name.data, device_name_length, pushToArena, *context.pet.arenas.per_frame);
 
     manufacturer : string;
     product_name : string;
@@ -229,9 +230,9 @@ getRawInputDeviceNames :: (ri_device : HANDLE) -> (device_name : string, manufac
         manufacturer_wide_name : [((1 << 12) - 3) / size_of(WCHAR)] WCHAR;
 
         if HidD_GetManufacturerString(hid_device, manufacturer_wide_name.data, manufacturer_wide_name.count * size_of(WCHAR)) {
-            manufacturer = wideToAscii(manufacturer_wide_name.data, wideLength(manufacturer_wide_name), pushToArena, *context.pet.per_frame_arena);
+            manufacturer = wideToAscii(manufacturer_wide_name.data, ntStringLength(manufacturer_wide_name), pushToArena, *context.pet.arenas.per_frame);
         } else {
-            // It seems like when manufacture string does not exist, HID returns ERROR_INVALID_USER_BUFFER
+            // It seems like when manufacture string does not exist HID returns ERROR_INVALID_USER_BUFFER
             assert(GetLastError() == ERROR_INVALID_USER_BUFFER, print_sys_error = true);
         }
 
@@ -239,9 +240,9 @@ getRawInputDeviceNames :: (ri_device : HANDLE) -> (device_name : string, manufac
         product_wide_name : [((1 << 12) - 3) / size_of(WCHAR)] WCHAR;
 
         if HidD_GetProductString(hid_device, product_wide_name.data, product_wide_name.count * size_of(WCHAR)) {
-            product_name = wideToAscii(product_wide_name.data, wideLength(product_wide_name), pushToArena, *context.pet.per_frame_arena);
+            product_name = wideToAscii(product_wide_name.data, ntStringLength(product_wide_name), pushToArena, *context.pet.arenas.per_frame);
         } else {
-            // It seems like when product string does not exist, HID returns ERROR_INVALID_USER_BUFFER
+            // It seems like when product string does not exist HID returns ERROR_INVALID_USER_BUFFER
             assert(GetLastError() == ERROR_INVALID_USER_BUFFER, print_sys_error = true);
         }
 

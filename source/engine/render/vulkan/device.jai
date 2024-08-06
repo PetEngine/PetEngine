@@ -1,7 +1,8 @@
-// @TODO: #Device
+// @TODO: #Device.
 //     - Revisit submits and post frame job
 //     - #DeviceFeatures. Define optional and required features and validate it.
-//     - @Cleanup: Reorder fields
+//     - VK_EXT_full_screen_exclusive
+//     - Do not store all the properties and limits. Chose the ones we need and store only them
 
 VulkanDevice :: struct {
     #as using public_data : Device;
@@ -9,28 +10,20 @@ VulkanDevice :: struct {
     MINIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_2;
     LATEST_VULKAN_MINOR_VERSION   :: 3;
 
-    need_to_recreate_swapchain : bool;
-
     api_version : u32;
 
     instance        : VkInstance;
     physical_device : VkPhysicalDevice;
     device          : VkDevice;
+    queues          : [QUEUE_TYPES_COUNT] Queue;
 
-    queues : [QUEUE_TYPES_COUNT] Queue;
+    frame_data         : [MAX_FRAME_BUFFERING] FrameData;
+    vulkan_window_data : [WindowManager.MAX_WINDOWS] VulkanWindowData;
 
-    surface                 : VkSurfaceKHR;
-    swapchain               : VkSwapchainKHR;
-    swapchain_textures      : StaticArray(VulkanTexture, MAX_SWAPCHAIN_BUFFERS);
-    swapchain_texture_views : StaticArray([2] VulkanTextureView, MAX_SWAPCHAIN_BUFFERS);
-
-    frame_data : StaticArray(FrameData, MAX_FRAME_BUFFERING);
-
-    messenger      : VkDebugUtilsMessengerEXT;
-    message_hashes : [..] u32;
-
-    // @TODO: #ContextDependency
-    jai_context : *Context;
+    messenger                           : VkDebugUtilsMessengerEXT;
+    message_hashes                      : [..] u32;
+    messenger_context                   : Context;
+    messenger_context_temporary_storage : Temporary_Storage;
 
     loader : VulkanLoader;
 
@@ -41,14 +34,13 @@ VulkanDevice :: struct {
     descriptor_buffer_properties : VkPhysicalDeviceDescriptorBufferPropertiesEXT;
 }
 
-createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *VulkanDevice #must {
-    device := pushToArena(*context.pet.persistent_arena, VulkanDevice);
+createVulkanDevice :: (frame_buffering : FrameBuffering) {
+    device := pushToArena(*context.pet.arenas.persistent, VulkanDevice);
+    context.pet.render.device = device;
 
     #insert -> string { return generatePlatformVtableInitialization(Device, "device", "Vulkan"); }
 
-    device.jai_context      = *context;
-    device.frame_buffering  = frame_buffering;
-    device.frame_data.count = cast,no_check(s64) frame_buffering;
+    device.frame_buffering = frame_buffering;
 
     // @TODO: #PerFrameArena
     enabled_instance_extensions : [..] string;
@@ -58,10 +50,10 @@ createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *V
     enabled_device_extensions : [..] string;
     defer Basic.array_free(enabled_device_extensions);
 
-    instance_api_version := createInstance(device, *enabled_instance_extensions);
+    instance_api_version := createInstance(*enabled_instance_extensions);
     loadVulkanInstanceExtensionsFunctions(*device.loader, device.instance, *enabled_instance_extensions);
-    initMessengerCallback(device);
-    physical_device_api_version := selectPhysicalDevice(device);
+    initMessengerCallback();
+    physical_device_api_version := selectPhysicalDevice();
 
     device.api_version = min(instance_api_version, physical_device_api_version);
     infoMessage("Using Vulkan API version: %.%.%.%",
@@ -72,86 +64,105 @@ createVulkanDevice :: (window : *Window, frame_buffering : FrameBuffering) -> *V
 
     vkGetPhysicalDeviceMemoryProperties2(device.physical_device, *device.memory_properties);
 
-    gatherQueuesInfo(device);
-    createDevice(device, *enabled_device_extensions);
+    gatherQueuesInfo();
+    createVirtualDevice(*enabled_device_extensions);
     loadVulkanDeviceExtensionsFunctions(*device.loader, device.device, *enabled_device_extensions);
-    getQueues(device);
-    createSurface(device, window);
-    recreateVulkanSwapchain(device, window);
-    createSemaphores(device);
-    createFences(device);
-    createCommandPools(device);
-    createCommandBuffers(device);
-    createSystemCommandBuffers(device);
-
-    return device;
+    getQueues();
+    createFences();
+    createFrameSemaphores();
+    createCommandPools();
+    createCommandBuffers();
+    createSystemCommandBuffers();
 }
 
-destroyVulkanDevice :: (device_ : *Device) {
-    device := cast(*VulkanDevice) device_;
+destroyVulkanDevice :: () {
+    device := cast(*VulkanDevice) context.pet.render.device;
 
     // @Important: Should be the first call
-    waitVulkanDeviceIdle(device);
+    waitVulkanDeviceIdle();
 
-    for device.frame_data {
+    for toView(device.frame_data.data, cast(s64) device.frame_buffering) {
         for it.command_pools {
             vkDestroyCommandPool(device.device, it, null);
+        }
+
+        vkDestroySemaphore(device.device, it.post_frame_semaphore, null);
+        vkDestroySemaphore(device.device, it.graphics_semaphore, null);
+        for it.acquire_semaphores {
+            if it != VK_NULL_HANDLE {
+                vkDestroySemaphore(device.device, it, null);
+            }
         }
 
         for it.fences {
             vkDestroyFence(device.device, it, null);
         }
-
-        for it.semaphores {
-            vkDestroySemaphore(device.device, it, null);
-        }
     }
 
-    for views : device.swapchain_texture_views {
-        for views {
-            if it.view != VK_NULL_HANDLE  {
-                vkDestroyImageView(device.device, it.view, null);
-            }
+    for device.vulkan_window_data {
+        for views : it.swapchain_texture_views {
+            for views {
+                if it.view != VK_NULL_HANDLE {
+                    vkDestroyImageView(device.device, it.view, null);
+                }
 
+                if it.name {
+                    Basic.free(it.name);
+                }
+            }
+        }
+
+        for it.swapchain_textures {
             if it.name {
                 Basic.free(it.name);
             }
         }
-    }
 
-    for device.swapchain_textures {
-        if it.name {
-            Basic.free(it.name);
+        if it.swapchain != VK_NULL_HANDLE {
+            device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, it.swapchain, null);
+        }
+
+        if it.surface != VK_NULL_HANDLE {
+            device.loader.extensions.instance.required.vkDestroySurfaceKHR(device.instance, it.surface, null);
         }
     }
-
-    device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, device.swapchain, null);
-
-    device.loader.extensions.instance.required.vkDestroySurfaceKHR(device.instance, device.surface, null);
 
     vkDestroyDevice(device.device, null);
 
     if device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT {
         device.loader.extensions.instance.optional.vkDestroyDebugUtilsMessengerEXT(device.instance, device.messenger, null);
-    }
 
-    Basic.array_reset(*device.message_hashes);
+        push_context device.messenger_context {
+            Basic.array_reset(*device.message_hashes);
+
+            Allocator.rpfree(context.temporary_storage.original_data);
+            context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
+        }
+    }
 
     vkDestroyInstance(device.instance, null);
 }
 
-beginVulkanFrame :: (device_ : *Device, window : *Window) {
-    device := cast(*VulkanDevice) device_;
+initVulkanWindowData :: (window : *Window) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
+    createWindowSemaphores(window);
+    createSurface(window);
+    recreateVulkanSwapchain(window);
+}
+
+beginVulkanFrame :: () {
     assertThreadKind(.MAIN);
+    device := cast(*VulkanDevice) context.pet.render.device;
 
     //
     // Go to the next frame data
     //
-    device.frame_index = (device.frame_index + 1) % cast(u8) device.frame_data.count;
+    device.frame_index = (device.frame_index + 1) % cast(u8) device.frame_buffering;
     frame_data := *device.frame_data[device.frame_index];
 
     //
-    // Wait for current frame command pools memory
+    // Wait for current frame memory
     //
     debugCheckVK(vkWaitForFences(device.device, frame_data.fences.count, frame_data.fences.data, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF));
 
@@ -161,6 +172,15 @@ beginVulkanFrame :: (device_ : *Device, window : *Window) {
     for frame_data.command_pools {
         debugCheckVK(vkResetCommandPool(device.device, it, 0));
     }
+
+    //
+    // Maybe recreate swapchains
+    //
+    forEachActiveWindow(#code {
+        if `device.window_data[windows_it.id].swapchain_is_outdated {
+            `recreateVulkanSwapchain(windows_it);
+        }
+    });
 
     //
     // Begin used command buffers
@@ -187,32 +207,32 @@ beginVulkanFrame :: (device_ : *Device, window : *Window) {
         }
     }
 
-    if device.need_to_recreate_swapchain {
-        recreateVulkanSwapchain(device, window);
-    }
-
     //
     // Acquire next swapchain buffer
     //
     {
         acquire_info := VkAcquireNextImageInfoKHR.{
-            swapchain  = device.swapchain,
             timeout    = 0xFFFF_FFFF_FFFF_FFFF,
-            semaphore  = frame_data.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
             fence      = VK_NULL_HANDLE,
             deviceMask = 1
         };
 
-        back_buffer_index : u32 = ---;
-        debugCheckVK(device.loader.extensions.device.required.vkAcquireNextImage2KHR(device.device, *acquire_info, *back_buffer_index));
+        forEachActiveWindow(#code {
+            `acquire_info.swapchain = `device.vulkan_window_data[windows_it.id].swapchain;
+            `acquire_info.semaphore = `frame_data.acquire_semaphores[windows_it.id];
 
-        device.back_buffer_index = cast,no_check(u8) back_buffer_index;
+            back_buffer_index : u32 = ---;
+            acquire_result := `device.loader.extensions.device.required.vkAcquireNextImage2KHR(`device.device, *`acquire_info, *back_buffer_index);
+            debugCheckVK(acquire_result);
+
+            `device.window_data[windows_it.id].back_buffer_index = cast(u8) back_buffer_index;
+        });
     }
 }
 
-endVulkanFrame :: (device_ : *Device) {
-    device := cast(*VulkanDevice) device_;
+endVulkanFrame :: () {
     assertThreadKind(.MAIN);
+    device := cast(*VulkanDevice) context.pet.render.device;
 
     frame_data := *device.frame_data[device.frame_index];
 
@@ -238,16 +258,27 @@ endVulkanFrame :: (device_ : *Device) {
     }
 
     //
+    // Collect acquire semaphores from all active windows
+    //
+    acquire_semaphores       : [WindowManager.MAX_WINDOWS] VkSemaphore;
+    acquire_semaphores_count : u32;
+    forEachActiveWindow(#code {
+        `acquire_semaphores[`acquire_semaphores_count] = `frame_data.acquire_semaphores[windows_it.id];
+        `acquire_semaphores_count += 1;
+    });
+    assert(acquire_semaphores_count == context.pet.core.window_manager.active_windows.count);
+
+    //
     // Submit frame job
     //
     {
-        submit_info : VkSubmitInfo;
-
         WHICH_STAGE_WILL_WAIT_FOR_THE_SEMAPHORE :: VkPipelineStageFlags.[
             .VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | .VK_PIPELINE_STAGE_TRANSFER_BIT,
             .VK_PIPELINE_STAGE_NONE,
             .VK_PIPELINE_STAGE_NONE
         ];
+
+        submit_info : VkSubmitInfo;
 
         command_buffers_used_it := frame_data.command_buffers_used.data;
         command_buffers_it      := frame_data.command_buffers.data;
@@ -257,10 +288,10 @@ endVulkanFrame :: (device_ : *Device) {
                 fence_to_signal : VkFence = ---;
 
                 if it_index == cast,no_check(s64) QueueType.GRAPHICS {
-                    submit_info.waitSemaphoreCount   = 1;
-                    submit_info.pWaitSemaphores      = *frame_data.semaphores[SemaphoreKind.ACQUIRE_IMAGE];
+                    submit_info.waitSemaphoreCount   = acquire_semaphores_count;
+                    submit_info.pWaitSemaphores      = acquire_semaphores.data;
                     submit_info.signalSemaphoreCount = 1;
-                    submit_info.pSignalSemaphores    = *frame_data.semaphores[SemaphoreKind.GRAPHICS_DONE];
+                    submit_info.pSignalSemaphores    = *frame_data.graphics_semaphore;
 
                     fence_to_signal = VK_NULL_HANDLE;
                 } else {
@@ -291,33 +322,81 @@ endVulkanFrame :: (device_ : *Device) {
     //
     {
         post_frame_command_buffer := frame_data.system_command_buffers[SystemCommandBufferKind.POST_FRAME];
-        back_buffer               := *device.swapchain_textures[device.back_buffer_index];
-        fence_to_signal           := frame_data.fences[QueueType.GRAPHICS];
 
         begin_info := VkCommandBufferBeginInfo.{
             flags = .VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
         };
 
         debugCheckVK(vkBeginCommandBuffer(post_frame_command_buffer, *begin_info));
-        {
+
+        BARRIER_TEMPLATE :: VkImageMemoryBarrier.{
+            srcAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
+            dstAccessMask                   = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
+            newLayout                       = .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED,
+            dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED,
+            subresourceRange.aspectMask     = .VK_IMAGE_ASPECT_COLOR_BIT,
+            subresourceRange.baseMipLevel   = 0,
+            subresourceRange.levelCount     = 1,
+            subresourceRange.baseArrayLayer = 0,
+            subresourceRange.layerCount     = 1,
+        };
+
+        image_barriers       : [WindowManager.MAX_WINDOWS] VkImageMemoryBarrier = ---;
+        image_barriers_count : u32;
+        forEachActiveWindow(#code {
+            window_data        := *`device.window_data[windows_it.id];
+            vulkan_window_data := *`device.vulkan_window_data[windows_it.id];
+
+            back_buffer := *vulkan_window_data.swapchain_textures[window_data.back_buffer_index];
             assert(back_buffer.current_owner == .GRAPHICS);
-            changeVulkanTextureLayout(post_frame_command_buffer, back_buffer, .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-        }
+
+            if back_buffer.current_layout == .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR {
+                continue;
+            }
+
+            barrier := *`image_barriers[`image_barriers_count];
+            `image_barriers_count += 1;
+
+            barrier.* = `BARRIER_TEMPLATE;
+            barrier.oldLayout = back_buffer.current_layout;
+            barrier.image     = back_buffer.image;
+
+            back_buffer.current_layout = .VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        });
+        assert(image_barriers_count == context.pet.core.window_manager.active_windows.count);
+
+        vkCmdPipelineBarrier(post_frame_command_buffer,
+                             .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             0,
+                             0, null,
+                             0, null,
+                             image_barriers_count, image_barriers.data);
+
         debugCheckVK(vkEndCommandBuffer(post_frame_command_buffer));
 
+        fence_to_signal := frame_data.fences[QueueType.GRAPHICS];
         debugCheckVK(vkResetFences(device.device, 1, *fence_to_signal));
 
+        which_stages_will_wait_for_the_semaphore := VkPipelineStageFlags.VK_PIPELINE_STAGE_VERTEX_SHADER_BIT
+                                                  | .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
+                                                  | .VK_PIPELINE_STAGE_TRANSFER_BIT;
         submit_info := VkSubmitInfo.{
-            waitSemaphoreCount   = 1,
-            pWaitSemaphores      = ifx  frame_data.command_buffers_used[QueueType.GRAPHICS] > 0
-                                   then *frame_data.semaphores[SemaphoreKind.GRAPHICS_DONE]
-                                   else *frame_data.semaphores[SemaphoreKind.ACQUIRE_IMAGE],
-            pWaitDstStageMask    = VkPipelineStageFlags.[ .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT ].data,
+            pWaitDstStageMask    = *which_stages_will_wait_for_the_semaphore,
             commandBufferCount   = 1,
             pCommandBuffers      = *post_frame_command_buffer,
             signalSemaphoreCount = 1,
-            pSignalSemaphores    = *frame_data.semaphores[SemaphoreKind.POST_FRAME]
+            pSignalSemaphores    = *frame_data.post_frame_semaphore
         };
+
+        if frame_data.command_buffers_used[QueueType.GRAPHICS] > 0 {
+            submit_info.waitSemaphoreCount = 1;
+            submit_info.pWaitSemaphores    = *frame_data.graphics_semaphore;
+        } else {
+            submit_info.waitSemaphoreCount = acquire_semaphores_count;
+            submit_info.pWaitSemaphores    = acquire_semaphores.data;
+        }
 
         debugCheckVK(vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, fence_to_signal));
     }
@@ -326,44 +405,69 @@ endVulkanFrame :: (device_ : *Device) {
     // Present
     //
     {
-        back_buffer_indices := u32.[
-            device.back_buffer_index
-        ];
+        swapchains          : [WindowManager.MAX_WINDOWS] VkSwapchainKHR;
+        back_buffer_indices : [WindowManager.MAX_WINDOWS] u32;
+        index_to_id         : [WindowManager.MAX_WINDOWS] u8;
+        swapchains_count    : u32;
+        forEachActiveWindow(#code {
+            `swapchains[`swapchains_count]          = `device.vulkan_window_data[windows_it.id].swapchain;
+            `back_buffer_indices[`swapchains_count] = `device.window_data[windows_it.id].back_buffer_index;
+            `index_to_id[`swapchains_count]         = windows_it.id;
+            `swapchains_count += 1;
+        });
+        assert(swapchains_count == context.pet.core.window_manager.active_windows.count);
+
+        results : [WindowManager.MAX_WINDOWS] VkResult;
 
         present_info := VkPresentInfoKHR.{
             waitSemaphoreCount = 1,
-            pWaitSemaphores    = *frame_data.semaphores[SemaphoreKind.POST_FRAME],
-            swapchainCount     = 1,
-            pSwapchains        = *device.swapchain,
+            pWaitSemaphores    = *frame_data.post_frame_semaphore,
+            swapchainCount     = swapchains_count,
+            pSwapchains        = swapchains.data,
             pImageIndices      = back_buffer_indices.data,
-            pResults           = null
+            pResults           = results.data
         };
 
         result := device.loader.extensions.device.required.vkQueuePresentKHR(device.queues[QueueType.GRAPHICS].handle, *present_info);
-        if result == .VK_ERROR_OUT_OF_DATE_KHR {
-            device.need_to_recreate_swapchain = true;
-        } else {
-            // VK_SUBOPTIMAL_KHR seems to be OK. The only platform where I had this VkResult code was Android,
-            // so let's just do not bother ourselves with it for now.
-            debugCheckVK(result, strict = false);
+        if result == {
+            case .VK_ERROR_OUT_OF_DATE_KHR;
+            case .VK_ERROR_SURFACE_LOST_KHR;
+            case .VK_SUBOPTIMAL_KHR;
+                for results {
+                    if it == {
+                        case .VK_ERROR_OUT_OF_DATE_KHR;
+                        case .VK_ERROR_SURFACE_LOST_KHR;
+                        case .VK_SUBOPTIMAL_KHR;
+                            device.window_data[index_to_id[it_index]].swapchain_is_outdated = true;
+
+                        case;
+                            debugCheckVK(it);
+                    }
+                }
+
+            case;
+                debugCheckVK(result);
+                for results {
+                    debugCheckVK(it);
+                }
         }
     }
 }
 
-waitVulkanDeviceIdle :: (device_ : *Device) {
+waitVulkanDeviceIdle :: () {
     assertThreadKind(.MAIN);
-    device := cast(*VulkanDevice) device_;
+    device := cast(*VulkanDevice) context.pet.render.device;
 
     debugCheckVK(vkDeviceWaitIdle(device.device));
 }
 
-getVulkanSwapchainTexture :: inline (device_ : *Device, swapchain_buffer_index : u32) -> *Texture {
-    device := cast(*VulkanDevice) device_;
-    return *device.swapchain_textures[swapchain_buffer_index];
+getVulkanSwapchainTexture :: inline (window : *Window, swapchain_buffer_index : u32) -> *Texture {
+    device := cast(*VulkanDevice) context.pet.render.device;
+    return *device.vulkan_window_data[window.id].swapchain_textures[swapchain_buffer_index];
 }
 
-getVulkanSwapchainTextureView :: (device_ : *Device, swapchain_buffer_index : u32, usage : Texture.Usage) -> *TextureView {
-    device := cast(*VulkanDevice) device_;
+getVulkanSwapchainTextureView :: (window : *Window, swapchain_buffer_index : u32, usage : Texture.Usage) -> *TextureView {
+    device := cast(*VulkanDevice) context.pet.render.device;
 
     index : u8 = ---;
     if usage == {
@@ -373,11 +477,13 @@ getVulkanSwapchainTextureView :: (device_ : *Device, swapchain_buffer_index : u3
             assertMessage("Unsupported swapchain texure view usage: %", usage);
     }
 
-    return *device.swapchain_texture_views[swapchain_buffer_index][index];
+    return *device.vulkan_window_data[window.id].swapchain_texture_views[swapchain_buffer_index][index];
 }
 
-setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
+setVulkanObjectName :: (object : $T, name : string) {
     #if DEBUG_BUILD {
+        device := cast(*VulkanDevice) context.pet.render.device;
+
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
             #if T == {
                 case VkInstance;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_INSTANCE;
@@ -408,7 +514,7 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
                     #assert false "Unhandled Vk* type";
             }
 
-            object_name := pushToArena(*context.pet.per_frame_arena, s8, name.count + 1);
+            object_name := pushToArena(*context.pet.arenas.per_frame, s8, name.count + 1);
             memcpy(object_name, name.data, name.count);
 
             name_info := VkDebugUtilsObjectNameInfoEXT.{
@@ -422,8 +528,10 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, name : string) {
     }
 }
 
-setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, args : ..Any) {
+setVulkanObjectName :: (object : $T, $format : string, args : ..Any) {
     #if DEBUG_BUILD {
+        device := cast(*VulkanDevice) context.pet.render.device;
+
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
             builder := Basic.String_Builder.{ allocator = Basic.temp };
 
@@ -477,8 +585,11 @@ setVulkanObjectName :: (device : *VulkanDevice, object : $T, $format : string, a
 Hash :: #import "Hash";
 
 FrameData :: struct {
-    semaphores : [#run Basic.enum_highest_value(SemaphoreKind) + 1] VkSemaphore;
-    fences     : [VulkanDevice.queues.count]                        VkFence;
+    fences : [VulkanDevice.queues.count] VkFence;
+
+    acquire_semaphores   : [WindowManager.MAX_WINDOWS] VkSemaphore;
+    graphics_semaphore   : VkSemaphore;
+    post_frame_semaphore : VkSemaphore;
 
     command_pools        : [VulkanDevice.queues.count]                              VkCommandPool;
     command_buffers      : [VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS] VkCommandBuffer;
@@ -493,17 +604,18 @@ Queue :: struct {
     index_in_family : u32;
 }
 
-SemaphoreKind :: enum u8 {
-    ACQUIRE_IMAGE;
-    GRAPHICS_DONE;
-    POST_FRAME;
-}
-
 SystemCommandBufferKind :: enum u8 {
     POST_FRAME;
 }
 
-createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] string) -> u32 {
+VulkanWindowData :: struct {
+    surface                 : VkSurfaceKHR;
+    swapchain               : VkSwapchainKHR;
+    swapchain_textures      : [Device.MAX_SWAPCHAIN_BUFFERS] VulkanTexture;
+    swapchain_texture_views : [Device.MAX_SWAPCHAIN_BUFFERS] [2] VulkanTextureView;
+}
+
+createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
     MINIMAL_MINOR_VERSION :: #run VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION);
 
     api_version : u32;
@@ -540,7 +652,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         available_layers : [] VkLayerProperties;
         debugCheckVK(vkEnumerateInstanceLayerProperties(cast(*u32) *available_layers.count, null));
 
-        available_layers.data = pushToArena(*context.pet.per_frame_arena, VkLayerProperties, available_layers.count);
+        available_layers.data = pushToArena(*context.pet.arenas.per_frame, VkLayerProperties, available_layers.count);
         debugCheckVK(vkEnumerateInstanceLayerProperties(cast(*u32) *available_layers.count, available_layers.data));
 
         #if PRINT_VERBOSE_MESSAGES {
@@ -601,7 +713,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         available_extensions : [] VkExtensionProperties;
         debugCheckVK(vkEnumerateInstanceExtensionProperties(null, cast(*u32) *available_extensions.count, null));
 
-        available_extensions.data = pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, available_extensions.count);
+        available_extensions.data = pushToArena(*context.pet.arenas.per_frame, VkExtensionProperties, available_extensions.count);
         debugCheckVK(vkEnumerateInstanceExtensionProperties(null, cast(*u32) *available_extensions.count, available_extensions.data));
 
         #if PRINT_VERBOSE_MESSAGES {
@@ -616,7 +728,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
             validation_extensions : [] VkExtensionProperties;
             debugCheckVK(vkEnumerateInstanceExtensionProperties(cast(*s8) "VK_LAYER_KHRONOS_validation".data, cast(*u32) *validation_extensions.count, null));
 
-            validation_extensions.data = pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, validation_extensions.count);
+            validation_extensions.data = pushToArena(*context.pet.arenas.per_frame, VkExtensionProperties, validation_extensions.count);
             debugCheckVK(vkEnumerateInstanceExtensionProperties(cast(*s8) "VK_LAYER_KHRONOS_validation".data, cast(*u32) *validation_extensions.count, validation_extensions.data));
 
             #if PRINT_VERBOSE_MESSAGES {
@@ -691,13 +803,10 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
-    nt_engine_name : [ENGINE_NAME.count + 1] s8;
-    memcpy(nt_engine_name.data, ENGINE_NAME.data, ENGINE_NAME.count);
-
     application_info := VkApplicationInfo.{
-        pApplicationName   = null, // @TODO: window.title or something, don't know
+        pApplicationName   = null, // @TODO: window title or something, don't know
         applicationVersion = 0,
-        pEngineName        = nt_engine_name.data,
+        pEngineName        = cast(*s8) ENGINE_NAME.data,
         engineVersion      = ENGINE_VERSION,
         apiVersion         = api_version
     };
@@ -730,6 +839,7 @@ createInstance :: (device : *VulkanDevice, enabled_instance_extensions : *[..] s
         instance_create_info.pNext = *validation_features;
     }
 
+    device := cast(*VulkanDevice) context.pet.render.device;
     debugCheckVK(vkCreateInstance(*instance_create_info, null, *device.instance));
 
     return api_version;
@@ -743,6 +853,9 @@ messengerCallback :: (
 ) -> VkBool32 #c_call {
     device : *VulkanDevice = pUserData;
 
+    push_context,defer_pop device.messenger_context;
+    assertThreadKind(.DEVICE_MESSENGER);
+
     message := to_string(cast(*u8) pCallbackData.pMessage);
     if message[message.count - 1] == #char "." {
         message.count -= 1;
@@ -753,85 +866,114 @@ messengerCallback :: (
         MESSAGE_HASH;
     } : .MESSAGE_HASH;
 
-    push_context device.jai_context {
-        #if MESSAGE_DEDUPLICATION_STRATEGY == {
-            case .VUID_HASH;
-                message_end := message.data + message.count;
+    #if MESSAGE_DEDUPLICATION_STRATEGY == {
+        case .VUID_HASH;
+            message_end := message.data + message.count;
 
-                vuid_start := message.data;
-                while vuid_start < message_end && vuid_start.* != #char "[" {
-                    vuid_start += 1;
-                }
+            vuid_start := message.data;
+            while vuid_start < message_end && vuid_start.* != #char "[" {
+                vuid_start += 1;
+            }
 
-                vuid_end := vuid_start;
-                while vuid_end < message_end && vuid_end.* != #char "]" {
-                    vuid_end += 1;
-                }
+            vuid_end := vuid_start;
+            while vuid_end < message_end && vuid_end.* != #char "]" {
                 vuid_end += 1;
+            }
+            vuid_end += 1;
 
-                vuid_string := string.{ vuid_end - vuid_start, vuid_start };
+            vuid_string := string.{ vuid_end - vuid_start, vuid_start };
 
-                hash := Hash.get_hash(vuid_string);
+            hash := Hash.get_hash(vuid_string);
 
-                should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
-            case .MESSAGE_HASH;
-                hash := Hash.get_hash(message);
+            should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
+        case .MESSAGE_HASH;
+            hash := Hash.get_hash(message);
 
-                should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
-            case;
-                should_be_printed :: true;
-        }
+            should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
+        case;
+            should_be_printed :: true;
+    }
 
-        if should_be_printed {
-            SHORTEN_MESSAGE :: true;
-            #if SHORTEN_MESSAGE {
-                index := String.find_index_from_left(message, "Object");
+    #if is_constant(should_be_printed) {
+        #if !should_be_printed return VK_FALSE;
+    } else {
+        if !should_be_printed return VK_FALSE;
+    }
+
+    SHORTEN_MESSAGE :: true;
+    #if SHORTEN_MESSAGE {
+        index := String.find_index_from_left(message, "Object");
+        if index != -1 {
+            builder := Basic.String_Builder.{ allocator = Basic.temp };
+
+            severity_and_vuid := string.{ index, message.data };
+            Basic.append(*builder, severity_and_vuid);
+
+            advance(*message, index);
+
+            index = String.find_index_from_left(message, "MessageID");
+            if index != -1 {
+                advance(*message, index);
+
+                index = String.find_index_from_left(message, "| ");
                 if index != -1 {
-                    builder := Basic.String_Builder.{ allocator = Basic.temp };
-
-                    severity_and_vuid := string.{ index, message.data };
-                    Basic.append(*builder, severity_and_vuid);
-
-                    advance(*message, index);
-
-                    index = String.find_index_from_left(message, "MessageID");
-                    if index != -1 {
-                        advance(*message, index);
-
-                        index = String.find_index_from_left(message, "| ");
-                        if index != -1 {
-                            advance(*message, index + 2);
-                        }
-                    }
-
-                    Basic.append(*builder, message);
-
-                    message = Basic.builder_to_string(*builder,, allocator = Basic.temp);
+                    advance(*message, index + 2);
                 }
             }
 
-            MESSAGE_FORMAT :: #string END
+            Basic.append(*builder, message);
+
+            message = Basic.builder_to_string(*builder,, allocator = Basic.temp);
+        }
+    }
+
+MESSAGE_FORMAT :: #string END
 %
 --------------------------------------------------------------------------------------------------------
 END;
 
-            if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT {
-                errorMessage(MESSAGE_FORMAT, message);
-            } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT {
-                warningMessage(MESSAGE_FORMAT, message);
-            } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT {
-                verboseMessage(MESSAGE_FORMAT, message);
-            } else {
-                infoMessage(MESSAGE_FORMAT, message);
-            }
-        }
+    if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT {
+        errorMessage(MESSAGE_FORMAT, message);
+    } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT {
+        warningMessage(MESSAGE_FORMAT, message);
+    } else if messageSeverity & .VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT {
+        verboseMessage(MESSAGE_FORMAT, message);
+    } else {
+        infoMessage(MESSAGE_FORMAT, message);
     }
 
     return VK_FALSE;
 }
 
-initMessengerCallback :: (device : *VulkanDevice) {
+initMessengerCallback :: () {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     if device.loader.extensions.instance.optional.vkCreateDebugUtilsMessengerEXT {
+        device.messenger_context.allocator   = context.allocator;
+        device.messenger_context.logger      = context.logger;
+        device.messenger_context.logger_data = context.logger_data;
+        device.messenger_context.print_style = context.print_style;
+        // We do not need globals for messenger callback
+
+        push_context device.messenger_context {
+            context.context_info    = type_info(Context);
+            context.thread_index    = getNextThreadIndex();
+            context.pet.thread.name = "Vulkan Device Messenger";
+            context.pet.thread.kind = .DEVICE_MESSENGER;
+
+            context.allocator.proc(.THREAD_START, 0, 0, null, context.allocator.data);
+
+            context.temporary_storage = *device.messenger_context_temporary_storage;
+
+            // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
+            temporary_storage_data := Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
+            set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
+
+            // We do not need arenas for messenger callback
+
+            device.message_hashes.allocator = context.allocator;
+        }
+
         severities : VkDebugUtilsMessageSeverityFlagsEXT = .VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
                                                          | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
                                                          | .VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
@@ -859,11 +1001,13 @@ initMessengerCallback :: (device : *VulkanDevice) {
 }
 
 // @TODO: Multiple GPU support: vkEnumeratePhysicalDeviceGroupsKHR (VK_KHR_device_group_creation)
-selectPhysicalDevice :: (device : *VulkanDevice) -> u32 {
+selectPhysicalDevice :: () -> u32 {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     physical_devices : [] VkPhysicalDevice;
     debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, null));
 
-    physical_devices.data = pushToArena(*context.pet.per_frame_arena, VkPhysicalDevice, physical_devices.count);
+    physical_devices.data = pushToArena(*context.pet.arenas.per_frame, VkPhysicalDevice, physical_devices.count);
     debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, physical_devices.data));
 
     physical_device_properties : VkPhysicalDeviceProperties2;
@@ -1018,11 +1162,13 @@ findQueueFamily :: ($condition : Code) #expand {
     }
 }
 
-gatherQueuesInfo :: (device : *VulkanDevice) {
+gatherQueuesInfo :: () {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     queue_family_properties : [] VkQueueFamilyProperties2;
     vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, cast(*u32) *queue_family_properties.count, null);
 
-    queue_family_properties.data = pushToArena(*context.pet.per_frame_arena, VkQueueFamilyProperties2, queue_family_properties.count);
+    queue_family_properties.data = pushToArena(*context.pet.arenas.per_frame, VkQueueFamilyProperties2, queue_family_properties.count);
     vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, cast(*u32) *queue_family_properties.count, queue_family_properties.data);
 
     Basic.auto_release_temp();
@@ -1055,7 +1201,7 @@ END;
         .VK_QUEUE_TRANSFER_BIT,
     ];
 
-    queues_in_family_used := pushToArena(*context.pet.per_frame_arena, u32, queue_family_properties.count);
+    queues_in_family_used := pushToArena(*context.pet.arenas.per_frame, u32, queue_family_properties.count);
 
     // Find queue family indices
     for * queue_it : device.queues {
@@ -1107,7 +1253,9 @@ END;
 }
 
 // @TODO: VkDeviceMemoryOverallocationCreateInfoAMD (VK_AMD_memory_overallocation_behavior) sounds useful.
-createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] string) {
+createVirtualDevice :: (enabled_device_extensions : *[..] string) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     queues_count_per_family : [VulkanDevice.queues.count] u32;
     for device.queues  queues_count_per_family[it.family_index] += 1;
 
@@ -1148,7 +1296,7 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
         available_extensions : [] VkExtensionProperties;
         debugCheckVK(vkEnumerateDeviceExtensionProperties(device.physical_device, null, cast(*u32) *available_extensions.count, null));
 
-        available_extensions.data = pushToArena(*context.pet.per_frame_arena, VkExtensionProperties, available_extensions.count);
+        available_extensions.data = pushToArena(*context.pet.arenas.per_frame, VkExtensionProperties, available_extensions.count);
         debugCheckVK(vkEnumerateDeviceExtensionProperties(device.physical_device, null, cast(*u32) *available_extensions.count, available_extensions.data));
 
         #if PRINT_VERBOSE_MESSAGES {
@@ -1275,7 +1423,9 @@ createDevice :: (device : *VulkanDevice, enabled_device_extensions : *[..] strin
 }
 
 // @TODO: #NotExistedQueues
-getQueues :: (device : *VulkanDevice) {
+getQueues :: () {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     for device.queues {
         queue_info := VkDeviceQueueInfo2.{
             flags            = 0,
@@ -1286,24 +1436,29 @@ getQueues :: (device : *VulkanDevice) {
         vkGetDeviceQueue2(device.device, *queue_info, *it.handle);
         assert(it.handle != VK_NULL_HANDLE);
 
-        setVulkanObjectName(device, it.handle, "% queue", cast(QueueType) it_index);
+        setVulkanObjectName(it.handle, "% queue", cast(QueueType) it_index);
     }
 }
 
-createSurface :: (device : *VulkanDevice, window : *Window) {
+createSurface :: (window : *Window) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
+    vulkan_window_data := *device.vulkan_window_data[window.id];
+
     #if OS == .WINDOWS {
-        win32_window := cast(*Win32Window) window;
+        win32_window         := cast(*Win32Window) window;
+        win32_window_manager := cast(*Win32WindowManager) context.pet.core.window_manager;
 
         create_info := VkWin32SurfaceCreateInfoKHR.{
             flags     = 0,
-            hinstance = win32_window.manager.app_instance,
+            hinstance = win32_window_manager.app_instance,
             hwnd      = win32_window.handle
         };
 
         debugCheckVK(device.loader.extensions.instance.required.vkCreateWin32SurfaceKHR(device.instance,
                                                                                         *create_info,
                                                                                         null,
-                                                                                        *device.surface));
+                                                                                        *vulkan_window_data.surface));
     } else {
         notImplemented();
     }
@@ -1315,7 +1470,7 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
         presentation_supported : VkBool32 = ---;
         debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceSupportKHR(device.physical_device,
                                                                                                      graphics_queue.family_index,
-                                                                                                     device.surface,
+                                                                                                     vulkan_window_data.surface,
                                                                                                      *presentation_supported));
         if !presentation_supported {
             assertMessage("% queue #% in #% queue family does not support presentation to created surface",
@@ -1326,8 +1481,12 @@ createSurface :: (device : *VulkanDevice, window : *Window) {
     }
 }
 
-recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
+recreateVulkanSwapchain :: (window : *Window) {
     assertThreadKind(.MAIN);
+    device := cast(*VulkanDevice) context.pet.render.device;
+
+    window_data        := *device.window_data[window.id];
+    vulkan_window_data := *device.vulkan_window_data[window.id];
 
     //
     // Surface formats
@@ -1335,13 +1494,13 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
     surface_formats : [] VkSurfaceFormatKHR;
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
-                                                                                                 device.surface,
+                                                                                                 vulkan_window_data.surface,
                                                                                                  cast(*u32) *surface_formats.count,
                                                                                                  null));
 
-    surface_formats.data = pushToArena(*context.pet.per_frame_arena, VkSurfaceFormatKHR, surface_formats.count);
+    surface_formats.data = pushToArena(*context.pet.arenas.per_frame, VkSurfaceFormatKHR, surface_formats.count);
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device,
-                                                                                                 device.surface,
+                                                                                                 vulkan_window_data.surface,
                                                                                                  cast(*u32) *surface_formats.count,
                                                                                                  surface_formats.data));
 
@@ -1422,7 +1581,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
     surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
-                                                                                                      device.surface,
+                                                                                                      vulkan_window_data.surface,
                                                                                                       *surface_capabilities));
 
     requested_swapchain_buffers_count := cast,no_check(u32) device.frame_buffering;
@@ -1440,7 +1599,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         requested_swapchain_buffers_count = surface_capabilities.maxImageCount;
     }
 
-    if requested_swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
+    if requested_swapchain_buffers_count > VulkanWindowData.swapchain_textures.count {
         assertMessage("You want too many swapchain buffers: %. If you really need that much you can increase Device.MAX_SWAPCHAIN_BUFFERS",
                       requested_swapchain_buffers_count);
     }
@@ -1500,13 +1659,13 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
     present_modes : [] VkPresentModeKHR;
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
-                                                                                                      device.surface,
+                                                                                                      vulkan_window_data.surface,
                                                                                                       cast(*u32) *present_modes.count,
                                                                                                       null));
 
-    present_modes.data = pushToArena(*context.pet.per_frame_arena, VkPresentModeKHR, present_modes.count);
+    present_modes.data = pushToArena(*context.pet.arenas.per_frame, VkPresentModeKHR, present_modes.count);
     debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
-                                                                                                      device.surface,
+                                                                                                      vulkan_window_data.surface,
                                                                                                       cast(*u32) *present_modes.count,
                                                                                                       present_modes.data));
 
@@ -1532,7 +1691,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
     create_info := VkSwapchainCreateInfoKHR.{
         flags                 = 0,
-        surface               = device.surface,
+        surface               = vulkan_window_data.surface,
         minImageCount         = requested_swapchain_buffers_count,
         imageFormat           = allowed_surface_format.format,
         imageColorSpace       = allowed_surface_format.colorSpace,
@@ -1546,11 +1705,11 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         compositeAlpha        = .VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
         presentMode           = present_mode,
         clipped               = VK_TRUE,
-        oldSwapchain          = device.swapchain
+        oldSwapchain          = vulkan_window_data.swapchain
     };
 
-    debugCheckVK(device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *device.swapchain));
-    device.need_to_recreate_swapchain = false;
+    debugCheckVK(device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *vulkan_window_data.swapchain));
+    window_data.swapchain_is_outdated = false;
 
     if create_info.oldSwapchain != VK_NULL_HANDLE {
         device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, create_info.oldSwapchain, null);
@@ -1562,39 +1721,42 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
 
     swapchain_buffers_count : u32 = ---;
     device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
-                                                                     device.swapchain,
+                                                                     vulkan_window_data.swapchain,
                                                                      *swapchain_buffers_count,
                                                                      null);
-    device.swapchain_buffers_count = cast,no_check(u8) swapchain_buffers_count;
-    assert(device.swapchain_buffers_count > 0);
+    window_data.swapchain_buffers_count = cast,no_check(u8) swapchain_buffers_count;
+    assert(window_data.swapchain_buffers_count > 0);
 
-    if device.swapchain_buffers_count > VulkanDevice.swapchain_textures.capacity {
+    if window_data.swapchain_buffers_count > VulkanWindowData.swapchain_textures.count {
         assertMessage("Swapchain buffers overflow: %/%. It seems like driver does some weird things, so you may just increase Device.MAX_SWAPCHAIN_BUFFERS",
-                      device.swapchain_buffers_count,
-                      VulkanDevice.swapchain_textures.capacity);
+                      window_data.swapchain_buffers_count,
+                      VulkanWindowData.swapchain_textures.count);
     }
 
-    infoMessage("Requested swapchain images: %, got: %", requested_swapchain_buffers_count, device.swapchain_buffers_count);
+    infoMessage("Requested swapchain images: %, got: %", requested_swapchain_buffers_count, window_data.swapchain_buffers_count);
 
-    swapchain_images : [VulkanDevice.swapchain_textures.capacity] VkImage;
+    swapchain_images : [VulkanWindowData.swapchain_textures.count] VkImage;
     device.loader.extensions.device.required.vkGetSwapchainImagesKHR(device.device,
-                                                                     device.swapchain,
+                                                                     vulkan_window_data.swapchain,
                                                                      *swapchain_buffers_count,
                                                                      swapchain_images.data);
-    assert(swapchain_buffers_count == device.swapchain_buffers_count);
+    assert(swapchain_buffers_count == window_data.swapchain_buffers_count);
 
-    device.swapchain_textures.count      = device.swapchain_buffers_count;
-    device.swapchain_texture_views.count = device.swapchain_buffers_count;
+    device.back_buffer_format = vulkanFormatToTextureFormat(allowed_surface_format.format);
+
+    // @TODO: #Settings. Get back buffer clear color from settings.
+    clear_color := ifx textureFormatFlags(device.back_buffer_format) & .SRGB
+                   then gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 })
+                   else v4f.{ 0.3, 0.3, 0.3, 0.0 };
+
+    window_title := getWindowTitle(window);
 
     swapchain_images_it := swapchain_images.data;
 
-    // @TODO: #Settings. Get back buffer clear color from settings.
-    clear_color := gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 });
-
     // @TODO: #VulkanTexture. #SwapchainBuffers. Add these images to resource manager
-    for * texture : device.swapchain_textures {
+    for * texture : toView(vulkan_window_data.swapchain_textures.data, window_data.swapchain_buffers_count) {
         texture.dimension             = ._2D;
-        texture.format                = vulkanFormatToTextureFormat(allowed_surface_format.format);
+        texture.format                = device.back_buffer_format;
         texture.flags                 = .SWAPCHAIN;
         texture.width                 = cast(u16) surface_extent.width;
         texture.height                = cast(u16) surface_extent.height;
@@ -1613,11 +1775,11 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         #if REQUESTED_USAGE_FLAGS & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT then texture.usages |= .COLOR_TARGET;
 
         if !texture.name {
-            Basic.print(*builder, "Swapchain image #%", it_index);
+            Basic.print(*builder, "Window \"%\"/Swapchain image #%", window_title, it_index);
             texture.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
         }
 
-        setVulkanObjectName(device, texture.image, texture.name);
+        setVulkanObjectName(texture.image, texture.name);
 
         VIEW_USAGES :: Texture.Usage.[
             .COLOR_TARGET,
@@ -1625,7 +1787,7 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
         ];
 
         // @TODO: #Views.
-        for * view : device.swapchain_texture_views[it_index] {
+        for * view : vulkan_window_data.swapchain_texture_views[it_index] {
             if !(texture.usages & VIEW_USAGES[it_index]) continue;
 
             view.texture    = texture;
@@ -1670,36 +1832,50 @@ recreateVulkanSwapchain :: (device : *VulkanDevice, window : *Window) {
                 view.name = Basic.builder_to_string(*builder); // We need to preserve it, so do not use Basic.temp
             }
 
-            setVulkanObjectName(device, view.view, view.name);
+            setVulkanObjectName(view.view, view.name);
         }
 
         swapchain_images_it += 1;
     }
 }
 
-createSemaphores :: (device : *VulkanDevice) {
-    create_info : VkSemaphoreCreateInfo;
+createFences :: () {
+    device := cast(*VulkanDevice) context.pet.render.device;
 
-    for * frame_data, frame_index : device.frame_data {
-        for * frame_data.semaphores {
-            debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, it));
-
-            setVulkanObjectName(device, it.*, "% semaphore for frame #%", cast(SemaphoreKind) it_index, frame_index);
-        }
-    }
-}
-
-createFences :: (device : *VulkanDevice) {
     create_info := VkFenceCreateInfo.{
         flags = .VK_FENCE_CREATE_SIGNALED_BIT,
     };
 
-    for * frame_data, frame_index : device.frame_data {
+    for * frame_data, frame_index : toView(device.frame_data.data, cast(s64) device.frame_buffering) {
         for * frame_data.fences {
             debugCheckVK(vkCreateFence(device.device, *create_info, null, it));
-
-            setVulkanObjectName(device, it.*, "% fence for frame #%", cast(QueueType) it_index, frame_index);
+            setVulkanObjectName(it.*, "Frame #%/% Fence", frame_index, cast(QueueType) it_index);
         }
+    }
+}
+
+createFrameSemaphores :: () {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
+    create_info : VkSemaphoreCreateInfo;
+
+    for * toView(device.frame_data.data, cast(s64) device.frame_buffering) {
+        debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, *it.graphics_semaphore));
+        setVulkanObjectName(it.graphics_semaphore, "Frame #%/Graphics semaphore", it_index);
+
+        debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, *it.post_frame_semaphore));
+        setVulkanObjectName(it.post_frame_semaphore, "Frame #%/Post frame semaphore", it_index);
+    }
+}
+
+createWindowSemaphores :: (window : *Window) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
+    create_info : VkSemaphoreCreateInfo;
+
+    for * toView(device.frame_data.data, cast(s64) device.frame_buffering) {
+        debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, *it.acquire_semaphores[window.id]));
+        setVulkanObjectName(it.acquire_semaphores[window.id], "Frame #%/Graphics semaphore", it_index);
     }
 }
 
@@ -1707,34 +1883,37 @@ createFences :: (device : *VulkanDevice) {
 // but anyway it's just chipper to have slightly bigger amount of them.
 // Maybe someday we will have better behaviour for not existed compute and transfer queues.
 // @TODO: #NotExistedQueues
-createCommandPools :: (device : *VulkanDevice) {
+createCommandPools :: () {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     create_info := VkCommandPoolCreateInfo.{
         queueFamilyIndex = VK_QUEUE_FAMILY_IGNORED // Will be set in a loop
     };
 
-    for * frame_data, frame_index : device.frame_data {
+    for * frame_data, frame_index : toView(device.frame_data.data, cast(s64) device.frame_buffering) {
         queues_it := device.queues.data;
 
         for * frame_data.command_pools {
             create_info.queueFamilyIndex = queues_it.family_index;
 
             debugCheckVK(vkCreateCommandPool(device.device, *create_info, null, it));
-
-            setVulkanObjectName(device, it.*, "% command pool for frame #%", cast(QueueType) it_index, frame_index);
+            setVulkanObjectName(it.*, "Frame #%/% command pool", frame_index, cast(QueueType) it_index);
 
             queues_it += 1;
         }
     }
 }
 
-createCommandBuffers :: (device : *VulkanDevice) {
+createCommandBuffers :: () {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     allocation_info := VkCommandBufferAllocateInfo.{
         commandPool        = null, // Will be set in a loop
         level              = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         commandBufferCount = cast(u32) Device.MAX_COMMAND_BUFFERS
     };
 
-    for * frame_data, frame_index : device.frame_data {
+    for * frame_data, frame_index : toView(device.frame_data.data, cast(s64) device.frame_buffering) {
         command_buffers_it := frame_data.command_buffers.data;
 
         for command_pool, command_pool_index : frame_data.command_pools {
@@ -1746,12 +1925,11 @@ createCommandBuffers :: (device : *VulkanDevice) {
                 local_command_buffers_it := command_buffers_it;
 
                 for 0 .. Device.MAX_COMMAND_BUFFERS - 1 {
-                    setVulkanObjectName(device,
-                                        local_command_buffers_it.*,
-                                        "% command buffer #% for frame #%",
+                    setVulkanObjectName(local_command_buffers_it.*,
+                                        "Frame #%/% command buffer #%",
+                                        frame_index,
                                         cast(QueueType) command_pool_index,
-                                        it,
-                                        frame_index);
+                                        it);
 
                     local_command_buffers_it += 1;
                 }
@@ -1762,21 +1940,23 @@ createCommandBuffers :: (device : *VulkanDevice) {
     }
 }
 
-createSystemCommandBuffers :: (device : *VulkanDevice) {
+createSystemCommandBuffers :: () {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     allocation_info := VkCommandBufferAllocateInfo.{
         commandPool        = null, // Will be set in a loop
         level              = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         commandBufferCount = FrameData.system_command_buffers.count
     };
 
-    for * frame_data, frame_index : device.frame_data {
+    for * frame_data, frame_index : toView(device.frame_data.data, cast(s64) device.frame_buffering) {
         allocation_info.commandPool = frame_data.command_pools[QueueType.GRAPHICS];
 
         debugCheckVK(vkAllocateCommandBuffers(device.device, *allocation_info, frame_data.system_command_buffers.data));
 
         #if DEBUG_BUILD {
             for frame_data.system_command_buffers {
-                setVulkanObjectName(device, it, "% system command buffer for frame #%", cast(SystemCommandBufferKind) it_index, frame_index);
+                setVulkanObjectName(it, "Frame #%/% system command buffer", frame_index, cast(SystemCommandBufferKind) it_index);
             }
         }
     }

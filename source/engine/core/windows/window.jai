@@ -10,21 +10,17 @@ Win32WindowManager :: struct {
     app_instance : HMODULE;
     window_class : ATOM;
 
-    jai_context : *Context;
-
-    free_windows : *Win32Window;
-    windows      : [WindowManager.MAX_WINDOWS] Win32Window;
-
-    mutex : Mutex;
+    windows : [WindowManager.MAX_WINDOWS] Win32Window;
 
     use_dark_theme : bool;
 }
 
-createWin32WindowManager :: () -> *Win32WindowManager #must {
-    manager := pushToArena(*context.pet.persistent_arena, Win32WindowManager);
+createWin32WindowManager :: () {
+    manager := pushToArena(*context.pet.arenas.persistent, Win32WindowManager);
+    context.pet.core.window_manager = manager;
 
-    debugCheck(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, cast,no_check(LPCWSTR) #this, *manager.app_instance),
-               print_sys_error = true);
+    manager.app_instance = GetModuleHandleW(null);
+    assert(manager.app_instance, print_sys_error = true);
 
     setMonitorDPIAwareness();
 
@@ -32,59 +28,73 @@ createWin32WindowManager :: () -> *Win32WindowManager #must {
     unicode_class_name : [ASCII_CLASS_NAME.count + 1] WCHAR = ---;
     asciiToWide(*unicode_class_name, ASCII_CLASS_NAME, true);
 
-    window_class : WNDCLASSEXW = ---;
-    window_class.cbSize        = size_of(WNDCLASSEXW);
-    window_class.style         = CS_VREDRAW | CS_HREDRAW | CS_DBLCLKS | CS_OWNDC;
-    window_class.lpfnWndProc   = windowEventsCallback;
-    window_class.cbClsExtra    = 0;
-    window_class.cbWndExtra    = 0;
-    window_class.hInstance     = manager.app_instance;
-    window_class.hIcon         = LoadIconW(manager.app_instance, IDI_APPLICATION);
-    window_class.hCursor       = LoadCursorW(manager.app_instance, IDC_ARROW);
-    window_class.hbrBackground = cast,no_check(HBRUSH) (COLOR_WINDOW + 1);
-    window_class.lpszMenuName  = null;
-    window_class.lpszClassName = unicode_class_name.data;
-    window_class.hIconSm       = window_class.hIcon;
+    icon_handle := LoadIconW(null, IDI_APPLICATION);
+    assert(icon_handle, print_sys_error = true);
+
+    cursor_handle := LoadCursorW(null, IDC_ARROW);
+    assert(cursor_handle, print_sys_error = true);
+
+    window_class := WNDCLASSEXW.{
+        cbSize        = size_of(WNDCLASSEXW),
+        style         = CS_VREDRAW | CS_HREDRAW | CS_DBLCLKS | CS_OWNDC,
+        lpfnWndProc   = windowEventsCallback,
+        hInstance     = manager.app_instance,
+        hIcon         = icon_handle,
+        hCursor       = cursor_handle,
+        hbrBackground = cast,no_check(HBRUSH) (COLOR_WINDOW + 1),
+        lpszMenuName  = null,
+        lpszClassName = unicode_class_name.data,
+        hIconSm       = icon_handle,
+    };
 
     manager.window_class = RegisterClassExW(*window_class);
-    assert(manager.window_class != 0, print_sys_error = true);
+    assert(manager.window_class, print_sys_error = true);
 
-    for 0 .. manager.MAX_WINDOWS - 2 {
-        current_window := *manager.windows[it];
-        next_window    := *manager.windows[it + 1];
-
-        current_window.flags     = .CLOSED;
-        current_window.manager   = manager;
-        current_window.next_free = next_window;
-    }
-
-    last_window := *manager.windows[manager.MAX_WINDOWS - 1];
-    last_window.flags     = .CLOSED;
-    last_window.manager   = manager;
-    last_window.next_free = null;
-
-    manager.free_windows   = manager.windows.data;
-    manager.jai_context    = *context;
     manager.use_dark_theme = useDarkTheme();
-
-    return manager;
 }
 
-destroyWin32WindowManager :: (manager : *Win32WindowManager) {
+destroyWin32WindowManager :: () {
+    manager := cast(*Win32WindowManager) context.pet.core.window_manager;
+
     for manager.windows {
         if it.handle {
             SendMessageW(it.handle, WM_CLOSE, 0, 0);
             assert(it.handle == null);
         }
     }
-
-    assert(manager.windows_count == 0);
+    assert(manager.active_windows.count == 0);
 
     debugCheck(UnregisterClassW(cast,no_check(LPCWSTR) manager.window_class, manager.app_instance),
                print_sys_error = true);
 
     debugCheck(FreeLibrary(manager.app_instance),
                print_sys_error = true);
+}
+
+allocateWin32Window :: () -> *Win32Window #must {
+    manager := cast(*Win32WindowManager) context.pet.core.window_manager;
+    scopedLock(*manager.mutex);
+
+    assert(manager.active_windows.count < Win32WindowManager.MAX_WINDOWS,
+           "You have created too many windows, maximum number allowed is %",
+           Win32WindowManager.MAX_WINDOWS);
+
+    window : *Win32Window;
+    for * manager.windows {
+        if !it.handle {
+            window = it;
+            break;
+        }
+    }
+
+    assert(window);
+    assert(window.flags == .CLOSED);
+    assert(window.id    == Window.INVALID_ID);
+
+    window.id = manager.active_windows.count;
+    manager.active_windows.count += 1;
+
+    return window;
 }
 
 //
@@ -105,23 +115,12 @@ Win32Window :: struct {
         HANDLING_KEY_PAUSE;
     }
 
-    handle : HWND;
-
-    manager   : *Win32WindowManager;
-    next_free : *Win32Window;
-
+    handle         : HWND;
     platform_flags : PlatformFlags;
 }
 
-createWin32Window :: (
-    manager        : *Win32WindowManager,
-    x              : s16,
-    y              : s16,
-    surface_width  : u16,
-    surface_height : u16,
-    title          : string
-) -> *Win32Window #must {
-    window := allocateWindow(manager);
+createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolution, title : string) {
+    manager := cast(*Win32WindowManager) context.pet.core.window_manager;
 
     // @TODO: #Editor. WS_EX_ACCEPTFILES only in editor builds.
     // @TODO: System language reading alignment: WS_EX_LAYOUTRTL, WS_EX_RTLREADING
@@ -133,11 +132,11 @@ createWin32Window :: (
     window_rect_width  := CW_USEDEFAULT;
     window_rect_height := CW_USEDEFAULT;
 
-    if surface_width != Window.OS_DEFAULT_SIZE && surface_height != Window.OS_DEFAULT_SIZE {
-        window.surface.width  = surface_width;
-        window.surface.height = surface_height;
+    if surface.width != Window.OS_DEFAULT_SIZE && surface.height != Window.OS_DEFAULT_SIZE {
+        window.surface.width  = surface.width;
+        window.surface.height = surface.height;
 
-        window_rect := RECT.{ 0, 0, surface_width, surface_height };
+        window_rect := RECT.{ 0, 0, surface.width, surface.height };
         if AdjustWindowRectEx(*window_rect, WINDOW_STYLES, FALSE, EXTENDED_WINDOW_STYLES) {
             // @TODO: WS_EX_LAYOUTRTL ?
             window_rect_width  = window_rect.right  - window_rect.left;
@@ -145,23 +144,27 @@ createWin32Window :: (
         }
     }
 
-    unicode_title : [] WCHAR = ---;
-    unicode_title.data = pushToArena(*context.pet.per_frame_arena, WCHAR, title.count + 1);
-    asciiToWide(*unicode_title, title, true);
+    class_name := cast,no_check(LPCWSTR) manager.window_class;
+    assert((class_name & 0xFFFF) == class_name, "Window class atom should be in the low-order word only");
+
+    wide_title := asciiToWide(title, pushToArena, *context.pet.arenas.per_frame, true);
+
+    window_rect_x : s32 = ifx x == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else x;
+    window_rect_y : s32 = ifx y == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else y;
 
     window.handle = CreateWindowExW(EXTENDED_WINDOW_STYLES,
-                                    cast,no_check(LPCWSTR) manager.window_class,
-                                    unicode_title.data,
+                                    class_name,
+                                    wide_title,
                                     WINDOW_STYLES,
-                                    ifx x == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else x,
-                                    ifx y == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else y,
+                                    window_rect_x,
+                                    window_rect_y,
                                     window_rect_width,
                                     window_rect_height,
                                     null,
                                     null,
                                     manager.app_instance,
                                     null);
-    assert(window.handle != null, print_sys_error = true);
+    assert(window.handle, print_sys_error = true);
 
     SetWindowLongPtrW(window.handle, GWLP_USERDATA, cast,no_check(LONG_PTR) window);
 
@@ -169,7 +172,7 @@ createWin32Window :: (
     window.screen.height = cast(u16) GetSystemMetrics(SM_CYSCREEN);
 
     if window_rect_width != CW_USEDEFAULT && window_rect_height != CW_USEDEFAULT {
-        window.dpi_scale = applyInitialDPIScalingToWindow(window.handle, cast(u16) window_rect_width, cast(u16) window_rect_height);
+        window.dpi_scale = applyInitialDPIScalingToWindow(window.handle, .{ cast(u16) window_rect_width, cast(u16) window_rect_height });
     } else {
         window.dpi_scale       = 1.0;
         window.platform_flags |= .APPLY_DPI_SCALING_ON_SHOW;
@@ -177,8 +180,6 @@ createWin32Window :: (
 
     use_dark_theme := cast(BOOL) manager.use_dark_theme;
     debugCheckHRESULT(DwmSetWindowAttribute(window.handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
-
-    return window;
 }
 
 destroyWin32Window :: (window : *Win32Window) {
@@ -195,6 +196,30 @@ showWin32Window :: (window : *Win32Window) {
     }
 }
 
+getWin32WindowTitle :: (window : *Win32Window) -> string {
+    title_length := GetWindowTextLengthW(window.handle);
+    assert(title_length > 0 || (title_length == 0 && GetLastError() == ERROR_SUCCESS));
+
+    if !title_length return "";
+
+    wide_title := pushToArena(*context.pet.arenas.per_frame, WCHAR, title_length + 1);
+
+    result := GetWindowTextW(window.handle, wide_title, title_length + 1);
+    assert(result == title_length, print_sys_error = true);
+
+    title := wideToAscii(wide_title, title_length, pushToArena, *context.pet.arenas.per_frame);
+    return title;
+}
+
+setWin32WindowTitle :: (window : *Win32Window, title : string) {
+    if title {
+        wide_title := asciiToWide(title, pushToArena, *context.pet.arenas.per_frame, true);
+        debugCheck(SetWindowTextW(window.handle, wide_title), print_sys_error = true);
+    } else {
+        debugCheck(SetWindowTextW(window.handle, null), print_sys_error = true);
+    }
+}
+
 processWin32WindowEvents :: (window : *Win32Window) {
     msg : MSG;
     while PeekMessageW(*msg, window.handle, 0, 0, PM_REMOVE) {
@@ -205,19 +230,20 @@ processWin32WindowEvents :: (window : *Win32Window) {
 
 #scope_file
 
-Math :: #import "Math";
-
 windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, lparam : LPARAM) -> LRESULT #c_call {
-    result : LRESULT = 0;
+    result : LRESULT;
     window := cast,no_check(*Win32Window) GetWindowLongPtrW(window_handle, GWLP_USERDATA);
 
     if message == {
-        case WM_DESTROY;
-            push_context window.manager.jai_context {
-                deallocateWindow(window);
-            }
+        case WM_DESTROY; {
+            push_context,defer_pop window.proc_context;
+            autoResetPerFrameArenas();
+            assertThreadKind(.WINDOW);
+
+            deallocateWindow(window);
 
             result = DefWindowProcW(window_handle, message, wparam, lparam);
+        }
 
         case WM_MOVE;
             window.flags |= .MOVED;
@@ -243,21 +269,29 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             // DefWindowProc calls DestroyWindow to destroy the window
             result = DefWindowProcW(window_handle, message, wparam, lparam);
 
-        case WM_WININICHANGE; // @TODO: Replace with WM_SETTINGCHANGE
-            was_using_dark_theme := window.manager.use_dark_theme;
+        case WM_WININICHANGE; { // @TODO: Replace with WM_SETTINGCHANGE
+            push_context,defer_pop window.proc_context;
+            autoResetPerFrameArenas();
+            assertThreadKind(.WINDOW);
 
-            push_context window.manager.jai_context {
-                window.manager.use_dark_theme = useDarkTheme();
+            manager := cast(*Win32WindowManager) context.pet.core.window_manager;
 
-                if was_using_dark_theme != window.manager.use_dark_theme {
-                    use_dark_theme := cast(BOOL) window.manager.use_dark_theme;
-                    debugCheckHRESULT(DwmSetWindowAttribute(window_handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
-                }
+            was_using_dark_theme   := manager.use_dark_theme;
+            manager.use_dark_theme  = useDarkTheme();
+
+            if was_using_dark_theme != manager.use_dark_theme {
+                use_dark_theme := cast(BOOL) manager.use_dark_theme;
+                debugCheckHRESULT(DwmSetWindowAttribute(window_handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
             }
 
             result = DefWindowProcW(window_handle, message, wparam, lparam);
+        }
 
-        case WM_WINDOWPOSCHANGED;
+        case WM_WINDOWPOSCHANGED; {
+            push_context,defer_pop window.proc_context;
+            autoResetPerFrameArenas();
+            assertThreadKind(.WINDOW);
+
             window_position := cast,no_check(*WINDOWPOS) lparam;
 
             window.rect.x      = cast,trunc(s16) window_position.x;
@@ -266,32 +300,37 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             window.rect.height = cast(u16) window_position.cy;
 
             if window.platform_flags & .APPLY_DPI_SCALING_ON_SHOW {
-                push_context window.manager.jai_context {
-                    window.dpi_scale = applyInitialDPIScalingToWindow(window_handle, window.rect.width, window.rect.height);
-                }
+                window.dpi_scale       = applyInitialDPIScalingToWindow(window_handle, window.rect.resolution);
                 window.platform_flags &= ~.APPLY_DPI_SCALING_ON_SHOW;
             }
 
             // WM_SIZE and WM_MOVE are not sent if an application handles the WM_WINDOWPOSCHANGED without calling DefWindowProc
             result = DefWindowProcW(window_handle, message, wparam, lparam);
+        }
 
         case WM_DISPLAYCHANGE;
             window.screen.width  = cast(u16) (lparam & 0xFFFF);
             window.screen.height = cast(u16) (lparam >> 16);
 
-        case WM_INPUT_DEVICE_CHANGE;
-            push_context window.manager.jai_context {
-                onRawInputDeviceChange(cast(HANDLE) lparam, wparam);
-            }
+        case WM_INPUT_DEVICE_CHANGE; {
+            push_context,defer_pop window.proc_context;
+            autoResetPerFrameArenas();
+            assertThreadKind(.WINDOW);
 
-        case WM_INPUT;
-            push_context window.manager.jai_context {
-                assert(GET_RAWINPUT_CODE_WPARAM(wparam) == RIM_INPUT, "Input sink is not supported");
-                onRawInput(window, cast(HRAWINPUT) lparam);
-            }
+            onRawInputDeviceChange(cast(HANDLE) lparam, wparam);
+        }
+
+        case WM_INPUT; {
+            push_context,defer_pop window.proc_context;
+            autoResetPerFrameArenas();
+            assertThreadKind(.WINDOW);
+
+            assert(GET_RAWINPUT_CODE_WPARAM(wparam) == RIM_INPUT, "Input sink is not supported");
+            onRawInput(window, cast(HRAWINPUT) lparam);
 
             // The application must call DefWindowProc so the system can perform cleanup
             result = DefWindowProcW(window_handle, message, wparam, lparam);
+        }
 
         case WM_MENUCHAR;
             // To suppress bip sound on Alt+Enter when there is no menu created
@@ -299,7 +338,11 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
                 result = MNC_CLOSE;
             }
 
-        case WM_DPICHANGED;
+        case WM_DPICHANGED; {
+            push_context,defer_pop window.proc_context;
+            autoResetPerFrameArenas();
+            assertThreadKind(.WINDOW);
+
             new_dpi          := cast(f32) (wparam & 0xFFFF);
             DEFAULT_DPI      :: 96.0;
             window.dpi_scale  = new_dpi / DEFAULT_DPI;
@@ -322,9 +365,8 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
                                     new_window_rect.bottom - new_window_rect.top,
                                     SET_WINDOW_POS_FLAGS);
 
-            push_context window.manager.jai_context {
-                assert(success, print_sys_error = true);
-            }
+            assert(success, print_sys_error = true);
+        }
 
         case;
             result = DefWindowProcW(window_handle, message, wparam, lparam);
@@ -344,45 +386,26 @@ setMonitorDPIAwareness :: () {
     assert(previous_dpi_hosting_behavior != .DPI_HOSTING_BEHAVIOR_INVALID, print_sys_error = true);
 }
 
-allocateWindow :: (manager : *Win32WindowManager) -> *Win32Window #must {
-    scopedLock(*manager.mutex);
-
-    assert(manager.windows_count < manager.MAX_WINDOWS, "You have created too many windows, maximum number allowed is %", manager.MAX_WINDOWS);
-
-    window := manager.free_windows;
-
-    manager.free_windows = window.next_free;
-    window.next_free     = null;
-
-    manager.windows_count += 1;
-
-    assert(window != null);
-    return window;
-}
-
 deallocateWindow :: (window : *Win32Window) {
-    manager := window.manager;
-    scopedLock(*manager.mutex);
+    assert(window.flags == .CLOSED);
 
-    assert(manager.windows_count != 0);
-
-    window.next_free     = manager.free_windows;
-    manager.free_windows = window;
-
-    manager.windows_count -= 1;
-
+    window.id     = Window.INVALID_ID;
     window.handle = null;
+
+    old := Atomics.atomic_add(*context.pet.core.window_manager.active_windows.count, -1);
+    assert(old > 0);
 }
 
-applyInitialDPIScalingToWindow :: (window_handle : HWND, width : u16, height : u16) -> f32 {
-    assert(width && width != Window.OS_DEFAULT_SIZE && height && height != Window.OS_DEFAULT_SIZE);
+applyInitialDPIScalingToWindow :: (window_handle : HWND, rect_resolution : Resolution) -> f32 {
+    assert(rect_resolution.width  && rect_resolution.width  != Window.OS_DEFAULT_SIZE);
+    assert(rect_resolution.height && rect_resolution.height != Window.OS_DEFAULT_SIZE);
 
     monitor_dpi := cast(f32) GetDpiForWindow(window_handle);
     DEFAULT_DPI :: 96.0;
     dpi_scale   := monitor_dpi / DEFAULT_DPI;
 
-    scaled_width  := cast(u16) Math.ceil(width  * dpi_scale);
-    scaled_height := cast(u16) Math.ceil(height * dpi_scale);
+    scaled_width  := cast(u16) Math.ceil(rect_resolution.width  * dpi_scale);
+    scaled_height := cast(u16) Math.ceil(rect_resolution.height * dpi_scale);
 
     SET_WINDOW_POS_FLAGS :: SWP_NOMOVE
                           | SWP_NOZORDER
@@ -420,3 +443,6 @@ useDarkTheme :: () -> bool {
 
     return !apps_use_light_theme;
 }
+
+Math    :: #import "Math";
+Atomics :: #import "Atomics";

@@ -17,20 +17,15 @@ Heart :: struct {
     submesh_index         : s8;
 }
 
-createHeart :: (
-    device          : *Device,
-    shader_manager  : *ShaderManager,
-    binding_manager : *BindingManager,
-    depth_format    : Texture.Format
-) -> Heart {
+createHeart :: (depth_format : Texture.Format) -> Heart {
     heart : Heart;
-    heart.shader                = createShader(device, shader_manager, binding_manager, "heart", .[ getBackBuffer(device).format ], depth_format );
+    heart.shader                = createShader("heart", .[ context.pet.render.device.back_buffer_format ], depth_format );
     heart.push_constants_handle = getPushConstantsHandle(heart.shader, "g_push_constants");
     return heart;
 }
 
-loadHeartMesh :: (device : *Device, asset_manager : *AssetManager, resource_manager : *ResourceManager, heart : *Heart) {
-    heart.mesh = requestMesh(device, asset_manager, resource_manager, "HumanHeart_OBJ");
+loadHeartMesh :: (heart : *Heart) {
+    heart.mesh = requestMesh("HumanHeart_OBJ");
 }
 
 updateHeart :: (heart : *Heart, input : *Input) {
@@ -47,43 +42,35 @@ updateHeart :: (heart : *Heart, input : *Input) {
     }
 }
 
-drawHeart :: (
-    device           : *Device,
-    shader_manager   : *ShaderManager,
-    binding_manager  : *BindingManager,
-    command_buffer   : *CommandBuffer,
-    heart            : *Heart,
-    per_view_uniform : *PerViewUniform
-) {
-    if !isMeshReady(device, heart.mesh) return;
+drawHeart :: (command_buffer : *CommandBuffer, heart : *Heart, per_view_uniform : *PerViewUniform) {
+    if !isMeshReady(heart.mesh) return;
 
-    viewport := Viewport.{
-        width     = cast(f32) device.render_resolution.width,
-        height    = cast(f32) device.render_resolution.height,
-        min_depth = 0.0,
-        max_depth = 1.0,
-    };
-    setViewport(device, command_buffer, *viewport, device.render_resolution.height);
+    render_resolution := context.pet.render.device.render_resolution;
 
-    setScissorRect(device, command_buffer, *(ScissorRect.{
-        width  = device.render_resolution.width,
-        height = device.render_resolution.height,
+    setViewport(command_buffer, *(Viewport.{
+        width  = cast(f32) render_resolution.width,
+        height = cast(f32) render_resolution.height,
+    }), render_resolution.height);
+
+    setScissorRect(command_buffer, *(ScissorRect.{
+        width  = render_resolution.width,
+        height = render_resolution.height,
     }));
 
-    setShader(device, command_buffer, shader_manager, binding_manager, heart.shader);
+    setShader(command_buffer, heart.shader);
 
-    setPushConstants(device, command_buffer, heart.push_constants_handle, *(Heart.PushConstants.{
+    setPushConstants(command_buffer, heart.push_constants_handle, *(Heart.PushConstants.{
         index_buffer_reference  = heart.mesh.index_buffer.device_address,
         vertex_buffer_reference = heart.mesh.vertex_buffer.device_address,
-        per_view_uniform_index  = per_view_uniform.handles[device.frame_index][per_view_uniform.version].descriptor,
+        per_view_uniform_index  = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
     }));
 
     if heart.submesh_index == 0 {
         for toView(heart.mesh.submesh_infos.data, heart.mesh.submeshes_count) {
-            drawPrimitives(device, command_buffer, it.indices_count, 1, it.indices_skip, it.vertices_skip);
+            drawPrimitives(command_buffer, it.indices_count, 1, it.indices_skip, it.vertices_skip);
         }
     } else {
         submesh := *heart.mesh.submesh_infos[heart.submesh_index];
-        drawPrimitives(device, command_buffer, submesh.indices_count, 1, submesh.indices_skip, submesh.vertices_skip);
+        drawPrimitives(command_buffer, submesh.indices_count, 1, submesh.indices_skip, submesh.vertices_skip);
     }
 }

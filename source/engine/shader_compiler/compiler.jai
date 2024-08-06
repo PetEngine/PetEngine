@@ -203,7 +203,7 @@ compileShader :: (name : string) -> bool {
     file_error : File.Error = .SHARED_ACCESS_VIOLATION;
 
     while file_error == .SHARED_ACCESS_VIOLATION {
-        source, file_error = readEntireFile(source_filename, pushToArena, *context.pet.per_frame_arena);
+        source, file_error = readEntireFile(source_filename, pushToArena, *context.pet.arenas.per_frame);
     }
 
     if file_error != .NONE {
@@ -312,7 +312,7 @@ compileShader :: (name : string) -> bool {
 
     nt_name : string = ---;
     nt_name.count = name.count + 1;
-    nt_name.data  = pushToArena(*context.pet.per_frame_arena, u8, nt_name.count);
+    nt_name.data  = pushToArena(*context.pet.arenas.per_frame, u8, nt_name.count);
     memcpy(nt_name.data, name.data, name.count);
 
     for stage_codes {
@@ -325,7 +325,7 @@ compileShader :: (name : string) -> bool {
             full_length += common_code.count + SEPARATOR.count;
         }
 
-        code := string.{ data = pushToArena(*context.pet.per_frame_arena, u8, full_length) };
+        code := string.{ data = pushToArena(*context.pet.arenas.per_frame, u8, full_length) };
 
         if common_code {
             memcpy(code.data + code.count, common_code.data, common_code.count);
@@ -367,7 +367,7 @@ compileShader :: (name : string) -> bool {
 
         stage_spirv := *stage_spirvs[it_index];
         stage_spirv.count = cast(s64) shaderc_result_get_length(result);
-        stage_spirv.data  = pushToArena(*context.pet.per_frame_arena, u8, stage_spirv.count);
+        stage_spirv.data  = pushToArena(*context.pet.arenas.per_frame, u8, stage_spirv.count);
         memcpy(stage_spirv.data, shaderc_result_get_bytes(result), stage_spirv.count);
     }
 
@@ -452,7 +452,7 @@ compileShader :: (name : string) -> bool {
 makeSourceShaderFilename :: inline (name : string) -> string {
     capacity := SOURCE_SHADERS_FOLDER.count + "/".count + name.count + ".shader".count;
 
-    filename := string.{ data = pushToArena(*context.pet.per_frame_arena, capacity) };
+    filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
     appendToString(*filename, capacity, SOURCE_SHADERS_FOLDER, "/", name, ".shader");
 
     return filename;
@@ -461,7 +461,7 @@ makeSourceShaderFilename :: inline (name : string) -> string {
 makeBinaryShaderFilename :: inline (name : string) -> string {
     capacity := OUTPUT_SHADERS_FOLDER.count + "/".count + name.count + ".shader_bin".count;
 
-    filename := string.{ data = pushToArena(*context.pet.per_frame_arena, capacity) };
+    filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
     appendToString(*filename, capacity, OUTPUT_SHADERS_FOLDER, "/", name, ".shader_bin");
 
     return filename;
@@ -862,7 +862,7 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvRe
                    it_index,
                    stage_flag);
 
-            push_constant_block_name_length := c_style_strlen(cast(*u8) push_constant_block.name);
+            push_constant_block_name_length := ntStringLength(push_constant_block.name);
 
             if push_constant_block_name_length <= 0 {
                 errorMessage("Please, specify push constants instance name #%, stage: % (not the block/type name). It is required for bindings handles",
@@ -899,12 +899,12 @@ resolveIncludeCallback :: (
 
     include_filename := String.join(SOURCE_SHADERS_FOLDER, "/", to_string(cast(*u8) requested_source),, allocator = Basic.temp);
 
-    include_result := pushToArena(*context.pet.per_frame_arena, shaderc_include_result);
+    include_result := pushToArena(*context.pet.arenas.per_frame, shaderc_include_result);
 
-    content, error := readEntireFile(include_filename, pushToArena, *context.pet.per_frame_arena);
+    content, error := readEntireFile(include_filename, pushToArena, *context.pet.arenas.per_frame);
     if error == {
         case .NONE;
-            absolute_include_filename := getAbsolutePath(include_filename, pushToArena, *context.pet.per_frame_arena);
+            absolute_include_filename := getAbsolutePath(include_filename, pushToArena, *context.pet.arenas.per_frame);
 
             include_result.source_name        = cast(*s8)    absolute_include_filename.data;
             include_result.source_name_length = cast(size_t) absolute_include_filename.count;

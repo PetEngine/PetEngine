@@ -6,6 +6,13 @@
 //     - NO_CACHE for readEntireFile?
 
 File :: struct {
+    #if OS == .WINDOWS {
+        MAX_FILENAME_LENGTH :: MAX_PATH - 1;
+    } else {
+        MAX_FILENAME_LENGTH :: 4096 - 1; // from linux/limits.h
+        notImplemented();
+    }
+
     Flags :: enum_flags u16 {
         // Access (required)
         READ;
@@ -46,13 +53,13 @@ File :: struct {
 
 // create_path_if_does_not_exist have sense only if you do NOT specify EXISTS flag.
 openFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exist := false) -> (File #must, File.Error #must) {
+    assert(filename.count <= File.MAX_FILENAME_LENGTH, "Too long filename (length = %), max allowed: %", filename.count, File.MAX_FILENAME_LENGTH);
+
     file : File;
 
     #if OS == .WINDOWS {
-        assert(filename.count < MAX_PATH, "Too long filename (length = %), max allowed: %", filename.count, MAX_PATH - 1);
-
         wide_filename : [] WCHAR = ---;
-        wide_filename.data = pushToArena(*context.pet.per_frame_arena, WCHAR, filename.count + 1);
+        wide_filename.data = pushToArena(*context.pet.arenas.per_frame, WCHAR, filename.count + 1);
         asciiToWide(*wide_filename, filename, true);
 
         desired_access, shared_access, creation_disposition, flags_and_attributes := flagsToWin32Flags(flags);
@@ -143,7 +150,7 @@ readEntireFile :: (
         buffer.count = fileSize(file);
 
         if buffer.count > 0 {
-            buffer.data = allocate(user_data, buffer.count, 64);
+            buffer.data = allocate(user_data, buffer.count, DEFAULT_CACHE_LINE_SIZE);
             readFile(file, buffer);
         }
 
@@ -235,12 +242,12 @@ enumerateFiles :: inline (
 
 // @TODO: getFileInfo :: (file : File) -> (FileInfo, File.Error);
 getFileInfo :: (filename : string) -> (FileInfo, File.Error) {
+    assert(filename.count <= File.MAX_FILENAME_LENGTH, "Too long filename (length = %), max allowed: %", filename.count, File.MAX_FILENAME_LENGTH);
+
     file_info := FileInfo.{ name = filename };
 
     #if OS == .WINDOWS {
-        assert(filename.count < MAX_PATH, "Too long filename (length = %), max allowed: %", filename.count, MAX_PATH - 1);
-
-        wide_filename : [MAX_PATH] WCHAR;
+        wide_filename : [File.MAX_FILENAME_LENGTH + 1] WCHAR = ---;
         asciiToWide(*wide_filename, filename, true);
 
         attribute_data : WIN32_FILE_ATTRIBUTE_DATA = ---;
@@ -269,8 +276,7 @@ getFileInfo :: (filename : string) -> (FileInfo, File.Error) {
 
 fileExists :: (filename : string) -> bool {
     #if OS == .WINDOWS {
-        wide_filename : [] WCHAR = ---;
-        wide_filename.data = pushToArena(*context.pet.per_frame_arena, WCHAR, filename.count + 1);
+        wide_filename : [File.MAX_FILENAME_LENGTH + 1] WCHAR = ---;
         asciiToWide(*wide_filename, filename, true);
 
         // PathFileExists just does "return GetFileAttributes(filename) != INVALID_FILE_ATTRIBUTES;",
@@ -286,24 +292,45 @@ getAbsolutePath :: (
     allocate      : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
     user_data     : *T
 ) -> string {
+    assert(relative_path.count <= File.MAX_FILENAME_LENGTH, "Too long relative path (length = %), max allowed: %", relative_path.count, File.MAX_FILENAME_LENGTH);
+
+    abosulte_path : string;
+
     #if OS == .WINDOWS {
-        wide_relative_path : [] WCHAR = ---;
-        wide_relative_path.data = pushToArena(*context.pet.per_frame_arena, WCHAR, relative_path.count + 1);
+        wide_relative_path : [File.MAX_FILENAME_LENGTH + 1] WCHAR = ---;
         asciiToWide(*wide_relative_path, relative_path, true);
 
-        absolute_path_length := GetFullPathNameW(wide_relative_path.data, 0, null, null);
-        assert(absolute_path_length > 0, print_sys_error = true);
+        wide_absolute_path : [File.MAX_FILENAME_LENGTH + 1] WCHAR;
+        absolute_path_length := GetFullPathNameW(wide_relative_path.data, wide_absolute_path.count, wide_absolute_path.data, null);
+        assert(absolute_path_length, print_sys_error = true);
 
-        absolute_path_capacity := absolute_path_length + 1;
-        wide_absolute_path := pushToArena(*context.pet.per_frame_arena, WCHAR, absolute_path_capacity);
-
-        absolute_path_length = GetFullPathNameW(wide_relative_path.data, absolute_path_capacity * size_of(WCHAR), wide_absolute_path, null);
-        assert(absolute_path_length > 0, print_sys_error = true);
-
-        return wideToAscii(wide_absolute_path, absolute_path_length, allocate, user_data);
+        abosulte_path = wideToAscii(wide_absolute_path.data, absolute_path_length, allocate, user_data);
     } else {
         notImplemented();
     }
+
+    return abosulte_path;
+}
+
+getAbsolutePath :: (absolute_path_buffer : [] u8, relative_path : string) -> string {
+    assert(relative_path.count <= File.MAX_FILENAME_LENGTH, "Too long relative path (length = %), max allowed: %", relative_path.count, File.MAX_FILENAME_LENGTH);
+
+    absolute_path := string.{ data = absolute_path_buffer.data };
+
+    #if OS == .WINDOWS {
+        wide_relative_path : [File.MAX_FILENAME_LENGTH + 1] WCHAR = ---;
+        asciiToWide(*wide_relative_path, relative_path, true);
+
+        wide_absolute_path : [File.MAX_FILENAME_LENGTH + 1] WCHAR;
+        absolute_path.count = GetFullPathNameW(wide_relative_path.data, wide_absolute_path.count, wide_absolute_path.data, null);
+        assert(absolute_path.count > 0, print_sys_error = true);
+
+        wideToAscii(*absolute_path, absolute_path_buffer.count, wide_absolute_path.data, absolute_path.count);
+    } else {
+        notImplemented();
+    }
+
+    return absolute_path;
 }
 
 #scope_file
@@ -417,19 +444,33 @@ getAbsolutePath :: (
         $skip_symlinks    : bool
     ) -> EnumerateFilesCallbackResult {
         #if is_constant(directory) {
-            wide_wildcard : [directory.count + "/*\0".count] WCHAR;
-            asciiToWide(*wide_wildcard, directory, false);
+            #run assert(directory.count <= File.MAX_FILENAME_LENGTH, "Too long directory path (length = %), max allowed: %", directory.count, File.MAX_FILENAME_LENGTH);
         } else {
-            wide_wildcard : [] WCHAR = ---;
-            wide_wildcard.data = pushToArena(*context.pet.per_frame_arena, WCHAR, directory.count + "/*\0".count);
-            asciiToWide(*wide_wildcard, directory, false);
-
-            wide_wildcard.count += "/*\0".count;
+            assert(directory.count <= File.MAX_FILENAME_LENGTH, "Too long directory path (length = %), max allowed: %", directory.count, File.MAX_FILENAME_LENGTH);
         }
 
-        wide_wildcard[directory.count + 0] = #char "/";
-        wide_wildcard[directory.count + 1] = #char "*";
-        wide_wildcard[directory.count + 2] = 0;
+        wide_wildcard : [File.MAX_FILENAME_LENGTH + 1] WCHAR = ---;
+        asciiToWide(*wide_wildcard, directory, false);
+
+        #if is_constant(directory) {
+            #if directory[directory.count - 1] == #char "/" {
+                wide_wildcard[directory.count + 0] = #char "*";
+                wide_wildcard[directory.count + 1] = 0;
+            } else {
+                wide_wildcard[directory.count + 0] = #char "/";
+                wide_wildcard[directory.count + 1] = #char "*";
+                wide_wildcard[directory.count + 2] = 0;
+            }
+        } else {
+            if directory[directory.count - 1] == #char "/" {
+                wide_wildcard[directory.count + 0] = #char "*";
+                wide_wildcard[directory.count + 1] = 0;
+            } else {
+                wide_wildcard[directory.count + 0] = #char "/";
+                wide_wildcard[directory.count + 1] = #char "*";
+                wide_wildcard[directory.count + 2] = 0;
+            }
+        }
 
         additional_flags := FIND_FIRST_EX_LARGE_FETCH;
         #if case_sensitive additional_flags |= FIND_FIRST_EX_CASE_SENSITIVE;
@@ -438,14 +479,14 @@ getAbsolutePath :: (
         find_file := FindFirstFileExW(wide_wildcard.data, .FindExInfoBasic, *find_data, .FindExSearchNameMatch, null, additional_flags);
         assert(find_file != INVALID_HANDLE_VALUE, print_sys_error = true);
 
-        filename_buffer : [MAX_PATH] u8;
+        filename_buffer : [File.MAX_FILENAME_LENGTH + 1] u8;
 
         file_info : FileInfo;
         file_info.name.data = filename_buffer.data;
 
         result : EnumerateFilesCallbackResult = .CONTINUE;
         while true {
-            wideToAscii(*file_info.name, filename_buffer.count, find_data.cFileName.data, wideLength(find_data.cFileName));
+            wideToAscii(*file_info.name, filename_buffer.count, find_data.cFileName.data, ntStringLength(find_data.cFileName));
 
             // Make file_info.name "<directory>/<relative_name>"
             assert(directory.count + 1 + file_info.name.count <= filename_buffer.count);

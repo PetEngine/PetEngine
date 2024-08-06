@@ -3,6 +3,7 @@
 //     - Transfer command buffer
 //     - Pipeline barriers before and after copies
 //     - @Cleanup vulkan stuff
+//     - Move copies to upload buffer from processRequestedAssets to requestMesh
 
 AssetManager :: struct {
     UploadRingBuffer :: struct {
@@ -28,58 +29,57 @@ MeshAsset :: struct {
     name : string;
 }
 
-createAssetManager :: (device : *Device, resource_manager : *ResourceManager) -> *AssetManager {
-    manager := pushToArena(*context.pet.persistent_arena, AssetManager);
+createAssetManager :: () {
+    manager := pushToArena(*context.pet.arenas.persistent, AssetManager);
+    context.pet.render.asset_manager = manager;
 
-    manager.command_buffer = createCommandBuffer(device, AssetManager.command_buffer.usage);
+    manager.command_buffer = createCommandBuffer(AssetManager.command_buffer.usage);
 
     // #Settings. Capacity
     BUFFER_CAPACITY :: #run megaBytes(512);
     #assert isPowerOfTwo(BUFFER_CAPACITY);
 
-    manager.upload_buffer.buffer = createBuffer(device,
-                                                resource_manager,
-                                                BUFFER_CAPACITY,
+    manager.upload_buffer.buffer = createBuffer(BUFFER_CAPACITY,
                                                 .PERSISTENT,
                                                 .UPLOAD,
                                                 .NONE,
                                                 "AssetManager upload ring buffer",
                                                 AssetManager.command_buffer.usage);
-
-    return manager;
 }
 
-resetAssetManager :: (device : *Device, manager : *AssetManager) {
+resetAssetManager :: () {
     assertThreadKind(.MAIN);
-    resetCommandBuffer(device, *manager.command_buffer, null);
+    resetCommandBuffer(*context.pet.render.asset_manager.command_buffer);
 }
 
-resetAssetManagerAssets :: (device : *Device, manager : *AssetManager) {
+resetAssetManagerAssets :: () {
     assertThreadKind(.MAIN);
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            vulkan_device := cast(*VulkanDevice) device;
+            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
 
-            for manager.mesh_assets {
+            for context.pet.render.asset_manager.mesh_assets {
                 if it.ready_event {
                     vkDestroyEvent(vulkan_device.device, cast(VkEvent) it.ready_event, null);
                 }
             }
     }
 
-    reset(*manager.mesh_assets);
+    reset(*context.pet.render.asset_manager.mesh_assets);
 }
 
-processRequestedAssets :: (device : *Device, manager : *AssetManager, resource_manager : *ResourceManager) {
+processRequestedAssets :: () {
     assertThreadKind(.MAIN);
-    assert(resourceMemoryCommitted(resource_manager, .PERSISTENT));
-    assert(resourceMemoryCommitted(resource_manager, .PER_SCENE));
+    assert(resourceMemoryCommitted(.PERSISTENT));
+    assert(resourceMemoryCommitted(.PER_SCENE));
+
+    manager := context.pet.render.asset_manager;
 
     for mesh_asset : manager.mesh_assets {
         autoResetPerFrameArenas();
 
-        file_data, error := readEntireFile(makeRuntimeMeshFilename(mesh_asset.name), pushToArena, *context.pet.per_frame_arena);
+        file_data, error := readEntireFile(makeRuntimeMeshFilename(mesh_asset.name), pushToArena, *context.pet.arenas.per_frame);
         assert(error == .NONE);
 
         header := MeshFile.getHeader(file_data);
@@ -143,19 +143,19 @@ processRequestedAssets :: (device : *Device, manager : *AssetManager, resource_m
             }
         }
 
-        copyBufferRegions(device, *manager.command_buffer, mesh_asset.vertex_buffer, manager.upload_buffer.buffer, toView(vertex_buffer_regions));
-        copyBufferRegions(device, *manager.command_buffer, mesh_asset.index_buffer,  manager.upload_buffer.buffer, toView(index_buffer_regions));
+        copyBufferRegions(*manager.command_buffer, mesh_asset.vertex_buffer, manager.upload_buffer.buffer, toView(vertex_buffer_regions));
+        copyBufferRegions(*manager.command_buffer, mesh_asset.index_buffer,  manager.upload_buffer.buffer, toView(index_buffer_regions));
 
-        if #complete device.graphics_api == {
+        if #complete context.pet.render.device.graphics_api == {
             case .VULKAN;
-                vk_command_buffer := manager.command_buffer.handles[device.frame_index];
+                vk_command_buffer := manager.command_buffer.handles[context.pet.render.device.frame_index];
                 vkCmdSetEvent(vk_command_buffer, cast(VkEvent) mesh_asset.ready_event, .VK_PIPELINE_STAGE_TRANSFER_BIT);
         }
     }
 }
 
-requestMesh :: (device : *Device, manager : *AssetManager, resource_manager : *ResourceManager, name : string) -> *Mesh {
-    assert(!resourceMemoryCommitted(resource_manager, .PER_SCENE));
+requestMesh :: (name : string) -> *Mesh {
+    assert(!resourceMemoryCommitted(.PER_SCENE));
 
     header : MeshFile.Header = ---;
     {
@@ -166,6 +166,8 @@ requestMesh :: (device : *Device, manager : *AssetManager, resource_manager : *R
         readFile(file, *header);
         assert(header.version == MeshFile.VERSION);
     }
+
+    manager := context.pet.render.asset_manager;
 
     mesh := pushBack(*manager.mesh_assets);
     mesh.vertex_format   = header.vertex_format;
@@ -221,18 +223,14 @@ requestMesh :: (device : *Device, manager : *AssetManager, resource_manager : *R
     //
 
     assert(all_vertices_bytes);
-    mesh.vertex_buffer = createBuffer(device,
-                                      resource_manager,
-                                      all_vertices_bytes,
+    mesh.vertex_buffer = createBuffer(all_vertices_bytes,
                                       .PER_SCENE,
                                       .DEFAULT,
                                       .READ_ONLY,
                                       String.join(mesh.name, " vertices",, allocator = Basic.temp));
 
     if all_indices_bytes {
-        mesh.index_buffer = createBuffer(device,
-                                         resource_manager,
-                                         all_indices_bytes,
+        mesh.index_buffer = createBuffer(all_indices_bytes,
                                          .PER_SCENE,
                                          .DEFAULT,
                                          .READ_ONLY,
@@ -243,9 +241,9 @@ requestMesh :: (device : *Device, manager : *AssetManager, resource_manager : *R
     // Create event
     //
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            vulkan_device := cast(*VulkanDevice) device;
+            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
 
             create_info : VkEventCreateInfo;
             debugCheckVK(vkCreateEvent(vulkan_device.device, *create_info, null, cast(*VkEvent) *mesh.ready_event));
@@ -254,15 +252,15 @@ requestMesh :: (device : *Device, manager : *AssetManager, resource_manager : *R
     return mesh;
 }
 
-isMeshReady :: (device : *Device, mesh : *Mesh) -> bool {
-    mesh_asset := cast(*MeshAsset) mesh;
+isMeshReady :: (mesh : *Mesh) -> bool {
+    if !mesh return false;
 
-    if !mesh_asset         return false;
+    mesh_asset := cast(*MeshAsset) mesh;
     if mesh_asset.is_ready return true;
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            vulkan_device := cast(*VulkanDevice) device;
+            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
 
             result := vkGetEventStatus(vulkan_device.device, cast(VkEvent) mesh_asset.ready_event);
             assert(result == .VK_EVENT_SET || result == .VK_EVENT_RESET, "vkGetEventStatus returned %", result);

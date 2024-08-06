@@ -23,7 +23,7 @@ Viewport :: struct {
     width     : f32;
     height    : f32;
     min_depth : f32;
-    max_depth : f32;
+    max_depth : f32 = 1.0;
 }
 
 ScissorRect :: struct {
@@ -76,21 +76,23 @@ CopyRegion :: struct {
 }
 
 // @TODO: Per-frame command buffers
-createCommandBuffer :: (device : *Device, $usage : QueueType) -> CommandBuffer(usage) #must {
+createCommandBuffer :: ($usage : QueueType) -> CommandBuffer(usage) #must {
     command_buffer : CommandBuffer(usage);
-    command_buffer.handles.count = cast,no_check(s64) device.frame_buffering;
+    command_buffer.handles.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
             for * command_buffer.handles {
-                it.* = pushVulkanCommandBuffer(cast(*VulkanDevice) device, cast(u32) it_index, usage);
+                it.* = pushVulkanCommandBuffer(cast(u32) it_index, usage);
             }
     }
 
     return command_buffer;
 }
 
-resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, binding_manager : *BindingManager) {
+resetCommandBuffer :: (command_buffer : *CommandBuffer) {
+    device := context.pet.render.device;
+
     // @TODO: #FrameBuffering.
     //    - If command_buffer.handles.count < device.frame_buffering then allocate new memory
     //    - If command_buffer.handles.count > device.frame_buffering then free unusused memory
@@ -108,9 +110,9 @@ resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, bindin
         command_buffer.scissor_rect     = .{};
         command_buffer.inside_rendering = false;
 
-        if device.graphics_api == .VULKAN && binding_manager {
-            vulkan_device          := cast(*VulkanDevice) device;
-            vulkan_binding_manager := cast(*VulkanBindingManager) binding_manager;
+        if device.graphics_api == .VULKAN {
+            vulkan_device          := cast(*VulkanDevice)         device;
+            vulkan_binding_manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
 
             binding_infos : [BindingManager.MAX_DESCRIPTOR_SETS] VkDescriptorBufferBindingInfoEXT;
             for * binding_infos { it.usage = vulkan_binding_manager.descriptor_set_layouts[it_index].usage; }
@@ -126,7 +128,7 @@ resetCommandBuffer :: (device : *Device, command_buffer : *CommandBuffer, bindin
     }
 }
 
-clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *Texture) {
+clearTexture :: (command_buffer : *CommandBuffer, texture : *Texture) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can clear textures";
 
     assert(texture.current_owner == command_buffer.usage,
@@ -135,50 +137,44 @@ clearTexture :: (device : *Device, command_buffer : *CommandBuffer, texture : *T
            command_buffer.usage,
            texture.current_owner);
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            clearVulkanTexture(command_buffer.handles[device.frame_index], cast(*VulkanTexture) texture);
+            clearVulkanTexture(command_buffer.handles[context.pet.render.device.frame_index], cast(*VulkanTexture) texture);
     }
 }
 
 // @TOOD: #Viewport. If shaderc_compile_options_set_invert_y will work out, remove flipped viewport for Vulkan
-setViewport :: (device : *Device, command_buffer : *CommandBuffer, viewport : *Viewport, render_target_height : u16) #no_context {
+setViewport :: (command_buffer : *CommandBuffer, viewport : *Viewport, render_target_height : u16) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can set viewport";
 
     if !memcmp(*command_buffer.viewport, viewport, size_of(Viewport)) {
         return;
     }
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            setVulkanViewport(command_buffer.handles[device.frame_index], viewport, render_target_height);
+            setVulkanViewport(command_buffer.handles[context.pet.render.device.frame_index], viewport, render_target_height);
     }
 
     command_buffer.viewport = viewport.*;
 }
 
-setScissorRect :: (device : *Device, command_buffer : *CommandBuffer, scissor_rect : *ScissorRect) #no_context {
+setScissorRect :: (command_buffer : *CommandBuffer, scissor_rect : *ScissorRect) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can set scissor rect";
 
     if !memcmp(*command_buffer.scissor_rect, scissor_rect, size_of(ScissorRect)) {
         return;
     }
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            setVulkanScissorRect(command_buffer.handles[device.frame_index], scissor_rect);
+            setVulkanScissorRect(command_buffer.handles[context.pet.render.device.frame_index], scissor_rect);
     }
 
     command_buffer.scissor_rect = scissor_rect.*;
 }
 
-setShader :: (
-    device          : *Device,
-    command_buffer  : *CommandBuffer,
-    shader_manager  : *ShaderManager,
-    binding_manager : *BindingManager,
-    shader          : *Shader
-) {
+setShader :: (command_buffer : *CommandBuffer, shader : *Shader) {
     #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
             "Only graphics and compute command buffers can set shaders";
 
@@ -190,22 +186,13 @@ setShader :: (
 
     command_buffer.shaders[bind_point] = shader;
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            setVulkanShader(cast(*VulkanDevice) device,
-                            command_buffer,
-                            cast(*VulkanShaderManager) shader_manager,
-                            cast(*VulkanBindingManager) binding_manager,
-                            bind_point);
+            setVulkanShader(command_buffer, bind_point);
     }
 }
 
-beginRendering :: (
-    device         : *Device,
-    command_buffer : *CommandBuffer,
-    color_targets  : [] ColorTargetDesc,
-    depth_target   : *DepthTargetDesc = null
-) {
+beginRendering :: (command_buffer : *CommandBuffer, color_targets : [] ColorTargetDesc, depth_target : *DepthTargetDesc = null) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can begin rendering";
 
     assert(!command_buffer.inside_rendering);
@@ -249,29 +236,28 @@ beginRendering :: (
         }
     }
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            beginVulkanRendering(command_buffer.handles[device.frame_index], color_targets, depth_target);
+            beginVulkanRendering(command_buffer.handles[context.pet.render.device.frame_index], color_targets, depth_target);
     }
 
     command_buffer.inside_rendering = true;
 }
 
-endRendering :: (device : *Device, command_buffer : *CommandBuffer) {
+endRendering :: (command_buffer : *CommandBuffer) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can end rendering";
 
     assert(command_buffer.inside_rendering);
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            endVulkanRendering(command_buffer.handles[device.frame_index]);
+            endVulkanRendering(command_buffer.handles[context.pet.render.device.frame_index]);
     }
 
     command_buffer.inside_rendering = false;
 }
 
 drawPrimitives :: (
-    device          : *Device,
     command_buffer  : *CommandBuffer,
     vertices_count  : u32,
     instances_count : u32 = 1,
@@ -285,9 +271,9 @@ drawPrimitives :: (
     shader := command_buffer.shaders[ShaderBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set graphics or mesh shader before calling %", #procedure_name());
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            drawVulkanPrimitives(command_buffer.handles[device.frame_index],
+            drawVulkanPrimitives(command_buffer.handles[context.pet.render.device.frame_index],
                                  cast(*VulkanShader) shader,
                                  max(vertices_count, 1),
                                  max(instances_count, 1),
@@ -297,20 +283,19 @@ drawPrimitives :: (
 }
 
 // @TODO: Other shaders
-setPushConstants :: inline (device : *Device, command_buffer : *CommandBuffer, handle : PushConstantsHandle, data : *$T) {
+setPushConstants :: inline (command_buffer : *CommandBuffer, handle : PushConstantsHandle, data : *$T) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use push constants for now";
 
     shader := command_buffer.shaders[ShaderBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set shader before setting its push constants");
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            setVulkanPushConstants(command_buffer.handles[device.frame_index], cast(*VulkanShader) shader, handle, data);
+            setVulkanPushConstants(command_buffer.handles[context.pet.render.device.frame_index], cast(*VulkanShader) shader, handle, data);
     }
 }
 
 copyBuffer :: (
-    device         : *Device,
     command_buffer : *CommandBuffer,
     dest_buffer    : *Buffer,
     source_buffer  : *Buffer,
@@ -339,9 +324,9 @@ copyBuffer :: (
     }
     assert(dest_offset + bytes <= dest_buffer.size);
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            copyVulkanBuffer(command_buffer.handles[device.frame_index],
+            copyVulkanBuffer(command_buffer.handles[context.pet.render.device.frame_index],
                              cast(*VulkanBuffer) dest_buffer,
                              cast(*VulkanBuffer) source_buffer,
                              dest_offset,
@@ -351,7 +336,6 @@ copyBuffer :: (
 }
 
 copyBufferRegions :: (
-    device         : *Device,
     command_buffer : *CommandBuffer,
     dest_buffer    : *Buffer,
     source_buffer  : *Buffer,
@@ -383,9 +367,9 @@ copyBufferRegions :: (
         assert(it.dest_offset + it.bytes <= dest_buffer.size);
     }
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            copyVulkanBufferRegions(command_buffer.handles[device.frame_index],
+            copyVulkanBufferRegions(command_buffer.handles[context.pet.render.device.frame_index],
                                     cast(*VulkanBuffer) dest_buffer,
                                     cast(*VulkanBuffer) source_buffer,
                                     regions);

@@ -7,34 +7,32 @@ ShaderManager :: struct {
     // VTable
     //
 
-    destroyPlatformShaderManager : (device : *Device, manager : *ShaderManager);
-    resetPlatformShaderManager   : (device : *Device, manager : *ShaderManager);
+    destroyPlatformShaderManager : ();
+    resetPlatformShaderManager   : ();
 
-    pushPlatformShader : (manager : *ShaderManager) -> *Shader #must;
+    pushPlatformShader : () -> *Shader #must;
 
-    createGraphicsPlatformShader : (device : *Device, manager : *ShaderManager, binding_manager : *BindingManager, shader : *Shader, shader_file_data : string);
+    createGraphicsPlatformShader : (shader : *Shader, shader_file_data : string);
 
-    findPlatformShader           : (manager : *ShaderManager, name : string) -> *Shader #must #no_context;
-    reloadGraphicsPlatformShader : (device : *Device, manager : *ShaderManager, binding_manager : *BindingManager, shader : *Shader, shader_file_data : string);
+    findPlatformShader           : (name : string) -> *Shader #must;
+    reloadGraphicsPlatformShader : (shader : *Shader, shader_file_data : string);
 }
 
-createShaderManager :: (device : *Device, resource_manager : *ResourceManager) -> *ShaderManager #must {
-    manager : *ShaderManager;
+createShaderManager :: inline () {
+    assert(!context.pet.render.shader_manager);
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-           manager = createVulkanShaderManager(cast(*VulkanDevice) device, cast(*VulkanResourceManager) resource_manager);
+           createVulkanShaderManager();
     }
-
-    return manager;
 }
 
-destroyShaderManager :: inline (device : *Device, manager : *ShaderManager) {
-    manager.destroyPlatformShaderManager(device, manager);
+destroyShaderManager :: inline () {
+    context.pet.render.shader_manager.destroyPlatformShaderManager();
 }
 
-resetShaderManager :: inline (device : *Device, manager : *ShaderManager) {
-    manager.resetPlatformShaderManager(device, manager);
+resetShaderManager :: inline () {
+    context.pet.render.shader_manager.resetPlatformShaderManager();
 }
 
 Shader :: struct {
@@ -60,17 +58,10 @@ PushConstantsHandle :: struct {
     index : u8 = INVALID_INDEX;
 }
 
-createShader :: (
-    device               : *Device,
-    manager              : *ShaderManager,
-    binding_manager      : *BindingManager,
-    name                 : string,
-    color_target_formats : [] Texture.Format,
-    depth_target_format  : Texture.Format = .UNKNOWN
-) -> *Shader #must {
+createShader :: (name : string, color_target_formats : [] Texture.Format, depth_target_format : Texture.Format = .UNKNOWN) -> *Shader #must {
     assert(color_target_formats.count <= Shader.color_target_formats.capacity);
 
-    shader := manager.pushPlatformShader(manager);
+    shader := context.pet.render.shader_manager.pushPlatformShader();
     shader.name = name;
 
     shader_file_data := deserializeShaderFile(shader);
@@ -81,7 +72,7 @@ createShader :: (
             pushBack(*shader.color_target_formats, color_target_formats);
             shader.depth_target_format = depth_target_format;
 
-            manager.createGraphicsPlatformShader(device, manager, binding_manager, shader, shader_file_data);
+            context.pet.render.shader_manager.createGraphicsPlatformShader(shader, shader_file_data);
 
         case .MESH;        #through;
         case .COMPUTE;     #through;
@@ -92,17 +83,17 @@ createShader :: (
     return shader;
 }
 
-findShader :: inline (manager : *ShaderManager, name : string) -> *Shader #must #no_context {
-    return manager.findPlatformShader(manager, name);
+findShader :: inline (name : string) -> *Shader #must {
+    return context.pet.render.shader_manager.findPlatformShader(name);
 }
 
-reloadShader :: (device : *Device, manager : *ShaderManager, binding_manager : *BindingManager, shader : *Shader) {
+reloadShader :: (shader : *Shader) {
     shader_file_data := deserializeShaderFile(shader);
     if !shader_file_data return;
 
     if #complete shader.kind == {
         case .GRAPHICS;
-            manager.reloadGraphicsPlatformShader(device, manager, binding_manager, shader, shader_file_data);
+            context.pet.render.shader_manager.reloadGraphicsPlatformShader(shader, shader_file_data);
 
         case .MESH;        #through;
         case .COMPUTE;     #through;
@@ -126,7 +117,7 @@ getPushConstantsHandle :: (shader : *Shader, name : string) -> PushConstantsHand
 #scope_file
 
 deserializeShaderFile :: (shader : *Shader) -> string {
-    shader_file_data, file_error := readEntireFile(makeBinaryShaderFilename(shader.name), pushToArena, *context.pet.per_frame_arena);
+    shader_file_data, file_error := readEntireFile(makeBinaryShaderFilename(shader.name), pushToArena, *context.pet.arenas.per_frame);
     if file_error != .NONE {
         errorMessage("Shader \"%\" was not found", shader.name);
         return "";

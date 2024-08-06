@@ -17,8 +17,6 @@ Buffer :: struct {
 }
 
 createBuffer :: (
-    device          : *Device,
-    manager         : *ResourceManager,
     size            : u32,
     lifetime        : ResourceManager.Lifetime,
     pool            : ResourceManager.Pool,
@@ -26,7 +24,7 @@ createBuffer :: (
     name            : string,
     possible_owners : ..QueueType = .[ .GRAPHICS ]
 ) -> *Buffer #must {
-    assert(!resourceMemoryCommitted(manager, lifetime), "You cannot create %1 buffer after %1 memory is committed", lifetime);
+    assert(!resourceMemoryCommitted(lifetime), "You cannot create %1 buffer after %1 memory is committed", lifetime);
 
     assert(name.count <= ResourceManager.MAX_RESOURCE_NAME_LENGTH,
            "Max buffer name length (%) > ResourceManager.MAX_RESOURCE_NAME_LENGTH (%)",
@@ -36,7 +34,9 @@ createBuffer :: (
     assert(pool != .READ_BACK || usage == .NONE, "Only NONE usage is allowed on READ_BACK pool");
     assert(usage != .UNIFORM || pool == .UPLOAD, "Uniform buffers could be created only on UPLOAD pool");
 
-    buffer := manager.pushPlatformBuffer(device, manager, lifetime, pool);
+    manager := context.pet.render.resource_manager;
+
+    buffer := manager.pushPlatformBuffer(lifetime, pool);
 
     buffer.size                  = size;
     buffer.usage                 = usage;
@@ -45,7 +45,7 @@ createBuffer :: (
     buffer.possible_owners.count = possible_owners.count;
     memcpy(buffer.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
 
-    manager.createPlatformBuffer(device, manager, buffer, pool, name);
+    manager.createPlatformBuffer(buffer, pool, name);
 
     return buffer;
 }

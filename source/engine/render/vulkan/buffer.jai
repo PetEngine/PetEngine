@@ -4,37 +4,27 @@ VulkanBuffer :: struct {
     buffer : VkBuffer;
 }
 
-pushVulkanBuffer :: (
-    device_  : *Device,
-    manager_ : *ResourceManager,
-    lifetime : ResourceManager.Lifetime,
-    pool     : ResourceManager.Pool
-) -> *Buffer #must {
-    device  := cast(*VulkanDevice)          device_;
-    manager := cast(*VulkanResourceManager) manager_;
+pushVulkanBuffer :: (lifetime : ResourceManager.Lifetime, pool : ResourceManager.Pool) -> *Buffer #must {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     buffer : *VulkanBuffer;
     if #complete lifetime == {
         case .PERSISTENT; buffer = pushBack(*manager.buffers.persistent[pool].resources);
         case .PER_SCENE;  buffer = pushBack(*manager.buffers.per_scene[pool].resources);
-        case .PER_FRAME;  buffer = pushBack(*manager.buffers.per_frame[device.frame_index][pool].resources);
+        case .PER_FRAME;  buffer = pushBack(*manager.buffers.per_frame[context.pet.render.device.frame_index][pool].resources);
     }
     return buffer;
 }
 
-pushVulkanDescriptorBuffer :: inline (device : *VulkanDevice, manager : *VulkanResourceManager) -> *VulkanBuffer #must {
+pushVulkanDescriptorBuffer :: inline () -> *VulkanBuffer #must {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
+
     return pushBack(*manager.descriptor_buffers.persistent.resources);
 }
 
-createVulkanBuffer :: (
-    device_  : *Device,
-    manager_ : *ResourceManager,
-    buffer_  : *Buffer,
-    pool     : ResourceManager.Pool,
-    name     : string
-) {
-    device  := cast(*VulkanDevice)          device_;
-    manager := cast(*VulkanResourceManager) manager_;
+createVulkanBuffer :: (buffer_ : *Buffer, pool : ResourceManager.Pool, name : string) {
+    device  := cast(*VulkanDevice)          context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
     buffer  := cast(*VulkanBuffer)          buffer_;
 
     queue_family_indices : [VulkanBuffer.possible_owners.capacity] u32;
@@ -64,19 +54,16 @@ createVulkanBuffer :: (
         case .PER_FRAME;  composeVulkanBufferName(buffer, *manager.buffers.per_frame[device.frame_index][pool], pool, name);
     }
 
-    setVulkanObjectName(device, buffer.buffer, buffer.name);
+    setVulkanObjectName(buffer.buffer, buffer.name);
 }
 
-createVulkanDescriptorBuffer :: (
-    device  : *VulkanDevice,
-    manager : *VulkanResourceManager,
-    buffer  : *VulkanBuffer,
-    usage   : VkBufferUsageFlags,
-    name    : string
-) {
-    assert(!resourceMemoryCommitted(manager, .PERSISTENT),
+createVulkanDescriptorBuffer :: (buffer : *VulkanBuffer, usage : VkBufferUsageFlags, name : string) {
+    assert(!resourceMemoryCommitted(.PERSISTENT),
            "You cannot create %1 descriptor buffer after %1 memory is committed",
            ResourceManager.Lifetime.PERSISTENT);
+
+    device  := cast(*VulkanDevice)          context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     queue_family_indices : [VulkanBuffer.possible_owners.capacity] u32;
     for buffer.possible_owners {
@@ -100,7 +87,7 @@ createVulkanDescriptorBuffer :: (
 
     composeVulkanDescriptorBufferName(buffer, *manager.descriptor_buffers.persistent, name);
 
-    setVulkanObjectName(device, buffer.buffer, buffer.name);
+    setVulkanObjectName(buffer.buffer, buffer.name);
 }
 
 #scope_file
@@ -120,7 +107,7 @@ bufferUsageToVkBufferUsageFlags :: inline (usage : Buffer.Usage) -> VkBufferUsag
 
 // "Buffer/<lifetime>/<pool>/<usage>/<name>"
 composeVulkanBufferName :: (
-    buffer      : *VulkanBuffer,
+    buffer      : *Buffer,
     memory_pool : *VulkanResourceManager.MemoryPool,
     pool        : ResourceManager.Pool,
     name        : string
@@ -152,7 +139,7 @@ composeVulkanBufferName :: (
 }
 
 // "Descriptor Buffer/<name>"
-composeVulkanDescriptorBufferName :: (buffer : *VulkanBuffer, memory_pool : *VulkanResourceManager.MemoryPool, name : string) {
+composeVulkanDescriptorBufferName :: (buffer : *Buffer, memory_pool : *VulkanResourceManager.MemoryPool, name : string) {
     full_name_length := "Descriptor Buffer/".count
                       + name.count;
 

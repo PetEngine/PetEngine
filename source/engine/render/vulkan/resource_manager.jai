@@ -72,10 +72,13 @@ VulkanResourceManager :: struct {
     names_arena : Arena;
 }
 
-createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManager #must {
-    manager := pushToArena(*context.pet.persistent_arena, VulkanResourceManager);
+createVulkanResourceManager :: () {
+    manager := pushToArena(*context.pet.arenas.persistent, VulkanResourceManager);
+    context.pet.render.resource_manager = manager;
 
     #insert -> string { return generatePlatformVtableInitialization(ResourceManager, "manager", "Vulkan"); }
+
+    device := cast(*VulkanDevice) context.pet.render.device;
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
@@ -100,7 +103,7 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
-    fillMemoryTypeIndices(device, manager);
+    fillMemoryTypeIndices();
 
     Basic.print(*builder, "Pools memory types (%):\n", ResourceManager.POOLS_COUNT);
     for manager.memory_type_indices {
@@ -127,76 +130,72 @@ createVulkanResourceManager :: (device : *VulkanDevice) -> *VulkanResourceManage
 
     createArena(*manager.names_arena, MANAGER_ARENA_CAPACITY, "VulkanResourceManager names");
 
-    createVulkanBufferMemoryNamesSubarenas(*manager.buffers, *manager.names_arena, BUFFERS_SUBARENA_CAPACITY, device.frame_buffering);
-    createVulkanTextureMemoryNamesSubarenas(*manager.textures, *manager.names_arena, TEXTURES_SUBARENA_CAPACITY, device.frame_buffering);
-    createVulkanTextureViewMemoryNamesSubarenas(*manager.texture_views, *manager.names_arena, TEXTURE_VIEWS_SUBARENA_CAPACITY, device.frame_buffering);
-    createVulkanSamplerMemoryNamesSubarenas(*manager.samplers, *manager.names_arena, SAMPLERS_SUBARENA_CAPACITY, device.frame_buffering);
-    createVulkanDescriptorBufferMemoryNamesSubarenas(*manager.descriptor_buffers, *manager.names_arena, DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY, device.frame_buffering);
-
-    return manager;
+    createVulkanBufferMemoryNamesSubarenas(BUFFERS_SUBARENA_CAPACITY);
+    createVulkanTextureMemoryNamesSubarenas(TEXTURES_SUBARENA_CAPACITY);
+    createVulkanTextureViewMemoryNamesSubarenas(TEXTURE_VIEWS_SUBARENA_CAPACITY);
+    createVulkanSamplerMemoryNamesSubarenas(SAMPLERS_SUBARENA_CAPACITY);
+    createVulkanDescriptorBufferMemoryNamesSubarenas(DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY);
 }
 
 #scope_file
 
-destroyVulkanResourceManager :: (device_ : *Device, manager_ : *ResourceManager) {
-    device  := cast(*VulkanDevice)          device_;
-    manager := cast(*VulkanResourceManager) manager_;
+destroyVulkanResourceManager :: () {
+    destroyVulkanBufferMemory();
+    destroyVulkanTextureMemory();
+    destroyVulkanTextureViewMemory();
+    destroyVulkanSamplerMemory();
+    destroyVulkanDescriptorBufferMemory();
 
-    destroyVulkanBufferMemory(device, *manager.buffers);
-    destroyVulkanTextureMemory(device, *manager.textures);
-    destroyVulkanTextureViewMemory(device, *manager.texture_views);
-    destroyVulkanSamplerMemory(device, *manager.samplers);
-    destroyVulkanDescriptorBufferMemory(device, *manager.descriptor_buffers);
-
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
     destroyArena(*manager.names_arena);
 }
 
-commitVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, lifetime : ResourceManager.Lifetime) {
-    device  := cast(*VulkanDevice)          device_;
-    manager := cast(*VulkanResourceManager) manager_;
+commitVulkanResourceMemory :: (lifetime : ResourceManager.Lifetime) {
+    device  := context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     if #complete lifetime == {
         case .PERSISTENT;
             for * manager.buffers.persistent {
-                commitVulkanBufferMemoryPool(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
+                commitVulkanBufferMemoryPool(it, lifetime, cast(ResourceManager.Pool) it_index);
             }
-            commitVulkanTextureMemoryPool(device, manager, *manager.textures.persistent, lifetime);
-            commitVulkanTextureViewMemoryPool(device, *manager.texture_views.persistent);
-            commitVulkanDescriptorBufferMemoryPool(device, manager, *manager.descriptor_buffers.persistent);
+            commitVulkanTextureMemoryPool(*manager.textures.persistent, lifetime);
+            commitVulkanTextureViewMemoryPool(*manager.texture_views.persistent);
+            commitVulkanDescriptorBufferMemoryPool(*manager.descriptor_buffers.persistent);
 
         case .PER_SCENE;
             for * manager.buffers.per_scene {
-                commitVulkanBufferMemoryPool(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
+                commitVulkanBufferMemoryPool(it, lifetime, cast(ResourceManager.Pool) it_index);
             }
-            commitVulkanTextureMemoryPool(device, manager, *manager.textures.per_scene, lifetime);
-            commitVulkanTextureViewMemoryPool(device, *manager.texture_views.per_scene);
+            commitVulkanTextureMemoryPool(*manager.textures.per_scene, lifetime);
+            commitVulkanTextureViewMemoryPool(*manager.texture_views.per_scene);
 
         case .PER_FRAME;
             for * manager.buffers.per_frame[device.frame_index] {
-                commitVulkanBufferMemoryPool(device, manager, it, lifetime, cast(ResourceManager.Pool) it_index);
+                commitVulkanBufferMemoryPool(it, lifetime, cast(ResourceManager.Pool) it_index);
             }
-            commitVulkanTextureMemoryPool(device, manager, *manager.textures.per_frame[device.frame_index], lifetime);
-            commitVulkanTextureViewMemoryPool(device, *manager.texture_views.per_frame[device.frame_index]);
+            commitVulkanTextureMemoryPool(*manager.textures.per_frame[device.frame_index], lifetime);
+            commitVulkanTextureViewMemoryPool(*manager.texture_views.per_frame[device.frame_index]);
     }
 }
 
-resetVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, lifetime : ResourceManager.Lifetime) {
-    device  := cast(*VulkanDevice)          device_;
-    manager := cast(*VulkanResourceManager) manager_;
+resetVulkanResourceMemory :: (lifetime : ResourceManager.Lifetime) {
+    device  := context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     if #complete lifetime == {
         case .PERSISTENT;
-            for * manager.buffers.persistent resetVulkanBufferMemoryPool(device, it, cast(ResourceManager.Pool) it_index);
-            resetVulkanTextureMemoryPool(device, *manager.textures.persistent);
-            resetVulkanTextureViewMemoryPool(device, *manager.texture_views.persistent);
-            resetVulkanSamplerMemoryPool(device, *manager.samplers.persistent);
-            resetVulkanDescriptorBufferMemoryPool(device, *manager.descriptor_buffers.persistent);
+            for * manager.buffers.persistent resetVulkanBufferMemoryPool(it, cast(ResourceManager.Pool) it_index);
+            resetVulkanTextureMemoryPool(*manager.textures.persistent);
+            resetVulkanTextureViewMemoryPool(*manager.texture_views.persistent);
+            resetVulkanSamplerMemoryPool(*manager.samplers.persistent);
+            resetVulkanDescriptorBufferMemoryPool(*manager.descriptor_buffers.persistent);
 
         case .PER_SCENE;
-            for * manager.buffers.per_scene resetVulkanBufferMemoryPool(device, it, cast(ResourceManager.Pool) it_index);
-            resetVulkanTextureMemoryPool(device, *manager.textures.per_scene);
-            resetVulkanTextureViewMemoryPool(device, *manager.texture_views.per_scene);
-            resetVulkanSamplerMemoryPool(device, *manager.samplers.per_scene);
+            for * manager.buffers.per_scene resetVulkanBufferMemoryPool(it, cast(ResourceManager.Pool) it_index);
+            resetVulkanTextureMemoryPool(*manager.textures.per_scene);
+            resetVulkanTextureViewMemoryPool(*manager.texture_views.per_scene);
+            resetVulkanSamplerMemoryPool(*manager.samplers.per_scene);
 
         case .PER_FRAME;
             // @TODO: #PerFrameTextures. #PerFrameBuffers. #FrameBuffering.
@@ -214,11 +213,11 @@ resetVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, li
             manager.samplers.per_frame.count      = cast,no_check(s64) device.frame_buffering;
 
             for * manager.buffers.per_frame[device.frame_index] {
-                resetVulkanBufferMemoryPool(device, it, cast(ResourceManager.Pool) it_index);
+                resetVulkanBufferMemoryPool(it, cast(ResourceManager.Pool) it_index);
             }
-            resetVulkanTextureMemoryPool(device, *manager.textures.per_frame[device.frame_index]);
-            resetVulkanTextureViewMemoryPool(device, *manager.texture_views.per_frame[device.frame_index]);
-            resetVulkanSamplerMemoryPool(device, *manager.samplers.per_frame[device.frame_index]);
+            resetVulkanTextureMemoryPool(*manager.textures.per_frame[device.frame_index]);
+            resetVulkanTextureViewMemoryPool(*manager.texture_views.per_frame[device.frame_index]);
+            resetVulkanSamplerMemoryPool(*manager.samplers.per_frame[device.frame_index]);
     }
 }
 
@@ -226,43 +225,42 @@ resetVulkanResourceMemory :: (device_ : *Device, manager_ : *ResourceManager, li
 // Buffers
 //
 
-createVulkanBufferMemoryNamesSubarenas :: (
-    memory            : *VulkanResourceManager.BufferMemory,
-    arena             : *Arena,
-    subarena_capacity : s64,
-    frames_buffering  : FrameBuffering
-) {
-    for * memory.persistent {
-        createSubarena(arena, *it.names_subarena, subarena_capacity, "Buffers/Persistent/%", cast(ResourceManager.Pool) it_index);
+createVulkanBufferMemoryNamesSubarenas :: (subarena_capacity : s64) {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
+
+    for * manager.buffers.persistent {
+        createSubarena(*manager.names_arena, *it.names_subarena, subarena_capacity, "Buffers/Persistent/%", cast(ResourceManager.Pool) it_index);
     }
 
-    for * memory.per_scene {
-        createSubarena(arena, *it.names_subarena, subarena_capacity, "Buffers/Per scene/%", cast(ResourceManager.Pool) it_index);
+    for * manager.buffers.per_scene {
+        createSubarena(*manager.names_arena, *it.names_subarena, subarena_capacity, "Buffers/Per scene/%", cast(ResourceManager.Pool) it_index);
     }
 
-    memory.per_frame.count = cast,no_check(s64) frames_buffering;
-    for * frame_pools, frame_index : memory.per_frame.data {
+    manager.buffers.per_frame.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
+    for * frame_pools, frame_index : manager.buffers.per_frame.data {
         for * frame_pools.* {
-            createSubarena(arena, *it.names_subarena, subarena_capacity, "Buffers/Frame #%/%", frame_index, cast(ResourceManager.Pool) it_index);
+            createSubarena(*manager.names_arena, *it.names_subarena, subarena_capacity, "Buffers/Frame #%/%", frame_index, cast(ResourceManager.Pool) it_index);
         }
     }
 }
 
-destroyVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.BufferMemory) {
-    for * memory.persistent {
+destroyVulkanBufferMemory :: () {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
+
+    for * manager.buffers.persistent {
         assert(it.device_memory == VK_NULL_HANDLE);
         assert(it.resources.count == 0);
         destroySubarena(*it.names_subarena);
     }
 
-    for * memory.per_scene  {
+    for * manager.buffers.per_scene  {
         assert(it.device_memory == VK_NULL_HANDLE);
         assert(it.resources.count == 0);
         destroySubarena(*it.names_subarena);
     }
 
-    memory.per_frame.count = 0;
-    for * memory.per_frame.data {
+    manager.buffers.per_frame.count = 0;
+    for * manager.buffers.per_frame.data {
         for * it.* {
             assert(it.device_memory == VK_NULL_HANDLE);
             assert(it.resources.count == 0);
@@ -271,11 +269,9 @@ destroyVulkanBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceMa
     }
 }
 
-resetVulkanBufferMemoryPool :: (
-    device      : *VulkanDevice,
-    memory_pool : *VulkanResourceManager.MemoryPool,
-    pool        : ResourceManager.Pool
-) {
+resetVulkanBufferMemoryPool :: (memory_pool : *VulkanResourceManager.MemoryPool, pool : ResourceManager.Pool) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     for * memory_pool.resources {
         it.mapped_memory = null;
 
@@ -297,14 +293,15 @@ resetVulkanBufferMemoryPool :: (
 }
 
 commitVulkanBufferMemoryPool :: (
-    device      : *VulkanDevice,
-    manager     : *VulkanResourceManager,
     memory_pool : *VulkanResourceManager.MemoryPool,
     lifetime    : ResourceManager.Lifetime,
     pool        : ResourceManager.Pool
 ) {
     assert(memory_pool.device_memory == VK_NULL_HANDLE);
     if memory_pool.resources.count <= 0 return;
+
+    device  := cast(*VulkanDevice)          context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     allocate_flags_info := VkMemoryAllocateFlagsInfo.{
         flags = .VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT
@@ -315,7 +312,7 @@ commitVulkanBufferMemoryPool :: (
         memoryTypeIndex = manager.memory_type_indices[pool]
     };
 
-    bind_infos    := pushToArena(*context.pet.per_frame_arena, VkBindBufferMemoryInfo, memory_pool.resources.count);
+    bind_infos    := pushToArena(*context.pet.arenas.per_frame, VkBindBufferMemoryInfo, memory_pool.resources.count);
     bind_infos_it := bind_infos;
 
     memory_requirements_info : VkBufferMemoryRequirementsInfo2;
@@ -353,9 +350,9 @@ commitVulkanBufferMemoryPool :: (
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory_pool.device_memory));
 
     if lifetime == .PER_FRAME {
-        setVulkanObjectName(device, memory_pool.device_memory, "Memory/Buffers/Frame #%/%", device.frame_index, pool);
+        setVulkanObjectName(memory_pool.device_memory, "Memory/Buffers/Frame #%/%", device.frame_index, pool);
     } else {
-        setVulkanObjectName(device, memory_pool.device_memory, "Memory/Buffers/%/%", lifetime, pool);
+        setVulkanObjectName(memory_pool.device_memory, "Memory/Buffers/%/%", lifetime, pool);
     }
 
     bind_infos_it = bind_infos;
@@ -395,39 +392,40 @@ commitVulkanBufferMemoryPool :: (
 // Textures
 //
 
-createVulkanTextureMemoryNamesSubarenas :: (
-    memory            : *VulkanResourceManager.TextureMemory,
-    arena             : *Arena,
-    subarena_capacity : s64,
-    frames_buffering  : FrameBuffering
-) {
-    createSubarena(arena, *memory.persistent.names_subarena, subarena_capacity, "Textures/Persistent");
-    createSubarena(arena, *memory.per_scene.names_subarena, subarena_capacity, "Textures/Per scene");
+createVulkanTextureMemoryNamesSubarenas :: (subarena_capacity : s64) {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
-    memory.per_frame.count = cast,no_check(s64) frames_buffering;
-    for * memory.per_frame.data {
-        createSubarena(arena, *it.names_subarena, subarena_capacity, "Textures/Frame #%", it_index);
+    createSubarena(*manager.names_arena, *manager.textures.persistent.names_subarena, subarena_capacity, "Textures/Persistent");
+    createSubarena(*manager.names_arena, *manager.textures.per_scene.names_subarena, subarena_capacity, "Textures/Per scene");
+
+    manager.textures.per_frame.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
+    for * manager.textures.per_frame.data {
+        createSubarena(*manager.names_arena, *it.names_subarena, subarena_capacity, "Textures/Frame #%", it_index);
     }
 }
 
-destroyVulkanTextureMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.TextureMemory) {
-    assert(memory.persistent.device_memory == VK_NULL_HANDLE);
-    assert(memory.persistent.resources.count == 0);
-    destroySubarena(*memory.persistent.names_subarena);
+destroyVulkanTextureMemory :: () {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
-    assert(memory.per_scene.device_memory == VK_NULL_HANDLE);
-    assert(memory.per_scene.resources.count == 0);
-    destroySubarena(*memory.per_scene.names_subarena);
+    assert(manager.textures.persistent.device_memory == VK_NULL_HANDLE);
+    assert(manager.textures.persistent.resources.count == 0);
+    destroySubarena(*manager.textures.persistent.names_subarena);
 
-    memory.per_frame.count = 0;
-    for * memory.per_frame.data {
+    assert(manager.textures.per_scene.device_memory == VK_NULL_HANDLE);
+    assert(manager.textures.per_scene.resources.count == 0);
+    destroySubarena(*manager.textures.per_scene.names_subarena);
+
+    manager.textures.per_frame.count = 0;
+    for * manager.textures.per_frame.data {
         assert(it.device_memory == VK_NULL_HANDLE);
         assert(it.resources.count == 0);
         destroySubarena(*it.names_subarena);
     }
 }
 
-resetVulkanTextureMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.MemoryPool) {
+resetVulkanTextureMemoryPool :: (memory_pool : *VulkanResourceManager.MemoryPool) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     for * memory_pool.resources {
         vkDestroyImage(device.device, it.image, null);
         it.image = VK_NULL_HANDLE;
@@ -442,20 +440,18 @@ resetVulkanTextureMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanRe
     resetArena(*memory_pool.names_subarena);
 }
 
-commitVulkanTextureMemoryPool :: (
-    device      : *VulkanDevice,
-    manager     : *VulkanResourceManager,
-    memory_pool : *VulkanResourceManager.MemoryPool,
-    lifetime    : ResourceManager.Lifetime
-) {
+commitVulkanTextureMemoryPool :: (memory_pool : *VulkanResourceManager.MemoryPool, lifetime : ResourceManager.Lifetime) {
     assert(memory_pool.device_memory == VK_NULL_HANDLE);
     if memory_pool.resources.count <= 0 return;
+
+    device  := cast(*VulkanDevice)          context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     allocate_info := VkMemoryAllocateInfo.{
         memoryTypeIndex = manager.memory_type_indices[ResourceManager.Pool.DEFAULT]
     };
 
-    bind_infos    := pushToArena(*context.pet.per_frame_arena, VkBindImageMemoryInfo, memory_pool.resources.count);
+    bind_infos    := pushToArena(*context.pet.arenas.per_frame, VkBindImageMemoryInfo, memory_pool.resources.count);
     bind_infos_it := bind_infos;
 
     memory_requirements_info : VkImageMemoryRequirementsInfo2;
@@ -491,9 +487,9 @@ commitVulkanTextureMemoryPool :: (
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory_pool.device_memory));
 
     if lifetime == .PER_FRAME {
-        setVulkanObjectName(device, memory_pool.device_memory, "Memory/Textures/Frame #%", device.frame_index);
+        setVulkanObjectName(memory_pool.device_memory, "Memory/Textures/Frame #%", device.frame_index);
     } else {
-        setVulkanObjectName(device, memory_pool.device_memory, "Memory/Textures/%", lifetime);
+        setVulkanObjectName(memory_pool.device_memory, "Memory/Textures/%", lifetime);
     }
 
     bind_infos_it = bind_infos;
@@ -509,36 +505,37 @@ commitVulkanTextureMemoryPool :: (
 // Texture views
 //
 
-createVulkanTextureViewMemoryNamesSubarenas :: (
-    memory            : *VulkanResourceManager.TextureViewMemory,
-    arena             : *Arena,
-    subarena_capacity : s64,
-    frames_buffering  : FrameBuffering
-) {
-    createSubarena(arena, *memory.persistent.names_subarena, subarena_capacity, "Texture views/Persistent");
-    createSubarena(arena, *memory.per_scene.names_subarena, subarena_capacity, "Texture views/Per scene");
+createVulkanTextureViewMemoryNamesSubarenas :: (subarena_capacity : s64) {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
-    memory.per_frame.count = cast,no_check(s64) frames_buffering;
-    for * memory.per_frame.data {
-        createSubarena(arena, *it.names_subarena, subarena_capacity, "Texture views/Frame #%", it_index);
+    createSubarena(*manager.names_arena, *manager.texture_views.persistent.names_subarena, subarena_capacity, "Texture views/Persistent");
+    createSubarena(*manager.names_arena, *manager.texture_views.per_scene.names_subarena, subarena_capacity, "Texture views/Per scene");
+
+    manager.texture_views.per_frame.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
+    for * manager.texture_views.per_frame.data {
+        createSubarena(*manager.names_arena, *it.names_subarena, subarena_capacity, "Texture views/Frame #%", it_index);
     }
 }
 
-destroyVulkanTextureViewMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.TextureViewMemory) {
-    assert(memory.persistent.resources.count == 0);
-    destroySubarena(*memory.persistent.names_subarena);
+destroyVulkanTextureViewMemory :: () {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
-    assert(memory.per_scene.resources.count == 0);
-    destroySubarena(*memory.per_scene.names_subarena);
+    assert(manager.texture_views.persistent.resources.count == 0);
+    destroySubarena(*manager.texture_views.persistent.names_subarena);
 
-    memory.per_frame.count = 0;
-    for * memory.per_frame.data {
+    assert(manager.texture_views.per_scene.resources.count == 0);
+    destroySubarena(*manager.texture_views.per_scene.names_subarena);
+
+    manager.texture_views.per_frame.count = 0;
+    for * manager.texture_views.per_frame.data {
         assert(it.resources.count == 0);
         destroySubarena(*it.names_subarena);
     }
 }
 
-resetVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.TextureViewMemory.Pool) {
+resetVulkanTextureViewMemoryPool :: (memory_pool : *VulkanResourceManager.TextureViewMemory.Pool) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     for * memory_pool.resources {
         vkDestroyImageView(device.device, it.view, null);
         it.view = VK_NULL_HANDLE;
@@ -548,7 +545,9 @@ resetVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *Vulk
     resetArena(*memory_pool.names_subarena);
 }
 
-commitVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.TextureViewMemory.Pool) {
+commitVulkanTextureViewMemoryPool :: (memory_pool : *VulkanResourceManager.TextureViewMemory.Pool) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     for * memory_pool.resources {
         texture := cast(*VulkanTexture) it.texture;
 
@@ -600,7 +599,7 @@ commitVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *Vul
 
         debugCheckVK(vkCreateImageView(device.device, *create_info, null, *it.view));
 
-        setVulkanObjectName(device, it.view, it.name);
+        setVulkanObjectName(it.view, it.name);
     }
 }
 
@@ -608,36 +607,37 @@ commitVulkanTextureViewMemoryPool :: (device : *VulkanDevice, memory_pool : *Vul
 // Samplers
 //
 
-createVulkanSamplerMemoryNamesSubarenas :: (
-    memory            : *VulkanResourceManager.SamplerMemory,
-    arena             : *Arena,
-    subarena_capacity : s64,
-    frames_buffering  : FrameBuffering
-) {
-    createSubarena(arena, *memory.persistent.names_subarena, subarena_capacity, "Samplers/Persistent");
-    createSubarena(arena, *memory.per_scene.names_subarena, subarena_capacity, "Samplers/Per scene");
+createVulkanSamplerMemoryNamesSubarenas :: (subarena_capacity : s64) {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
-    memory.per_frame.count = cast,no_check(s64) frames_buffering;
-    for * memory.per_frame.data {
-        createSubarena(arena, *it.names_subarena, subarena_capacity, "Samplers/Frame #%", it_index);
+    createSubarena(*manager.names_arena, *manager.samplers.persistent.names_subarena, subarena_capacity, "Samplers/Persistent");
+    createSubarena(*manager.names_arena, *manager.samplers.per_scene.names_subarena, subarena_capacity, "Samplers/Per scene");
+
+    manager.samplers.per_frame.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
+    for * manager.samplers.per_frame.data {
+        createSubarena(*manager.names_arena, *it.names_subarena, subarena_capacity, "Samplers/Frame #%", it_index);
     }
 }
 
-destroyVulkanSamplerMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.SamplerMemory) {
-    assert(memory.persistent.resources.count == 0);
-    destroySubarena(*memory.persistent.names_subarena);
+destroyVulkanSamplerMemory :: () {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
-    assert(memory.per_scene.resources.count == 0);
-    destroySubarena(*memory.per_scene.names_subarena);
+    assert(manager.samplers.persistent.resources.count == 0);
+    destroySubarena(*manager.samplers.persistent.names_subarena);
 
-    memory.per_frame.count = 0;
-    for * memory.per_frame.data {
+    assert(manager.samplers.per_scene.resources.count == 0);
+    destroySubarena(*manager.samplers.per_scene.names_subarena);
+
+    manager.samplers.per_frame.count = 0;
+    for * manager.samplers.per_frame.data {
         assert(it.resources.count == 0);
         destroySubarena(*it.names_subarena);
     }
 }
 
-resetVulkanSamplerMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.MemorylessPool) {
+resetVulkanSamplerMemoryPool :: (memory_pool : *VulkanResourceManager.MemorylessPool) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     for * memory_pool.resources {
         vkDestroySampler(device.device, it.sampler, null);
         it.sampler = VK_NULL_HANDLE;
@@ -651,22 +651,23 @@ resetVulkanSamplerMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanRe
 // Descriptor buffers
 //
 
-createVulkanDescriptorBufferMemoryNamesSubarenas :: inline (
-    memory            : *VulkanResourceManager.DescriptorBufferMemory,
-    arena             : *Arena,
-    subarena_capacity : s64,
-    frames_buffering  : FrameBuffering
-) {
-    createSubarena(arena, *memory.persistent.names_subarena, subarena_capacity, "Descriptor buffers/Persistent");
+createVulkanDescriptorBufferMemoryNamesSubarenas :: inline (subarena_capacity : s64) {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
+
+    createSubarena(*manager.names_arena, *manager.descriptor_buffers.persistent.names_subarena, subarena_capacity, "Descriptor buffers/Persistent");
 }
 
-destroyVulkanDescriptorBufferMemory :: (device : *VulkanDevice, memory : *VulkanResourceManager.DescriptorBufferMemory) {
-    assert(memory.persistent.device_memory == VK_NULL_HANDLE);
-    assert(memory.persistent.resources.count == 0);
-    destroySubarena(*memory.persistent.names_subarena);
+destroyVulkanDescriptorBufferMemory :: () {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
+
+    assert(manager.descriptor_buffers.persistent.device_memory == VK_NULL_HANDLE);
+    assert(manager.descriptor_buffers.persistent.resources.count == 0);
+    destroySubarena(*manager.descriptor_buffers.persistent.names_subarena);
 }
 
-resetVulkanDescriptorBufferMemoryPool :: (device : *VulkanDevice, memory_pool : *VulkanResourceManager.MemoryPool) {
+resetVulkanDescriptorBufferMemoryPool :: (memory_pool : *VulkanResourceManager.MemoryPool) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     for * memory_pool.resources {
         it.mapped_memory = null;
 
@@ -685,13 +686,12 @@ resetVulkanDescriptorBufferMemoryPool :: (device : *VulkanDevice, memory_pool : 
     resetArena(*memory_pool.names_subarena);
 }
 
-commitVulkanDescriptorBufferMemoryPool :: (
-    device      : *VulkanDevice,
-    manager     : *VulkanResourceManager,
-    memory_pool : *VulkanResourceManager.MemoryPool
-) {
+commitVulkanDescriptorBufferMemoryPool :: (memory_pool : *VulkanResourceManager.MemoryPool) {
     assert(memory_pool.device_memory == VK_NULL_HANDLE);
     if memory_pool.resources.count <= 0 return;
+
+    device  := cast(*VulkanDevice)          context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     allocate_flags_info := VkMemoryAllocateFlagsInfo.{
         flags = .VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT
@@ -702,7 +702,7 @@ commitVulkanDescriptorBufferMemoryPool :: (
         memoryTypeIndex = manager.memory_type_indices[ResourceManager.Pool.UPLOAD]
     };
 
-    bind_infos    := pushToArena(*context.pet.per_frame_arena, VkBindBufferMemoryInfo, memory_pool.resources.count);
+    bind_infos    := pushToArena(*context.pet.arenas.per_frame, VkBindBufferMemoryInfo, memory_pool.resources.count);
     bind_infos_it := bind_infos;
 
     memory_requirements_info : VkBufferMemoryRequirementsInfo2;
@@ -729,7 +729,7 @@ commitVulkanDescriptorBufferMemoryPool :: (
 
     debugCheckVK(vkAllocateMemory(device.device, *allocate_info, null, *memory_pool.device_memory));
 
-    setVulkanObjectName(device, memory_pool.device_memory, "Memory/Descriptor buffers/Persistent");
+    setVulkanObjectName(memory_pool.device_memory, "Memory/Descriptor buffers/Persistent");
 
     bind_infos_it = bind_infos;
     for 0 .. memory_pool.resources.count - 1 {
@@ -760,7 +760,10 @@ commitVulkanDescriptorBufferMemoryPool :: (
 // Other
 //
 
-fillMemoryTypeIndices :: (device : *VulkanDevice, manager : *VulkanResourceManager) {
+fillMemoryTypeIndices :: () {
+    device  := cast(*VulkanDevice)          context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
+
     // [0] - ideal
     // [1] - minimal
     MEMORY_PROPERTIES : [ResourceManager.POOLS_COUNT][2] VkMemoryPropertyFlags : .[

@@ -16,8 +16,6 @@ TextureView :: struct {
 }
 
 createTextureView :: inline (
-    device       : *Device,
-    manager      : *ResourceManager,
     texture      : *Texture,
     usage        : Texture.Usage,
     first_mip    : u8  = 0,
@@ -29,9 +27,7 @@ createTextureView :: inline (
     flags := texture.flags & ~.SWAPCHAIN;
     if layers_count == 0 then flags &= ~.ARRAY;
 
-    return createTextureView(device,
-                             manager,
-                             texture,
+    return createTextureView(texture,
                              texture.dimension,
                              flags,
                              texture.format,
@@ -44,8 +40,6 @@ createTextureView :: inline (
 }
 
 createTextureView :: (
-    device       : *Device,
-    manager      : *ResourceManager,
     texture      : *Texture,
     dimension    : Texture.Dimension,
     flags        : Texture.Flags,
@@ -57,7 +51,7 @@ createTextureView :: (
     layers_count : u16 = Texture.ALL_LAYERS,
     lifetime     : ResourceManager.Lifetime
 ) -> *TextureView #must {
-    assert(!resourceMemoryCommitted(manager, lifetime), "You cannot create %1 texture view after %1 memory is committed", lifetime);
+    assert(!resourceMemoryCommitted(lifetime), "You cannot create %1 texture view after %1 memory is committed", lifetime);
 
     assert(dimension != ._1D || texture.dimension == ._1D,
            "1D texture view can be created only to a 1D texture");
@@ -90,7 +84,9 @@ createTextureView :: (
     assert(first_mip + mips_count <= texture.mips_count);
     assert(ifx flags & .ARRAY then first_layer + layers_count <= texture.array_size else layers_count == 0);
 
-    view := manager.pushPlatformTextureView(device, manager, lifetime);
+    manager := context.pet.render.resource_manager;
+
+    view := manager.pushPlatformTextureView(lifetime);
 
     view.texture      = texture;
     view.dimension    = dimension;
@@ -108,7 +104,7 @@ createTextureView :: (
 
     name := substring(texture.name, last_slash_index + 1);
 
-    manager.createPlatformTextureView(device, manager, view, name);
+    manager.createPlatformTextureView(view, name);
 
     return view;
 }

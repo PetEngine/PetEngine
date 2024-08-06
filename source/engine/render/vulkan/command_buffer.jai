@@ -1,4 +1,6 @@
-pushVulkanCommandBuffer :: (device : *VulkanDevice, frame_index : u32, queue_type : QueueType) -> VkCommandBuffer #must {
+pushVulkanCommandBuffer :: (frame_index : u32, queue_type : QueueType) -> VkCommandBuffer #must {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
     frame_data := *device.frame_data[frame_index];
 
     command_buffers_used := *frame_data.command_buffers_used[queue_type];
@@ -102,18 +104,14 @@ setVulkanScissorRect :: inline (command_buffer : VkCommandBuffer, scissor_rect :
     }));
 }
 
-setVulkanShader :: (
-    device          : *VulkanDevice,
-    command_buffer  : *CommandBuffer,
-    shader_manager  : *VulkanShaderManager,
-    binding_manager : *VulkanBindingManager,
-    bind_point      : ShaderBindPoint
-) {
+setVulkanShader :: (command_buffer : *CommandBuffer, bind_point : ShaderBindPoint) {
     #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
             "Only graphics and compute command buffers can set shaders";
 
     shader := cast(*VulkanShader) command_buffer.shaders[bind_point];
     if !shader.pipeline return;
+
+    device := cast(*VulkanDevice) context.pet.render.device;
 
     vk_command_buffer : VkCommandBuffer = command_buffer.handles[device.frame_index];
     vk_bind_point     := shaderBindPointToVulkanPipelineBindPoint(bind_point);
@@ -141,10 +139,10 @@ setVulkanShader :: (
 // @TODO: #MSAA.
 //     - #Limits. maxColorAttachments, maxFramebufferWidth, maxFramebufferHeight
 beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] ColorTargetDesc, depth_target : *DepthTargetDesc) {
-    barriers    := pushToArena(*context.pet.per_frame_arena, VkImageMemoryBarrier, color_targets.count + cast,no_check(s64) (depth_target != null));
+    barriers    := pushToArena(*context.pet.arenas.per_frame, VkImageMemoryBarrier, color_targets.count + cast,no_check(s64) (depth_target != null));
     barriers_it := barriers;
 
-    color_attachments    := pushToArena(*context.pet.per_frame_arena, VkRenderingAttachmentInfo, color_targets.count);
+    color_attachments    := pushToArena(*context.pet.arenas.per_frame, VkRenderingAttachmentInfo, color_targets.count);
     color_attachments_it := color_attachments;
 
     for color_targets {
@@ -370,7 +368,7 @@ copyVulkanBufferRegions :: (
 ) {
     vk_regions : [] VkBufferCopy2 = ---;
     vk_regions.count = regions.count;
-    vk_regions.data  = pushToArena(*context.pet.per_frame_arena, VkBufferCopy2, regions.count);
+    vk_regions.data  = pushToArena(*context.pet.arenas.per_frame, VkBufferCopy2, regions.count);
 
     regions_it := regions.data;
     for * vk_regions {

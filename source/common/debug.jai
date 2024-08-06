@@ -136,7 +136,7 @@ debugCheckVK :: (expression : Code, $strict := true, location := #caller_locatio
 }
 
 assertThreadKind :: (kind : ThreadKind, procedure_name := #procedure_name(), location := #caller_location) #expand #no_debug {
-    assert(context.pet.thread_kind == kind, "% can be called only from % thread kind", procedure_name, kind, location = location);
+    assert(context.pet.thread.kind == kind, "% can be called only from % thread kind", procedure_name, kind, location = location);
 }
 
 notImplemented :: ($assert_in_run_time := false, location := #caller_location) #expand #no_debug {
@@ -174,12 +174,6 @@ debugBreakIfDebugging :: () #expand #no_debug {
 
 #scope_file
 
-Compiler      :: #import "Compiler";
-Program_Print :: #import "Program_Print";
-File_CLEANUP  :: #import "File";
-
-g_mutex : Mutex;
-
 message :: (
     $priority        : MessagePriority,
     $format          : string,
@@ -205,10 +199,10 @@ message :: (
     Basic.print(*builder, "[%]: ", priority);
 
     #if priority == .ASSERT {
-        normalized_filename, result := File_CLEANUP.get_absolute_path(location.fully_pathed_filename);
-        Basic.assert(result);
+        absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
+        absolute_path := getAbsolutePath(absolute_path_buffer, location.fully_pathed_filename);
 
-        Basic.print(*builder, "%(%,%): ", normalized_filename, location.line_number, location.character_number);
+        Basic.print(*builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
     }
 
     if args.count > 0 {
@@ -429,3 +423,7 @@ printStackTraceFromJaiContext :: (builder : *Basic.String_Builder) {
         Basic.append(builder, "    <empty>\n");
     }
 }
+
+g_mutex : Mutex;
+
+Program_Print :: #import "Program_Print";

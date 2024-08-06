@@ -17,13 +17,13 @@ BindingManager :: struct {
     // VTable
     //
 
-    destroyPlatformBindingManager : (device : *Device, manager : *BindingManager);
+    destroyPlatformBindingManager : ();
 
-    resetPlatformBindings : (device : *Device, manager : *BindingManager, descriptor_set : DescriptorSet);
+    resetPlatformBindings : (descriptor_set : DescriptorSet);
 
-    pushPlatformBufferBinding  : (device : *Device, manager : *BindingManager, descriptor_set : DescriptorSet, resource : *Buffer, offset : u32, size : u32) -> BindingHandle #must;
-    pushPlatformTextureBinding : (device : *Device, manager : *BindingManager, descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle #must;
-    pushPlatformSamplerBinding : (device : *Device, manager : *BindingManager, descriptor_set : DescriptorSet, resource : *Sampler) -> BindingHandle #must;
+    pushPlatformBufferBinding  : (descriptor_set : DescriptorSet, resource : *Buffer, offset : u32, size : u32) -> BindingHandle #must;
+    pushPlatformTextureBinding : (descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle #must;
+    pushPlatformSamplerBinding : (descriptor_set : DescriptorSet, resource : *Sampler) -> BindingHandle #must;
 }
 
 // @Important: Should be synced with defines in graphics_bindings.shader_header
@@ -52,35 +52,25 @@ BindingHandle :: struct {
 }
 #assert size_of(BindingHandle) <= size_of(u64);
 
-createBindingManager :: (device : *Device, resource_manager : *ResourceManager) -> *BindingManager {
-    manager : *BindingManager;
+createBindingManager :: inline () {
+    assert(!context.pet.render.binding_manager);
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            manager = createVulkanBindingManager(cast(*VulkanDevice) device, cast(*VulkanResourceManager) resource_manager);
+            createVulkanBindingManager();
     }
-
-    return manager;
 }
 
-destroyBindingManager :: (device : *Device, manager : *BindingManager) {
-    manager.destroyPlatformBindingManager(device, manager);
+destroyBindingManager :: () {
+    context.pet.render.binding_manager.destroyPlatformBindingManager();
 }
 
-resetBindings :: (device : *Device, manager : *BindingManager, descriptor_set : DescriptorSet) {
-    manager.resetPlatformBindings(device, manager, descriptor_set);
+resetBindings :: (descriptor_set : DescriptorSet) {
+    context.pet.render.binding_manager.resetPlatformBindings(descriptor_set);
 }
 
-pushBinding :: (
-    device           : *Device,
-    manager          : *BindingManager,
-    resource_manager : *ResourceManager,
-    $descriptor_set  : DescriptorSet,
-    buffer           : *Buffer,
-    offset           : u32 = 0,
-    size             : u32 = 0xFFFF_FFFF
-) -> BindingHandle {
-    assert(resourceMemoryCommitted(resource_manager, buffer.lifetime),
+pushBinding :: ($descriptor_set : DescriptorSet, buffer : *Buffer, offset : u32 = 0, size : u32 = 0xFFFF_FFFF) -> BindingHandle {
+    assert(resourceMemoryCommitted(buffer.lifetime),
            "All % bindings should be pushed after % resource memory is commited",
            descriptor_set,
            buffer.lifetime);
@@ -93,27 +83,21 @@ pushBinding :: (
         assert(size <= buffer.size - offset);
     }
 
-    return manager.pushPlatformBufferBinding(device, manager, descriptor_set, buffer, offset, size);
+    return context.pet.render.binding_manager.pushPlatformBufferBinding(descriptor_set, buffer, offset, size);
 }
 
-pushBinding :: (
-    device           : *Device,
-    manager          : *BindingManager,
-    resource_manager : *ResourceManager,
-    $descriptor_set  : DescriptorSet,
-    resource         : *$Resource/Type.[TextureView, Sampler]
-) -> BindingHandle {
-    assert(resourceMemoryCommitted(resource_manager, resource.lifetime),
+pushBinding :: ($descriptor_set : DescriptorSet, resource : *$Resource/Type.[TextureView, Sampler]) -> BindingHandle {
+    assert(resourceMemoryCommitted(resource.lifetime),
            "All % bindings should be pushed after % resource memory is commited",
            descriptor_set,
            resource.lifetime);
 
     #if Resource == {
         case TextureView;
-            return manager.pushPlatformTextureBinding(device, manager, descriptor_set, resource);
+            return context.pet.render.binding_manager.pushPlatformTextureBinding(descriptor_set, resource);
 
         case Sampler;
-            return manager.pushPlatformSamplerBinding(device, manager, descriptor_set, resource);
+            return context.pet.render.binding_manager.pushPlatformSamplerBinding(descriptor_set, resource);
     }
 }
 

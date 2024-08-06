@@ -89,8 +89,6 @@ Texture :: struct {
 }
 
 createTexture :: (
-    device              : *Device,
-    manager             : *ResourceManager,
     format              : Texture.Format,
     width               : u16,
     height              : u16                = 0,
@@ -104,7 +102,7 @@ createTexture :: (
     name                : string,
     possible_owners     : ..QueueType = .[ .GRAPHICS ]
 ) -> *Texture #must {
-    assert(!resourceMemoryCommitted(manager, lifetime), "You cannot create %1 texture after %1 memory is committed", lifetime);
+    assert(!resourceMemoryCommitted(lifetime), "You cannot create %1 texture after %1 memory is committed", lifetime);
 
     assert(!(flags & .SWAPCHAIN),
            "You cannot explicitly set SWAPCHAIN flag");
@@ -123,8 +121,6 @@ createTexture :: (
         || samples_count == 64
         || samples_count == Texture.MAX_SAMPLES);
     assert(possible_owners.count > 0);
-
-    // @TODO: Validate usage
 
     assert(width > 0);
     assert(width == height || !(flags & .CUBE),
@@ -151,7 +147,9 @@ createTexture :: (
            "Max texture name length (%) > ResourceManager.MAX_RESOURCE_NAME_LENGTH (%)",
            name.count, ResourceManager.MAX_RESOURCE_NAME_LENGTH);
 
-    texture := manager.pushPlatformTexture(device, manager, lifetime);
+    manager := context.pet.render.resource_manager;
+
+    texture := manager.pushPlatformTexture(lifetime);
 
     texture.dimension             = dimension;
     texture.format                = format;
@@ -167,7 +165,7 @@ createTexture :: (
     texture.possible_owners.count = cast(u32) possible_owners.count;
     memcpy(texture.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
 
-    manager.createPlatformTexture(device, manager, texture, lifetime, name);
+    manager.createPlatformTexture(texture, lifetime, name);
 
     return texture;
 }

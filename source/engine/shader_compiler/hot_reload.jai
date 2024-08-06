@@ -7,18 +7,9 @@ ShadersHotReload :: struct {
         overlapped        : OVERLAPPED;
         stop_thread_event : HANDLE;
     }
-
-    device          : *Device;
-    shader_manager  : *ShaderManager;
-    binding_manager : *BindingManager;
 }
 
-createShadersHotReload :: (
-    hot_reload      : *ShadersHotReload,
-    device          : *Device,
-    shader_manager  : *ShaderManager,
-    binding_manager : *BindingManager
-) {
+createShadersHotReload :: (hot_reload : *ShadersHotReload) {
     if !fileExists(ShaderCompiler.SOURCE_SHADERS_FOLDER) {
         #if DEBUG_BUILD warningMessage("Source shaders folder is not found: %", ShaderCompiler.SOURCE_SHADERS_FOLDER);
         return;
@@ -59,10 +50,6 @@ createShadersHotReload :: (
         notImplemented();
     }
 
-    hot_reload.device          = device;
-    hot_reload.shader_manager  = shader_manager;
-    hot_reload.binding_manager = binding_manager;
-
     recompileOutOfDateShaders(hot_reload);
     startThread(*hot_reload.thread);
 }
@@ -99,7 +86,7 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
 
 #if OS == .WINDOWS {
     hotReloadProc :: (hot_reload : *ShadersHotReload) {
-        notification_information_buffer : [4096] u8 #align 4;
+        notification_information_buffer : [DEFAULT_PAGE_SIZE] u8 #align 4;
 
         handles_to_wait := HANDLE.[
             hot_reload.notification,
@@ -107,7 +94,7 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
         ];
 
         while true {
-            resetArena(*context.pet.per_frame_arena);
+            resetArena(*context.pet.arenas.per_frame);
             Basic.reset_temporary_storage();
 
             wait_result := WaitForMultipleObjectsEx(handles_to_wait.count, handles_to_wait.data, FALSE, INFINITE, FALSE);
@@ -131,14 +118,9 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
                         filename := wideToAscii(info.FileName.data,
                                                 info.FileNameLength / size_of(WCHAR),
                                                 pushToArena,
-                                                *context.pet.per_frame_arena);
+                                                *context.pet.arenas.per_frame);
 
-                        if String.path_extension(filename) == "shader" {
-                            // Remove file extension
-                            filename.count = String.find_index_from_right(filename, #char ".");
-
-                            reloadShader(hot_reload.device, hot_reload.shader_manager, hot_reload.binding_manager, filename);
-                        }
+                        reloadShader(filename);
 
                         info = ifx  info.NextEntryOffset
                                then cast(*void) info + info.NextEntryOffset
@@ -160,11 +142,21 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
 }
 
 // @TODO: #ThreadPool.
-reloadShader :: inline (device : *Device, manager : *ShaderManager, binding_manager : *BindingManager, name : string) {
+reloadShader :: (filename : string) {
+    if String.path_extension(filename) != "shader" {
+        return;
+    }
+
+    // Remove file extension
+    name := string.{
+        count = String.find_index_from_right(filename, #char "."),
+        data  = filename.data
+    };
+
     if compileShader(name) {
-        shader := findShader(manager, name);
+        shader := findShader(name);
         if shader {
-            reloadShader(device, manager, binding_manager, shader);
+            reloadShader(shader);
         }
     }
 }

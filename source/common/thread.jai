@@ -16,9 +16,15 @@ Thread :: struct(Data : Type) {
 ThreadKind :: enum u8 {
     MAIN;
     SHADERS_HOT_RELOAD;
+
+    // Internal
+    WINDOW;
+    DEVICE_MESSENGER;
 }
 
 createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.Data, $name : string, kind : ThreadKind, stack_size := 0) {
+    assert(kind != .MAIN && kind != .WINDOW && kind != .DEVICE_MESSENGER);
+
     thread.procedure = procedure;
     thread.data      = data;
 
@@ -26,8 +32,9 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
     thread.jai_context.logger          = context.logger;
     thread.jai_context.logger_data     = context.logger_data;
     thread.jai_context.print_style     = context.print_style;
-    thread.jai_context.pet.thread_name = name;
-    thread.jai_context.pet.thread_kind = kind;
+    thread.jai_context.pet.thread.name = name;
+    thread.jai_context.pet.thread.kind = kind;
+    Context.pet.initGlobals(*thread.jai_context);
 
     #if OS == .WINDOWS {
         Data :: thread.Data;
@@ -138,38 +145,7 @@ exitProcess :: (exit_code : u32 = 0xFFFF_FFFF) #no_context {
     exit(cast,no_check(s32) exit_code);
 }
 
-#scope_file
-
-threadProc :: no_inline (thread : *Thread) {
-    context.base.context_info = type_info(Context);
-    context.thread_index      = getThreadIndex();
-
-    context.allocator.proc(.THREAD_START, 0, 0, null, context.allocator.data);
-    defer context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
-
-    temporary_storage : Temporary_Storage;
-    context.temporary_storage = *temporary_storage;
-
-    // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
-    temporary_storage_data : [TEMPORARY_STORAGE_SIZE] u8 #align 64;
-    set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data.data);
-    context.temporary_storage.current_page_bytes_occupied = 0;
-    context.temporary_storage.total_bytes_occupied        = 0;
-    context.temporary_storage.high_water_mark             = 0;
-
-    // @TODO: #Settings. Get persistent arena capacity from settings.
-    createArena(*context.pet.persistent_arena, gigaBytes(1), "Persistent");
-    defer destroyArena(*context.pet.persistent_arena);
-
-    // @TODO: #Settings. Get per frame arena capacity from settings.
-    createArena(*context.pet.per_frame_arena, megaBytes(512), "Per frame");
-    defer destroyArena(*context.pet.per_frame_arena);
-
-    thread.procedure(thread.data);
-}
-
-g_next_thread_index : u32 = 1;
-getThreadIndex :: inline () -> u32 #no_context {
+getNextThreadIndex :: inline () -> u32 #no_context {
     thread_index : u32 = 1;
     next_thread_index := *g_next_thread_index;
     #if CPU == .X64 {
@@ -179,6 +155,37 @@ getThreadIndex :: inline () -> u32 #no_context {
     }
     return thread_index;
 }
+
+#scope_file
+
+threadProc :: no_inline (thread : *Thread) {
+    context.context_info = type_info(Context);
+    context.thread_index = getNextThreadIndex();
+
+    context.allocator.proc(.THREAD_START, 0, 0, null, context.allocator.data);
+    defer context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
+
+    temporary_storage : Temporary_Storage;
+    context.temporary_storage = *temporary_storage;
+
+    // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
+    temporary_storage_data := Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
+    defer Allocator.rpfree(temporary_storage_data);
+
+    set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
+
+    // @TODO: #Settings. Get persistent arena capacity from settings.
+    createArena(*context.pet.arenas.persistent, gigaBytes(1), "Persistent");
+    defer destroyArena(*context.pet.arenas.persistent);
+
+    // @TODO: #Settings. Get per frame arena capacity from settings.
+    createArena(*context.pet.arenas.per_frame, megaBytes(512), "Per frame");
+    defer destroyArena(*context.pet.arenas.per_frame);
+
+    thread.procedure(thread.data);
+}
+
+g_next_thread_index : u32 = 1;
 
 exit :: (status: s32) #foreign libc_or_crt;
 

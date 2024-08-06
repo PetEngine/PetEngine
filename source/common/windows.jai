@@ -183,6 +183,10 @@ GetModuleHandleExW :: (
     phModule     : *HMODULE
 ) -> BOOL #foreign kernel32;
 
+GetModuleHandleW :: (
+    lpModuleName : LPCWSTR
+) -> HMODULE #foreign kernel32;
+
 LoadLibraryA :: (
     lpLibFileName : *s8
 ) -> HMODULE #foreign kernel32;
@@ -200,13 +204,13 @@ GetProcAddress :: (
     lpProcName : *s8
 ) -> FARPROC #foreign kernel32;
 
-IDI_APPLICATION :: cast,no_check(LPWSTR) cast,trunc(u16) 32512;
-IDI_ERROR       :: cast,no_check(LPWSTR) cast,trunc(u16) 32513;
-IDI_QUESTION    :: cast,no_check(LPWSTR) cast,trunc(u16) 32514;
-IDI_WARNING     :: cast,no_check(LPWSTR) cast,trunc(u16) 32515;
-IDI_INFORMATION :: cast,no_check(LPWSTR) cast,trunc(u16) 32516;
-IDI_WINLOGO     :: cast,no_check(LPWSTR) cast,trunc(u16) 32517;
-IDI_SHIELD      :: cast,no_check(LPWSTR) cast,trunc(u16) 32518;
+IDI_APPLICATION :: cast,no_check(LPWSTR) cast(u16) 32512;
+IDI_ERROR       :: cast,no_check(LPWSTR) cast(u16) 32513;
+IDI_QUESTION    :: cast,no_check(LPWSTR) cast(u16) 32514;
+IDI_WARNING     :: cast,no_check(LPWSTR) cast(u16) 32515;
+IDI_INFORMATION :: cast,no_check(LPWSTR) cast(u16) 32516;
+IDI_WINLOGO     :: cast,no_check(LPWSTR) cast(u16) 32517;
+IDI_SHIELD      :: cast,no_check(LPWSTR) cast(u16) 32518;
 IDI_HAND        :: IDI_ERROR;
 IDI_ASTERISK    :: IDI_INFORMATION;
 IDI_EXCLAMATION :: IDI_WARNING;
@@ -216,22 +220,22 @@ LoadIconW :: (
     lpIconName : LPCWSTR
 ) -> HICON #foreign user32;
 
-IDC_ARROW       :: cast,no_check(LPWSTR) cast,trunc(u16) 32512;
-IDC_IBEAM       :: cast,no_check(LPWSTR) cast,trunc(u16) 32513;
-IDC_WAIT        :: cast,no_check(LPWSTR) cast,trunc(u16) 32514;
-IDC_CROSS       :: cast,no_check(LPWSTR) cast,trunc(u16) 32515;
-IDC_UPARROW     :: cast,no_check(LPWSTR) cast,trunc(u16) 32516;
-IDC_SIZE        :: cast,no_check(LPWSTR) cast,trunc(u16) 32640;
-IDC_ICON        :: cast,no_check(LPWSTR) cast,trunc(u16) 32641;
-IDC_SIZENWSE    :: cast,no_check(LPWSTR) cast,trunc(u16) 32642;
-IDC_SIZENESW    :: cast,no_check(LPWSTR) cast,trunc(u16) 32643;
-IDC_SIZEWE      :: cast,no_check(LPWSTR) cast,trunc(u16) 32644;
-IDC_SIZENS      :: cast,no_check(LPWSTR) cast,trunc(u16) 32645;
-IDC_SIZEALL     :: cast,no_check(LPWSTR) cast,trunc(u16) 32646;
-IDC_NO          :: cast,no_check(LPWSTR) cast,trunc(u16) 32648;
-IDC_HAND        :: cast,no_check(LPWSTR) cast,trunc(u16) 32649;
-IDC_APPSTARTING :: cast,no_check(LPWSTR) cast,trunc(u16) 32650;
-IDC_HELP        :: cast,no_check(LPWSTR) cast,trunc(u16) 32651;
+IDC_ARROW       :: cast,no_check(LPWSTR) cast(u16) 32512;
+IDC_IBEAM       :: cast,no_check(LPWSTR) cast(u16) 32513;
+IDC_WAIT        :: cast,no_check(LPWSTR) cast(u16) 32514;
+IDC_CROSS       :: cast,no_check(LPWSTR) cast(u16) 32515;
+IDC_UPARROW     :: cast,no_check(LPWSTR) cast(u16) 32516;
+IDC_SIZE        :: cast,no_check(LPWSTR) cast(u16) 32640;
+IDC_ICON        :: cast,no_check(LPWSTR) cast(u16) 32641;
+IDC_SIZENWSE    :: cast,no_check(LPWSTR) cast(u16) 32642;
+IDC_SIZENESW    :: cast,no_check(LPWSTR) cast(u16) 32643;
+IDC_SIZEWE      :: cast,no_check(LPWSTR) cast(u16) 32644;
+IDC_SIZENS      :: cast,no_check(LPWSTR) cast(u16) 32645;
+IDC_SIZEALL     :: cast,no_check(LPWSTR) cast(u16) 32646;
+IDC_NO          :: cast,no_check(LPWSTR) cast(u16) 32648;
+IDC_HAND        :: cast,no_check(LPWSTR) cast(u16) 32649;
+IDC_APPSTARTING :: cast,no_check(LPWSTR) cast(u16) 32650;
+IDC_HELP        :: cast,no_check(LPWSTR) cast(u16) 32651;
 
 LoadCursorW :: (
     hInstance    : HINSTANCE,
@@ -550,10 +554,26 @@ DwmSetWindowAttribute :: (
     cbAttribute : u32
 ) -> HRESULT #foreign dwmapi;
 
+GetWindowTextLengthW :: (
+    hWnd : HWND
+) -> s32 #foreign user32;
+
+GetWindowTextW :: (
+    hWnd      : HWND,
+    lpString  : LPWSTR,
+    nMaxCount : s32
+) -> s32 #foreign user32;
+
+SetWindowTextW :: (
+    hWnd     : HWND,
+    lpString : LPCWSTR
+) -> BOOL #foreign user32;
+
 MEM_COMMIT      : u32 : 0x00001000;
 MEM_RESERVE     : u32 : 0x00002000;
 MEM_DECOMMIT    : u32 : 0x00004000;
 MEM_LARGE_PAGES : u32 : 0x20000000;
+MEM_64K_PAGES   : u32 : 0x20400000;
 
 PAGE_READWRITE : u32 : 0x04;
 
@@ -1473,12 +1493,15 @@ GetRawInputBuffer :: (
     cbSizeHeader : u32
 ) -> u32 #foreign user32;
 
+RAWINPUT_ALIGNMENT      :: size_of(*void);
+RAWINPUT_ALIGNMENT_MASK :: RAWINPUT_ALIGNMENT - 1;
+
 RAWINPUT_ALIGN :: inline (x : *void) -> *void #no_context {
-    MASK :: size_of(*void) - 1;
-    return (x + MASK) & ~MASK;
+    return (x + RAWINPUT_ALIGNMENT_MASK) & ~RAWINPUT_ALIGNMENT_MASK;
 }
 
-NEXTRAWINPUTBLOCK :: inline (raw_input : *RAWINPUT) -> *RAWINPUT #no_context {
+NEXTRAWINPUTBLOCK :: inline (raw_input : *RAWINPUT) -> *RAWINPUT {
+    assert(!(raw_input & RAWINPUT_ALIGNMENT_MASK), "raw_input should be aligned to RAWINPUT_ALIGNMENT (%)", RAWINPUT_ALIGNMENT);
     return RAWINPUT_ALIGN(cast(*void) raw_input + raw_input.header.dwSize);
 }
 

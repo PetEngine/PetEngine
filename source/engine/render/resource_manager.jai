@@ -29,50 +29,48 @@ ResourceManager :: struct {
     // VTable
     //
 
-    destroyPlatformResourceManager : (device : *Device, manager : *ResourceManager);
-    commitPlatformResourceMemory   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime);
-    resetPlatformResourceMemory    : (device : *Device, manager : *ResourceManager, lifetime : Lifetime);
+    destroyPlatformResourceManager : ();
+    commitPlatformResourceMemory   : (lifetime : Lifetime);
+    resetPlatformResourceMemory    : (lifetime : Lifetime);
 
-    pushPlatformBuffer   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime, pool : Pool) -> *Buffer #must;
-    createPlatformBuffer : (device : *Device, manager : *ResourceManager, buffer : *Buffer, pool : Pool, name : string);
+    pushPlatformBuffer   : (lifetime : Lifetime, pool : Pool) -> *Buffer #must;
+    createPlatformBuffer : (buffer : *Buffer, pool : Pool, name : string);
 
-    pushPlatformTexture   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime) -> *Texture #must;
-    createPlatformTexture : (device : *Device, manager : *ResourceManager, texture : *Texture, lifetime : Lifetime, name : string);
+    pushPlatformTexture   : (lifetime : Lifetime) -> *Texture #must;
+    createPlatformTexture : (texture : *Texture, lifetime : Lifetime, name : string);
 
-    pushPlatformTextureView   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime) -> *TextureView #must;
-    createPlatformTextureView : (device : *Device, manager : *ResourceManager, view : *TextureView, name : string);
+    pushPlatformTextureView   : (lifetime : Lifetime) -> *TextureView #must;
+    createPlatformTextureView : (view : *TextureView, name : string);
 
-    pushPlatformSampler   : (device : *Device, manager : *ResourceManager, lifetime : Lifetime) -> *Sampler #must;
-    createPlatformSampler : (device : *Device, manager : *ResourceManager, sampler : *Sampler, state : *SamplerState, name : string);
+    pushPlatformSampler   : (lifetime : Lifetime) -> *Sampler #must;
+    createPlatformSampler : (sampler : *Sampler, state : *SamplerState, name : string);
 }
 
-createResourceManager :: (device : *Device) -> *ResourceManager #must {
-    manager : *ResourceManager;
+createResourceManager :: inline () {
+    assert(!context.pet.render.resource_manager);
 
-    if #complete device.graphics_api == {
+    if #complete context.pet.render.device.graphics_api == {
         case .VULKAN;
-            manager = createVulkanResourceManager(cast(*VulkanDevice) device);
+            createVulkanResourceManager();
     }
-
-    return manager;
 }
 
-destroyResourceManager :: inline (device : *Device, manager : *ResourceManager) {
-    manager.destroyPlatformResourceManager(device, manager);
+destroyResourceManager :: inline () {
+    context.pet.render.resource_manager.destroyPlatformResourceManager();
 }
 
-commitResourceMemory :: inline (device : *Device, manager : *ResourceManager, lifetime : ResourceManager.Lifetime) {
-    manager.commitPlatformResourceMemory(device, manager, lifetime);
-    manager.memory_committed |= cast(u8) 1 << lifetime;
+commitResourceMemory :: inline (lifetime : ResourceManager.Lifetime) {
+    context.pet.render.resource_manager.commitPlatformResourceMemory(lifetime);
+    context.pet.render.resource_manager.memory_committed |= cast(u8) 1 << lifetime;
 }
 
-resetResourceMemory :: inline (device : *Device, manager : *ResourceManager, lifetime : ResourceManager.Lifetime) {
-    manager.resetPlatformResourceMemory(device, manager, lifetime);
-    manager.memory_committed &= ~(cast(u8) 1 << lifetime);
+resetResourceMemory :: inline (lifetime : ResourceManager.Lifetime) {
+    context.pet.render.resource_manager.resetPlatformResourceMemory(lifetime);
+    context.pet.render.resource_manager.memory_committed &= ~(cast(u8) 1 << lifetime);
 }
 
-resourceMemoryCommitted :: inline (manager : *ResourceManager, lifetime : ResourceManager.Lifetime) -> bool #no_context {
-    return cast(bool) ((manager.memory_committed >> lifetime) & 1);
+resourceMemoryCommitted :: inline (lifetime : ResourceManager.Lifetime) -> bool {
+    return cast(bool) ((context.pet.render.resource_manager.memory_committed >> lifetime) & 1);
 }
 
 #load "buffer.jai";

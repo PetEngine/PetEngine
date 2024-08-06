@@ -18,10 +18,54 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 #scope_module
 
 #add_context pet : struct {
-    thread_name      : string;
-    thread_kind      : ThreadKind;
-    persistent_arena : Arena;
-    per_frame_arena  : Arena;
+    thread : struct {
+        name : string;
+        kind : ThreadKind;
+    };
+
+    arenas : struct {
+        persistent : Arena;
+        per_frame  : Arena;
+    };
+
+    core : struct {
+        window_manager : *WindowManager;
+        initial_time   : Basic.Apollo_Time;
+    };
+
+    render : struct {
+        device           : *Device;
+        resource_manager : *ResourceManager;
+        asset_manager    : *AssetManager;
+        shader_manager   : *ShaderManager;
+        binding_manager  : *BindingManager;
+    };
+
+    initGlobals :: (new_context : *Context) {
+        #insert -> string {
+            builder := Basic.String_Builder.{ allocator = Basic.temp };
+
+            info := type_info(type_of(Context.pet.core));
+            assert(info.type == .STRUCT);
+
+            for info.members {
+                if it.type.type == .POINTER {
+                    Basic.print(*builder, "assert(context.pet.core.%1, \"%1 should be created\");\n", it.name);
+                }
+                Basic.print(*builder, "new_context.pet.core.%1 = context.pet.core.%1;\n", it.name);
+            }
+
+            info = type_info(type_of(Context.pet.render));
+            assert(info.type == .STRUCT);
+
+            for info.members {
+                Basic.print(*builder, "assert(context.pet.render.%1, \"%1 should be created\");\n", it.name);
+                Basic.print(*builder, "new_context.pet.render.%1 = context.pet.render.%1;\n", it.name);
+            }
+
+            return Basic.builder_to_string(*builder,, allocator = Basic.temp);
+        }
+    }
 };
 
 //
@@ -60,34 +104,29 @@ PerViewUniform :: struct {
     data    : Data;
 }
 
-bindPerViewUniform :: (
-    device           : *Device,
-    binding_manager  : *BindingManager,
-    resource_manager : *ResourceManager,
-    uniform          : *PerViewUniform
-) {
-    uniform.handles.count = cast(s64) device.frame_buffering;
+bindPerViewUniform :: (uniform : *PerViewUniform) {
+    uniform.handles.count = cast(s64) context.pet.render.device.frame_buffering;
 
     offset : u32;
     for * uniform.handles {
         for * it.* {
-            it.* = pushBinding(device, binding_manager, resource_manager, .PERSISTENT, uniform.buffer, offset, size_of(PerViewUniform.Data));
+            it.* = pushBinding(.PERSISTENT, uniform.buffer, offset, size_of(PerViewUniform.Data));
             offset += size_of(PerViewUniform.Data);
         }
     }
 }
 
-resetPerViewUniform :: inline (device : *Device, uniform : *PerViewUniform) {
+resetPerViewUniform :: inline (uniform : *PerViewUniform) {
     // @TODO: #FrameBuffering.
-    assert(uniform.handles.count == cast(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
+    assert(uniform.handles.count == cast(s64) context.pet.render.device.frame_buffering, "It's illegal to change frame buffering for now");
     uniform.version = -1;
 }
 
-commitPerViewUniform :: (device : *Device, uniform : *PerViewUniform) {
+commitPerViewUniform :: (uniform : *PerViewUniform) {
     uniform.version += 1;
     assert(uniform.version < PerViewUniform.MAX_VERSIONS);
 
-    offset := (device.frame_index * PerViewUniform.MAX_VERSIONS + uniform.version)
+    offset := (context.pet.render.device.frame_index * PerViewUniform.MAX_VERSIONS + uniform.version)
             * size_of(PerViewUniform.Data);
 
     memcpy(uniform.buffer.mapped_memory + offset, *uniform.data, size_of(PerViewUniform.Data));
@@ -110,18 +149,13 @@ PerFrameUniform :: struct {
     data   : Data;
 }
 
-bindPerFrameUniform :: inline (
-    device           : *Device,
-    binding_manager  : *BindingManager,
-    resource_manager : *ResourceManager,
-    uniform          : *PerFrameUniform
-) {
-    offset := device.frame_index * size_of(PerFrameUniform.Data);
-    pushBinding(device, binding_manager, resource_manager, .PER_FRAME, uniform.buffer, offset, size_of(PerFrameUniform.Data));
+bindPerFrameUniform :: inline (uniform : *PerFrameUniform) {
+    offset := context.pet.render.device.frame_index * size_of(PerFrameUniform.Data);
+    pushBinding(.PER_FRAME, uniform.buffer, offset, size_of(PerFrameUniform.Data));
 }
 
-commitPerFrameUniform :: inline (device : *Device, uniform : *PerFrameUniform) {
-    offset := device.frame_index * size_of(PerFrameUniform.Data);
+commitPerFrameUniform :: inline (uniform : *PerFrameUniform) {
+    offset := context.pet.render.device.frame_index * size_of(PerFrameUniform.Data);
     memcpy(uniform.buffer.mapped_memory + offset, *uniform.data, size_of(PerFrameUniform.Data));
 }
 
@@ -130,117 +164,115 @@ commitPerFrameUniform :: inline (device : *Device, uniform : *PerFrameUniform) {
 //
 
 petMain :: () {
-    initial_time := Basic.current_time_monotonic();
+    context.pet.thread.name = "Main";
+    context.pet.thread.kind = .MAIN;
 
-    context.pet.thread_name = "Main";
-    context.pet.thread_kind = .MAIN;
+    context.pet.core.initial_time = Basic.current_time_monotonic();
 
     // @TODO: #Settings. Get persistent arena capacity from settings.
-    createArena(*context.pet.persistent_arena, gigaBytes(1), "Persistent");
-    defer destroyArena(*context.pet.persistent_arena);
+    createArena(*context.pet.arenas.persistent, gigaBytes(1), "Persistent");
+    defer destroyArena(*context.pet.arenas.persistent);
 
     // @TODO: #Settings. Get per frame arena capacity from settings.
-    createArena(*context.pet.per_frame_arena, megaBytes(512), "Per frame");
-    defer destroyArena(*context.pet.per_frame_arena);
+    createArena(*context.pet.arenas.per_frame, megaBytes(512), "Per frame");
+    defer destroyArena(*context.pet.arenas.per_frame);
 
     convertExchangeAssetsToRuntime();
 
-    window_manager := createWindowManager();
-    defer destroyWindowManager(window_manager);
+    createWindowManager();
+    defer destroyWindowManager();
+
+    // @TODO: #Settings.
+    //    - Get graphics API from settings.
+    //    - Get render resolution from settings.
+    //    - Get buffering from settings.
+    createDevice(.VULKAN, .{ 960, 540 }, .DOUBLE);
+    defer destroyDevice();
+
+    createResourceManager();
+    defer destroyResourceManager();
+
+    createAssetManager();
+
+    createShaderManager();
+    defer destroyShaderManager();
+
+    createBindingManager();
+    defer destroyBindingManager();
+
+    shaders_hot_reload : ShadersHotReload;
+    createShadersHotReload(*shaders_hot_reload);
+    defer destroyShadersHotReload(*shaders_hot_reload);
 
     // @TODO: #Settings. Get surface dimension from settings.
-    window := createWindow(window_manager, surface_width = 960, surface_height = 540);
-    defer destroyWindow(window);
+    window := createWindow(surface = .{ 960, 540 });
+    initWindowData(window);
 
     createInput(window);
     defer destroyInput();
 
-    // @TODO: #Settings.
-    //    - Get graphics API from settings.
-    //    - Get buffering from settings.
-    //    - Get render resolution from settings.
-    device := createDevice(.VULKAN, window, .DOUBLE, .P_NATIVE);
-    defer destroyDevice(device);
-
-    resource_manager := createResourceManager(device);
-    defer destroyResourceManager(device, resource_manager);
-
-    asset_manager := createAssetManager(device, resource_manager);
-
-    shader_manager := createShaderManager(device, resource_manager);
-    defer destroyShaderManager(device, shader_manager);
-
-    binding_manager := createBindingManager(device, resource_manager);
-    defer destroyBindingManager(device, binding_manager);
-
-    shaders_hot_reload : ShadersHotReload;
-    createShadersHotReload(*shaders_hot_reload, device, shader_manager, binding_manager);
-    defer destroyShadersHotReload(*shaders_hot_reload);
-
     per_view_uniform := PerViewUniform.{
-        buffer = createBuffer(device, resource_manager, PerViewUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view")
+        buffer = createBuffer(PerViewUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view")
     };
 
     per_frame_uniform := PerFrameUniform.{
-        buffer = createBuffer(device, resource_manager, PerFrameUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per frame")
+        buffer = createBuffer(PerFrameUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per frame")
     };
 
-    depth_buffer := createTexture(device,
-                                  resource_manager,
-                                  .D32,
-                                  device.render_resolution.width,
-                                  device.render_resolution.height,
+    depth_buffer := createTexture(.D32,
+                                  context.pet.render.device.render_resolution.width,
+                                  context.pet.render.device.render_resolution.height,
                                   clear_value = .{ depth = 0.0 },
                                   .DEPTH_TARGET,
                                   .PERSISTENT,
                                   "Depth");
 
-    depth_buffer_dsv := createTextureView(device, resource_manager, depth_buffer, .DEPTH_TARGET, lifetime = .PERSISTENT);
+    depth_buffer_dsv := createTextureView(depth_buffer, .DEPTH_TARGET, lifetime = .PERSISTENT);
 
-    depth_sampler := createSampler(device, resource_manager, .{ anisotropy = Sampler.MAX_ANISOTROPY }, .PERSISTENT, "Depth sampler");
+    depth_sampler := createSampler(.{ anisotropy = Sampler.MAX_ANISOTROPY }, .PERSISTENT, "Depth sampler");
 
     // Create persistent buffers and textures here...
 
-    commitResourceMemory(device, resource_manager, .PERSISTENT);
-    defer resetResourceMemory(device, resource_manager, .PERSISTENT);
+    commitResourceMemory(.PERSISTENT);
+    defer resetResourceMemory(.PERSISTENT);
 
     // All persistent bindings should be pushed after persistent resource memory commit
-    bindPerViewUniform(device, binding_manager, resource_manager, *per_view_uniform);
+    bindPerViewUniform(*per_view_uniform);
 
-    defer resetBindings(device, binding_manager, .PERSISTENT);
+    defer resetBindings(.PERSISTENT);
 
     // @TODO: #Scene.
     defer {
-        resetResourceMemory(device, resource_manager, .PER_SCENE);
-        resetAssetManagerAssets(device, asset_manager);
-        resetBindings(device, binding_manager, .PER_SCENE);
+        resetResourceMemory(.PER_SCENE);
+        resetAssetManagerAssets();
+        resetBindings(.PER_SCENE);
     }
 
-    floor := createFloor(device, shader_manager, binding_manager, depth_buffer.format);
-    heart := createHeart(device, shader_manager, binding_manager, depth_buffer.format);
+    floor := createFloor(depth_buffer.format);
+    heart := createHeart(depth_buffer.format);
 
-    command_buffer := createCommandBuffer(device, .GRAPHICS);
+    command_buffer := createCommandBuffer(.GRAPHICS);
 
     showWindow(window);
-    while processWindowEvents(window) {
-        resetArena(*context.pet.per_frame_arena);
+    while processAllWindowsEvents() {
+        resetArena(*context.pet.arenas.per_frame);
         Basic.reset_temporary_storage();
 
         if window.flags & .MINIMIZED continue;
 
         updateHeart(*heart, *window.input);
 
-        beginFrame(device, window);
+        beginFrame();
         {
             // Reset
             {
                 // @TODO: #PerFrameResources. Delete unused per frame resources memory when number of swapchain buffers is decreased.
-                resetResourceMemory(device, resource_manager, .PER_FRAME);
-                resetAssetManager(device, asset_manager);
-                resetShaderManager(device, shader_manager);
-                resetBindings(device, binding_manager, .PER_FRAME);
-                resetCommandBuffer(device, *command_buffer, binding_manager);
-                resetPerViewUniform(device, *per_view_uniform);
+                resetResourceMemory(.PER_FRAME);
+                resetAssetManager();
+                resetShaderManager();
+                resetBindings(.PER_FRAME);
+                resetCommandBuffer(*command_buffer);
+                resetPerViewUniform(*per_view_uniform);
             }
 
             // Create per frame resources here...
@@ -251,44 +283,47 @@ petMain :: () {
                 //        Maybe we want to restrict it?
                 //        Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame resources
                 //        since we do not want to release memory which is in use by async queues.
-                commitResourceMemory(device, resource_manager, .PER_FRAME);
+                commitResourceMemory(.PER_FRAME);
             }
 
             // @TODO: #Scene. New scene
             if window.input.keyboard[Input.Key.O] & .PRESSED {
                 // Reset
-                resetResourceMemory(device, resource_manager, .PER_SCENE);
-                resetAssetManagerAssets(device, asset_manager);
-                resetBindings(device, binding_manager, .PER_SCENE);
+                resetResourceMemory(.PER_SCENE);
+                resetAssetManagerAssets();
+                resetBindings(.PER_SCENE);
 
                 // Create per scene resources here...
-                loadHeartMesh(device, asset_manager, resource_manager, *heart);
+                loadHeartMesh(*heart);
 
                 // Commit
-                commitResourceMemory(device, resource_manager, .PER_SCENE);
+                commitResourceMemory(.PER_SCENE);
 
                 // @Important: Should be after per scene memory commit
-                processRequestedAssets(device, asset_manager, resource_manager);
+                processRequestedAssets();
             }
 
             // Update per frame uniform
-            bindPerFrameUniform(device, binding_manager, resource_manager, *per_frame_uniform);
+            bindPerFrameUniform(*per_frame_uniform);
             per_frame_uniform.data.frame += 1;
             {
-                time_now := cast(f32) Basic.to_float64_seconds(Basic.current_time_monotonic() - initial_time);
+                time_now := cast(f32) Basic.to_float64_seconds(Basic.current_time_monotonic() - context.pet.core.initial_time);
                 per_frame_uniform.data.dtime = time_now - per_frame_uniform.data.time;
                 per_frame_uniform.data.time  = time_now;
             }
-            commitPerFrameUniform(device, *per_frame_uniform);
+            commitPerFrameUniform(*per_frame_uniform);
 
-            back_buffer_view := getBackBufferView(device, .COLOR_TARGET);
+            back_buffer_view := getBackBufferView(window, .COLOR_TARGET);
             back_buffer      := back_buffer_view.texture;
 
             // Update per view uniform
             {
                 using per_view_uniform.data;
 
-                speed := ifx window.input.keyboard[Input.Key.LEFT_SHIFT] & .DOWN then 4.0 else 1.0;
+                speed := 8.0;
+                if window.input.keyboard[Input.Key.LEFT_SHIFT] & .DOWN {
+                    speed *= 4.0;
+                }
 
                 if window.input.keyboard[Input.Key.W] & .DOWN then camera_pos.z += speed * per_frame_uniform.data.dtime;
                 if window.input.keyboard[Input.Key.S] & .DOWN then camera_pos.z -= speed * per_frame_uniform.data.dtime;
@@ -320,24 +355,24 @@ petMain :: () {
                 view_proj_matrix     = proj_matrix     * view_matrix;
                 inv_view_proj_matrix = inv_view_matrix * inv_proj_matrix;
             }
-            commitPerViewUniform(device, *per_view_uniform);
+            commitPerViewUniform(*per_view_uniform);
 
-            beginRendering(device,
-                           *command_buffer,
+            beginRendering(*command_buffer,
                            .[ .{ back_buffer_view, .CLEAR, .STORE } ],
                            *(DepthTargetDesc.{ view = depth_buffer_dsv, depth_load_action = .CLEAR, depth_store_action = .NONE }));
             {
-                drawFloor(device, shader_manager, binding_manager, *command_buffer, *floor, *per_view_uniform);
-                drawHeart(device, shader_manager, binding_manager, *command_buffer, *heart, *per_view_uniform);
+                drawFloor(*command_buffer, *floor, *per_view_uniform);
+                drawHeart(*command_buffer, *heart, *per_view_uniform);
             }
-            endRendering(device, *command_buffer);
+            endRendering(*command_buffer);
         }
-        endFrame(device);
+        endFrame();
     }
 
-    waitDeviceIdle(device);
+    waitDeviceIdle();
 }
 
+operator! :: Basic.operator!;
 operator- :: Basic.operator-;
 operator> :: Basic.operator>;
 
@@ -397,7 +432,7 @@ Reflection :: #import "Reflection";
         command_line.data = GetCommandLineA();
         assert(command_line.data, print_sys_error = true);
 
-        command_line.count = c_style_strlen(cast(*u8) command_line.data);
+        command_line.count = ntStringLength(command_line.data);
         assert(command_line.count > 0, "Command line is empty, that's impossible");
 
         // Parse command line
@@ -533,17 +568,19 @@ initRuntimeAndCallEntryPoint :: () {
     context.print_style.default_format_absolute_pointer.minimum_digits                     = 16;
     context.print_style.default_format_absolute_pointer.comma_string                       = "'";
 
-    temporary_storage : Temporary_Storage;
-    context.temporary_storage = *temporary_storage;
-
-    // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
-    temporary_storage_data : [TEMPORARY_STORAGE_SIZE] u8 #align 64;
-    set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data.data);
-
     context.allocator = .{ Allocator.rpmalloc_allocator_proc, null };
 
     context.allocator.proc(.STARTUP, 0, 0, null, context.allocator.data);
     defer context.allocator.proc(.SHUTDOWN, 0, 0, null, context.allocator.data);
+
+    temporary_storage : Temporary_Storage;
+    context.temporary_storage = *temporary_storage;
+
+    // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
+    temporary_storage_data := Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
+    defer Allocator.rpfree(temporary_storage_data);
+
+    set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
 
     #if OS == .WINDOWS {
         getWindowsCommandLine();
@@ -577,16 +614,4 @@ initRuntimeAndCallEntryPoint :: () {
     }
 
     no_inline petMain();
-}
-
-#if !DEBUG_BUILD {
-    Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
-                                    ENABLE_ASSERTS       = DEBUG_BUILD,
-                                    ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
-                                    LINUX_FREE_ADVICE    = .FREE);
-} else {
-    Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
-                                    ENABLE_ASSERTS       = DEBUG_BUILD,
-                                    ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
-                                    LINUX_FREE_ADVICE    = .DONTNEED);
 }

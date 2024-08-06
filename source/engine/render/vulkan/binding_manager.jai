@@ -29,10 +29,12 @@ VulkanBindingManager :: struct {
     persistent_bindings : DescriptorSetBindings;
 }
 
-createVulkanBindingManager :: (device : *VulkanDevice, resource_manager : *VulkanResourceManager) -> *VulkanBindingManager {
-    manager := pushToArena(*context.pet.persistent_arena, VulkanBindingManager);
+createVulkanBindingManager :: () {
+    manager := pushToArena(*context.pet.arenas.persistent, VulkanBindingManager);
+    context.pet.render.binding_manager = manager;
 
     #insert -> string { return generatePlatformVtableInitialization(BindingManager, "manager", "Vulkan"); }
+    device := cast(*VulkanDevice) context.pet.render.device;
 
 BINDINGS_LIMITS_FORMAT_STRING :: #string END
 Bindings limits:
@@ -58,33 +60,30 @@ END;
 
     manager.per_frame_bindings.count = cast,no_check(s64) device.frame_buffering;
 
-    createVulkanDescriptorSetLayout(device, manager, .PER_FRAME,  .[ .UNIFORM, .SAMPLERS, .TEXTURES, .IMAGES ]);
-    createVulkanDescriptorSetLayout(device, manager, .PER_SCENE,  .[ .SAMPLERS, .TEXTURES, .IMAGES ]);
-    createVulkanDescriptorSetLayout(device, manager, .PERSISTENT, .[ .UNIFORM, .SAMPLERS, .TEXTURES, .IMAGES ]);
+    createVulkanDescriptorSetLayout(.PER_FRAME,  .[ .UNIFORM, .SAMPLERS, .TEXTURES, .IMAGES ]);
+    createVulkanDescriptorSetLayout(.PER_SCENE,  .[ .SAMPLERS, .TEXTURES, .IMAGES ]);
+    createVulkanDescriptorSetLayout(.PERSISTENT, .[ .UNIFORM, .SAMPLERS, .TEXTURES, .IMAGES ]);
 
-    for * manager.per_frame_bindings createVulkanDescriptorSetBindings(device, manager, resource_manager, it, .PER_FRAME, Basic.tprint("Frame #%", it_index));
-    createVulkanDescriptorSetBindings(device, manager, resource_manager, *manager.per_scene_bindings, .PER_SCENE, "Per Scene");
-    createVulkanDescriptorSetBindings(device, manager, resource_manager, *manager.persistent_bindings, .PERSISTENT, "Persistent");
-
-    return manager;
+    for * manager.per_frame_bindings createVulkanDescriptorSetBindings(it, .PER_FRAME, Basic.tprint("Frame #%", it_index));
+    createVulkanDescriptorSetBindings(*manager.per_scene_bindings, .PER_SCENE, "Per Scene");
+    createVulkanDescriptorSetBindings(*manager.persistent_bindings, .PERSISTENT, "Persistent");
 }
 
 #scope_file
 
-destroyVulkanBindingManager :: (device_ : *Device, manager_ : *BindingManager) {
-    device  := cast(*VulkanDevice) device_;
-    manager := cast(*VulkanBindingManager) manager_;
+destroyVulkanBindingManager :: () {
+    device  := cast(*VulkanDevice)         context.pet.render.device;
+    manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
 
     for manager.descriptor_set_layouts {
         vkDestroyDescriptorSetLayout(device.device, it.layout, null);
     }
 }
 
-resetVulkanBindings :: (device_ : *Device, manager_ : *BindingManager, descriptor_set : DescriptorSet) {
-    device  := cast(*VulkanDevice)         device_;
-    manager := cast(*VulkanBindingManager) manager_;
-
+resetVulkanBindings :: (descriptor_set : DescriptorSet) {
     assertThreadKind(.MAIN);
+
+    manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
 
     bindings : *VulkanBindingManager.DescriptorSetBindings;
     if #complete descriptor_set == {
@@ -92,10 +91,10 @@ resetVulkanBindings :: (device_ : *Device, manager_ : *BindingManager, descripto
             // @TODO: #FrameBuffering.
             //    - If manager.per_frame_*.count < device.frame_buffering then allocate new memory
             //    - If manager.per_frame_*.count > device.frame_buffering then free unusused memory
-            assert(manager.per_frame_bindings.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
-            manager.per_frame_bindings.count = cast,no_check(s64) device.frame_buffering;
+            assert(manager.per_frame_bindings.count == cast,no_check(s64) context.pet.render.device.frame_buffering, "It's illegal to change frame buffering for now");
+            manager.per_frame_bindings.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
 
-            bindings = *manager.per_frame_bindings[device.frame_index];
+            bindings = *manager.per_frame_bindings[context.pet.render.device.frame_index];
 
         case .PER_SCENE;
             bindings = *manager.per_scene_bindings;
@@ -108,19 +107,12 @@ resetVulkanBindings :: (device_ : *Device, manager_ : *BindingManager, descripto
     bindings.descriptors_pushed_packed = 0;
 }
 
-pushVulkanBufferBinding  :: (
-    device_        : *Device,
-    manager_       : *BindingManager,
-    descriptor_set : DescriptorSet,
-    resource       : *Buffer,
-    offset         : u32,
-    size           : u32
-) -> BindingHandle #must {
-    device  := cast(*VulkanDevice)         device_;
-    manager := cast(*VulkanBindingManager) manager_;
-    buffer  := cast(*VulkanBuffer)         resource;
-
+pushVulkanBufferBinding  :: (descriptor_set : DescriptorSet, resource : *Buffer, offset : u32, size : u32) -> BindingHandle #must {
     assertThreadKind(.MAIN);
+
+    device  := cast(*VulkanDevice)         context.pet.render.device;
+    manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
+    buffer  := cast(*VulkanBuffer)         resource;
 
     assert(buffer.usage == .UNIFORM, "Only uniform bindings are supported right now");
 
@@ -177,17 +169,12 @@ pushVulkanBufferBinding  :: (
     };
 }
 
-pushVulkanTextureBinding :: (
-    device_        : *Device,
-    manager_       : *BindingManager,
-    descriptor_set : DescriptorSet,
-    resource       : *TextureView
-) -> BindingHandle #must {
-    device       := cast(*VulkanDevice)         device_;
-    manager      := cast(*VulkanBindingManager) manager_;
-    texture_view := cast(*VulkanTextureView)    resource;
-
+pushVulkanTextureBinding :: (descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle #must {
     assertThreadKind(.MAIN);
+
+    device       := cast(*VulkanDevice)         context.pet.render.device;
+    manager      := cast(*VulkanBindingManager) context.pet.render.binding_manager;
+    texture_view := cast(*VulkanTextureView)    resource;
 
     bindings : *VulkanBindingManager.DescriptorSetBindings;
     if #complete descriptor_set == {
@@ -252,17 +239,12 @@ pushVulkanTextureBinding :: (
     };
 }
 
-pushVulkanSamplerBinding :: (
-    device_        : *Device,
-    manager_       : *BindingManager,
-    descriptor_set : DescriptorSet,
-    resource       : *Sampler
-) -> BindingHandle #must {
-    device  := cast(*VulkanDevice)         device_;
-    manager := cast(*VulkanBindingManager) manager_;
-    sampler := cast(*VulkanSampler)        resource;
-
+pushVulkanSamplerBinding :: (descriptor_set : DescriptorSet, resource : *Sampler) -> BindingHandle #must {
     assertThreadKind(.MAIN);
+
+    device  := cast(*VulkanDevice)         context.pet.render.device;
+    manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
+    sampler := cast(*VulkanSampler)        resource;
 
     bindings : *VulkanBindingManager.DescriptorSetBindings;
     if #complete descriptor_set == {
@@ -304,32 +286,29 @@ pushVulkanSamplerBinding :: (
 }
 
 createVulkanDescriptorSetBindings :: (
-    device                 : *VulkanDevice,
-    manager                : *VulkanBindingManager,
-    resource_manager       : *VulkanResourceManager,
     bindings               : *VulkanBindingManager.DescriptorSetBindings,
     descriptor_set         : DescriptorSet,
     descriptor_buffer_name : string
 ) {
+    manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
+
     layout := *manager.descriptor_set_layouts[descriptor_set];
 
-    bindings.descriptor_buffer = pushVulkanDescriptorBuffer(device, resource_manager);
+    bindings.descriptor_buffer = pushVulkanDescriptorBuffer();
 
     bindings.descriptor_buffer.size                  = cast(u32) layout.size;
     bindings.descriptor_buffer.current_owner         = QueueType.GRAPHICS;
     bindings.descriptor_buffer.possible_owners.count = 1;
     bindings.descriptor_buffer.possible_owners[0]    = QueueType.GRAPHICS;
 
-    createVulkanDescriptorBuffer(device, resource_manager, bindings.descriptor_buffer, layout.usage, descriptor_buffer_name);
+    createVulkanDescriptorBuffer(bindings.descriptor_buffer, layout.usage, descriptor_buffer_name);
 }
 
-createVulkanDescriptorSetLayout :: (
-    device  : *VulkanDevice,
-    manager : *VulkanBindingManager,
-    set     : DescriptorSet,
-    slots   : [] DescriptorSetSlot
-) {
+createVulkanDescriptorSetLayout :: (set : DescriptorSet, slots : [] DescriptorSetSlot) {
     assert(slots.count <= BindingManager.MAX_DESCRIPTOR_SET_SLOTS);
+
+    device  := cast(*VulkanDevice)         context.pet.render.device;
+    manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
 
     pushBindingLayout :: (type : VkDescriptorType, count : u32) #expand {
         `binding_layouts_it.binding         = cast(u32) `it;
@@ -375,7 +354,7 @@ createVulkanDescriptorSetLayout :: (
 
     debugCheckVK(vkCreateDescriptorSetLayout(device.device, *create_info, null, *layout.layout));
 
-    setVulkanObjectName(device, layout.layout, "% descriptor set layout", set);
+    setVulkanObjectName(layout.layout, "% descriptor set layout", set);
 
     device.loader.extensions.device.required.vkGetDescriptorSetLayoutSizeEXT(device.device, layout.layout, *layout.size);
     layout.size = alignUpWithPowerOfTwo(layout.size, device.descriptor_buffer_properties.descriptorBufferOffsetAlignment);

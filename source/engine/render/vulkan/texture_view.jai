@@ -4,30 +4,25 @@ VulkanTextureView :: struct {
     view : VkImageView;
 }
 
-pushVulkanTextureView :: (device : *Device, manager_ : *ResourceManager, lifetime : ResourceManager.Lifetime) -> *TextureView #must {
-    manager := cast(*VulkanResourceManager) manager_;
+pushVulkanTextureView :: (lifetime : ResourceManager.Lifetime) -> *TextureView #must {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     view : *VulkanTextureView;
     if #complete lifetime == {
         case .PERSISTENT; view = pushBack(*manager.texture_views.persistent.resources);
         case .PER_SCENE;  view = pushBack(*manager.texture_views.per_scene.resources);
-        case .PER_FRAME;  view = pushBack(*manager.texture_views.per_frame[device.frame_index].resources);
+        case .PER_FRAME;  view = pushBack(*manager.texture_views.per_frame[context.pet.render.device.frame_index].resources);
     }
     return view;
 }
 
-createVulkanTextureView :: (
-    device   : *Device,
-    manager_ : *ResourceManager,
-    view     : *TextureView,
-    name     : string
-) {
-    manager := cast(*VulkanResourceManager) manager_;
+createVulkanTextureView :: (view : *TextureView, name : string) {
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     if #complete view.lifetime == {
-        case .PERSISTENT; composeVulkanTextureViewName(view, *manager.texture_views.persistent,                    name);
-        case .PER_SCENE;  composeVulkanTextureViewName(view, *manager.texture_views.per_scene,                     name);
-        case .PER_FRAME;  composeVulkanTextureViewName(view, *manager.texture_views.per_frame[device.frame_index], name);
+        case .PERSISTENT; composeVulkanTextureViewName(view, *manager.texture_views.persistent, name);
+        case .PER_SCENE;  composeVulkanTextureViewName(view, *manager.texture_views.per_scene, name);
+        case .PER_FRAME;  composeVulkanTextureViewName(view, *manager.texture_views.per_frame[context.pet.render.device.frame_index], name);
     }
 }
 

@@ -61,14 +61,8 @@ SamplerState :: struct {
 }
 #assert size_of(SamplerState) == 16;
 
-createSampler :: (
-    device   : *Device,
-    manager  : *ResourceManager,
-    state    : SamplerState = .{},
-    lifetime : ResourceManager.Lifetime,
-    name     : string
-) -> *Sampler {
-    assert(!resourceMemoryCommitted(manager, lifetime), "You cannot create %1 sampler after %1 memory is committed", lifetime);
+createSampler :: (state : SamplerState = .{}, lifetime : ResourceManager.Lifetime, name : string) -> *Sampler #must {
+    assert(!resourceMemoryCommitted(lifetime), "You cannot create %1 sampler after %1 memory is committed", lifetime);
 
     assert(state.min_lod <= state.max_lod);
     assert(state.anisotropy <= 2
@@ -77,11 +71,12 @@ createSampler :: (
         || state.anisotropy == 16
         || state.anisotropy == Sampler.MAX_ANISOTROPY);
 
-    sampler := manager.pushPlatformSampler(device, manager, lifetime);
+    manager := context.pet.render.resource_manager;
 
+    sampler := manager.pushPlatformSampler(lifetime);
     sampler.lifetime = lifetime;
 
-    manager.createPlatformSampler(device, manager, sampler, *state, name);
+    manager.createPlatformSampler(sampler, *state, name);
 
     return sampler;
 }

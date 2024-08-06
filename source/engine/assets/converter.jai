@@ -20,7 +20,7 @@ convertExchangeAssetsToRuntime :: () {
 makeRuntimeMeshFilename :: (name : string) -> string {
     capacity := AssetConverter.RUNTIME_MESHES_FOLDER.count + "/".count + name.count + ".mesh".count;
 
-    filename := string.{ data = pushToArena(*context.pet.per_frame_arena, capacity) };
+    filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
     appendToString(*filename, capacity, AssetConverter.RUNTIME_MESHES_FOLDER, "/", name, ".mesh");
 
     return filename;
