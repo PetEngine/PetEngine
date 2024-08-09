@@ -1,6 +1,5 @@
 // @TODO: #BindingManager.
 //     - Separate bindings for compute queue?
-//     - BUFFER_SRV, BUFFER_UAV
 
 VulkanBindingManager :: struct {
     #as using public_data : BindingManager;

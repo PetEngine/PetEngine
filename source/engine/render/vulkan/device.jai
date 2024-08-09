@@ -485,40 +485,11 @@ setVulkanObjectName :: (object : $T, name : string) {
         device := cast(*VulkanDevice) context.pet.render.device;
 
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
-            #if T == {
-                case VkInstance;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_INSTANCE;
-                case VkPhysicalDevice;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PHYSICAL_DEVICE;
-                case VkDevice;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE;
-                case VkQueue;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_QUEUE;
-                case VkSemaphore;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SEMAPHORE;
-                case VkCommandBuffer;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_BUFFER;
-                case VkFence;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FENCE;
-                case VkDeviceMemory;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE_MEMORY;
-                case VkBuffer;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER;
-                case VkImage;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE;
-                case VkBufferView;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER_VIEW;
-                case VkImageView;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE_VIEW;
-                case VkShaderModule;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SHADER_MODULE;
-                case VkPipelineCache;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_CACHE;
-                case VkPipelineLayout;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_LAYOUT;
-                case VkRenderPass;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_RENDER_PASS;
-                case VkPipeline;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
-                case VkDescriptorSetLayout;    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
-                case VkSampler;                OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SAMPLER;
-                case VkFramebuffer;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
-                case VkCommandPool;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
-                case VkSurfaceKHR;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
-                case VkSwapchainKHR;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SWAPCHAIN_KHR;
-                case VkDebugUtilsMessengerEXT; OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT;
-                case;                          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_UNKNOWN;
-                    #assert false "Unhandled Vk* type";
-            }
-
             object_name := pushToArena(*context.pet.arenas.per_frame, s8, name.count + 1);
             memcpy(object_name, name.data, name.count);
 
             name_info := VkDebugUtilsObjectNameInfoEXT.{
-                objectType   = OBJECT_TYPE,
+                objectType   = #run vkTypeToObjectType(T),
                 objectHandle = cast(u64) object,
                 pObjectName  = object_name
             };
@@ -538,39 +509,10 @@ setVulkanObjectName :: (object : $T, $format : string, args : ..Any) {
             Basic.print(*builder, format, ..args);
             Basic.append(*builder, "\0");
 
-            #if T == {
-                case VkInstance;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_INSTANCE;
-                case VkPhysicalDevice;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PHYSICAL_DEVICE;
-                case VkDevice;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE;
-                case VkQueue;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_QUEUE;
-                case VkSemaphore;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SEMAPHORE;
-                case VkCommandBuffer;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_BUFFER;
-                case VkFence;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FENCE;
-                case VkDeviceMemory;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEVICE_MEMORY;
-                case VkBuffer;                 OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER;
-                case VkImage;                  OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE;
-                case VkBufferView;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_BUFFER_VIEW;
-                case VkImageView;              OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_IMAGE_VIEW;
-                case VkShaderModule;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SHADER_MODULE;
-                case VkPipelineCache;          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_CACHE;
-                case VkPipelineLayout;         OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE_LAYOUT;
-                case VkRenderPass;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_RENDER_PASS;
-                case VkPipeline;               OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_PIPELINE;
-                case VkDescriptorSetLayout;    OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
-                case VkSampler;                OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SAMPLER;
-                case VkFramebuffer;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_FRAMEBUFFER;
-                case VkCommandPool;            OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_COMMAND_POOL;
-                case VkSurfaceKHR;             OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SURFACE_KHR;
-                case VkSwapchainKHR;           OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_SWAPCHAIN_KHR;
-                case VkDebugUtilsMessengerEXT; OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT;
-                case;                          OBJECT_TYPE :: VkObjectType.VK_OBJECT_TYPE_UNKNOWN;
-                    #assert false "Unhandled Vk* type";
-            }
-
             object_name := Basic.builder_to_string(*builder,, allocator = Basic.temp);
 
             name_info := VkDebugUtilsObjectNameInfoEXT.{
-                objectType   = OBJECT_TYPE,
+                objectType   = #run vkTypeToObjectType(T),
                 objectHandle = cast(u64) object,
                 pObjectName  = cast(*s8) object_name.data
             };
@@ -1972,4 +1914,38 @@ vendorIdToString :: (vendor_id : u32) -> string #no_context {
     }
 
     return "Unknown";
+}
+
+vkTypeToObjectType :: inline ($vkType : Type) -> VkObjectType #compile_time {
+    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
+    #if vkType == {
+        case VkInstance;               return .VK_OBJECT_TYPE_INSTANCE;
+        case VkPhysicalDevice;         return .VK_OBJECT_TYPE_PHYSICAL_DEVICE;
+        case VkDevice;                 return .VK_OBJECT_TYPE_DEVICE;
+        case VkQueue;                  return .VK_OBJECT_TYPE_QUEUE;
+        case VkSemaphore;              return .VK_OBJECT_TYPE_SEMAPHORE;
+        case VkCommandBuffer;          return .VK_OBJECT_TYPE_COMMAND_BUFFER;
+        case VkFence;                  return .VK_OBJECT_TYPE_FENCE;
+        case VkDeviceMemory;           return .VK_OBJECT_TYPE_DEVICE_MEMORY;
+        case VkBuffer;                 return .VK_OBJECT_TYPE_BUFFER;
+        case VkImage;                  return .VK_OBJECT_TYPE_IMAGE;
+        case VkEvent;                  return .VK_OBJECT_TYPE_EVENT;
+        case VkBufferView;             return .VK_OBJECT_TYPE_BUFFER_VIEW;
+        case VkImageView;              return .VK_OBJECT_TYPE_IMAGE_VIEW;
+        case VkShaderModule;           return .VK_OBJECT_TYPE_SHADER_MODULE;
+        case VkPipelineCache;          return .VK_OBJECT_TYPE_PIPELINE_CACHE;
+        case VkPipelineLayout;         return .VK_OBJECT_TYPE_PIPELINE_LAYOUT;
+        case VkRenderPass;             return .VK_OBJECT_TYPE_RENDER_PASS;
+        case VkPipeline;               return .VK_OBJECT_TYPE_PIPELINE;
+        case VkDescriptorSetLayout;    return .VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
+        case VkSampler;                return .VK_OBJECT_TYPE_SAMPLER;
+        case VkFramebuffer;            return .VK_OBJECT_TYPE_FRAMEBUFFER;
+        case VkCommandPool;            return .VK_OBJECT_TYPE_COMMAND_POOL;
+        case VkSurfaceKHR;             return .VK_OBJECT_TYPE_SURFACE_KHR;
+        case VkSwapchainKHR;           return .VK_OBJECT_TYPE_SWAPCHAIN_KHR;
+        case VkDebugUtilsMessengerEXT; return .VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT;
+        case;
+            #assert false "Unhandled Vk* type";
+            return .VK_OBJECT_TYPE_UNKNOWN;
+    }
 }

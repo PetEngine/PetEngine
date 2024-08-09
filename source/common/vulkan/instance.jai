@@ -319,14 +319,14 @@ VkColorSpaceKHR :: enum VkEnum #specified {
     VK_COLOR_SPACE_DCI_P3_LINEAR_EXT           :: VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT;
 }
 
-VkCompositeAlphaFlagsKHR :: enum_flags VkFlags {
+VkCompositeAlphaFlagsKHR :: enum_flags VkFlags #specified {
     VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR          :: 0x00000001;
     VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR  :: 0x00000002;
     VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR :: 0x00000004;
     VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR         :: 0x00000008;
 }
 
-VkSurfaceTransformFlagsKHR :: enum_flags VkFlags {
+VkSurfaceTransformFlagsKHR :: enum_flags VkFlags #specified {
     VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR                     :: 0x00000001;
     VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR                    :: 0x00000002;
     VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR                   :: 0x00000004;
@@ -419,7 +419,7 @@ PFN_vkCreateWin32SurfaceKHR :: #type (
 // Provided by VK_EXT_validation_features
 //
 
-VkValidationFeatureEnableEXT :: enum VkEnum {
+VkValidationFeatureEnableEXT :: enum VkEnum #specified {
     VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT                      :: 0;
     VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT :: 1;
     VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT                    :: 2;
@@ -427,7 +427,7 @@ VkValidationFeatureEnableEXT :: enum VkEnum {
     VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT        :: 4;
 }
 
-VkValidationFeatureDisableEXT :: enum VkEnum {
+VkValidationFeatureDisableEXT :: enum VkEnum #specified {
     VK_VALIDATION_FEATURE_DISABLE_ALL_EXT                     :: 0;
     VK_VALIDATION_FEATURE_DISABLE_SHADERS_EXT                 :: 1;
     VK_VALIDATION_FEATURE_DISABLE_THREAD_SAFETY_EXT           :: 2;

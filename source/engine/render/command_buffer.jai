@@ -301,7 +301,7 @@ copyBuffer :: (
     source_buffer  : *Buffer,
     dest_offset    : u32 = 0,
     source_offset  : u32 = 0,
-    bytes          : u32 = 0xFFFF_FFFF
+    bytes          : u32 = CopyRegion.REMAINING_BYTES
 ) {
     assert(source_buffer.current_owner == command_buffer.usage,
            "You are trying to copy from buffer \"%\" in % command buffer, but buffer's current owner is %. Change buffers's owner first to do so.",
@@ -317,7 +317,7 @@ copyBuffer :: (
     assert(dest_offset   < dest_buffer.size);
     assert(source_offset < source_buffer.size);
 
-    if bytes == 0xFFFF_FFFF {
+    if bytes == CopyRegion.REMAINING_BYTES {
         bytes = source_buffer.size - source_offset;
     } else {
         assert(source_offset + bytes <= source_buffer.size);

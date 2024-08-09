@@ -247,6 +247,7 @@ requestMesh :: (name : string) -> *Mesh {
 
             create_info : VkEventCreateInfo;
             debugCheckVK(vkCreateEvent(vulkan_device.device, *create_info, null, cast(*VkEvent) *mesh.ready_event));
+            setVulkanObjectName(cast(VkEvent) mesh.ready_event, "% mesh ready event", mesh.name);
     }
 
     return mesh;

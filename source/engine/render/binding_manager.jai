@@ -11,8 +11,6 @@ BindingManager :: struct {
     MAX_TEXTURES          :: 1024;
     MAX_IMAGES            :: 512;
 
-    handle_versions : [MAX_DESCRIPTOR_SETS] u32;
-
     //
     // VTable
     //
@@ -69,7 +67,7 @@ resetBindings :: (descriptor_set : DescriptorSet) {
     context.pet.render.binding_manager.resetPlatformBindings(descriptor_set);
 }
 
-pushBinding :: ($descriptor_set : DescriptorSet, buffer : *Buffer, offset : u32 = 0, size : u32 = 0xFFFF_FFFF) -> BindingHandle {
+pushBinding :: ($descriptor_set : DescriptorSet, buffer : *Buffer, offset : u32 = 0, size : u32 = CopyRegion.REMAINING_BYTES) -> BindingHandle {
     assert(resourceMemoryCommitted(buffer.lifetime),
            "All % bindings should be pushed after % resource memory is commited",
            descriptor_set,
@@ -77,7 +75,7 @@ pushBinding :: ($descriptor_set : DescriptorSet, buffer : *Buffer, offset : u32 
 
     assert(offset < buffer.size);
 
-    if size == 0xFFFF_FFFF {
+    if size == CopyRegion.REMAINING_BYTES {
         size = buffer.size - offset;
     } else {
         assert(size <= buffer.size - offset);
