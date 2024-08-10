@@ -11,6 +11,8 @@ BindingManager :: struct {
     MAX_TEXTURES          :: 1024;
     MAX_IMAGES            :: 512;
 
+    uniform_buffer_offset_alignment : u32;
+
     //
     // VTable
     //
@@ -74,6 +76,12 @@ pushBinding :: ($descriptor_set : DescriptorSet, buffer : *Buffer, offset : u32 
            buffer.lifetime);
 
     assert(offset < buffer.size);
+
+    if offset & (context.pet.render.binding_manager.uniform_buffer_offset_alignment - 1) {
+        assertMessage("Offset (%) should be multiple of BindingManager.uniform_buffer_offset_alignment (%)",
+                      offset,
+                      context.pet.render.binding_manager.uniform_buffer_offset_alignment);
+    }
 
     if size == CopyRegion.REMAINING_BYTES {
         size = buffer.size - offset;

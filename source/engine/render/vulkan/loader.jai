@@ -46,15 +46,14 @@ VulkanLoader :: struct {
                 vkGetSwapchainImagesKHR : PFN_vkGetSwapchainImagesKHR; @VK_KHR_swapchain
                 vkAcquireNextImage2KHR  : PFN_vkAcquireNextImage2KHR;  @VK_KHR_swapchain
                 vkQueuePresentKHR       : PFN_vkQueuePresentKHR;       @VK_KHR_swapchain
+            };
 
+            optional : struct {
                 vkGetDescriptorSetLayoutSizeEXT          : PFN_vkGetDescriptorSetLayoutSizeEXT;          @VK_EXT_descriptor_buffer
                 vkGetDescriptorSetLayoutBindingOffsetEXT : PFN_vkGetDescriptorSetLayoutBindingOffsetEXT; @VK_EXT_descriptor_buffer
                 vkGetDescriptorEXT                       : PFN_vkGetDescriptorEXT;                       @VK_EXT_descriptor_buffer
                 vkCmdBindDescriptorBuffersEXT            : PFN_vkCmdBindDescriptorBuffersEXT;            @VK_EXT_descriptor_buffer
                 vkCmdSetDescriptorBufferOffsetsEXT       : PFN_vkCmdSetDescriptorBufferOffsetsEXT;       @VK_EXT_descriptor_buffer
-            };
-
-            optional : struct {
             };
         };
     };

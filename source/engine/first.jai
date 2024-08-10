@@ -74,7 +74,6 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 
 PerViewUniform :: struct {
     MAX_VERSIONS :: 1;
-    BUFFER_SIZE  : u32 : cast(u32) size_of(Data) * MAX_VERSIONS * Device.MAX_FRAME_BUFFERING;
 
     // @Cleanup: Move to camera.jai
     CAMERA_NEAR :: 0.1;
@@ -98,10 +97,18 @@ PerViewUniform :: struct {
         inv_view_proj_matrix : m4x4;
     } #no_padding
 
-    buffer  : *Buffer;
-    handles : StaticArray([MAX_VERSIONS] BindingHandle, Device.MAX_FRAME_BUFFERING);
-    version : s32 = -1;
-    data    : Data;
+    buffer         : *Buffer;
+    handles        : StaticArray([MAX_VERSIONS] BindingHandle, Device.MAX_FRAME_BUFFERING);
+    version        : s32 = -1;
+    aligned_stride : u32;
+    data           : Data;
+}
+
+createPerViewUniform :: (uniform : *PerViewUniform) {
+    uniform.aligned_stride = alignUpWithPowerOfTwo(cast(u32) size_of(PerViewUniform.Data), context.pet.render.binding_manager.uniform_buffer_offset_alignment);
+
+    buffer_size := uniform.aligned_stride * PerViewUniform.MAX_VERSIONS * Device.MAX_FRAME_BUFFERING;
+    uniform.buffer = createBuffer(buffer_size, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view");
 }
 
 bindPerViewUniform :: (uniform : *PerViewUniform) {
@@ -111,7 +118,7 @@ bindPerViewUniform :: (uniform : *PerViewUniform) {
     for * uniform.handles {
         for * it.* {
             it.* = pushBinding(.PERSISTENT, uniform.buffer, offset, size_of(PerViewUniform.Data));
-            offset += size_of(PerViewUniform.Data);
+            offset += uniform.aligned_stride;
         }
     }
 }
@@ -127,7 +134,7 @@ commitPerViewUniform :: (uniform : *PerViewUniform) {
     assert(uniform.version < PerViewUniform.MAX_VERSIONS);
 
     offset := (context.pet.render.device.frame_index * PerViewUniform.MAX_VERSIONS + uniform.version)
-            * size_of(PerViewUniform.Data);
+            * cast(s32) uniform.aligned_stride;
 
     memcpy(uniform.buffer.mapped_memory + offset, *uniform.data, size_of(PerViewUniform.Data));
 }
@@ -137,25 +144,31 @@ commitPerViewUniform :: (uniform : *PerViewUniform) {
 //
 
 PerFrameUniform :: struct {
-    BUFFER_SIZE : u32 : cast(u32) size_of(Data) * Device.MAX_FRAME_BUFFERING;
-
     Data :: struct {
         frame : u32;
         time  : f32;
         dtime : f32;
     } #no_padding
 
-    buffer : *Buffer;
-    data   : Data;
+    buffer         : *Buffer;
+    aligned_stride : u32;
+    data           : Data;
+}
+
+createPerFrameUniform :: (uniform : *PerFrameUniform) {
+    uniform.aligned_stride = alignUpWithPowerOfTwo(cast(u32) size_of(PerFrameUniform.Data), context.pet.render.binding_manager.uniform_buffer_offset_alignment);
+
+    buffer_size := uniform.aligned_stride * Device.MAX_FRAME_BUFFERING;
+    uniform.buffer = createBuffer(buffer_size, .PERSISTENT, .UPLOAD, .UNIFORM, "Per frame");
 }
 
 bindPerFrameUniform :: inline (uniform : *PerFrameUniform) {
-    offset := context.pet.render.device.frame_index * size_of(PerFrameUniform.Data);
+    offset := context.pet.render.device.frame_index * uniform.aligned_stride;
     pushBinding(.PER_FRAME, uniform.buffer, offset, size_of(PerFrameUniform.Data));
 }
 
 commitPerFrameUniform :: inline (uniform : *PerFrameUniform) {
-    offset := context.pet.render.device.frame_index * size_of(PerFrameUniform.Data);
+    offset := context.pet.render.device.frame_index * uniform.aligned_stride;
     memcpy(uniform.buffer.mapped_memory + offset, *uniform.data, size_of(PerFrameUniform.Data));
 }
 
@@ -211,13 +224,11 @@ petMain :: () {
     createInput(window);
     defer destroyInput();
 
-    per_view_uniform := PerViewUniform.{
-        buffer = createBuffer(PerViewUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view")
-    };
+    per_view_uniform : PerViewUniform;
+    createPerViewUniform(*per_view_uniform);
 
-    per_frame_uniform := PerFrameUniform.{
-        buffer = createBuffer(PerFrameUniform.BUFFER_SIZE, .PERSISTENT, .UPLOAD, .UNIFORM, "Per frame")
-    };
+    per_frame_uniform : PerFrameUniform;
+    createPerFrameUniform(*per_frame_uniform);
 
     depth_buffer := createTexture(.D32,
                                   context.pet.render.device.render_resolution.width,
@@ -396,6 +407,7 @@ operator> :: Basic.operator>;
 Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
 String     :: #import "String";
 Reflection :: #import "Reflection";
+Atomics    :: #import "Atomics";
 
 #scope_file
 

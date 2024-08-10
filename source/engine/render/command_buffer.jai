@@ -91,13 +91,11 @@ createCommandBuffer :: ($usage : QueueType) -> CommandBuffer(usage) #must {
 }
 
 resetCommandBuffer :: (command_buffer : *CommandBuffer) {
-    device := context.pet.render.device;
-
     // @TODO: #FrameBuffering.
     //    - If command_buffer.handles.count < device.frame_buffering then allocate new memory
     //    - If command_buffer.handles.count > device.frame_buffering then free unusused memory
-    assert(command_buffer.handles.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
-    command_buffer.handles.count = cast,no_check(s64) device.frame_buffering;
+    assert(command_buffer.handles.count == cast,no_check(s64) context.pet.render.device.frame_buffering, "It's illegal to change frame buffering for now");
+    command_buffer.handles.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
 
     #if command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE {
         for * command_buffer.shaders {
@@ -110,20 +108,9 @@ resetCommandBuffer :: (command_buffer : *CommandBuffer) {
         command_buffer.scissor_rect     = .{};
         command_buffer.inside_rendering = false;
 
-        if device.graphics_api == .VULKAN {
-            vulkan_device          := cast(*VulkanDevice)         device;
-            vulkan_binding_manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
-
-            binding_infos : [BindingManager.MAX_DESCRIPTOR_SETS] VkDescriptorBufferBindingInfoEXT;
-            for * binding_infos { it.usage = vulkan_binding_manager.descriptor_set_layouts[it_index].usage; }
-
-            binding_infos[DescriptorSet.PER_FRAME].address  = cast(VkDeviceAddress) vulkan_binding_manager.per_frame_bindings[device.frame_index].descriptor_buffer.device_address;
-            binding_infos[DescriptorSet.PER_SCENE].address  = cast(VkDeviceAddress) vulkan_binding_manager.per_scene_bindings.descriptor_buffer.device_address;
-            binding_infos[DescriptorSet.PERSISTENT].address = cast(VkDeviceAddress) vulkan_binding_manager.persistent_bindings.descriptor_buffer.device_address;
-
-            vulkan_device.loader.extensions.device.required.vkCmdBindDescriptorBuffersEXT(command_buffer.handles[device.frame_index],
-                                                                                          binding_infos.count,
-                                                                                          binding_infos.data);
+        if #complete context.pet.render.device.graphics_api == {
+            case .VULKAN;
+                rebindVulkanDescriptorBuffers(command_buffer.handles[context.pet.render.device.frame_index]);
         }
     }
 }

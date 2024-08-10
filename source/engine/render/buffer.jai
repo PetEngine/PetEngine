@@ -36,6 +36,11 @@ createBuffer :: (
 
     manager := context.pet.render.resource_manager;
 
+    // We can bind only uniform buffers, so we don't really care about storage buffer offset alignemt
+    if usage == .UNIFORM && size > context.pet.render.binding_manager.uniform_buffer_offset_alignment {
+        size = alignUpWithPowerOfTwo(size, context.pet.render.binding_manager.uniform_buffer_offset_alignment);
+    }
+
     buffer := manager.pushPlatformBuffer(lifetime, pool);
 
     buffer.size                  = size;

@@ -34,11 +34,14 @@ createVulkanBuffer :: (buffer_ : *Buffer, pool : ResourceManager.Pool, name : st
 
     create_info := VkBufferCreateInfo.{
         size                  = cast(VkDeviceSize) buffer.size,
-        usage                 = bufferUsageToVkBufferUsageFlags(buffer.usage)
-                              | .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        usage                 = bufferUsageToVkBufferUsageFlags(buffer.usage),
         queueFamilyIndexCount = cast(u32) buffer.possible_owners.count,
         pQueueFamilyIndices   = queue_family_indices.data,
     };
+
+    if requiresDeviceAddress(buffer) {
+        create_info.usage |= .VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    }
 
     if buffer.possible_owners.count > 1 {
         create_info.sharingMode = .VK_SHARING_MODE_CONCURRENT;
@@ -58,11 +61,13 @@ createVulkanBuffer :: (buffer_ : *Buffer, pool : ResourceManager.Pool, name : st
 }
 
 createVulkanDescriptorBuffer :: (buffer : *VulkanBuffer, usage : VkBufferUsageFlags, name : string) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+    assert(device.descriptor_buffers_supported);
+
     assert(!resourceMemoryCommitted(.PERSISTENT),
            "You cannot create %1 descriptor buffer after %1 memory is committed",
            ResourceManager.Lifetime.PERSISTENT);
 
-    device  := cast(*VulkanDevice)          context.pet.render.device;
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     queue_family_indices : [VulkanBuffer.possible_owners.capacity] u32;
@@ -88,6 +93,13 @@ createVulkanDescriptorBuffer :: (buffer : *VulkanBuffer, usage : VkBufferUsageFl
     composeVulkanDescriptorBufferName(buffer, *manager.descriptor_buffers.persistent, name);
 
     setVulkanObjectName(buffer.buffer, buffer.name);
+}
+
+requiresDeviceAddress :: inline (buffer : *Buffer) -> bool {
+    device := cast(*VulkanDevice) context.pet.render.device;
+    return buffer.usage == .READ_ONLY
+        || buffer.usage == .READ_WRITE
+        || (buffer.usage == .UNIFORM && device.descriptor_buffers_supported);
 }
 
 #scope_file

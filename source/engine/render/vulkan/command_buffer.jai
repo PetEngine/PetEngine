@@ -13,38 +13,20 @@ pushVulkanCommandBuffer :: (frame_index : u32, queue_type : QueueType) -> VkComm
     return command_buffer;
 }
 
-// @Speed: Figure out something more optimal with access masks and pipeline stages.
-changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, new_layout : VkImageLayout) #no_context {
-    if texture.current_layout == new_layout {
-        return;
+rebindVulkanDescriptorBuffers :: (command_buffer : VkCommandBuffer) {
+    device          := cast(*VulkanDevice)         context.pet.render.device;
+    binding_manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
+
+    if device.descriptor_buffers_supported {
+        binding_infos : [BindingManager.MAX_DESCRIPTOR_SETS] VkDescriptorBufferBindingInfoEXT;
+        for * binding_infos { it.usage = binding_manager.descriptor_set_layouts[it_index].usage; }
+
+        binding_infos[DescriptorSet.PER_FRAME].address  = cast(VkDeviceAddress) binding_manager.per_frame_bindings[device.frame_index].descriptor_buffer.device_address;
+        binding_infos[DescriptorSet.PER_SCENE].address  = cast(VkDeviceAddress) binding_manager.per_scene_bindings.descriptor_buffer.device_address;
+        binding_infos[DescriptorSet.PERSISTENT].address = cast(VkDeviceAddress) binding_manager.persistent_bindings.descriptor_buffer.device_address;
+
+        device.loader.extensions.device.optional.vkCmdBindDescriptorBuffersEXT(command_buffer, binding_infos.count, binding_infos.data);
     }
-
-    image_barrier := VkImageMemoryBarrier.{
-        srcAccessMask       = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
-        dstAccessMask       = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
-        oldLayout           = texture.current_layout,
-        newLayout           = new_layout,
-        srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        image               = texture.image,
-        subresourceRange    = .{
-            aspectMask     = getVulkanImageAspectFlags(texture.format),
-            baseMipLevel   = 0,
-            levelCount     = 1,
-            baseArrayLayer = 0,
-            layerCount     = 1
-        },
-    };
-
-    vkCmdPipelineBarrier(command_buffer,
-                         .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                         .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                         0,
-                         0, null,
-                         0, null,
-                         1, *image_barrier);
-
-    texture.current_layout = new_layout;
 }
 
 // @TODO: #VulkanTexture. MIPs, layers.
@@ -121,19 +103,36 @@ setVulkanShader :: (command_buffer : *CommandBuffer, bind_point : ShaderBindPoin
     vkCmdBindPipeline(vk_command_buffer, vk_bind_point, shader.pipeline);
 
     // Update descriptor buffer offsets
+    if device.descriptor_buffers_supported {
+        buffer_indices : [BindingManager.MAX_DESCRIPTOR_SETS] u32 = ---;
+        for type_info(DescriptorSet).values { buffer_indices[it_index] = cast(u32) it; }
 
-    buffer_indices : [BindingManager.MAX_DESCRIPTOR_SETS] u32 = ---;
-    for type_info(DescriptorSet).values { buffer_indices[it_index] = cast(u32) it; }
+        buffer_offsets : [BindingManager.MAX_DESCRIPTOR_SETS] VkDeviceSize;
 
-    buffer_offsets : [BindingManager.MAX_DESCRIPTOR_SETS] VkDeviceSize;
+        device.loader.extensions.device.optional.vkCmdSetDescriptorBufferOffsetsEXT(vk_command_buffer,
+                                                                                    vk_bind_point,
+                                                                                    shader.pipeline_layout,
+                                                                                    0,
+                                                                                    BindingManager.MAX_DESCRIPTOR_SETS,
+                                                                                    buffer_indices.data,
+                                                                                    buffer_offsets.data);
+    } else {
+        binding_manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
 
-    device.loader.extensions.device.required.vkCmdSetDescriptorBufferOffsetsEXT(vk_command_buffer,
-                                                                                vk_bind_point,
-                                                                                shader.pipeline_layout,
-                                                                                0,
-                                                                                BindingManager.MAX_DESCRIPTOR_SETS,
-                                                                                buffer_indices.data,
-                                                                                buffer_offsets.data);
+        descriptor_sets : [BindingManager.MAX_DESCRIPTOR_SETS] VkDescriptorSet = ---;
+        descriptor_sets[DescriptorSet.PER_FRAME]  = binding_manager.per_frame_bindings[device.frame_index].descriptor_set;
+        descriptor_sets[DescriptorSet.PER_SCENE]  = binding_manager.per_scene_bindings.descriptor_set;
+        descriptor_sets[DescriptorSet.PERSISTENT] = binding_manager.persistent_bindings.descriptor_set;
+
+        vkCmdBindDescriptorSets(vk_command_buffer,
+                                vk_bind_point,
+                                shader.pipeline_layout,
+                                0,
+                                descriptor_sets.count,
+                                descriptor_sets.data,
+                                0,
+                                null);
+    }
 }
 
 // @TODO: #MSAA.
@@ -390,6 +389,40 @@ copyVulkanBufferRegions :: (
 }
 
 #scope_file
+
+// @Speed: Figure out something more optimal with access masks and pipeline stages.
+changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, new_layout : VkImageLayout) #no_context {
+    if texture.current_layout == new_layout {
+        return;
+    }
+
+    image_barrier := VkImageMemoryBarrier.{
+        srcAccessMask       = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
+        dstAccessMask       = .VK_ACCESS_MEMORY_READ_BIT | .VK_ACCESS_MEMORY_WRITE_BIT,
+        oldLayout           = texture.current_layout,
+        newLayout           = new_layout,
+        srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        image               = texture.image,
+        subresourceRange    = .{
+            aspectMask     = getVulkanImageAspectFlags(texture.format),
+            baseMipLevel   = 0,
+            levelCount     = 1,
+            baseArrayLayer = 0,
+            layerCount     = 1
+        },
+    };
+
+    vkCmdPipelineBarrier(command_buffer,
+                         .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         0,
+                         0, null,
+                         0, null,
+                         1, *image_barrier);
+
+    texture.current_layout = new_layout;
+}
 
 loadActionToVulkanLoadOp :: inline (action : TargetLoadAction) -> VkAttachmentLoadOp #no_context {
     if #complete action == {

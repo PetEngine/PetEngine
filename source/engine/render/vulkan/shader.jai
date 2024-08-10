@@ -237,8 +237,7 @@ createGraphicsVulkanShader :: (shader_ : *Shader, shader_file_data : string) {
 
     create_info := VkGraphicsPipelineCreateInfo.{
         pNext               = *pipeline_rendering_create_info,
-        flags               = DEBUG_PIPELINE_CREATE_FLAGS
-                            | .VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT,
+        flags               = DEBUG_PIPELINE_CREATE_FLAGS,
         stageCount          = cast(u32) stage_create_infos.count,
         pStages             = stage_create_infos.data,
         pVertexInputState   = *vertex_input_state,
@@ -256,6 +255,10 @@ createGraphicsVulkanShader :: (shader_ : *Shader, shader_file_data : string) {
         basePipelineHandle  = VK_NULL_HANDLE,
         basePipelineIndex   = 0
     };
+
+    if device.descriptor_buffers_supported {
+        create_info.flags |= .VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+    }
 
     manager := cast(*VulkanShaderManager) context.pet.render.shader_manager;
 

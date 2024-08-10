@@ -122,36 +122,43 @@ createVulkanResourceManager :: () {
     TEXTURE_VIEWS_SUBARENA_CAPACITY      :: ResourceManager.MAX_TEXTURE_VIEWS            * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
     SAMPLERS_SUBARENA_CAPACITY           :: ResourceManager.MAX_SAMPLERS                 * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
     DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY :: VulkanResourceManager.MAX_DESCRIPTOR_BUFFERS * ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH;
-    MANAGER_ARENA_CAPACITY               :: BUFFERS_SUBARENA_CAPACITY       * (2 + Device.MAX_FRAME_BUFFERING) * ResourceManager.POOLS_COUNT
-                                          + TEXTURES_SUBARENA_CAPACITY      * (2 + Device.MAX_FRAME_BUFFERING)
-                                          + TEXTURE_VIEWS_SUBARENA_CAPACITY * (2 + Device.MAX_FRAME_BUFFERING)
-                                          + SAMPLERS_SUBARENA_CAPACITY      * (2 + Device.MAX_FRAME_BUFFERING)
-                                          + DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY;
 
-    createArena(*manager.names_arena, MANAGER_ARENA_CAPACITY, "VulkanResourceManager names");
+    manager_arena_capacity := BUFFERS_SUBARENA_CAPACITY       * (2 + Device.MAX_FRAME_BUFFERING) * ResourceManager.POOLS_COUNT
+                            + TEXTURES_SUBARENA_CAPACITY      * (2 + Device.MAX_FRAME_BUFFERING)
+                            + TEXTURE_VIEWS_SUBARENA_CAPACITY * (2 + Device.MAX_FRAME_BUFFERING)
+                            + SAMPLERS_SUBARENA_CAPACITY      * (2 + Device.MAX_FRAME_BUFFERING)
+                            + ifx device.descriptor_buffers_supported then DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY else 0;
+
+    createArena(*manager.names_arena, manager_arena_capacity, "VulkanResourceManager names");
 
     createVulkanBufferMemoryNamesSubarenas(BUFFERS_SUBARENA_CAPACITY);
     createVulkanTextureMemoryNamesSubarenas(TEXTURES_SUBARENA_CAPACITY);
     createVulkanTextureViewMemoryNamesSubarenas(TEXTURE_VIEWS_SUBARENA_CAPACITY);
     createVulkanSamplerMemoryNamesSubarenas(SAMPLERS_SUBARENA_CAPACITY);
-    createVulkanDescriptorBufferMemoryNamesSubarenas(DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY);
+    if device.descriptor_buffers_supported {
+        createVulkanDescriptorBufferMemoryNamesSubarenas(DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY);
+    }
 }
 
 #scope_file
 
 destroyVulkanResourceManager :: () {
+    device  := cast(*VulkanDevice)          context.pet.render.device;
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
+
     destroyVulkanBufferMemory();
     destroyVulkanTextureMemory();
     destroyVulkanTextureViewMemory();
     destroyVulkanSamplerMemory();
-    destroyVulkanDescriptorBufferMemory();
+    if device.descriptor_buffers_supported {
+        destroyVulkanDescriptorBufferMemory();
+    }
 
-    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
     destroyArena(*manager.names_arena);
 }
 
 commitVulkanResourceMemory :: (lifetime : ResourceManager.Lifetime) {
-    device  := context.pet.render.device;
+    device  := cast(*VulkanDevice)          context.pet.render.device;
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     if #complete lifetime == {
@@ -161,7 +168,9 @@ commitVulkanResourceMemory :: (lifetime : ResourceManager.Lifetime) {
             }
             commitVulkanTextureMemoryPool(*manager.textures.persistent, lifetime);
             commitVulkanTextureViewMemoryPool(*manager.texture_views.persistent);
-            commitVulkanDescriptorBufferMemoryPool(*manager.descriptor_buffers.persistent);
+            if device.descriptor_buffers_supported {
+                commitVulkanDescriptorBufferMemoryPool(*manager.descriptor_buffers.persistent);
+            }
 
         case .PER_SCENE;
             for * manager.buffers.per_scene {
@@ -180,7 +189,7 @@ commitVulkanResourceMemory :: (lifetime : ResourceManager.Lifetime) {
 }
 
 resetVulkanResourceMemory :: (lifetime : ResourceManager.Lifetime) {
-    device  := context.pet.render.device;
+    device  := cast(*VulkanDevice)          context.pet.render.device;
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     if #complete lifetime == {
@@ -189,7 +198,9 @@ resetVulkanResourceMemory :: (lifetime : ResourceManager.Lifetime) {
             resetVulkanTextureMemoryPool(*manager.textures.persistent);
             resetVulkanTextureViewMemoryPool(*manager.texture_views.persistent);
             resetVulkanSamplerMemoryPool(*manager.samplers.persistent);
-            resetVulkanDescriptorBufferMemoryPool(*manager.descriptor_buffers.persistent);
+            if device.descriptor_buffers_supported {
+                resetVulkanDescriptorBufferMemoryPool(*manager.descriptor_buffers.persistent);
+            }
 
         case .PER_SCENE;
             for * manager.buffers.per_scene resetVulkanBufferMemoryPool(it, cast(ResourceManager.Pool) it_index);
@@ -373,17 +384,21 @@ commitVulkanBufferMemoryPool :: (
             assert(!it.mapped_memory);
             it.mapped_memory = mapped_device_memory + cast(u64) bind_infos_it.memoryOffset;
 
-            info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
-            it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
-            assert(it.device_address);
+            if requiresDeviceAddress(it) {
+                info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
+                it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
+                assert(it.device_address);
+            }
 
             bind_infos_it += 1;
         }
     } else {
         for * memory_pool.resources {
-            info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
-            it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
-            assert(it.device_address);
+            if requiresDeviceAddress(it) {
+                info := VkBufferDeviceAddressInfo.{ buffer = it.buffer };
+                it.device_address = cast(u64) vkGetBufferDeviceAddress(device.device, *info);
+                assert(it.device_address);
+            }
         }
     }
 }
@@ -651,13 +666,18 @@ resetVulkanSamplerMemoryPool :: (memory_pool : *VulkanResourceManager.Memoryless
 // Descriptor buffers
 //
 
-createVulkanDescriptorBufferMemoryNamesSubarenas :: inline (subarena_capacity : s64) {
-    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
+createVulkanDescriptorBufferMemoryNamesSubarenas :: (subarena_capacity : s64) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+    assert(device.descriptor_buffers_supported);
 
+    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
     createSubarena(*manager.names_arena, *manager.descriptor_buffers.persistent.names_subarena, subarena_capacity, "Descriptor buffers/Persistent");
 }
 
 destroyVulkanDescriptorBufferMemory :: () {
+    device := cast(*VulkanDevice) context.pet.render.device;
+    assert(device.descriptor_buffers_supported);
+
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     assert(manager.descriptor_buffers.persistent.device_memory == VK_NULL_HANDLE);
@@ -667,6 +687,7 @@ destroyVulkanDescriptorBufferMemory :: () {
 
 resetVulkanDescriptorBufferMemoryPool :: (memory_pool : *VulkanResourceManager.MemoryPool) {
     device := cast(*VulkanDevice) context.pet.render.device;
+    assert(device.descriptor_buffers_supported);
 
     for * memory_pool.resources {
         it.mapped_memory = null;
@@ -687,10 +708,12 @@ resetVulkanDescriptorBufferMemoryPool :: (memory_pool : *VulkanResourceManager.M
 }
 
 commitVulkanDescriptorBufferMemoryPool :: (memory_pool : *VulkanResourceManager.MemoryPool) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+    assert(device.descriptor_buffers_supported);
+
     assert(memory_pool.device_memory == VK_NULL_HANDLE);
     if memory_pool.resources.count <= 0 return;
 
-    device  := cast(*VulkanDevice)          context.pet.render.device;
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     allocate_flags_info := VkMemoryAllocateFlagsInfo.{

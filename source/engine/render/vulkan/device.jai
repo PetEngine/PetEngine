@@ -20,6 +20,9 @@ VulkanDevice :: struct {
     frame_data         : [MAX_FRAME_BUFFERING] FrameData;
     vulkan_window_data : [WindowManager.MAX_WINDOWS] VulkanWindowData;
 
+    // Thanks RenderDoc...
+    descriptor_buffers_supported : bool;
+
     messenger                           : VkDebugUtilsMessengerEXT;
     message_hashes                      : [..] u32;
     messenger_context                   : Context;
@@ -1294,15 +1297,22 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
         infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
+    device.descriptor_buffers_supported = Basic.array_find(enabled_device_extensions.*, "VK_EXT_descriptor_buffer");
+
     // Test feature support
     {
-        available_descriptor_buffer_features :  VkPhysicalDeviceDescriptorBufferFeaturesEXT;
-        available_dynamic_rendering_features := VkPhysicalDeviceDynamicRenderingFeatures.{ pNext = *available_descriptor_buffer_features };
+        available_descriptor_buffer_features : VkPhysicalDeviceDescriptorBufferFeaturesEXT;
+        available_dynamic_rendering_features : VkPhysicalDeviceDynamicRenderingFeatures;
         available_features_1_2               := VkPhysicalDeviceVulkan12Features.{ pNext = *available_dynamic_rendering_features };
         available_features_1_1               := VkPhysicalDeviceVulkan11Features.{ pNext = *available_features_1_2 };
         available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_features_1_1 };
 
+        if device.descriptor_buffers_supported {
+            available_dynamic_rendering_features.pNext = *available_descriptor_buffer_features;
+        }
+
         vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
+
         // Image cube array support
         assert(available_features.features.imageCubeArray == VK_TRUE);
         // Anisotropy filtering support
@@ -1317,8 +1327,9 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
         // Dynamic rendering support
         assert(available_dynamic_rendering_features.dynamicRendering == VK_TRUE);
         // Descriptor buffer support
-        assert(available_descriptor_buffer_features.descriptorBuffer == VK_TRUE);
-        assert(available_features_1_2.bufferDeviceAddress            == VK_TRUE);
+        device.descriptor_buffers_supported &= available_descriptor_buffer_features.descriptorBuffer == VK_TRUE;
+        // Device address support
+        assert(available_features_1_2.bufferDeviceAddress == VK_TRUE);
         // gl_BaseInstance etc support
         assert(available_features_1_1.shaderDrawParameters == VK_TRUE);
     }
@@ -1327,7 +1338,7 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
         descriptorBuffer = VK_TRUE,
     };
     dynamic_rendering_features_to_enable := VkPhysicalDeviceDynamicRenderingFeatures.{
-        pNext            = *descriptor_buffer_features_to_enable,
+        pNext            = ifx device.descriptor_buffers_supported then *descriptor_buffer_features_to_enable else null,
         dynamicRendering = VK_TRUE,
     };
     features_1_2_to_enable := VkPhysicalDeviceVulkan12Features.{
@@ -1939,6 +1950,8 @@ vkTypeToObjectType :: inline ($vkType : Type) -> VkObjectType #compile_time {
         case VkPipeline;               return .VK_OBJECT_TYPE_PIPELINE;
         case VkDescriptorSetLayout;    return .VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT;
         case VkSampler;                return .VK_OBJECT_TYPE_SAMPLER;
+        case VkDescriptorPool;         return .VK_OBJECT_TYPE_DESCRIPTOR_POOL;
+        case VkDescriptorSet;          return .VK_OBJECT_TYPE_DESCRIPTOR_SET;
         case VkFramebuffer;            return .VK_OBJECT_TYPE_FRAMEBUFFER;
         case VkCommandPool;            return .VK_OBJECT_TYPE_COMMAND_POOL;
         case VkSurfaceKHR;             return .VK_OBJECT_TYPE_SURFACE_KHR;

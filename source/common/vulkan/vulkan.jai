@@ -164,6 +164,8 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO                :: 30;
     VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO                        :: 31;
     VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO          :: 32;
+    VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO                :: 33;
+    VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO               :: 34;
     VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET                       :: 35;
     VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET                        :: 36;
     VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO                   :: 39;
@@ -417,6 +419,7 @@ VkFramebuffer :: *VkFramebuffer_T; VkFramebuffer_T :: struct {}
 #load "buffer.jai";
 #load "descriptor_set_layout.jai";
 #load "descriptor_buffer.jai";
+#load "descriptor_pool.jai";
 #load "sampler.jai";
 
 #if OS == .WINDOWS {
