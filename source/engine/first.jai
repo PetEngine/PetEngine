@@ -448,14 +448,14 @@ Atomics    :: #import "Atomics";
         assert(command_line.count > 0, "Command line is empty, that's impossible");
 
         // Parse command line
-        quote_opened             : bool;
-        skip_quote               : bool;
-        emplace_new_command_line := true;
+        quote_opened         : bool;
+        skip_quote           : bool;
+        emplace_new_argument := true;
         for command_line {
-            if emplace_new_command_line {
+            if emplace_new_argument {
                 __command_line_arguments.count += 1;
 
-                emplace_new_command_line = false;
+                emplace_new_argument = false;
             }
 
             if it == {
@@ -473,7 +473,7 @@ Atomics    :: #import "Atomics";
 
                 case #char " ";
                     if !quote_opened {
-                        emplace_new_command_line = true;
+                        emplace_new_argument = true;
                     }
             }
         }
@@ -482,16 +482,16 @@ Atomics    :: #import "Atomics";
         assert(__command_line_arguments.data, print_sys_error = true);
 
         // Fill __command_line_arguments
-        quote_opened                 = false;
-        skip_quote                   = false;
-        emplace_new_command_line     = true;
-        command_line_arguments_index : s64;
+        quote_opened         = false;
+        skip_quote           = false;
+        emplace_new_argument = true;
+        argument_index       : s64;
         for command_line {
-            if emplace_new_command_line {
-                __command_line_arguments[command_line_arguments_index] = *command_line[it_index];
-                command_line_arguments_index += 1;
+            if emplace_new_argument {
+                __command_line_arguments[argument_index] = *command_line[it_index];
+                argument_index += 1;
 
-                emplace_new_command_line = false;
+                emplace_new_argument = false;
             }
 
             if it == {
@@ -509,7 +509,7 @@ Atomics    :: #import "Atomics";
 
                 case #char " ";
                     if !quote_opened {
-                        emplace_new_command_line = true;
+                        emplace_new_argument = true;
                     }
             }
         }
