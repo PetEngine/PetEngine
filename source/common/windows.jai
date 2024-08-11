@@ -31,6 +31,7 @@ ULONG_PTR :: u64; // We target only 64-bit systems, so... whatever.
 SIZE_T    :: ULONG_PTR;
 DWORD_PTR :: ULONG_PTR;
 
+PSTR    :: *CHAR;
 LPSTR   :: *CHAR;
 LPCSTR  :: *CHAR;
 LPWSTR  :: *WCHAR;

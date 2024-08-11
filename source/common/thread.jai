@@ -65,7 +65,7 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
             return 0;
         }
 
-        // thread.handle = CreateThread(null, cast(SIZE_T) stack_size, winThreadProc, thread, CREATE_SUSPENDED, null);
+        // #CRT. thread.handle = CreateThread(null, cast(SIZE_T) stack_size, winThreadProc, thread, CREATE_SUSPENDED, null);
         thread.handle = cast(HANDLE) _beginthreadex(null, cast(u32) stack_size, winThreadProc, thread, CREATE_SUSPENDED, null);
         assert(thread.handle, print_sys_error = true);
 
