@@ -440,7 +440,7 @@ Atomics    :: #import "Atomics";
     }
 
     getWindowsCommandLine :: () {
-        command_line : [] s8;
+        command_line : [] u8;
         command_line.data = GetCommandLineA();
         assert(command_line.data, print_sys_error = true);
 
@@ -488,7 +488,7 @@ Atomics    :: #import "Atomics";
         command_line_arguments_index : s64;
         for command_line {
             if emplace_new_command_line {
-                __command_line_arguments[command_line_arguments_index] = cast(*u8) *command_line[it_index];
+                __command_line_arguments[command_line_arguments_index] = *command_line[it_index];
                 command_line_arguments_index += 1;
 
                 emplace_new_command_line = false;
@@ -523,7 +523,7 @@ Atomics    :: #import "Atomics";
             case;                   #assert false "Invalid std_handle value";
         }
 
-        file_handle := CreateFileA(cast(*s8) NAME.data,
+        file_handle := CreateFileA(NAME.data,
                                    GENERIC_READ | GENERIC_WRITE,
                                    FILE_SHARE_READ | FILE_SHARE_WRITE,
                                    null,
@@ -538,7 +538,7 @@ Atomics    :: #import "Atomics";
     }
 } else {
     #program_export
-    main :: (argc : s32, argv : **s8) -> s32 #c_call {
+    main :: (argc : s32, argv : **u8) -> s32 #c_call {
         __command_line_arguments.count = argc;
         __command_line_arguments.data  = argv;
 

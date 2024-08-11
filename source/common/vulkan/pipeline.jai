@@ -670,7 +670,7 @@ VkPipelineShaderStageCreateInfo :: struct {
     flags               : VkPipelineShaderStageCreateFlags;
     stage               : VkShaderStageFlags;
     module              : VkShaderModule;
-    pName               : *s8;
+    pName               : *u8;
     pSpecializationInfo : *VkSpecializationInfo;
 }
 

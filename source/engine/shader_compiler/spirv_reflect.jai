@@ -341,9 +341,9 @@ SpvReflectBindingArrayTraits :: struct {
 SpvReflectTypeDescription :: struct {
     id                      : u32;
     op                      : SpvOp;
-    type_name               : *s8;
+    type_name               : *u8;
     // Non-NULL if type is member of a struct
-    struct_member_name      : *s8;
+    struct_member_name      : *u8;
     storage_class           : SpvStorageClass;
     type_flags              : SpvReflectTypeFlags;
     decoration_flags        : SpvReflectDecorationFlags;
@@ -374,11 +374,11 @@ SpvReflectTypeDescription :: struct {
 */
 SpvReflectInterfaceVariable :: struct {
     spirv_id         : u32;
-    name             : *s8;
+    name             : *u8;
     location         : u32;
     component        : u32;
     storage_class    : SpvStorageClass;
-    semantic         : *s8;
+    semantic         : *u8;
     decoration_flags : SpvReflectDecorationFlags;
     built_in         : SpvBuiltIn;
     numeric          : SpvReflectNumericTraits;
@@ -405,7 +405,7 @@ SpvReflectInterfaceVariable :: struct {
 */
 SpvReflectBlockVariable :: struct {
     spirv_id         : u32;
-    name             : *s8;
+    name             : *u8;
     // For Push Constants, this is the lowest offset of all memebers
     offset           : u32; // Measured in bytes
     absolute_offset  : u32; // Measured in bytes
@@ -431,7 +431,7 @@ SpvReflectBlockVariable :: struct {
 */
 SpvReflectDescriptorBinding :: struct {
     spirv_id                         : u32;
-    name                             : *s8;
+    name                             : *u8;
     binding                          : u32;
     input_attachment_index           : u32;
     set                              : u32;
@@ -472,7 +472,7 @@ SpvReflectDescriptorSet :: struct {
 
  */
 SpvReflectEntryPoint :: struct {
-    name                     : *s8;
+    name                     : *u8;
     id                       : u32;
 
     spirv_execution_model    : SpvExecutionModel;
@@ -521,7 +521,7 @@ SpvReflectCapability :: struct {
 SpvReflectSpecializationConstant :: struct {
     spirv_id    : u32;
     constant_id : u32;
-    name        : *s8;
+    name        : *u8;
 }
 
 /*! @struct SpvReflectShaderModule
@@ -529,14 +529,14 @@ SpvReflectSpecializationConstant :: struct {
 */
 SpvReflectShaderModule :: struct {
     generator                 : SpvReflectGenerator;
-    entry_point_name          : *s8;
+    entry_point_name          : *u8;
     entry_point_id            : u32;
     entry_point_count         : u32;
     entry_points              : *SpvReflectEntryPoint;
     source_language           : SpvSourceLanguage;
     source_language_version   : u32;
-    source_file               : *s8;
-    source_source             : *s8;
+    source_file               : *u8;
+    source_source             : *u8;
     capability_count          : u32;
     capabilities              : *SpvReflectCapability;
     spirv_execution_model     : SpvExecutionModel;                                         // Uses value(s) from first entry point

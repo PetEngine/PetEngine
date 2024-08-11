@@ -369,7 +369,7 @@ printStackTrace :: (builder : *Basic.String_Builder) {
 
             column : u32;
             if SymGetLineFromAddr64(process, cast(u64) frame, *column, *line_info) {
-                Basic.print(builder, "%(%,%): ", to_string(cast(*u8) line_info.FileName), line_info.LineNumber, column);
+                Basic.print(builder, "%(%,%): ", to_string(line_info.FileName), line_info.LineNumber, column);
             } else {
                 module_base := SymGetModuleBase64(process, cast(u64) frame);
                 Basic.assert(module_base != 0, "SymGetModuleBase64 has failed with error %", GetLastError());
@@ -377,13 +377,13 @@ printStackTrace :: (builder : *Basic.String_Builder) {
                 success = SymGetModuleInfo64(process, cast(u64) frame, *module_info);
                 Basic.assert(success != FALSE, "SymGetModuleInfo64 has failed with error %", GetLastError());
 
-                Basic.print(builder, "%(%): ", to_string(cast(*u8) module_info.LoadedImageName.data), frame);
+                Basic.print(builder, "%(%): ", to_string(module_info.LoadedImageName.data), frame);
             }
 
             procedure_name : string = ---;
             if SymFromAddr(process, cast(u64) frame, null, symbol_info) {
                 procedure_name.count = symbol_info.NameLen;
-                procedure_name.data  = cast(*u8) symbol_info.Name.data;
+                procedure_name.data  = symbol_info.Name.data;
             } else {
                 procedure_name = "<unknown procedure>";
 

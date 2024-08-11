@@ -198,7 +198,7 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
     assert(struct_info.type == .STRUCT);
 
     for struct_info.members {
-        function := vkGetInstanceProcAddr(instance, cast(*s8) it.name.data);
+        function := vkGetInstanceProcAddr(instance, it.name.data);
         if function == null {
             assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled", it.name, it.notes[0]);
         }
@@ -218,7 +218,7 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
             continue;
         }
 
-        function := vkGetInstanceProcAddr(instance, cast(*s8) it.name.data);
+        function := vkGetInstanceProcAddr(instance, it.name.data);
         if function == null {
             assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled", it.name, member_extension_name);
         }
@@ -235,7 +235,7 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
     assert(struct_info.type == .STRUCT);
 
     for struct_info.members {
-        function := vkGetDeviceProcAddr(device, cast(*s8) it.name.data);
+        function := vkGetDeviceProcAddr(device, it.name.data);
         if function == null {
             assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled", it.name, it.notes[0]);
         }
@@ -255,7 +255,7 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
             continue;
         }
 
-        function := vkGetDeviceProcAddr(device, cast(*s8) it.name.data);
+        function := vkGetDeviceProcAddr(device, it.name.data);
         if function == null {
             assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled", it.name, member_extension_name);
         }

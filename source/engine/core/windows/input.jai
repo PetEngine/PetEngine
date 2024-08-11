@@ -42,10 +42,10 @@ registerRawInput :: (window : *Win32Window) {
 loadXInput :: () {
     if g_XInput return;
 
-    g_XInput = LoadLibraryA(cast(*s8) "XInput1_4.dll\0".data);
+    g_XInput = LoadLibraryA("XInput1_4.dll".data);
     assert(g_XInput, print_sys_error = true);
 
-    g_XInputGetState = cast(PFN_XInputGetState) GetProcAddress(g_XInput, cast(*s8) "XInputGetState\0".data);
+    g_XInputGetState = cast(PFN_XInputGetState) GetProcAddress(g_XInput, "XInputGetState".data);
     assert(g_XInputGetState, print_sys_error = true);
 }
 

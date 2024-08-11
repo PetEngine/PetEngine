@@ -285,18 +285,10 @@ compileShader :: (name : string) -> bool {
     // @Important: Always generate debug info otherwise we won't have push constants' names
     shaderc_compile_options_set_generate_debug_info(shaderc_options);
     #if DEBUG_BUILD {
-        shaderc_compile_options_add_macro_definition(shaderc_options,
-                                                     cast(*s8) "DEBUG_BUILD".data,
-                                                     "DEBUG_BUILD".count,
-                                                     cast(*s8) "1".data,
-                                                     "1".count);
+        shaderc_compile_options_add_macro_definition(shaderc_options, "DEBUG_BUILD".data, "DEBUG_BUILD".count, "1".data, "1".count);
         shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_zero);
     } else {
-        shaderc_compile_options_add_macro_definition(shaderc_options,
-                                                     cast(*s8) "DEBUG_BUILD".data,
-                                                     "DEBUG_BUILD".count,
-                                                     cast(*s8) "0".data,
-                                                     "0".count);
+        shaderc_compile_options_add_macro_definition(shaderc_options, "DEBUG_BUILD".data, "DEBUG_BUILD".count, "0".data, "0".count);
         shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_performance);
     }
     shaderc_compile_options_set_forced_version_profile(shaderc_options, 460, .shaderc_profile_none);
@@ -339,11 +331,11 @@ compileShader :: (name : string) -> bool {
         code.count += it.count;
 
         result := shaderc_compile_into_spv(shaderc_compiler,
-                                           cast(*s8) code.data,
-                                           cast(u64) code.count,
+                                           code.data,
+                                           cast(size_t) code.count,
                                            shaderStageToShadercShaderKind(cast(ShaderStage) it_index),
-                                           cast(*s8) nt_name.data,
-                                           cast(*s8) "main\0".data,
+                                           nt_name.data,
+                                           "main".data,
                                            shaderc_options);
         defer shaderc_result_release(result);
 
@@ -353,7 +345,7 @@ compileShader :: (name : string) -> bool {
                          cast(ShaderStage) it_index,
                          shaderc_result_get_num_errors(result),
                          status,
-                         to_string(cast(*u8) shaderc_result_get_error_message(result)));
+                         to_string(shaderc_result_get_error_message(result)));
             return false;
         }
 
@@ -362,7 +354,7 @@ compileShader :: (name : string) -> bool {
             warningMessage("% shader compilation is succeeded with % warning(s):\n%",
                            cast(ShaderStage) it_index,
                            warnings_count,
-                           to_string(cast(*u8) shaderc_result_get_error_message(result)));
+                           to_string(shaderc_result_get_error_message(result)));
         }
 
         stage_spirv := *stage_spirvs[it_index];
@@ -873,7 +865,7 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvRe
 
             if push_constant_block_name_length > BindingTable.Name.buffer.count {
                 errorMessage("Too long push constants instance name: %. Current length: %, max allowed: %",
-                             string.{ push_constant_block_name_length, cast(*u8) push_constant_block.name },
+                             string.{ push_constant_block_name_length, push_constant_block.name },
                              push_constant_block_name_length,
                              BindingTable.Name.buffer.count);
                 return false;
@@ -890,14 +882,14 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvRe
 
 resolveIncludeCallback :: (
     user_data         : *void,
-    requested_source  : *s8,
+    requested_source  : *u8,
     type              : shaderc_include_type,
-    requesting_source : *s8,
+    requesting_source : *u8,
     include_depth     : size_t
 ) -> *shaderc_include_result #c_call {
     push_context,defer_pop cast(*Context) user_data;
 
-    include_filename := String.join(SOURCE_SHADERS_FOLDER, "/", to_string(cast(*u8) requested_source),, allocator = Basic.temp);
+    include_filename := String.join(SOURCE_SHADERS_FOLDER, "/", to_string(requested_source),, allocator = Basic.temp);
 
     include_result := pushToArena(*context.pet.arenas.per_frame, shaderc_include_result);
 
@@ -906,21 +898,21 @@ resolveIncludeCallback :: (
         case .NONE;
             absolute_include_filename := getAbsolutePath(include_filename, pushToArena, *context.pet.arenas.per_frame);
 
-            include_result.source_name        = cast(*s8)    absolute_include_filename.data;
+            include_result.source_name        = absolute_include_filename.data;
             include_result.source_name_length = cast(size_t) absolute_include_filename.count;
 
-            include_result.content        = cast(*s8)    content.data;
+            include_result.content        = content.data;
             include_result.content_length = cast(size_t) content.count;
 
         case .FILE_NOT_FOUND; #through;
         case .PATH_NOT_FOUND;
             error_message := Basic.tprint("File \"%\" does not exist. There is a requirement that a path in #include should be specified relative to root shaders folder, maybe you violated it", include_filename);
-            include_result.content        = cast(*s8)    error_message.data;
+            include_result.content        = error_message.data;
             include_result.content_length = cast(size_t) error_message.count;
 
         case;
             error_message := Basic.tprint("There was an error in opening \"%\" file. Look at previous error messages to see what went wrong", include_filename);
-            include_result.content        = cast(*s8)    error_message.data;
+            include_result.content        = error_message.data;
             include_result.content_length = cast(size_t) error_message.count;
     }
 

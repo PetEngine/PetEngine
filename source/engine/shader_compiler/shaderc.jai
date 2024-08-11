@@ -164,9 +164,9 @@ shaderc_compile_options_release :: (
 // value_length should be 0u.
 shaderc_compile_options_add_macro_definition :: (
     options      : shaderc_compile_options_t,
-    name         : *s8,
+    name         : *u8,
     name_length  : size_t,
-    value        : *s8,
+    value        : *u8,
     value_length : size_t
 ) #foreign shaderc;
 
@@ -215,11 +215,11 @@ shaderc_include_result :: struct {
     // includer.  For example, if the includer maps source names to files in
     // a filesystem, then this name should be the absolute path of the file.
     // For a failed inclusion, this string is empty.
-    source_name        : *s8;
+    source_name        : *u8;
     source_name_length : size_t;
     // The text contents of the source file in the normal case.
     // For a failed inclusion, this contains the error message.
-    content        : *s8;
+    content        : *u8;
     content_length : size_t;
     // User data to be passed along with this request.
     user_data : *void;
@@ -241,9 +241,9 @@ shaderc_include_type :: enum s32 {
 // object.
 shaderc_include_resolve_fn :: #type (
     user_data         : *void,
-    requested_source  : *s8,
+    requested_source  : *u8,
     type              : shaderc_include_type,
-    requesting_source : *s8,
+    requesting_source : *u8,
     include_depth     : size_t
 ) -> *shaderc_include_result #c_call;
 
@@ -382,11 +382,11 @@ shaderc_compilation_result_t :: *shaderc_compilation_result;
 // null will be returned.
 shaderc_compile_into_spv :: (
     compiler           : shaderc_compiler_t,
-    source_text        : *s8,
+    source_text        : *u8,
     source_text_size   : size_t,
     shader_kind        : shaderc_shader_kind,
-    input_file_name    : *s8,
-    entry_point_name   : *s8,
+    input_file_name    : *u8,
+    entry_point_name   : *u8,
     additional_options : shaderc_compile_options_t
 ) -> shaderc_compilation_result_t #foreign shaderc;
 
@@ -395,11 +395,11 @@ shaderc_compile_into_spv :: (
 // by the SPIRV-Tools open source project.
 shaderc_compile_into_spv_assembly :: (
     compiler           : shaderc_compiler_t,
-    source_text        : *s8,
+    source_text        : *u8,
     source_text_size   : size_t,
     shader_kind        : shaderc_shader_kind,
-    input_file_name    : *s8,
-    entry_point_name   : *s8,
+    input_file_name    : *u8,
+    entry_point_name   : *u8,
     additional_options : shaderc_compile_options_t
 ) -> shaderc_compilation_result_t #foreign shaderc;
 
@@ -452,13 +452,13 @@ shaderc_result_get_compilation_status :: (
 // the resulting array of characters.
 shaderc_result_get_bytes :: (
     result : shaderc_compilation_result_t
-) -> *s8 #foreign shaderc;
+) -> *u8 #foreign shaderc;
 
 // Returns a null-terminated string that contains any error messages generated
 // during the compilation.
 shaderc_result_get_error_message :: (
     result : shaderc_compilation_result_t
-) -> *s8 #foreign shaderc;
+) -> *u8 #foreign shaderc;
 
 #scope_file
 

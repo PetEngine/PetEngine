@@ -22,7 +22,8 @@ HLOCAL  :: HANDLE;
 
 BOOL      :: s32;
 BOOLEAN   :: u8;
-WCHAR     :: s16;
+CHAR      :: u8;
+WCHAR     :: u16;
 INT_PTR   :: s64; // We target only 64-bit systems, so... whatever.
 UINT_PTR  :: u64; // We target only 64-bit systems, so... whatever.
 LONG_PTR  :: s64; // We target only 64-bit systems, so... whatever.
@@ -30,11 +31,11 @@ ULONG_PTR :: u64; // We target only 64-bit systems, so... whatever.
 SIZE_T    :: ULONG_PTR;
 DWORD_PTR :: ULONG_PTR;
 
-LPSTR   :: *s8;
-LPCSTR  :: *s8;
+LPSTR   :: *CHAR;
+LPCSTR  :: *CHAR;
 LPWSTR  :: *WCHAR;
 LPCWSTR :: *WCHAR;
-PCSTR   :: *s8;
+PCSTR   :: *CHAR;
 PCWSTR  :: *WCHAR;
 
 WPARAM  :: UINT_PTR;
@@ -53,7 +54,7 @@ ATOM :: u16;
 // bits [15, 0]  - 16-bit code describing the error or warning.
 HRESULT :: s32;
 
-va_list :: *s8;
+va_list :: *u8;
 
 INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 
@@ -188,7 +189,7 @@ GetModuleHandleW :: (
 ) -> HMODULE #foreign kernel32;
 
 LoadLibraryA :: (
-    lpLibFileName : *s8
+    lpLibFileName : LPCSTR
 ) -> HMODULE #foreign kernel32;
 
 FreeLibrary :: (
@@ -201,7 +202,7 @@ PROC     :: #type () -> INT_PTR #c_call;
 
 GetProcAddress :: (
     hModule    : HMODULE,
-    lpProcName : *s8
+    lpProcName : LPCSTR
 ) -> FARPROC #foreign kernel32;
 
 IDI_APPLICATION :: cast,no_check(LPWSTR) cast(u16) 32512;
@@ -1600,7 +1601,7 @@ IMAGEHLP_LINE64 :: struct {
     SizeOfStruct : u32;
     Key          : *void;
     LineNumber   : u32;
-    FileName     : *s8;
+    FileName     : *CHAR;
     Address      : u64;
 }
 
@@ -1637,12 +1638,12 @@ IMAGEHLP_MODULE64 :: struct {
     CheckSum        : u32;
     NumSyms         : u32;
     SymType         : SYM_TYPE;
-    ModuleName      : [32]  s8;
-    ImageName       : [256] s8;
-    LoadedImageName : [256] s8;
-    LoadedPdbName   : [256] s8;
+    ModuleName      : [32]  CHAR;
+    ImageName       : [256] CHAR;
+    LoadedImageName : [256] CHAR;
+    LoadedPdbName   : [256] CHAR;
     CVSig           : u32;
-    CVData          : [MAX_PATH * 3] s8;
+    CVData          : [MAX_PATH * 3] CHAR;
     PdbSig          : u32;
     PdbSig70        : GUID;
     PdbAge          : u32;
@@ -1680,7 +1681,7 @@ SYMBOL_INFO :: struct {
     Tag          : u32;
     NameLen      : u32;
     MaxNameLen   : u32;
-    Name         : [1] s8;
+    Name         : [1] CHAR;
 }
 
 SymFromAddr :: (

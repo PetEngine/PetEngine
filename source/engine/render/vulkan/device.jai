@@ -488,7 +488,7 @@ setVulkanObjectName :: (object : $T, name : string) {
         device := cast(*VulkanDevice) context.pet.render.device;
 
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
-            object_name := pushToArena(*context.pet.arenas.per_frame, s8, name.count + 1);
+            object_name := pushToArena(*context.pet.arenas.per_frame, u8, name.count + 1);
             memcpy(object_name, name.data, name.count);
 
             name_info := VkDebugUtilsObjectNameInfoEXT.{
@@ -517,7 +517,7 @@ setVulkanObjectName :: (object : $T, $format : string, args : ..Any) {
             name_info := VkDebugUtilsObjectNameInfoEXT.{
                 objectType   = #run vkTypeToObjectType(T),
                 objectHandle = cast(u64) object,
-                pObjectName  = cast(*s8) object_name.data
+                pObjectName  = object_name.data
             };
 
             debugCheckVK(device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info));
@@ -590,7 +590,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
-    layers_to_apply : [..] *s8;
+    layers_to_apply : [..] *u8;
     layers_to_apply.allocator = Basic.temp;
 
     {
@@ -603,7 +603,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
         #if PRINT_VERBOSE_MESSAGES {
             Basic.print(*builder, "Available instance layers (%):\n", available_layers.count);
             for available_layers {
-                Basic.print(*builder, "    %\n", to_string(cast(*u8) it.layerName.data));
+                Basic.print(*builder, "    %\n", to_string(it.layerName.data));
             }
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
         }
@@ -614,14 +614,14 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
             layer_found : bool;
 
             for available_layers {
-                if to_string(cast(*u8) it.layerName.data) == required_layer {
+                if to_string(it.layerName.data) == required_layer {
                     layer_found = true;
                     break;
                 }
             }
 
             if layer_found {
-                Basic.array_add(*layers_to_apply, cast(*s8) required_layer.data);
+                Basic.array_add(*layers_to_apply, required_layer.data);
             } else {
                 assertMessage("Required instance layer \"%\" has not been found in available instance layers", required_layer);
             }
@@ -631,14 +631,14 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
             layer_found : bool;
 
             for available_layers {
-                if to_string(cast(*u8) it.layerName.data) == optional_layer {
+                if to_string(it.layerName.data) == optional_layer {
                     layer_found = true;
                     break;
                 }
             }
 
             if layer_found {
-                Basic.array_add(*layers_to_apply, cast(*s8) optional_layer.data);
+                Basic.array_add(*layers_to_apply, optional_layer.data);
             } else {
                 warningMessage("Optional instance layer \"%\" has not been found in available instance layers", optional_layer);
             }
@@ -646,12 +646,12 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
 
         Basic.print(*builder, "Applying instance layers (%):\n", layers_to_apply.count);
         for layers_to_apply {
-            Basic.print(*builder, "    %\n", to_string(cast(*u8) it));
+            Basic.print(*builder, "    %\n", to_string(it));
         }
         infoMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
-    extensions_to_apply : [..] *s8;
+    extensions_to_apply : [..] *u8;
     extensions_to_apply.allocator = Basic.temp;
 
     {
@@ -664,22 +664,22 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
         #if PRINT_VERBOSE_MESSAGES {
             Basic.print(*builder, "Available instance extensions (%):\n", available_extensions.count);
             for available_extensions {
-                Basic.print(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
+                Basic.print(*builder, "    %\n", to_string(it.extensionName.data));
             }
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
         }
 
         #if DEBUG_BUILD {
             validation_extensions : [] VkExtensionProperties;
-            debugCheckVK(vkEnumerateInstanceExtensionProperties(cast(*s8) "VK_LAYER_KHRONOS_validation".data, cast(*u32) *validation_extensions.count, null));
+            debugCheckVK(vkEnumerateInstanceExtensionProperties("VK_LAYER_KHRONOS_validation".data, cast(*u32) *validation_extensions.count, null));
 
             validation_extensions.data = pushToArena(*context.pet.arenas.per_frame, VkExtensionProperties, validation_extensions.count);
-            debugCheckVK(vkEnumerateInstanceExtensionProperties(cast(*s8) "VK_LAYER_KHRONOS_validation".data, cast(*u32) *validation_extensions.count, validation_extensions.data));
+            debugCheckVK(vkEnumerateInstanceExtensionProperties("VK_LAYER_KHRONOS_validation".data, cast(*u32) *validation_extensions.count, validation_extensions.data));
 
             #if PRINT_VERBOSE_MESSAGES {
                 Basic.print(*builder, "Available VK_LAYER_KHRONOS_validation's instance extensions (%):\n", validation_extensions.count);
                 for validation_extensions {
-                    Basic.print(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
+                    Basic.print(*builder, "    %\n", to_string(it.extensionName.data));
                 }
                 verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
             }
@@ -691,7 +691,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
             extension_found : bool;
 
             for available_extensions {
-                if to_string(cast(*u8) it.extensionName.data) == required_extension {
+                if to_string(it.extensionName.data) == required_extension {
                     extension_found = true;
                     break;
                 }
@@ -699,7 +699,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
 
             if extension_found {
                 Basic.array_add(enabled_instance_extensions, required_extension);
-                Basic.array_add(*extensions_to_apply, cast(*s8) required_extension.data);
+                Basic.array_add(*extensions_to_apply, required_extension.data);
             } else {
                 assertMessage("Required instance extension \"%\" has not been found in available instance extensions", required_extension);
             }
@@ -709,7 +709,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
             extension_found : bool;
 
             for available_extensions {
-                if to_string(cast(*u8) it.extensionName.data) == optional_extension {
+                if to_string(it.extensionName.data) == optional_extension {
                     extension_found = true;
                     break;
                 }
@@ -717,7 +717,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
 
             if extension_found {
                 Basic.array_add(enabled_instance_extensions, optional_extension);
-                Basic.array_add(*extensions_to_apply, cast(*s8) optional_extension.data);
+                Basic.array_add(*extensions_to_apply, optional_extension.data);
             } else {
                 warningMessage("Optional instance extension \"%\" has not been found in available instance extensions", optional_extension);
             }
@@ -727,7 +727,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
             extension_found : bool;
 
             for validation_extensions {
-                if to_string(cast(*u8) it.extensionName.data) == "VK_EXT_validation_features" {
+                if to_string(it.extensionName.data) == "VK_EXT_validation_features" {
                     extension_found = true;
                     break;
                 }
@@ -735,7 +735,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
 
             if extension_found {
                 Basic.array_add(enabled_instance_extensions, "VK_EXT_validation_features");
-                Basic.array_add(*extensions_to_apply, cast(*s8) "VK_EXT_validation_features".data);
+                Basic.array_add(*extensions_to_apply, "VK_EXT_validation_features".data);
             } else {
                 warningMessage("Optional instance extension \"VK_EXT_validation_features\" has not been found in available VK_LAYER_KHRONOS_validation's instance extensions");
             }
@@ -751,7 +751,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
     application_info := VkApplicationInfo.{
         pApplicationName   = null, // @TODO: window title or something, don't know
         applicationVersion = 0,
-        pEngineName        = cast(*s8) ENGINE_NAME.data,
+        pEngineName        = ENGINE_NAME.data,
         engineVersion      = ENGINE_VERSION,
         apiVersion         = api_version
     };
@@ -801,7 +801,7 @@ messengerCallback :: (
     push_context,defer_pop device.messenger_context;
     assertThreadKind(.DEVICE_MESSENGER);
 
-    message := to_string(cast(*u8) pCallbackData.pMessage);
+    message := to_string(pCallbackData.pMessage);
     if message[message.count - 1] == #char "." {
         message.count -= 1;
     }
@@ -1234,7 +1234,7 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
-    extensions_to_apply : [..] *s8;
+    extensions_to_apply : [..] *u8;
     extensions_to_apply.allocator = Basic.temp;
 
     {
@@ -1247,7 +1247,7 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
         #if PRINT_VERBOSE_MESSAGES {
             Basic.print(*builder, "Available device extensions (%):\n", available_extensions.count);
             for available_extensions {
-                Basic.print(*builder, "    %\n", to_string(cast(*u8) it.extensionName.data));
+                Basic.print(*builder, "    %\n", to_string(it.extensionName.data));
             }
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
         }
@@ -1258,7 +1258,7 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
             extension_found : bool;
 
             for available_extensions {
-                if to_string(cast(*u8) it.extensionName.data) == required_extension {
+                if to_string(it.extensionName.data) == required_extension {
                     extension_found = true;
                     break;
                 }
@@ -1266,7 +1266,7 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
 
             if extension_found {
                 Basic.array_add(enabled_device_extensions, required_extension);
-                Basic.array_add(*extensions_to_apply, cast(*s8) required_extension.data);
+                Basic.array_add(*extensions_to_apply, required_extension.data);
             } else {
                 assertMessage("Required device extension \"%\" has not been found in available device extensions", required_extension);
             }
@@ -1276,7 +1276,7 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
             extension_found : bool;
 
             for available_extensions {
-                if to_string(cast(*u8) it.extensionName.data) == optional_extension {
+                if to_string(it.extensionName.data) == optional_extension {
                     extension_found = true;
                     break;
                 }
@@ -1284,7 +1284,7 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
 
             if extension_found {
                 Basic.array_add(enabled_device_extensions, optional_extension);
-                Basic.array_add(*extensions_to_apply, cast(*s8) optional_extension.data);
+                Basic.array_add(*extensions_to_apply, optional_extension.data);
             } else {
                 warningMessage("Optional device extension \"%\" has not been found in available device extensions", optional_extension);
             }

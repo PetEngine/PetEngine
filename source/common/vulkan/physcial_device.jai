@@ -290,7 +290,7 @@ VkPhysicalDeviceProperties :: struct {
     vendorID          : u32;
     deviceID          : u32;
     deviceType        : VkPhysicalDeviceType;
-    deviceName        : [VK_MAX_PHYSICAL_DEVICE_NAME_SIZE] s8;
+    deviceName        : [VK_MAX_PHYSICAL_DEVICE_NAME_SIZE] u8;
     pipelineCacheUUID : [VK_UUID_SIZE] u8;
     limits            : VkPhysicalDeviceLimits;
     sparseProperties  : VkPhysicalDeviceSparseProperties;
@@ -316,8 +316,8 @@ VkPhysicalDeviceDriverProperties :: struct {
     sType              : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
     pNext              : *void;
     driverID           : VkDriverId;
-    driverName         : [VK_MAX_DRIVER_NAME_SIZE] s8;
-    driverInfo         : [VK_MAX_DRIVER_INFO_SIZE] s8;
+    driverName         : [VK_MAX_DRIVER_NAME_SIZE] u8;
+    driverInfo         : [VK_MAX_DRIVER_INFO_SIZE] u8;
     conformanceVersion : VkConformanceVersion;
 }
 
@@ -355,8 +355,8 @@ VkPhysicalDeviceVulkan12Properties :: struct {
     sType                                                : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES;
     pNext                                                : *void;
     driverID                                             : VkDriverId;
-    driverName                                           : [VK_MAX_DRIVER_NAME_SIZE] s8;
-    driverInfo                                           : [VK_MAX_DRIVER_INFO_SIZE] s8;
+    driverName                                           : [VK_MAX_DRIVER_NAME_SIZE] u8;
+    driverInfo                                           : [VK_MAX_DRIVER_INFO_SIZE] u8;
     conformanceVersion                                   : VkConformanceVersion;
     denormBehaviorIndependence                           : VkShaderFloatControlsIndependence;
     roundingModeIndependence                             : VkShaderFloatControlsIndependence;

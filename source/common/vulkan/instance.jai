@@ -33,9 +33,9 @@ VkInstanceCreateFlags :: enum_flags VkFlags #specified {
 VkApplicationInfo :: struct {
     sType              : VkStructureType = .VK_STRUCTURE_TYPE_APPLICATION_INFO;
     pNext              : *void;
-    pApplicationName   : *s8;
+    pApplicationName   : *u8;
     applicationVersion : u32;
-    pEngineName        : *s8;
+    pEngineName        : *u8;
     engineVersion      : u32;
     apiVersion         : u32;
 }
@@ -47,9 +47,9 @@ VkInstanceCreateInfo :: struct {
     flags                   : VkInstanceCreateFlags;
     pApplicationInfo        : *VkApplicationInfo;
     enabledLayerCount       : u32;
-    ppEnabledLayerNames     : **s8;
+    ppEnabledLayerNames     : **u8;
     enabledExtensionCount   : u32;
-    ppEnabledExtensionNames : **s8;
+    ppEnabledExtensionNames : **u8;
 }
 
 // Provided by VK_VERSION_1_0
@@ -64,15 +64,15 @@ VkAllocationCallbacks :: struct {
 
 // Provided by VK_VERSION_1_0
 VkLayerProperties :: struct {
-    layerName             : [VK_MAX_EXTENSION_NAME_SIZE] s8;
+    layerName             : [VK_MAX_EXTENSION_NAME_SIZE] u8;
     specVersion           : u32;
     implementationVersion : u32;
-    description           : [VK_MAX_DESCRIPTION_SIZE] s8;
+    description           : [VK_MAX_DESCRIPTION_SIZE] u8;
 }
 
 // Provided by VK_VERSION_1_0
 VkExtensionProperties :: struct {
-    extensionName : [VK_MAX_EXTENSION_NAME_SIZE] s8;
+    extensionName : [VK_MAX_EXTENSION_NAME_SIZE] u8;
     specVersion   : u32;
 }
 
@@ -144,7 +144,7 @@ vkEnumerateInstanceLayerProperties :: (
 
 // Provided by VK_VERSION_1_0
 vkEnumerateInstanceExtensionProperties :: (
-    pLayerName     : *s8,
+    pLayerName     : *u8,
     pPropertyCount : *u32,
     pProperties    : *VkExtensionProperties
 ) -> VkResult #foreign vulkan;
@@ -152,7 +152,7 @@ vkEnumerateInstanceExtensionProperties :: (
 // Provided by VK_VERSION_1_0
 vkGetInstanceProcAddr :: (
     instance : VkInstance,
-    pName    : *s8
+    pName    : *u8
 ) -> PFN_vkVoidFunction #foreign vulkan;
 
 //
@@ -185,7 +185,7 @@ VkDebugUtilsMessengerCreateFlagsEXT :: enum_flags VkFlags #specified {
 VkDebugUtilsLabelEXT :: struct {
     sType      : VkStructureType = .VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
     pNext      : *void;
-    pLabelName : *s8;
+    pLabelName : *u8;
     color      : [4] f32;
 }
 
@@ -194,16 +194,16 @@ VkDebugUtilsObjectNameInfoEXT :: struct {
     pNext        : *void;
     objectType   : VkObjectType;
     objectHandle : u64;
-    pObjectName  : *s8;
+    pObjectName  : *u8;
 }
 
 VkDebugUtilsMessengerCallbackDataEXT :: struct {
     sType            : VkStructureType = .VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CALLBACK_DATA_EXT;
     pNext            : *void;
     flags            : VkDebugUtilsMessengerCallbackDataFlagsEXT;
-    pMessageIdName   : *s8;
+    pMessageIdName   : *u8;
     messageIdNumber  : s32;
-    pMessage         : *s8;
+    pMessage         : *u8;
     queueLabelCount  : u32;
     pQueueLabels     : *VkDebugUtilsLabelEXT;
     cmdBufLabelCount : u32;

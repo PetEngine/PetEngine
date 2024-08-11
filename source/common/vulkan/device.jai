@@ -37,9 +37,9 @@ VkDeviceCreateInfo :: struct {
     queueCreateInfoCount    : u32;
     pQueueCreateInfos       : *VkDeviceQueueCreateInfo;
     enabledLayerCount       : u32;
-    ppEnabledLayerNames     : **s8;
+    ppEnabledLayerNames     : **u8;
     enabledExtensionCount   : u32;
-    ppEnabledExtensionNames : **s8;
+    ppEnabledExtensionNames : **u8;
     pEnabledFeatures        : *VkPhysicalDeviceFeatures;
 }
 
@@ -67,7 +67,7 @@ vkEnumerateDeviceLayerProperties :: (
 // Provided by VK_VERSION_1_0
 vkEnumerateDeviceExtensionProperties :: (
     physicalDevice : VkPhysicalDevice,
-    pLayerName     : *s8,
+    pLayerName     : *u8,
     pPropertyCount : *u32,
     pProperties    : *VkExtensionProperties
 ) -> VkResult #foreign vulkan;
@@ -75,7 +75,7 @@ vkEnumerateDeviceExtensionProperties :: (
 // Provided by VK_VERSION_1_0
 vkGetDeviceProcAddr :: (
     device : VkDevice,
-    pName  : *s8
+    pName  : *u8
 ) -> PFN_vkVoidFunction #foreign vulkan;
 
 // Provided by VK_VERSION_1_0
