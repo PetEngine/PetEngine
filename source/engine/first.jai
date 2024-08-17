@@ -218,7 +218,7 @@ petMain :: () {
     defer destroyShadersHotReload(*shaders_hot_reload);
 
     // @TODO: #Settings. Get surface dimension from settings.
-    window := createWindow(surface = .{ 960, 540 });
+    window := createWindow(surface = .{ 960, 540 }, "Это окно \U0001F920");
     initWindowData(window);
 
     createInput(window);
@@ -412,8 +412,9 @@ Atomics    :: #import "Atomics";
 #scope_file
 
 #if OS == .WINDOWS {
+    // #CRT. WinMainCRTStartup
     #program_export
-    WinMainCRTStartup :: () #c_call {
+    WinMain :: (instance : HINSTANCE, prev_instance : HINSTANCE, cmd_line : PSTR, cmd_show : s32) -> s32 #c_call {
         first_context : Context;
 
         // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
@@ -436,11 +437,11 @@ Atomics    :: #import "Atomics";
             initRuntimeAndCallEntryPoint();
         }
 
-        exitProcess(0);
+        return 0;
     }
 
     getWindowsCommandLine :: () {
-        command_line : [] u8;
+        command_line : [] CHAR;
         command_line.data = GetCommandLineA();
         assert(command_line.data, print_sys_error = true);
 
@@ -523,7 +524,7 @@ Atomics    :: #import "Atomics";
             case;                   #assert false "Invalid std_handle value";
         }
 
-        file_handle := CreateFileA(NAME.data,
+        file_handle := CreateFileA(NAME,
                                    GENERIC_READ | GENERIC_WRITE,
                                    FILE_SHARE_READ | FILE_SHARE_WRITE,
                                    null,

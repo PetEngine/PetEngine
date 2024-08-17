@@ -31,12 +31,15 @@ ULONG_PTR :: u64; // We target only 64-bit systems, so... whatever.
 SIZE_T    :: ULONG_PTR;
 DWORD_PTR :: ULONG_PTR;
 
+PCCH    :: *CHAR;
+PSTR    :: *CHAR;
+PCSTR   :: *CHAR;
 LPSTR   :: *CHAR;
 LPCSTR  :: *CHAR;
+PWSTR   :: *WCHAR;
+PCWSTR  :: *WCHAR;
 LPWSTR  :: *WCHAR;
 LPCWSTR :: *WCHAR;
-PCSTR   :: *CHAR;
-PCWSTR  :: *WCHAR;
 
 WPARAM  :: UINT_PTR;
 LPARAM  :: LONG_PTR;
@@ -48,42 +51,61 @@ FALSE : BOOL : 0;
 
 ATOM :: u16;
 
-// bit 31        - 1-bit code indicating severity, where zero represents success and 1 represents failure.
-// bits [30, 27] - 4-bit reserved value.
-// bits [26, 16] - 11-bit code indicating responsibility for the error or warning, also known as a facility code.
-// bits [15, 0]  - 16-bit code describing the error or warning.
-HRESULT :: s32;
-
 va_list :: *u8;
 
 INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 
-ERROR_SUCCESS              :: 0;
-ERROR_FILE_NOT_FOUND       :: 2;
-ERROR_PATH_NOT_FOUND       :: 3;
-ERROR_ACCESS_DENIED        :: 5;
-ERROR_NO_MORE_FILES        :: 18;
-ERROR_SHARING_VIOLATION    :: 32;
-ERROR_FILE_EXISTS          :: 80;
-ERROR_INSUFFICIENT_BUFFER  :: 122;
-ERROR_MOD_NOT_FOUND        :: 126;
-ERROR_ALREADY_EXISTS       :: 183;
-ERROR_OPERATION_ABORTED    :: 995;
-ERROR_DEVICE_NOT_CONNECTED :: 1167;
-ERROR_NOT_FOUND            :: 1168;
-ERROR_INVALID_USER_BUFFER  :: 1784;
+// bit 31        - 1-bit code indicating severity, where zero represents success and 1 represents failure.
+// bits [30, 27] - 4-bit reserved value.
+// bits [26, 16] - 11-bit code indicating responsibility for the error or warning, also known as a facility code.
+// bits [15, 0]  - 16-bit code describing the result of an operation.
+HRESULT :: s32;
 
-STATUS_PENDING :: 0x00000103;
+ERROR_SUCCESS              :: 0x0000;
+ERROR_FILE_NOT_FOUND       :: 0x0002;
+ERROR_PATH_NOT_FOUND       :: 0x0003;
+ERROR_ACCESS_DENIED        :: 0x0005;
+ERROR_NO_MORE_FILES        :: 0x0012;
+ERROR_SHARING_VIOLATION    :: 0x0020;
+ERROR_FILE_EXISTS          :: 0x0050;
+ERROR_INSUFFICIENT_BUFFER  :: 0x007A;
+ERROR_MOD_NOT_FOUND        :: 0x007E;
+ERROR_ALREADY_EXISTS       :: 0x00B7;
+ERROR_OPERATION_ABORTED    :: 0x03E3;
+ERROR_DEVICE_NOT_CONNECTED :: 0x048F;
+ERROR_NOT_FOUND            :: 0x0490;
+ERROR_INVALID_USER_BUFFER  :: 0x06F8;
 
 SUCCEEDED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
-    return result >= ERROR_SUCCESS;
+    return !(cast,no_check(u32) result >> 31);
 }
 
 FAILED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
-    return result < ERROR_SUCCESS;
+    return cast,no_check(u32) result >> 31;
 }
+
+// bits [31, 30] - 2-bit code indicating severity, where 0 - success, 1 - info, 2 - warning, 3 - error
+// bit 29        - 1-bit customer code flag
+// bits [28, 16] - 13-bit code indicating responsibility for the error or warning, also known as a facility code.
+// bits [15, 0]  - 16-bit code describing the status of an operation.
+NTSTATUS :: s32;
+
+STATUS_SEVERITY_SUCCESS       : u32 : 0x0;
+STATUS_SEVERITY_INFORMATIONAL : u32 : 0x1;
+STATUS_SEVERITY_WARNING       : u32 : 0x2;
+STATUS_SEVERITY_ERROR         : u32 : 0x3;
+
+STATUS_SUCCESS : NTSTATUS : 0x00000000;
+STATUS_PENDING : NTSTATUS : 0x00000103;
+
+STATUS_SEVERITY :: inline (status : NTSTATUS) -> u32  { return cast,no_check(u32) status >> 30; }
+
+NT_SUCCESS     :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(status) == STATUS_SEVERITY_SUCCESS; }
+NT_INFORMATION :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(status) == STATUS_SEVERITY_INFORMATIONAL; }
+NT_WARNING     :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(status) == STATUS_SEVERITY_WARNING; }
+NT_ERROR       :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(status) == STATUS_SEVERITY_ERROR; }
 
 GUID :: struct {
     Data1 : u32;
@@ -296,6 +318,16 @@ FORMAT_MESSAGE_ALLOCATE_BUFFER : u32 : 0x00000100;
 FORMAT_MESSAGE_IGNORE_INSERTS  : u32 : 0x00000200;
 FORMAT_MESSAGE_FROM_SYSTEM     : u32 : 0x00001000;
 
+LANG_NEUTRAL       : u16 : 0x00;
+LANG_ENGLISH       : u16 : 0x09;
+
+SUBLANG_DEFAULT    : u16 : 0x01; // user default
+SUBLANG_ENGLISH_US : u16 : 0x01; // English (USA)
+
+MAKELANGID :: inline (primary_language : u16, secondary_language : u16) -> u16 {
+    return (secondary_language << 10) | primary_language;
+}
+
 FormatMessageA :: (
     dwFlags      : u32,
     lpSource     : *void,
@@ -306,12 +338,21 @@ FormatMessageA :: (
     Arguments    : *va_list
 ) -> u32 #foreign kernel32;
 
-LANG_ENGLISH       : u16 : 0x09;
-SUBLANG_ENGLISH_US : u16 : 0x01;
+RtlUTF8ToUnicodeN :: (
+    UnicodeStringDestination     : PWSTR,
+    UnicodeStringMaxByteCount    : u32,
+    UnicodeStringActualByteCount : *u32,
+    UTF8StringSource             : PCCH,
+    UTF8StringByteCount          : u32
+) -> NTSTATUS #foreign ntdll;
 
-MAKELANGID :: inline (primary_language : u16, secondary_language : u16) -> u16 {
-    return (secondary_language << 10) | primary_language;
-}
+RtlUnicodeToUTF8N :: (
+    UTF8StringDestination     : *CHAR,
+    UTF8StringMaxByteCount    : u32,
+    UTF8StringActualByteCount : *u32,
+    UnicodeStringSource       : PCWSTR,
+    UnicodeStringByteCount    : u32
+) -> NTSTATUS #foreign ntdll;
 
 LocalFree :: (
   hMem : HLOCAL
@@ -1075,6 +1116,70 @@ GetFileAttributesExW :: (
 GetFileAttributesW :: (
     lpFileName : LPCWSTR
 ) -> u32 #foreign kernel32;
+
+BY_HANDLE_FILE_INFORMATION :: struct {
+    dwFileAttributes     : u32;
+    ftCreationTime       : FILETIME;
+    ftLastAccessTime     : FILETIME;
+    ftLastWriteTime      : FILETIME;
+    dwVolumeSerialNumber : u32;
+    nFileSizeHigh        : u32;
+    nFileSizeLow         : u32;
+    nNumberOfLinks       : u32;
+    nFileIndexHigh       : u32;
+    nFileIndexLow        : u32;
+}
+
+GetFileInformationByHandle :: (
+    hFile             : HANDLE,
+    lpFileInformation : *BY_HANDLE_FILE_INFORMATION
+) -> BOOL #foreign kernel32;
+
+FILE_INFO_BY_HANDLE_CLASS :: enum s32 {
+    FileBasicInfo;
+    FileStandardInfo;
+    FileNameInfo;
+    FileRenameInfo;
+    FileDispositionInfo;
+    FileAllocationInfo;
+    FileEndOfFileInfo;
+    FileStreamInfo;
+    FileCompressionInfo;
+    FileAttributeTagInfo;
+    FileIdBothDirectoryInfo;
+    FileIdBothDirectoryRestartInfo;
+    FileIoPriorityHintInfo;
+    FileRemoteProtocolInfo;
+    FileFullDirectoryInfo;
+    FileFullDirectoryRestartInfo;
+    FileStorageInfo;
+    FileAlignmentInfo;
+    FileIdInfo;
+    FileIdExtdDirectoryInfo;
+    FileIdExtdDirectoryRestartInfo;
+    FileDispositionInfoEx;
+    FileRenameInfoEx;
+    FileCaseSensitiveInfo;
+    FileNormalizedNameInfo;
+    MaximumFileInfoByHandleClass;
+}
+
+FILE_NAME_INFO :: struct {
+    FileNameLength : u32;
+    FileName       : [1] WCHAR;
+}
+
+FILE_ATTRIBUTE_TAG_INFO :: struct {
+    FileAttributes : u32;
+    ReparseTag     : u32;
+}
+
+GetFileInformationByHandleEx :: (
+    hFile                : HANDLE,
+    FileInformationClass : FILE_INFO_BY_HANDLE_CLASS,
+    lpFileInformation    : *void,
+    dwBufferSize         : u32
+) -> BOOL #foreign kernel32;
 
 GetFullPathNameW :: (
     lpFileName    : LPCWSTR,

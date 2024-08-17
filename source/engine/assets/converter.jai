@@ -30,7 +30,7 @@ makeRuntimeMeshFilename :: (name : string) -> string {
 
 #scope_file
 
-convertMeshesCallback :: (user_data : *void, exchange_file_info : *FileInfo) -> EnumerateFilesCallbackResult {
+convertMeshesCallback :: (user_data : *void, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
         "obj"
     ];

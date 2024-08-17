@@ -27,17 +27,18 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
         $format          := "",
         args             : ..Any,
         $print_sys_error := false,
+        custom_sys_code  : u32 = 0,
         location         := #caller_location
     ) #expand #no_debug {
         #if is_constant(#insert expression) {
             #if !(#insert expression) {
                 FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-                assertMessage(FORMAT_OR_EXPRESSION, ..args, print_sys_error = print_sys_error, location = location);
+                assertMessage(FORMAT_OR_EXPRESSION, ..args, print_sys_error = print_sys_error, custom_sys_code, location);
             }
         } else {
             if !(#insert expression) {
                 FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
-                assertMessage(FORMAT_OR_EXPRESSION, ..args, print_sys_error = print_sys_error, location = location);
+                assertMessage(FORMAT_OR_EXPRESSION, ..args, print_sys_error = print_sys_error, custom_sys_code, location);
             }
         }
     }
@@ -47,34 +48,33 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
         $format          := "",
         args             : ..Any,
         $print_sys_error := false,
+        custom_sys_code  : u32 = 0,
         location         := #caller_location
     ) #expand #no_debug {
-        assert(expression, format, ..args, print_sys_error = print_sys_error, location = location);
-    }
-} else {
-    assert :: (
-        #discard expression      : Code,
-        #discard format          := "",
-        #discard args            : ..Any,
-        #discard print_sys_error := false,
-        #discard location        := #caller_location
-    ) #expand #no_debug {
+        assert(expression, format, ..args, print_sys_error = print_sys_error, custom_sys_code, location);
     }
 
-    debugCheck :: (
-        expression               : Code,
-        #discard format          := "",
-        #discard args            : ..Any,
-        #discard print_sys_error := false,
-        #discard location        := #caller_location
-    ) #expand #no_debug {
-        #insert expression;
-    }
-}
+    #if OS == .WINDOWS {
+        debugCheckWin32 :: (expression : Code, $strict := true, location := #caller_location) #expand #no_debug {
+            result := #insert expression;
 
-#if OS == .WINDOWS {
-    debugCheckHRESULT :: (expression : Code, $strict := true, location := #caller_location) #expand #no_debug {
-        #if DEBUG_BUILD {
+            #if strict {
+                success := result == ERROR_SUCCESS;
+            } else {
+                success := SUCCEEDED(result);
+            }
+
+            STR_EXPRESSION :: #run codeToString(expression);
+            assert(success, STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) result, location);
+
+            #if !strict {
+                if result != ERROR_SUCCESS {
+                    warningMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) result, location);
+                }
+            }
+        }
+
+        debugCheckHRESULT :: (expression : Code, $strict := true, location := #caller_location) #expand #no_debug {
             result := #insert expression;
 
             // Mask out reserved value (see common/windows.jai HRESULT definition)
@@ -87,28 +87,38 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
             }
 
             STR_EXPRESSION :: #run codeToString(expression);
-            format_result  := formatHex(result, 8);
-
-            assert(success, "% returned 0x%", STR_EXPRESSION, format_result, print_sys_error = true, location = location);
+            assert(success, STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) result, location);
 
             #if !strict {
                 if result != ERROR_SUCCESS {
-                    warningMessage("% returned 0x% at %(%)",
-                                   STR_EXPRESSION,
-                                   format_result,
-                                   location.fully_pathed_filename,
-                                   location.line_number,
-                                   print_sys_error = true);
+                    warningMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) result, location);
                 }
             }
-        } else {
-            #insert expression;
+        }
+
+        debugCheckNT :: (expression : Code, $strict := true, location := #caller_location) #expand #no_debug {
+            status := #insert expression;
+
+            STR_EXPRESSION :: #run codeToString(expression);
+
+            if STATUS_SEVERITY(status) == {
+                case STATUS_SEVERITY_INFORMATIONAL;
+                    infoMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) status, location);
+
+                case STATUS_SEVERITY_WARNING;
+                    #if strict {
+                        assertMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) status, location);
+                    } else {
+                        warningMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) status, location);
+                    }
+
+                case STATUS_SEVERITY_ERROR;
+                    assertMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) status, location);
+            }
         }
     }
-}
 
-debugCheckVK :: (expression : Code, $strict := true, location := #caller_location) #expand #no_debug {
-    #if DEBUG_BUILD {
+    debugCheckVK :: (expression : Code, $strict := true, location := #caller_location) #expand #no_debug {
         result := #insert expression;
 
         #if strict {
@@ -119,18 +129,59 @@ debugCheckVK :: (expression : Code, $strict := true, location := #caller_locatio
 
         STR_EXPRESSION :: #run codeToString(expression);
 
-        assert(success, "% returned %", STR_EXPRESSION, result, location = location);
+        assert(success, "% has returned %", STR_EXPRESSION, result, location = location);
 
         #if !strict {
             if result != .VK_SUCCESS {
-                warningMessage("% returned % at %(%)",
+                absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
+                absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
+
+                warningMessage("%(%,%): % has returned %",
+                               absolute_path,
+                               location.line_number,
+                               location.character_number,
                                STR_EXPRESSION,
-                               result,
-                               location.fully_pathed_filename,
-                               location.line_number);
+                               result);
             }
         }
-    } else {
+    }
+} else {
+    assert :: (
+        #discard expression      : Code,
+        #discard format          := "",
+        #discard args            : ..Any,
+        #discard print_sys_error := false,
+        #discard custom_sys_code : u32 = 0,
+        #discard location        := #caller_location
+    ) #expand #no_debug {
+    }
+
+    debugCheck :: (
+        expression               : Code,
+        #discard format          := "",
+        #discard args            : ..Any,
+        #discard print_sys_error := false,
+        #discard custom_sys_code : u32 = 0,
+        #discard location        := #caller_location
+    ) #expand #no_debug {
+        #insert expression;
+    }
+
+    #if OS == .WINDOWS {
+        debugCheckWin32 :: (expression : Code, #discard strict := true, #discard location := #caller_location) #expand #no_debug {
+            #insert expression;
+        }
+
+        debugCheckHRESULT :: (expression : Code, #discard strict := true, #discard location := #caller_location) #expand #no_debug {
+            #insert expression;
+        }
+
+        debugCheckNT :: (expression : Code, #discard strict := true, #discard location := #caller_location) #expand #no_debug {
+            #insert expression;
+        }
+    }
+
+    debugCheckVK :: (expression : Code, #discard strict := true, #discard location := #caller_location) #expand #no_debug {
         #insert expression;
     }
 }
@@ -179,16 +230,19 @@ message :: (
     $format          : string,
     args             : ..Any,
     $print_sys_error := false,
+    custom_sys_code  : u32 = 0,
     location         := #caller_location
 ) {
     #if priority == .DEBUG   && !DEBUG_BUILD            return;
     #if priority == .VERBOSE && !PRINT_VERBOSE_MESSAGES return;
 
-    sys_error_code : u32 = 0;
+    sys_error_code := custom_sys_code;
 
     #if print_sys_error {
         #if OS == .WINDOWS {
-            sys_error_code = GetLastError();
+            if !sys_error_code {
+                sys_error_code = GetLastError();
+            }
         } else {
             notImplemented();
         }
@@ -200,7 +254,12 @@ message :: (
 
     #if priority == .ASSERT {
         absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
-        absolute_path := getAbsolutePath(absolute_path_buffer, location.fully_pathed_filename);
+        absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
+
+        Basic.print(*builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
+    } else if custom_sys_code {
+        absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
+        absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
 
         Basic.print(*builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
     }
@@ -215,18 +274,25 @@ message :: (
     }
 
     #if print_sys_error {
-        if sys_error_code != 0 {
-            Basic.print(*builder, ". System error (%): ", sys_error_code);
+        if sys_error_code {
+            minimum_digits := 4 << cast(s64) (sys_error_code > 0xFFFF);
 
-            sys_error_message : string;
+            #if priority < .ERROR {
+                Basic.print(*builder, " has returned 0x%: ", formatHex(sys_error_code, minimum_digits));
+            } else {
+                Basic.print(*builder, ". System error (0x%): ", formatHex(sys_error_code, minimum_digits));
+            }
+
+            sys_error_message_buffer : [512] u8 = ---;
+            sys_error_message := string.{ data = sys_error_message_buffer.data };
 
             #if OS == .WINDOWS {
-                sys_error_message.count = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
+                sys_error_message.count = FormatMessageA(FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
                                                          null,
                                                          sys_error_code,
-                                                         #run MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
-                                                         cast(LPSTR) *sys_error_message.data,
-                                                         0,
+                                                         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                                         sys_error_message.data,
+                                                         sys_error_message_buffer.count,
                                                          null);
                 sys_error_message.count -= ".\r\n".count;
             } else {
@@ -234,16 +300,8 @@ message :: (
             }
 
             Basic.assert(sys_error_message.count > 0);
-            Basic.assert(sys_error_message.data != null);
 
             Basic.append(*builder, sys_error_message);
-
-            #if OS == .WINDOWS {
-                result := LocalFree(sys_error_message.data);
-                Basic.assert(result == null);
-            } else {
-                notImplemented();
-            }
         }
     }
 
@@ -312,7 +370,7 @@ message :: (
 
     #if priority == .ASSERT {
         debugBreakIfDebugging();
-        exitProcess(ifx sys_error_code != 0 then sys_error_code else 1);
+        exitProcess(ifx sys_error_code then sys_error_code else 1);
     }
 }
 

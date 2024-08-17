@@ -1,19 +1,5 @@
 #scope_file
 
-#import "Compiler";
-#import "Basic";
-#import "String";
-#import "File";
-#import "File_Utilities";
-#import "Check";
-#if OS == .WINDOWS {
-    #import "Windows";
-} else if OS == .POSIX {
-    #import "POSIX";
-} else {
-    #assert false "Not implemented";
-}
-
 BuildArguments :: struct {
     optimized  : bool;
     debug_info : bool;
@@ -80,6 +66,8 @@ END;
         #if OS == .WINDOWS {
             array_add(*additional_linker_arguments,
                       "/SUBSYSTEM:WINDOWS",
+                      "/MANIFEST:EMBED",
+                      "/MANIFESTINPUT:windows.manifest",
                       "/IGNORE:4216", // LNK4216: Exported entry point WinMainCRTStartup
                       join("/LIBPATH:", vk_sdk_path, "/Lib",, allocator = temp),
                       "/LIBPATH:../third_party/spirv_reflect");
@@ -103,11 +91,8 @@ END;
     // Create must have directories
     //
 
-    success := make_directory_if_it_does_not_exist(intermediate_path, true);
-    assert(success);
-
-    success = make_directory_if_it_does_not_exist(output_path, true);
-    assert(success);
+    check(make_directory_if_it_does_not_exist(intermediate_path, true));
+    check(make_directory_if_it_does_not_exist(output_path, true));
 
     //
     // Common build options
@@ -139,6 +124,14 @@ END;
     }
 
     //
+    // Do some platform specific stuff we cannot do through the code
+    //
+
+    #if OS == .WINDOWS {
+        prepareManifest(build_options.output_executable_name);
+    }
+
+    //
     // Create and initialize workspace
     //
 
@@ -165,6 +158,10 @@ END;
         }
     }
     compiler_end_intercept(workspace);
+
+    #if OS == .WINDOWS {
+        check(DeleteFileA("windows.manifest"));
+    }
 
     //
     // Post-build copies
@@ -247,4 +244,196 @@ checkCompilerVersion :: (minimal_supported_version : Version_Info) {
                           FormatInt.{ value = minimal_supported_version.micro, minimum_digits = 3 });
         compiler_report(message);
     }
+}
+
+#if OS == .WINDOWS {
+    prepareManifest :: (application_name : string) {
+        //
+        // Write manifest file
+        //
+MANIFEST_FORMAT_STRING :: #string XML
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity language="neutral" name="%" processorArchitecture="*" type="win32" version="1.0.0.0" />
+  <application>
+    <windowsSettings>
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+    </windowsSettings>
+  </application>
+</assembly>
+XML;
+        manifest := tprint(MANIFEST_FORMAT_STRING, application_name);
+
+        // We cannot use FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE because:
+        // "general error c1010070: Failed to load and parse the manifest. The process cannot access the file because it is being used by another process."
+        file := CreateFileA("windows.manifest", GENERIC_WRITE, 0, null, CREATE_NEW, FILE_ATTRIBUTE_HIDDEN, null);
+        check(file != INVALID_HANDLE_VALUE);
+
+        check(WriteFile(file, manifest.data, cast(u32) manifest.count, null, null));
+
+        check(CloseHandle(file));
+
+        //
+        // Add mt.exe to PATH
+        //
+
+        program_files_path := to_string(getenv("ProgramFiles(x86)"));
+
+        search_path := join(program_files_path, "\\Windows Kits\\10\\bin\\10.*\0",, allocator = temp);
+
+        find_data : WIN32_FIND_DATAA;
+        find_handle := FindFirstFileExA(search_path.data, .FindExInfoBasic, *find_data, .FindExSearchLimitToDirectories, null, 0);
+        check(find_handle != INVALID_HANDLE_VALUE);
+
+        Version :: [4] u32;
+
+        max :: (a : Version, b : Version) -> Version {
+            for 0 .. a.count - 1 {
+                if a[it] > b[it] return a;
+                if a[it] < b[it] return b;
+            }
+            return a;
+        }
+
+        latest_version : Version;
+        while true {
+            check(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+
+            dirname := to_string(find_data.cFileName.data);
+
+            version : Version;
+            for * version {
+                it.*, success:, dirname = string_to_int(dirname, T = u32);
+                check(success);
+
+                if dirname && dirname[0] == #char "." {
+                    advance(*dirname);
+                } else {
+                    break;
+                }
+            }
+
+            latest_version = max(version, latest_version);
+
+            if !FindNextFileA(find_handle, *find_data) {
+                check(GetLastError() == ERROR_NO_MORE_FILES);
+                break;
+            }
+        }
+
+        mt_folder := tprint("%\\Windows Kits\\10\\bin\\%.%.%.%\\x64\0",
+                            program_files_path,
+                            latest_version[0],
+                            latest_version[1],
+                            latest_version[2],
+                            latest_version[3]);
+        print("Using mt.exe from: \"%\"\n", mt_folder);
+
+        path_value := to_string(getenv("PATH"));
+        if !contains(path_value, mt_folder) {
+            new_path_value := join(path_value, ";", mt_folder,, allocator = temp);
+            check(SetEnvironmentVariableA("PATH", new_path_value.data));
+        }
+    }
+}
+
+check :: (expression : Code, format := "", args: ..Any, location := #caller_location) #expand {
+    result := #insert expression;
+
+    success : bool = ---;
+    #if type_of(result) == {
+        case bool; success = result;
+        case BOOL; success = result == TRUE;
+        case s32;  success = result == TRUE;
+        case u32;  success = result != 0;
+        case;
+            compiler_report(tprint("Unhandled type: %", type_of(result)));
+    }
+
+    if success return;
+
+    #if OS == .WINDOWS {
+        sys_error_code := GetLastError();
+    }
+
+    builder := String_Builder.{ allocator = temp };
+
+    if format {
+        if args.count > 0 {
+            print(*builder, format, ..args);
+        } else {
+            append(*builder, format);
+        }
+    } else {
+        root := compiler_get_nodes(expression);
+        print_expression(*builder, root);
+    }
+
+    #if OS == .WINDOWS {
+        if sys_error_code != ERROR_SUCCESS {
+            sys_error_message_buffer : [1024] u8 = ---;
+            sys_error_message_length := FormatMessageA(FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
+                                                       null,
+                                                       sys_error_code,
+                                                       MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
+                                                       cast,no_check(**u8) sys_error_message_buffer.data,
+                                                       sys_error_message_buffer.count,
+                                                       null);
+            sys_error_message_length -= ".\r\n".count;
+            assert(sys_error_message_length > 0);
+
+            sys_error_message := string.{ sys_error_message_length, sys_error_message_buffer.data };
+            print(*builder, ". System error (%): %", sys_error_code, sys_error_message);
+        }
+    }
+
+    message := builder_to_string(*builder);
+    compiler_report(message, loc = location);
+}
+
+#if OS == .WINDOWS {
+    TRUE :: 1;
+
+    ERROR_SUCCESS       :: 0;
+    ERROR_NO_MORE_FILES :: 18;
+
+    SUBLANG_ENGLISH_US : u16 : 0x01;
+
+    WIN32_FIND_DATAA :: struct {
+        dwFileAttributes   : u32;
+        ftCreationTime     : FILETIME;
+        ftLastAccessTime   : FILETIME;
+        ftLastWriteTime    : FILETIME;
+        nFileSizeHigh      : u32;
+        nFileSizeLow       : u32;
+        dwReserved0        : u32;
+        dwReserved1        : u32;
+        cFileName          : [MAX_PATH] u8;
+        cAlternateFileName : [14]       u8;
+        dwFileType         : u32; // Obsolete. Do not use.
+        dwCreatorType      : u32; // Obsolete. Do not use
+        wFinderFlags       : u16; // Obsolete. Do not use
+    }
+
+    SetEnvironmentVariableA :: (
+        lpName  : LPCSTR,
+        lpValue : LPCSTR
+    ) -> BOOL #foreign kernel32;
+
+    kernel32 :: #library,system "kernel32";
+}
+
+#import "Compiler";
+#import "Basic";
+#import "String";
+#import "File";
+#import "File_Utilities";
+#import "Check";
+#import "Program_Print";
+#if OS == .WINDOWS {
+    #import "Windows";
+} else if OS == .POSIX {
+    #import "POSIX";
+} else {
+    #assert false "Not implemented";
 }

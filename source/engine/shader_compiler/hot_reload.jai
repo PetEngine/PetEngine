@@ -18,13 +18,13 @@ createShadersHotReload :: (hot_reload : *ShadersHotReload) {
     createThread(*hot_reload.thread, hotReloadProc, hot_reload, "Shaders Hot Reload", .SHADERS_HOT_RELOAD);
 
     #if OS == .WINDOWS {
-        wide_source_shaders_folder : [ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1] WCHAR = ---;
-        asciiToWide(*wide_source_shaders_folder, ShaderCompiler.SOURCE_SHADERS_FOLDER, true);
+        utf16_source_shaders_folder : [ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1] WCHAR = ---;
+        ASCIIToUTF16(*utf16_source_shaders_folder, ShaderCompiler.SOURCE_SHADERS_FOLDER);
 
-        hot_reload.notification = FindFirstChangeNotificationW(wide_source_shaders_folder.data, TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE);
+        hot_reload.notification = FindFirstChangeNotificationW(utf16_source_shaders_folder.data, TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE);
         assert(hot_reload.notification != INVALID_HANDLE_VALUE, print_sys_error = true);
 
-        hot_reload.directory = CreateFileW(wide_source_shaders_folder.data,
+        hot_reload.directory = CreateFileW(utf16_source_shaders_folder.data,
                                            GENERIC_READ,
                                            FILE_SHARE_READ | FILE_SHARE_WRITE,
                                            null,
@@ -34,17 +34,17 @@ createShadersHotReload :: (hot_reload : *ShadersHotReload) {
         assert(hot_reload.directory != INVALID_HANDLE_VALUE, print_sys_error = true);
 
         OVERLAPPED_IO_EVENT_NAME :: "Shaders Hot Reload Overlapped IO Event";
-        wide_overlapped_io_event_name : [OVERLAPPED_IO_EVENT_NAME.count + 1] WCHAR = ---;
-        asciiToWide(*wide_overlapped_io_event_name, OVERLAPPED_IO_EVENT_NAME, true);
+        utf16_overlapped_io_event_name : [OVERLAPPED_IO_EVENT_NAME.count + 1] WCHAR = ---;
+        ASCIIToUTF16(*utf16_overlapped_io_event_name, OVERLAPPED_IO_EVENT_NAME);
 
-        hot_reload.overlapped.hEvent = CreateEventExW(null, wide_overlapped_io_event_name.data, 0, EVENT_ALL_ACCESS);
+        hot_reload.overlapped.hEvent = CreateEventExW(null, utf16_overlapped_io_event_name.data, 0, EVENT_ALL_ACCESS);
         assert(hot_reload.overlapped.hEvent, print_sys_error = true);
 
         STOP_THREAD_EVENT_NAME :: "Shaders Hot Reload Stop Thread Event";
-        wide_stop_thread_event_name : [STOP_THREAD_EVENT_NAME.count + 1] WCHAR = ---;
-        asciiToWide(*wide_stop_thread_event_name, STOP_THREAD_EVENT_NAME, true);
+        utf16_stop_thread_event_name : [STOP_THREAD_EVENT_NAME.count + 1] WCHAR = ---;
+        ASCIIToUTF16(*utf16_stop_thread_event_name, STOP_THREAD_EVENT_NAME);
 
-        hot_reload.stop_thread_event = CreateEventExW(null, wide_stop_thread_event_name.data, CREATE_EVENT_MANUAL_RESET, EVENT_ALL_ACCESS);
+        hot_reload.stop_thread_event = CreateEventExW(null, utf16_stop_thread_event_name.data, CREATE_EVENT_MANUAL_RESET, EVENT_ALL_ACCESS);
         assert(hot_reload.stop_thread_event, print_sys_error = true);
     } else {
         notImplemented();
@@ -115,8 +115,7 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
                     assert(bytes_transferred, print_sys_error = true);
 
                     while info {
-                        filename := wideToAscii(info.FileName.data,
-                                                info.FileNameLength / size_of(WCHAR),
+                        filename := UTF16ToUTF8(.{ info.FileNameLength / size_of(WCHAR), info.FileName.data },
                                                 pushToArena,
                                                 *context.pet.arenas.per_frame);
 
@@ -162,7 +161,7 @@ reloadShader :: (filename : string) {
 }
 
 recompileOutOfDateShaders :: inline (hot_reload : *ShadersHotReload) {
-    enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, source_file_info : *FileInfo) -> EnumerateFilesCallbackResult {
+    enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, source_file_info : *File.Info) -> EnumerateFilesCallbackResult {
         if String.path_extension(source_file_info.name) != "shader" {
             return .CONTINUE;
         }
