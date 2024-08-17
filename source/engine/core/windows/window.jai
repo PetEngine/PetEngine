@@ -433,13 +433,13 @@ useDarkTheme :: () -> bool {
 
     apps_use_light_theme : u32;
     data_size            : u32 = size_of(u32);
-    debugCheckHRESULT(RegGetValueW(HKEY_CURRENT_USER,
-                                   unicode_subkey.data,
-                                   unicode_value.data,
-                                   RRF_RT_REG_DWORD,
-                                   null,
-                                   *apps_use_light_theme,
-                                   *data_size));
+    debugCheckWin32(RegGetValueW(HKEY_CURRENT_USER,
+                                 unicode_subkey.data,
+                                 unicode_value.data,
+                                 RRF_RT_REG_DWORD,
+                                 null,
+                                 *apps_use_light_theme,
+                                 *data_size));
 
     return !apps_use_light_theme;
 }

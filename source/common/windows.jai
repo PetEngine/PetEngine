@@ -49,41 +49,41 @@ FALSE : BOOL : 0;
 
 ATOM :: u16;
 
-// bit 31        - 1-bit code indicating severity, where zero represents success and 1 represents failure.
-// bits [30, 27] - 4-bit reserved value.
-// bits [26, 16] - 11-bit code indicating responsibility for the error or warning, also known as a facility code.
-// bits [15, 0]  - 16-bit code describing the error or warning.
-HRESULT :: s32;
-
 va_list :: *u8;
 
 INVALID_HANDLE_VALUE :: cast(HANDLE) -1;
 
-ERROR_SUCCESS              :: 0;
-ERROR_FILE_NOT_FOUND       :: 2;
-ERROR_PATH_NOT_FOUND       :: 3;
-ERROR_ACCESS_DENIED        :: 5;
-ERROR_NO_MORE_FILES        :: 18;
-ERROR_SHARING_VIOLATION    :: 32;
-ERROR_FILE_EXISTS          :: 80;
-ERROR_INSUFFICIENT_BUFFER  :: 122;
-ERROR_MOD_NOT_FOUND        :: 126;
-ERROR_ALREADY_EXISTS       :: 183;
-ERROR_OPERATION_ABORTED    :: 995;
-ERROR_DEVICE_NOT_CONNECTED :: 1167;
-ERROR_NOT_FOUND            :: 1168;
-ERROR_INVALID_USER_BUFFER  :: 1784;
+// bit 31        - 1-bit code indicating severity, where zero represents success and 1 represents failure.
+// bits [30, 27] - 4-bit reserved value.
+// bits [26, 16] - 11-bit code indicating responsibility for the error or warning, also known as a facility code.
+// bits [15, 0]  - 16-bit code describing the result of an operation.
+HRESULT :: s32;
+
+ERROR_SUCCESS              :: 0x0000;
+ERROR_FILE_NOT_FOUND       :: 0x0002;
+ERROR_PATH_NOT_FOUND       :: 0x0003;
+ERROR_ACCESS_DENIED        :: 0x0005;
+ERROR_NO_MORE_FILES        :: 0x0012;
+ERROR_SHARING_VIOLATION    :: 0x0020;
+ERROR_FILE_EXISTS          :: 0x0050;
+ERROR_INSUFFICIENT_BUFFER  :: 0x007A;
+ERROR_MOD_NOT_FOUND        :: 0x007E;
+ERROR_ALREADY_EXISTS       :: 0x00B7;
+ERROR_OPERATION_ABORTED    :: 0x03E3;
+ERROR_DEVICE_NOT_CONNECTED :: 0x048F;
+ERROR_NOT_FOUND            :: 0x0490;
+ERROR_INVALID_USER_BUFFER  :: 0x06F8;
 
 STATUS_PENDING :: 0x00000103;
 
 SUCCEEDED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
-    return result >= ERROR_SUCCESS;
+    return !(cast,no_check(u32) result >> 31);
 }
 
 FAILED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
-    return result < ERROR_SUCCESS;
+    return cast,no_check(u32) result >> 31;
 }
 
 GUID :: struct {
@@ -297,6 +297,16 @@ FORMAT_MESSAGE_ALLOCATE_BUFFER : u32 : 0x00000100;
 FORMAT_MESSAGE_IGNORE_INSERTS  : u32 : 0x00000200;
 FORMAT_MESSAGE_FROM_SYSTEM     : u32 : 0x00001000;
 
+LANG_NEUTRAL       : u16 : 0x00;
+LANG_ENGLISH       : u16 : 0x09;
+
+SUBLANG_DEFAULT    : u16 : 0x01; // user default
+SUBLANG_ENGLISH_US : u16 : 0x01; // English (USA)
+
+MAKELANGID :: inline (primary_language : u16, secondary_language : u16) -> u16 {
+    return (secondary_language << 10) | primary_language;
+}
+
 FormatMessageA :: (
     dwFlags      : u32,
     lpSource     : *void,
@@ -306,13 +316,6 @@ FormatMessageA :: (
     nSize        : u32,
     Arguments    : *va_list
 ) -> u32 #foreign kernel32;
-
-LANG_ENGLISH       : u16 : 0x09;
-SUBLANG_ENGLISH_US : u16 : 0x01;
-
-MAKELANGID :: inline (primary_language : u16, secondary_language : u16) -> u16 {
-    return (secondary_language << 10) | primary_language;
-}
 
 LocalFree :: (
   hMem : HLOCAL
