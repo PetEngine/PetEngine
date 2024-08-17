@@ -332,35 +332,36 @@ message :: (
             OutputDebugStringA(Basic.temp_c_string(message));
         }
 
-        console_handle : HANDLE = ---;
-        #if priority == .ERROR console_handle = GetStdHandle(STD_ERROR_HANDLE);
+        console_handle := INVALID_HANDLE_VALUE;
+        #if priority >= .ERROR console_handle = GetStdHandle(STD_ERROR_HANDLE);
         else                   console_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-        Basic.assert(console_handle != INVALID_HANDLE_VALUE);
 
-        console_mode : u32;
-        if GetConsoleMode(console_handle, *console_mode) {
-            success : BOOL;
+        if console_handle != INVALID_HANDLE_VALUE {
+            console_mode : u32;
+            if GetConsoleMode(console_handle, *console_mode) {
+                success : BOOL;
 
-            // We do not change a color for verbose messages
-            #if priority != .VERBOSE {
-                     #if priority == .DEBUG   success = SetConsoleTextAttribute(console_handle, 0x09);
-                else #if priority == .INFO    success = SetConsoleTextAttribute(console_handle, 0x0A);
-                else #if priority == .WARNING success = SetConsoleTextAttribute(console_handle, 0x06);
-                else #if priority >= .ERROR   success = SetConsoleTextAttribute(console_handle, 0x04);
-                else                          #assert false "Unhandled message priority";
+                // We do not change a color for verbose messages
+                #if priority != .VERBOSE {
+                         #if priority == .DEBUG   success = SetConsoleTextAttribute(console_handle, 0x09);
+                    else #if priority == .INFO    success = SetConsoleTextAttribute(console_handle, 0x0A);
+                    else #if priority == .WARNING success = SetConsoleTextAttribute(console_handle, 0x06);
+                    else #if priority >= .ERROR   success = SetConsoleTextAttribute(console_handle, 0x04);
+                    else                          #assert false "Unhandled message priority";
+                    Basic.assert(success != FALSE);
+                }
+
+                success = WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
+                Basic.assert(success != FALSE);
+
+                #if priority != .VERBOSE {
+                    success = SetConsoleTextAttribute(console_handle, 0x07);
+                    Basic.assert(success != FALSE);
+                }
+            } else {
+                success := WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
                 Basic.assert(success != FALSE);
             }
-
-            success = WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
-            Basic.assert(success != FALSE);
-
-            #if priority != .VERBOSE {
-                success = SetConsoleTextAttribute(console_handle, 0x07);
-                Basic.assert(success != FALSE);
-            }
-        } else {
-            success := WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
-            Basic.assert(success != FALSE);
         }
     } else {
         notImplemented();

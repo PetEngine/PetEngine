@@ -200,7 +200,7 @@ enumerateFiles :: inline (
 getFileInfo :: (filename : string) -> (File.Info, File.Error) {
     assertFileNameLength(filename);
 
-    file_info : File.Info = ---;
+    file_info : File.Info;
     file_info.name = filename;
 
     #if OS == .WINDOWS {
@@ -213,7 +213,7 @@ getFileInfo :: (filename : string) -> (File.Info, File.Error) {
 }
 
 getFileInfo :: (file : File) -> (File.Info, File.Error) {
-    file_info : File.Info = ---;
+    file_info : File.Info;
 
     #if OS == .WINDOWS {
         error := getWindowsFileInfo(file, *file_info);

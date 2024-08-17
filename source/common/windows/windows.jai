@@ -153,11 +153,6 @@ GetStdHandle :: (
   nStdHandle : u32
 ) -> HANDLE #foreign kernel32;
 
-SetStdHandle :: (
-    nStdHandle : u32,
-    hHandle    : HANDLE
-) -> BOOL #foreign kernel32;
-
 CS_VREDRAW         : u32 : 0x00001;
 CS_HREDRAW         : u32 : 0x00002;
 CS_DBLCLKS         : u32 : 0x00008;
