@@ -218,7 +218,7 @@ petMain :: () {
     defer destroyShadersHotReload(*shaders_hot_reload);
 
     // @TODO: #Settings. Get surface dimension from settings.
-    window := createWindow(surface = .{ 960, 540 });
+    window := createWindow(surface = .{ 960, 540 }, "Это окно \U0001F920");
     initWindowData(window);
 
     createInput(window);

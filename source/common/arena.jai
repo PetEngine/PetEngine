@@ -213,7 +213,7 @@ pushToArena :: (arena : *Arena, $type : Type, count := 1, alignment := 0) -> *ty
     memory : *type = ---;
 
     // @Important: Some WinAPI functions (CreateWindowExW for instance) fail
-    //             if an address of a wide string is not aligned to size_of(WCHAR),
+    //             if an address of a UTF-16 string is not aligned to size_of(WCHAR),
     //             so we have to take into account the alignment of the type
     //
     // This is the only way I figured out to get a type info of 'type'...

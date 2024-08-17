@@ -24,9 +24,9 @@ createWin32WindowManager :: () {
 
     setMonitorDPIAwareness();
 
-    ASCII_CLASS_NAME :: "PetEngineWindowClass";
-    unicode_class_name : [ASCII_CLASS_NAME.count + 1] WCHAR = ---;
-    asciiToWide(*unicode_class_name, ASCII_CLASS_NAME, true);
+    CLASS_NAME       :: "PetEngineWindowClass";
+    utf16_class_name : [CLASS_NAME.count + 1] WCHAR = ---;
+    ASCIIToUTF16(*utf16_class_name, CLASS_NAME);
 
     icon_handle := LoadIconW(null, IDI_APPLICATION);
     assert(icon_handle, print_sys_error = true);
@@ -43,7 +43,7 @@ createWin32WindowManager :: () {
         hCursor       = cursor_handle,
         hbrBackground = cast,no_check(HBRUSH) (COLOR_WINDOW + 1),
         lpszMenuName  = null,
-        lpszClassName = unicode_class_name.data,
+        lpszClassName = utf16_class_name.data,
         hIconSm       = icon_handle,
     };
 
@@ -147,14 +147,14 @@ createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolut
     class_name := cast,no_check(LPCWSTR) manager.window_class;
     assert((class_name & 0xFFFF) == class_name, "Window class atom should be in the low-order word only");
 
-    wide_title := asciiToWide(title, pushToArena, *context.pet.arenas.per_frame, true);
+    utf16_title := UTF8ToUTF16(title, pushToArena, *context.pet.arenas.per_frame);
 
     window_rect_x : s32 = ifx x == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else x;
     window_rect_y : s32 = ifx y == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else y;
 
     window.handle = CreateWindowExW(EXTENDED_WINDOW_STYLES,
                                     class_name,
-                                    wide_title,
+                                    utf16_title.data,
                                     WINDOW_STYLES,
                                     window_rect_x,
                                     window_rect_y,
@@ -202,19 +202,19 @@ getWin32WindowTitle :: (window : *Win32Window) -> string {
 
     if !title_length return "";
 
-    wide_title := pushToArena(*context.pet.arenas.per_frame, WCHAR, title_length + 1);
+    utf16_title := pushToArena(*context.pet.arenas.per_frame, WCHAR, title_length + 1);
 
-    result := GetWindowTextW(window.handle, wide_title, title_length + 1);
+    result := GetWindowTextW(window.handle, utf16_title, title_length + 1);
     assert(result == title_length, print_sys_error = true);
 
-    title := wideToAscii(wide_title, title_length, pushToArena, *context.pet.arenas.per_frame);
+    title := UTF16ToUTF8(.{ title_length, utf16_title }, pushToArena, *context.pet.arenas.per_frame);
     return title;
 }
 
 setWin32WindowTitle :: (window : *Win32Window, title : string) {
     if title {
-        wide_title := asciiToWide(title, pushToArena, *context.pet.arenas.per_frame, true);
-        debugCheck(SetWindowTextW(window.handle, wide_title), print_sys_error = true);
+        utf16_title := UTF8ToUTF16(title, pushToArena, *context.pet.arenas.per_frame);
+        debugCheck(SetWindowTextW(window.handle, utf16_title.data), print_sys_error = true);
     } else {
         debugCheck(SetWindowTextW(window.handle, null), print_sys_error = true);
     }
@@ -423,19 +423,19 @@ applyInitialDPIScalingToWindow :: (window_handle : HWND, rect_resolution : Resol
 }
 
 useDarkTheme :: () -> bool {
-    SUBKEY         :: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
-    unicode_subkey : [SUBKEY.count + 1] WCHAR = ---;
-    asciiToWide(*unicode_subkey, SUBKEY, true);
+    SUBKEY       :: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+    utf16_subkey : [SUBKEY.count + 1] WCHAR = ---;
+    ASCIIToUTF16(*utf16_subkey, SUBKEY);
 
-    VALUE         :: "AppsUseLightTheme";
-    unicode_value : [VALUE.count + 1] WCHAR = ---;
-    asciiToWide(*unicode_value, VALUE, true);
+    VALUE       :: "AppsUseLightTheme";
+    utf16_value : [VALUE.count + 1] WCHAR = ---;
+    ASCIIToUTF16(*utf16_value, VALUE);
 
     apps_use_light_theme : u32;
     data_size            : u32 = size_of(u32);
     debugCheckWin32(RegGetValueW(HKEY_CURRENT_USER,
-                                 unicode_subkey.data,
-                                 unicode_value.data,
+                                 utf16_subkey.data,
+                                 utf16_value.data,
                                  RRF_RT_REG_DWORD,
                                  null,
                                  *apps_use_light_theme,

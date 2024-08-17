@@ -31,13 +31,15 @@ ULONG_PTR :: u64; // We target only 64-bit systems, so... whatever.
 SIZE_T    :: ULONG_PTR;
 DWORD_PTR :: ULONG_PTR;
 
+PCCH    :: *CHAR;
 PSTR    :: *CHAR;
+PCSTR   :: *CHAR;
 LPSTR   :: *CHAR;
 LPCSTR  :: *CHAR;
+PWSTR   :: *WCHAR;
+PCWSTR  :: *WCHAR;
 LPWSTR  :: *WCHAR;
 LPCWSTR :: *WCHAR;
-PCSTR   :: *CHAR;
-PCWSTR  :: *WCHAR;
 
 WPARAM  :: UINT_PTR;
 LPARAM  :: LONG_PTR;
@@ -74,8 +76,6 @@ ERROR_DEVICE_NOT_CONNECTED :: 0x048F;
 ERROR_NOT_FOUND            :: 0x0490;
 ERROR_INVALID_USER_BUFFER  :: 0x06F8;
 
-STATUS_PENDING :: 0x00000103;
-
 SUCCEEDED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
     return !(cast,no_check(u32) result >> 31);
@@ -85,6 +85,27 @@ FAILED :: inline (result : $T) -> bool {
     #assert T == u32 || T == s32 "T should be a 32-bit integer";
     return cast,no_check(u32) result >> 31;
 }
+
+// bits [31, 30] - 2-bit code indicating severity, where 0 - success, 1 - info, 2 - warning, 3 - error
+// bit 29        - 1-bit customer code flag
+// bits [28, 16] - 13-bit code indicating responsibility for the error or warning, also known as a facility code.
+// bits [15, 0]  - 16-bit code describing the status of an operation.
+NTSTATUS :: s32;
+
+STATUS_SEVERITY_SUCCESS       : u32 : 0x0;
+STATUS_SEVERITY_INFORMATIONAL : u32 : 0x1;
+STATUS_SEVERITY_WARNING       : u32 : 0x2;
+STATUS_SEVERITY_ERROR         : u32 : 0x3;
+
+STATUS_SUCCESS : NTSTATUS : 0x00000000;
+STATUS_PENDING : NTSTATUS : 0x00000103;
+
+STATUS_SEVERITY :: inline (status : NTSTATUS) -> u32  { return cast,no_check(u32) status >> 30; }
+
+NT_SUCCESS     :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(status) == STATUS_SEVERITY_SUCCESS; }
+NT_INFORMATION :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(status) == STATUS_SEVERITY_INFORMATIONAL; }
+NT_WARNING     :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(status) == STATUS_SEVERITY_WARNING; }
+NT_ERROR       :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(status) == STATUS_SEVERITY_ERROR; }
 
 GUID :: struct {
     Data1 : u32;
@@ -316,6 +337,22 @@ FormatMessageA :: (
     nSize        : u32,
     Arguments    : *va_list
 ) -> u32 #foreign kernel32;
+
+RtlUTF8ToUnicodeN :: (
+    UnicodeStringDestination     : PWSTR,
+    UnicodeStringMaxByteCount    : u32,
+    UnicodeStringActualByteCount : *u32,
+    UTF8StringSource             : PCCH,
+    UTF8StringByteCount          : u32
+) -> NTSTATUS #foreign ntdll;
+
+RtlUnicodeToUTF8N :: (
+    UTF8StringDestination     : *CHAR,
+    UTF8StringMaxByteCount    : u32,
+    UTF8StringActualByteCount : *u32,
+    UnicodeStringSource       : PCWSTR,
+    UnicodeStringByteCount    : u32
+) -> NTSTATUS #foreign ntdll;
 
 LocalFree :: (
   hMem : HLOCAL

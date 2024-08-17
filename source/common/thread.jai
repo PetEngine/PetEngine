@@ -70,10 +70,10 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
         assert(thread.handle, print_sys_error = true);
 
         #if name {
-            wide_name : [name.count + 1] WCHAR = ---;
-            asciiToWide(*wide_name, name, true);
+            utf16_name : [name.count + 1] WCHAR = ---;
+            ASCIIToUTF16(*utf16_name, name);
 
-            debugCheckHRESULT(SetThreadDescription(thread.handle, wide_name.data));
+            debugCheckHRESULT(SetThreadDescription(thread.handle, utf16_name.data));
         }
     } else {
         notImplemented();

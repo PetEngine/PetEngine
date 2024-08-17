@@ -9,88 +9,6 @@ DEFAULT_CACHE_LINE_SIZE :: 64;
 DEFAULT_PAGE_SIZE       :: 4096;
 DEFAULT_ALIGNMENT       :: size_of(*void);
 
-#if OS == .WINDOWS {
-    asciiToWide :: (wide_string : *[] WCHAR, ascii_string : string, $null_terminated : bool) #no_context {
-        wide_string.count = ascii_string.count;
-
-        for 0 .. ascii_string.count - 1 {
-            wide_string.*[it] = ascii_string[it];
-        }
-
-        #if null_terminated {
-            wide_string.count += 1;
-            wide_string.*[ascii_string.count] = 0;
-        }
-    }
-
-    asciiToWide :: (wide_string : *[$wide_string_capacity] WCHAR, $$ascii_string : string, $null_terminated : bool) {
-        #if null_terminated {
-            #if is_constant(ascii_string) {
-                #assert wide_string_capacity > ascii_string.count;
-            } else {
-                assert(wide_string_capacity > ascii_string.count);
-            }
-        } else {
-            #if is_constant(ascii_string) {
-                #assert wide_string_capacity >= ascii_string.count;
-            } else {
-                assert(wide_string_capacity >= ascii_string.count);
-            }
-        }
-
-        for 0 .. ascii_string.count - 1 {
-            wide_string.*[it] = ascii_string[it];
-        }
-
-        #if null_terminated {
-            wide_string.*[ascii_string.count] = 0;
-        }
-    }
-
-    asciiToWide :: (
-        ascii_string     : string,
-        allocate         : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-        user_data        : *T,
-        $null_terminated : bool
-    ) -> LPWSTR {
-        wide_string : LPWSTR = allocate(user_data, (ascii_string.count + cast(s64) null_terminated) * size_of(WCHAR), size_of(WCHAR));
-
-        for 0 .. ascii_string.count - 1 {
-            wide_string[it] = ascii_string[it];
-        }
-
-        #if null_terminated {
-            wide_string[ascii_string.count] = 0;
-        }
-
-        return wide_string;
-    }
-
-    wideToAscii :: (
-        wide_string : *WCHAR,
-        length      : s64,
-        allocate    : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-        user_data   : *T
-    ) -> string {
-        ascii_string := string.{ count = length, data = allocate(user_data, length, size_of(u8)) };
-
-        for 0 .. ascii_string.count - 1 {
-            ascii_string[it] = cast(u8) wide_string[it];
-        }
-
-        return ascii_string;
-    }
-
-    wideToAscii :: (ascii_string : *string, ascii_string_capacity : s64, wide_string : *WCHAR, length : s64) {
-        assert(length <= ascii_string_capacity);
-        ascii_string.count = length;
-
-        for 0 .. ascii_string.count - 1 {
-            ascii_string.*[it] = cast(u8) wide_string[it];
-        }
-    }
-}
-
 ntStringLength :: inline (nt_string : [] $T) -> s64 #no_context {
     for nt_string {
         if it == 0 {
@@ -231,7 +149,8 @@ generatePlatformVtableInitialization :: (
 #load "thread.jai";
 #load "vulkan/vulkan.jai";
 #if OS == .WINDOWS {
-    #load "windows.jai";
+    #load "windows/windows.jai";
+    #load "windows/unicode.jai";
 } else {
     notImplemented();
 }

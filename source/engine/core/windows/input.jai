@@ -205,19 +205,22 @@ calcInitialMousePosition :: (window : *Win32Window) {
 }
 
 getRawInputDeviceNames :: (ri_device : HANDLE) -> (device_name : string, manufacturer : string, product_name : string) {
-    device_wide_name   : [MAX_PATH] WCHAR;
-    device_name_length : u32 = device_wide_name.count;
+    utf16_device_name        : [MAX_PATH] WCHAR = ---;
+    utf16_device_name_length : u32 = utf16_device_name.count;
 
-    ri_result := GetRawInputDeviceInfoW(ri_device, RIDI_DEVICENAME, device_wide_name.data, *device_name_length);
+    ri_result := GetRawInputDeviceInfoW(ri_device, RIDI_DEVICENAME, utf16_device_name.data, *utf16_device_name_length);
     assert(ri_result && ri_result != 0xFFFF_FFFF, print_sys_error = true);
 
-    if ri_result < device_name_length then device_name_length = ri_result;
-    device_name := wideToAscii(device_wide_name.data, device_name_length, pushToArena, *context.pet.arenas.per_frame);
+    utf16_device_name_length = min(utf16_device_name_length, ri_result);
+    assert(utf16_device_name_length < utf16_device_name.count);
+    utf16_device_name[utf16_device_name_length] = 0;
+
+    device_name := UTF16ToUTF8(.{ utf16_device_name_length, utf16_device_name.data }, pushToArena, *context.pet.arenas.per_frame);
 
     manufacturer : string;
     product_name : string;
 
-    hid_device := CreateFileW(device_wide_name.data,
+    hid_device := CreateFileW(utf16_device_name.data,
                               FILE_GENERIC_READ & ~FILE_READ_DATA,
                               FILE_SHARE_READ | FILE_SHARE_WRITE,
                               null,
@@ -226,27 +229,39 @@ getRawInputDeviceNames :: (ri_device : HANDLE) -> (device_name : string, manufac
                               null);
 
     if hid_device != INVALID_HANDLE_VALUE {
-        // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/hidsdi/nf-hidsdi-hidd_getmanufacturerstring
-        manufacturer_wide_name : [((1 << 12) - 3) / size_of(WCHAR)] WCHAR;
+        defer debugCheck(CloseHandle(hid_device), print_sys_error = true);
 
-        if HidD_GetManufacturerString(hid_device, manufacturer_wide_name.data, manufacturer_wide_name.count * size_of(WCHAR)) {
-            manufacturer = wideToAscii(manufacturer_wide_name.data, ntStringLength(manufacturer_wide_name), pushToArena, *context.pet.arenas.per_frame);
+        // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/hidsdi/nf-hidsdi-hidd_getmanufacturerstring
+        utf16_manufacturer_name : [((1 << 12) - 3) / size_of(WCHAR)] WCHAR = ---;
+
+        if HidD_GetManufacturerString(hid_device, utf16_manufacturer_name.data, utf16_manufacturer_name.count * size_of(WCHAR)) {
+            utf16_manufacturer_name_length := ntStringLength(utf16_manufacturer_name);
+            assert(utf16_manufacturer_name[utf16_manufacturer_name_length] == 0);
+
+            manufacturer = UTF16ToUTF8(.{ utf16_manufacturer_name_length, utf16_manufacturer_name.data },
+                                       pushToArena,
+                                       *context.pet.arenas.per_frame);
         } else {
             // It seems like when manufacture string does not exist HID returns ERROR_INVALID_USER_BUFFER
             assert(GetLastError() == ERROR_INVALID_USER_BUFFER, print_sys_error = true);
+            warningMessage("HidD_GetManufacturerString", print_sys_error = true);
         }
 
         // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/hidsdi/nf-hidsdi-hidd_getproductstring
-        product_wide_name : [((1 << 12) - 3) / size_of(WCHAR)] WCHAR;
+        utf16_product_name : [((1 << 12) - 3) / size_of(WCHAR)] WCHAR = ---;
 
-        if HidD_GetProductString(hid_device, product_wide_name.data, product_wide_name.count * size_of(WCHAR)) {
-            product_name = wideToAscii(product_wide_name.data, ntStringLength(product_wide_name), pushToArena, *context.pet.arenas.per_frame);
+        if HidD_GetProductString(hid_device, utf16_product_name.data, utf16_product_name.count * size_of(WCHAR)) {
+            utf16_product_name_length := ntStringLength(utf16_product_name);
+            assert(utf16_product_name[utf16_product_name_length] == 0);
+
+            product_name = UTF16ToUTF8(.{ utf16_product_name_length, utf16_product_name.data },
+                                       pushToArena,
+                                       *context.pet.arenas.per_frame);
         } else {
             // It seems like when product string does not exist HID returns ERROR_INVALID_USER_BUFFER
             assert(GetLastError() == ERROR_INVALID_USER_BUFFER, print_sys_error = true);
+            warningMessage("HidD_GetProductString", print_sys_error = true);
         }
-
-        debugCheck(CloseHandle(hid_device), print_sys_error = true);
     } else {
         // Sometimes device names are human readable (does not contain PID, VID, GUID, ...), so CreateFileW cannot find them
         assert(GetLastError() == ERROR_PATH_NOT_FOUND, print_sys_error = true);

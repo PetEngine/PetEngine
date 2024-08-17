@@ -95,6 +95,27 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
                 }
             }
         }
+
+        debugCheckNT :: (expression : Code, $strict := true, location := #caller_location) #expand #no_debug {
+            status := #insert expression;
+
+            STR_EXPRESSION :: #run codeToString(expression);
+
+            if STATUS_SEVERITY(status) == {
+                case STATUS_SEVERITY_INFORMATIONAL;
+                    infoMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) status, location);
+
+                case STATUS_SEVERITY_WARNING;
+                    #if strict {
+                        assertMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) status, location);
+                    } else {
+                        warningMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) status, location);
+                    }
+
+                case STATUS_SEVERITY_ERROR;
+                    assertMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) status, location);
+            }
+        }
     }
 
     debugCheckVK :: (expression : Code, $strict := true, location := #caller_location) #expand #no_debug {
@@ -152,6 +173,10 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
         }
 
         debugCheckHRESULT :: (expression : Code, #discard strict := true, #discard location := #caller_location) #expand #no_debug {
+            #insert expression;
+        }
+
+        debugCheckNT :: (expression : Code, #discard strict := true, #discard location := #caller_location) #expand #no_debug {
             #insert expression;
         }
     }
