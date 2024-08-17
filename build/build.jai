@@ -1,9 +1,9 @@
 #scope_file
 
 BuildArguments :: struct {
-    optimized  : bool;
-    debug_info : bool;
-    verbose    : bool;
+    optimized     : bool;
+    no_debug_info : bool;
+    verbose       : bool;
 }
 
 CONFIG_STRING :: #string END
@@ -77,7 +77,7 @@ END;
                 array_add(*additional_linker_arguments, "/STACK:0x100000,0x100000");
             }
 
-            if !build_arguments.optimized || build_arguments.debug_info {
+            if !build_arguments.optimized || !build_arguments.no_debug_info {
                 array_add(*additional_linker_arguments, "/DEBUG:FULL"); // For RemedyBG
             }
         } else {
@@ -116,7 +116,7 @@ END;
     //
 
     if build_arguments.optimized {
-        set_optimization(*build_options, .VERY_OPTIMIZED, build_arguments.debug_info);
+        set_optimization(*build_options, .VERY_OPTIMIZED, !build_arguments.no_debug_info);
         build_options.backend = .LLVM;
     } else {
         set_optimization(*build_options, .VERY_DEBUG, true);
@@ -179,26 +179,22 @@ END;
 gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     arguments : BuildArguments;
 
-    for command_line_argument : build_options.compile_time_command_line {
-        if command_line_argument == {
-            // @TODO: Use #insert when it will be supported inside 'if == {' block
-            case "optimized";  arguments.optimized  = true;
-            case "debug_info"; arguments.debug_info = true;
-            case "verbose";    arguments.verbose    = true;
-            case;
-                unhandled : bool;
-                for type_info(BuildArguments).members {
-                    if it.name == command_line_argument {
-                        unhandled = true;
-                        break;
-                    }
-                }
+    info := type_info(BuildArguments);
+    assert(info.type == .STRUCT);
 
-                if unhandled {
-                    compiler_report(join("Unhandled command line argument (found in BuildArguments): ", command_line_argument,, allocator = temp));
-                } else {
-                    compiler_report(join("Unknown command line argument: ", command_line_argument,, allocator = temp));
-                }
+    for command_line_argument : build_options.compile_time_command_line {
+        member : *Type_Info_Struct_Member;
+        for * info.members {
+            if it.name == command_line_argument {
+                member = it;
+                break;
+            }
+        }
+
+        if member {
+            (cast(*bool) *arguments + member.offset_in_bytes).* = true;
+        } else {
+            compiler_report(join("Unknown command line argument: ", command_line_argument,, allocator = temp));
         }
     }
 
@@ -327,7 +323,7 @@ XML;
                             latest_version[1],
                             latest_version[2],
                             latest_version[3]);
-        print("Using mt.exe from: \"%\"\n", mt_folder);
+        print("mt.exe location: \"%\"\n", mt_folder);
 
         path_value := to_string(getenv("PATH"));
         if !contains(path_value, mt_folder) {
