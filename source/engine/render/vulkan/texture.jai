@@ -77,8 +77,10 @@ createVulkanTexture :: (texture_ : *Texture, lifetime : ResourceManager.Lifetime
         create_info.sharingMode = .VK_SHARING_MODE_EXCLUSIVE;
     }
 
-    checkCreateInfoLimits(*create_info, textureFormatFlags(texture.format));
-    checkImageProperties(texture, *create_info);
+    #if DEBUG_BUILD {
+        checkCreateInfoLimits(*create_info, textureFormatFlags(texture.format));
+        checkImageProperties(texture, *create_info);
+    }
 
     debugCheckVK(vkCreateImage(device.device, *create_info, null, *texture.image));
 
@@ -91,7 +93,7 @@ createVulkanTexture :: (texture_ : *Texture, lifetime : ResourceManager.Lifetime
     setVulkanObjectName(texture.image, texture.name);
 }
 
-textureFormatToVulkanFormat :: inline (format : Texture.Format) -> VkFormat #no_context {
+textureFormatToVulkanFormat :: inline (format : Texture.Format) -> VkFormat {
     if #complete format == {
         case .UNKNOWN;       return .VK_FORMAT_UNDEFINED;
         case .BGRA8_UNORM;   return .VK_FORMAT_B8G8R8A8_UNORM;
@@ -103,11 +105,13 @@ textureFormatToVulkanFormat :: inline (format : Texture.Format) -> VkFormat #no_
         case .BC7_UNORM;     return .VK_FORMAT_BC7_UNORM_BLOCK;
         case .BC7_SRGB;      return .VK_FORMAT_BC7_SRGB_BLOCK;
     }
+
+    assertMessage("Corrupted Texture.Format value: %", format);
     return .VK_FORMAT_UNDEFINED;
 }
 
-vulkanFormatToTextureFormat :: inline (format : VkFormat) -> Texture.Format #no_context {
-    if #complete format == {
+vulkanFormatToTextureFormat :: inline (format : VkFormat) -> Texture.Format {
+    if format == {
         case .VK_FORMAT_UNDEFINED;                return .UNKNOWN;
         case .VK_FORMAT_B8G8R8A8_UNORM;           return .BGRA8_UNORM;
         case .VK_FORMAT_B8G8R8A8_SNORM;           return .BGRA8_SNORM;
@@ -118,6 +122,8 @@ vulkanFormatToTextureFormat :: inline (format : VkFormat) -> Texture.Format #no_
         case .VK_FORMAT_BC7_UNORM_BLOCK;          return .BC7_UNORM;
         case .VK_FORMAT_BC7_SRGB_BLOCK;           return .BC7_SRGB;
     }
+
+    assertMessage("Unhandled VkFormat value: %", format);
     return .UNKNOWN;
 }
 
@@ -137,7 +143,7 @@ textureUsageToVulkanUsageFlags :: inline (usage : Texture.Usage, $apply_transfer
     return usage_flags;
 }
 
-samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleCountFlags #no_context {
+samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleCountFlags {
     if samples_count == {
         case  1; return .VK_SAMPLE_COUNT_1_BIT;
         case  2; return .VK_SAMPLE_COUNT_2_BIT;
@@ -147,10 +153,12 @@ samplesCountToVulkanSampleCountFlags :: inline (samples_count : u8) -> VkSampleC
         case 32; return .VK_SAMPLE_COUNT_32_BIT;
         case 64; return .VK_SAMPLE_COUNT_64_BIT;
     }
+
+    assertMessage("Invalid samples count value: %", samples_count);
     return .VK_SAMPLE_COUNT_1_BIT;
 }
 
-getVulkanImageAspectFlags :: inline (format : Texture.Format) -> VkImageAspectFlags #no_context {
+getVulkanImageAspectFlags :: inline (format : Texture.Format) -> VkImageAspectFlags {
     if #complete format == {
         case .UNKNOWN;
             return .VK_IMAGE_ASPECT_NONE;
@@ -166,178 +174,178 @@ getVulkanImageAspectFlags :: inline (format : Texture.Format) -> VkImageAspectFl
         case .S8;
             return .VK_IMAGE_ASPECT_STENCIL_BIT;
     }
+
+    assertMessage("Invalid Texture.Format value: %", format);
     return .VK_IMAGE_ASPECT_NONE;
 }
 
 #scope_file
 
-checkCreateInfoLimits :: (create_info : *VkImageCreateInfo, format_flags : Texture.FormatFlags) {
-    device := cast(*VulkanDevice) context.pet.render.device;
+#if DEBUG_BUILD {
+    checkCreateInfoLimits :: (create_info : *VkImageCreateInfo, format_flags : Texture.FormatFlags) {
+        device := cast(*VulkanDevice) context.pet.render.device;
 
-    if #complete create_info.imageType == {
-        case .VK_IMAGE_TYPE_1D;
-            if create_info.extent.width > device.limits.maxImageDimension1D {
-                assertMessage("Device limits do not allow such a huge width for 1D textures. Requested: %, allowed: %",
-                              create_info.extent.width,
-                              device.limits.maxImageDimension1D);
-            }
-
-        case .VK_IMAGE_TYPE_2D;
-            if create_info.flags & .VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT {
-                if create_info.extent.width > device.limits.maxImageDimensionCube {
-                    assertMessage("Device limits do not allow such a huge width for cube textures. Requested: %, allowed: %",
+        if #complete create_info.imageType == {
+            case .VK_IMAGE_TYPE_1D;
+                if create_info.extent.width > device.limits.maxImageDimension1D {
+                    assertMessage("Device limits do not allow such a huge width for 1D textures. Requested: %, allowed: %",
                                   create_info.extent.width,
-                                  device.limits.maxImageDimensionCube);
-                } else if create_info.extent.height > device.limits.maxImageDimensionCube {
-                    assertMessage("Device limits do not allow such a huge height for cube textures. Requested: %, allowed: %",
-                                  create_info.extent.height,
-                                  device.limits.maxImageDimensionCube);
+                                  device.limits.maxImageDimension1D);
                 }
-            } else {
-                if create_info.extent.width > device.limits.maxImageDimension2D {
-                    assertMessage("Device limits do not allow such a huge width for 2D textures. Requested: %, allowed: %",
+
+            case .VK_IMAGE_TYPE_2D;
+                if create_info.flags & .VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT {
+                    if create_info.extent.width > device.limits.maxImageDimensionCube {
+                        assertMessage("Device limits do not allow such a huge width for cube textures. Requested: %, allowed: %",
+                                      create_info.extent.width,
+                                      device.limits.maxImageDimensionCube);
+                    } else if create_info.extent.height > device.limits.maxImageDimensionCube {
+                        assertMessage("Device limits do not allow such a huge height for cube textures. Requested: %, allowed: %",
+                                      create_info.extent.height,
+                                      device.limits.maxImageDimensionCube);
+                    }
+                } else {
+                    if create_info.extent.width > device.limits.maxImageDimension2D {
+                        assertMessage("Device limits do not allow such a huge width for 2D textures. Requested: %, allowed: %",
+                                      create_info.extent.width,
+                                      device.limits.maxImageDimension2D);
+                    } else if create_info.extent.height > device.limits.maxImageDimension2D {
+                        assertMessage("Device limits do not allow such a huge height for 2D textures. Requested: %, allowed: %",
+                                      create_info.extent.height,
+                                      device.limits.maxImageDimension2D);
+                    }
+                }
+
+            case .VK_IMAGE_TYPE_3D;
+                if create_info.extent.width > device.limits.maxImageDimension3D {
+                    assertMessage("Device limits do not allow such a huge width for 3D textures. Requested: %, allowed: %",
                                   create_info.extent.width,
-                                  device.limits.maxImageDimension2D);
-                } else if create_info.extent.height > device.limits.maxImageDimension2D {
-                    assertMessage("Device limits do not allow such a huge height for 2D textures. Requested: %, allowed: %",
+                                  device.limits.maxImageDimension3D);
+                } else if create_info.extent.height > device.limits.maxImageDimension3D {
+                    assertMessage("Device limits do not allow such a huge height for 3D textures. Requested: %, allowed: %",
                                   create_info.extent.height,
-                                  device.limits.maxImageDimension2D);
+                                  device.limits.maxImageDimension3D);
+                } else if create_info.extent.depth > device.limits.maxImageDimension3D {
+                    assertMessage("Device limits do not allow such a huge depth for 3D textures. Requested: %, allowed: %",
+                                  create_info.extent.depth,
+                                  device.limits.maxImageDimension3D);
+                }
+        }
+
+        if create_info.arrayLayers > device.limits.maxImageArrayLayers {
+            assertMessage("Device limits do not allow such a huge number of array layers for textures. Requested: %, allowed: %",
+                          create_info.arrayLayers,
+                          device.limits.maxImageArrayLayers);
+        }
+
+        {
+            if create_info.usage & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT {
+                if (format_flags & .INTEGER) && !(create_info.samples & device.properties12.framebufferIntegerColorSampleCounts) {
+                    assertMessage("Device limits do not allow that number of samples for textures with integer format and color target usage. Requested: %, allowed: %",
+                                  create_info.samples,
+                                  device.properties12.framebufferIntegerColorSampleCounts);
+                } else if !(create_info.samples & device.limits.framebufferColorSampleCounts) {
+                    assertMessage("Device limits do not allow that number of samples for textures with color target usage. Requested: %, allowed: %",
+                                  create_info.samples,
+                                  device.limits.framebufferColorSampleCounts);
                 }
             }
 
-        case .VK_IMAGE_TYPE_3D;
-            if create_info.extent.width > device.limits.maxImageDimension3D {
-                assertMessage("Device limits do not allow such a huge width for 3D textures. Requested: %, allowed: %",
-                              create_info.extent.width,
-                              device.limits.maxImageDimension3D);
-            } else if create_info.extent.height > device.limits.maxImageDimension3D {
-                assertMessage("Device limits do not allow such a huge height for 3D textures. Requested: %, allowed: %",
-                              create_info.extent.height,
-                              device.limits.maxImageDimension3D);
-            } else if create_info.extent.depth > device.limits.maxImageDimension3D {
-                assertMessage("Device limits do not allow such a huge depth for 3D textures. Requested: %, allowed: %",
-                              create_info.extent.depth,
-                              device.limits.maxImageDimension3D);
-            }
-    }
+            if create_info.usage & .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT {
+                if (format_flags & .DEPTH) && !(create_info.samples & device.limits.framebufferDepthSampleCounts) {
+                    assertMessage("Device limits do not allow that number of samples for textures with depth target usage. Requested: %, allowed: %",
+                                  create_info.samples,
+                                  device.limits.framebufferDepthSampleCounts);
+                }
 
-    if create_info.arrayLayers > device.limits.maxImageArrayLayers {
-        assertMessage("Device limits do not allow such a huge number of array layers for textures. Requested: %, allowed: %",
-                      create_info.arrayLayers,
-                      device.limits.maxImageArrayLayers);
-    }
-
-    {
-        if create_info.usage & .VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT {
-            if (format_flags & .INTEGER) && !(create_info.samples & device.properties12.framebufferIntegerColorSampleCounts) {
-                assertMessage("Device limits do not allow that number of samples for textures with integer format and color target usage. Requested: %, allowed: %",
-                              create_info.samples,
-                              device.properties12.framebufferIntegerColorSampleCounts);
-            } else if !(create_info.samples & device.limits.framebufferColorSampleCounts) {
-                assertMessage("Device limits do not allow that number of samples for textures with color target usage. Requested: %, allowed: %",
-                              create_info.samples,
-                              device.limits.framebufferColorSampleCounts);
-            }
-        }
-
-        if create_info.usage & .VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT {
-            if (format_flags & .DEPTH) && !(create_info.samples & device.limits.framebufferDepthSampleCounts) {
-                assertMessage("Device limits do not allow that number of samples for textures with depth target usage. Requested: %, allowed: %",
-                              create_info.samples,
-                              device.limits.framebufferDepthSampleCounts);
+                if (format_flags & .STENCIL) && !(create_info.samples & device.limits.framebufferStencilSampleCounts) {
+                    assertMessage("Device limits do not allow that number of samples for textures with stencil format and depth target usage. Requested: %, allowed: %",
+                                  create_info.samples,
+                                  device.limits.framebufferStencilSampleCounts);
+                }
             }
 
-            if (format_flags & .STENCIL) && !(create_info.samples & device.limits.framebufferStencilSampleCounts) {
-                assertMessage("Device limits do not allow that number of samples for textures with stencil format and depth target usage. Requested: %, allowed: %",
-                              create_info.samples,
-                              device.limits.framebufferStencilSampleCounts);
-            }
-        }
+            if create_info.usage & .VK_IMAGE_USAGE_SAMPLED_BIT {
+                if (format_flags & .COLOR) && !(create_info.samples & device.limits.sampledImageColorSampleCounts) {
+                    assertMessage("Device limits do not allow that number of samples for textures with color format and shader read usage. Requested: %, allowed: %",
+                                  create_info.samples,
+                                  device.limits.sampledImageColorSampleCounts);
+                } else if (format_flags & .DEPTH) && !(create_info.samples & device.limits.sampledImageDepthSampleCounts) {
+                    assertMessage("Device limits do not allow that number of samples for textures with depth format and shader read usage. Requested: %, allowed: %",
+                                  create_info.samples,
+                                  device.limits.sampledImageDepthSampleCounts);
+                }
 
-        if create_info.usage & .VK_IMAGE_USAGE_SAMPLED_BIT {
-            if (format_flags & .COLOR) && !(create_info.samples & device.limits.sampledImageColorSampleCounts) {
-                assertMessage("Device limits do not allow that number of samples for textures with color format and shader read usage. Requested: %, allowed: %",
-                              create_info.samples,
-                              device.limits.sampledImageColorSampleCounts);
-            } else if (format_flags & .DEPTH) && !(create_info.samples & device.limits.sampledImageDepthSampleCounts) {
-                assertMessage("Device limits do not allow that number of samples for textures with depth format and shader read usage. Requested: %, allowed: %",
-                              create_info.samples,
-                              device.limits.sampledImageDepthSampleCounts);
+                if (format_flags & .INTEGER) && !(create_info.samples & device.limits.sampledImageIntegerSampleCounts) {
+                    assertMessage("Device limits do not allow that number of samples for textures with integer format and shader read usage. Requested: %, allowed: %",
+                                  create_info.samples,
+                                  device.limits.sampledImageIntegerSampleCounts);
+                }
             }
 
-            if (format_flags & .INTEGER) && !(create_info.samples & device.limits.sampledImageIntegerSampleCounts) {
-                assertMessage("Device limits do not allow that number of samples for textures with integer format and shader read usage. Requested: %, allowed: %",
-                              create_info.samples,
-                              device.limits.sampledImageIntegerSampleCounts);
-            }
-        }
-
-        if create_info.usage & .VK_IMAGE_USAGE_STORAGE_BIT {
-            if !(create_info.samples & device.limits.storageImageSampleCounts) {
-                assertMessage("Device limits do not allow that number of samples for textures with shader write usage. Requested: %, allowed: %",
-                              create_info.samples,
-                              device.limits.storageImageSampleCounts);
+            if create_info.usage & .VK_IMAGE_USAGE_STORAGE_BIT {
+                if !(create_info.samples & device.limits.storageImageSampleCounts) {
+                    assertMessage("Device limits do not allow that number of samples for textures with shader write usage. Requested: %, allowed: %",
+                                  create_info.samples,
+                                  device.limits.storageImageSampleCounts);
+                }
             }
         }
     }
-}
 
-checkImageProperties :: (texture : *VulkanTexture, create_info : *VkImageCreateInfo) {
-    device := cast(*VulkanDevice) context.pet.render.device;
+    checkImageProperties :: (texture : *VulkanTexture, create_info : *VkImageCreateInfo) {
+        device := cast(*VulkanDevice) context.pet.render.device;
 
-    image_format_info := VkPhysicalDeviceImageFormatInfo2.{
-        format = create_info.format,
-        type   = create_info.imageType,
-        tiling = create_info.tiling,
-        usage  = create_info.usage,
-        flags  = create_info.flags
-    };
+        image_format_info := VkPhysicalDeviceImageFormatInfo2.{
+            format = create_info.format,
+            type   = create_info.imageType,
+            tiling = create_info.tiling,
+            usage  = create_info.usage,
+            flags  = create_info.flags
+        };
 
-    image_format_properties : VkImageFormatProperties2;
+        image_format_properties : VkImageFormatProperties2;
+        result := vkGetPhysicalDeviceImageFormatProperties2(device.physical_device, *image_format_info, *image_format_properties);
 
-    result := vkGetPhysicalDeviceImageFormatProperties2(device.physical_device, *image_format_info, *image_format_properties);
+        if result == .VK_ERROR_FORMAT_NOT_SUPPORTED {
+            assertMessage("Texture \"%\": format % (%) is not supported", texture.name, texture.format, create_info.format);
+        } else {
+            assert(result == .VK_SUCCESS, "Texture \"%\": vkGetPhysicalDeviceImageFormatProperties2 returned %", texture.name, result);
+        }
 
-    if result == .VK_ERROR_FORMAT_NOT_SUPPORTED {
-        assertMessage("Texture \"%\": format % (%) is not supported", texture.name, texture.format, create_info.format);
-    } else {
-        assert(result == .VK_SUCCESS,
-               "Texture \"%\": vkGetPhysicalDeviceImageFormatProperties2 returned %",
-               texture.name,
-               result);
-    }
+        if create_info.extent.width  > image_format_properties.imageFormatProperties.maxExtent.width
+        || create_info.extent.height > image_format_properties.imageFormatProperties.maxExtent.height
+        || create_info.extent.depth  > image_format_properties.imageFormatProperties.maxExtent.depth {
+            assertMessage("Texture \"%\": image extent [% x % x %] is too big for this texture, max supported is [% x % x %]",
+                          texture.name,
+                          create_info.extent.width,
+                          create_info.extent.height,
+                          create_info.extent.depth,
+                          image_format_properties.imageFormatProperties.maxExtent.width,
+                          image_format_properties.imageFormatProperties.maxExtent.height,
+                          image_format_properties.imageFormatProperties.maxExtent.depth);
+        }
 
-    if create_info.extent.width  > image_format_properties.imageFormatProperties.maxExtent.width
-    || create_info.extent.height > image_format_properties.imageFormatProperties.maxExtent.height
-    || create_info.extent.depth  > image_format_properties.imageFormatProperties.maxExtent.depth {
-        assertMessage("Texture \"%\": image extent [% x % x %] is too big for this texture, max supported is [% x % x %]",
-                      texture.name,
-                      create_info.extent.width,
-                      create_info.extent.height,
-                      create_info.extent.depth,
-                      image_format_properties.imageFormatProperties.maxExtent.width,
-                      image_format_properties.imageFormatProperties.maxExtent.height,
-                      image_format_properties.imageFormatProperties.maxExtent.depth);
-    }
+        if create_info.mipLevels > image_format_properties.imageFormatProperties.maxMipLevels {
+            assertMessage("Texture \"%\": number of mip levels (%) is too high for this texture, max supported is %",
+                          texture.name,
+                          create_info.mipLevels,
+                          image_format_properties.imageFormatProperties.maxMipLevels);
+        }
 
-    if create_info.mipLevels > image_format_properties.imageFormatProperties.maxMipLevels {
-        assertMessage("Texture \"%\": number of mip levels (%) is too high for this texture, max supported is %",
-                      texture.name,
-                      create_info.mipLevels,
-                      image_format_properties.imageFormatProperties.maxMipLevels);
-    }
+        if create_info.arrayLayers > image_format_properties.imageFormatProperties.maxArrayLayers {
+            assertMessage("Texture \"%\": number of array layers (%) is too high for this texture, max supported is %",
+                          texture.name,
+                          create_info.arrayLayers,
+                          image_format_properties.imageFormatProperties.maxArrayLayers);
+        }
 
-    if create_info.arrayLayers > image_format_properties.imageFormatProperties.maxArrayLayers {
-        assertMessage("Texture \"%\": number of array layers (%) is too high for this texture, max supported is %",
-                      texture.name,
-                      create_info.arrayLayers,
-                      image_format_properties.imageFormatProperties.maxArrayLayers);
-    }
-
-    if !(image_format_properties.imageFormatProperties.sampleCounts & create_info.samples) {
-        assertMessage("Texture \"%\": % samples is not supported for this texture. Supported sample count mask: %",
-                      texture.name,
-                      create_info.samples,
-                      image_format_properties.imageFormatProperties.sampleCounts);
+        if !(image_format_properties.imageFormatProperties.sampleCounts & create_info.samples) {
+            assertMessage("Texture \"%\": % samples is not supported for this texture. Supported sample count mask: %",
+                          texture.name,
+                          create_info.samples,
+                          image_format_properties.imageFormatProperties.sampleCounts);
+        }
     }
 }
 

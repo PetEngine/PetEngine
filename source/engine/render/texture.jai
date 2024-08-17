@@ -170,7 +170,7 @@ createTexture :: (
     return texture;
 }
 
-textureFormatFlags :: (format : Texture.Format) -> Texture.FormatFlags #no_context {
+textureFormatFlags :: (format : Texture.Format) -> Texture.FormatFlags {
     if #complete format == {
         case .UNKNOWN;       return 0;
         case .BGRA8_UNORM;   return .UNCOMPRESSED | .COLOR;
@@ -182,13 +182,15 @@ textureFormatFlags :: (format : Texture.Format) -> Texture.FormatFlags #no_conte
         case .BC7_UNORM;     return .COMPRESSED   | .COLOR;
         case .BC7_SRGB;      return .COMPRESSED   | .COLOR   | .SRGB;
     }
+
+    assertMessage("Invalid Texture.Format value: %", format);
     return 0;
 }
 
 #scope_file
 
 // We may not to check for all_bits != 0 since we have assert for width > 0 in createTexture
-maxMipsCount :: (width : u16, height : u16, depth : u16) -> u8 #no_context {
+maxMipsCount :: inline (width : u16, height : u16, depth : u16) -> u8 #no_context {
     all_bits := width | height | depth;
     max_mips : u16 = 0;
     #if CPU == .X64 {

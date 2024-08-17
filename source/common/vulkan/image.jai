@@ -18,6 +18,8 @@ VK_LOD_CLAMP_NONE : f32 : 1000.0;
 // Provided by VK_VERSION_1_0
 VkFormat :: enum VkEnum #specified {
     VK_FORMAT_UNDEFINED                :: 0;
+    VK_FORMAT_R8G8B8A8_UNORM           :: 37;
+    VK_FORMAT_R8G8B8A8_SRGB            :: 43;
     VK_FORMAT_B8G8R8A8_UNORM           :: 44;
     VK_FORMAT_B8G8R8A8_SNORM           :: 45;
     VK_FORMAT_B8G8R8A8_SRGB            :: 50;
