@@ -161,7 +161,7 @@ reloadShader :: (filename : string) {
 }
 
 recompileOutOfDateShaders :: inline (hot_reload : *ShadersHotReload) {
-    enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, source_file_info : *FileInfo) -> EnumerateFilesCallbackResult {
+    enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, source_file_info : *File.Info) -> EnumerateFilesCallbackResult {
         if String.path_extension(source_file_info.name) != "shader" {
             return .CONTINUE;
         }

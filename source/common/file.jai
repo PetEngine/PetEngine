@@ -46,6 +46,24 @@ File :: struct {
         SHARED_ACCESS_VIOLATION;
     }
 
+    Info :: struct {
+        name             : string;
+        creation_time    : Basic.Apollo_Time;
+        last_access_time : Basic.Apollo_Time;
+        last_write_time  : Basic.Apollo_Time;
+        size             : u64;
+        attributes       : enum_flags u8 {
+            READ_ONLY;
+            HIDDEN;
+            SYSTEM;
+            ARCHIVE;
+            DIRECTORY;
+            DEVICE;
+            TEMPORARY;
+            SYMLINK;
+        };
+    }
+
     #if OS == .WINDOWS {
         handle : HANDLE = INVALID_HANDLE_VALUE;
     }
@@ -53,73 +71,28 @@ File :: struct {
 
 // create_path_if_does_not_exist have sense only if you do NOT specify EXISTS flag.
 openFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exist := false) -> (File #must, File.Error #must) {
-    assert(filename.count <= File.MAX_FILENAME_LENGTH, "Too long filename (length = %), max allowed: %", filename.count, File.MAX_FILENAME_LENGTH);
-
-    file : File;
+    assertFileNameLength(filename);
 
     #if OS == .WINDOWS {
-        wide_filename : [] WCHAR = ---;
-        wide_filename.data = pushToArena(*context.pet.arenas.per_frame, WCHAR, filename.count + 1);
-        asciiToWide(*wide_filename, filename, true);
-
-        desired_access, shared_access, creation_disposition, flags_and_attributes := flagsToWin32Flags(flags);
-
-        file.handle = CreateFileW(wide_filename.data, desired_access, shared_access, null, creation_disposition, flags_and_attributes, null);
-        if file.handle == INVALID_HANDLE_VALUE {
-            if GetLastError() == {
-                case ERROR_FILE_NOT_FOUND;
-                    assert(flags & .EXISTS);
-                    errorMessage("File \"%\" was tried to be opened with flag EXISTS but it does not exist", filename);
-                    return file, .FILE_NOT_FOUND;
-
-                case ERROR_PATH_NOT_FOUND;
-                    #if create_path_if_does_not_exist {
-                        warningMessage("Path to file \"%\" does not exist, so it will be created", filename);
-
-                        createPathForFilename(*wide_filename);
-
-                        file.handle = CreateFileW(wide_filename.data, desired_access, shared_access, null, creation_disposition, flags_and_attributes, null);
-                        if file.handle == INVALID_HANDLE_VALUE {
-                            errorMessage("File \"%\" cannot be opened", filename, print_sys_error = true);
-                            return file, .UNHANDLED;
-                        }
-                    } else {
-                        return file, .PATH_NOT_FOUND;
-                    }
-
-                case ERROR_SHARING_VIOLATION;
-                    return file, .SHARED_ACCESS_VIOLATION;
-
-                case ERROR_FILE_EXISTS;
-                    assert(flags & .NEW);
-                    errorMessage("File \"%\" was tried to be opened with flag NEW which guarantees that file does not exist, but it does exist",
-                                 filename);
-                    return file, .ALREADY_EXISTS;
-
-                case;
-                    errorMessage("File \"%\" cannot be opened", filename, print_sys_error = true);
-                    return file, .UNHANDLED;
-            }
-        }
+        file, error := openWindowsFile(filename, flags, create_path_if_does_not_exist);
     } else {
         notImplemented();
     }
 
-    return file, .NONE;
+    return file, error;
 }
 
 closeFile :: (file : *File) {
     #if OS == .WINDOWS {
-        debugCheck(CloseHandle(file.handle), print_sys_error = true);
-        file.handle = INVALID_HANDLE_VALUE;
+        closeWindowsFile(file);
     } else {
         notImplemented();
     }
 }
 
-readFile :: (file : File, data : *void, bytes : s64) {
+readFile :: (file : File, buffer : *void, bytes : s64) {
     #if OS == .WINDOWS {
-        debugCheck(ReadFile(file.handle, data, cast(u32) bytes, null, null), print_sys_error = true);
+        readWindowsFile(file, buffer, bytes);
     } else {
         notImplemented();
     }
@@ -147,7 +120,7 @@ readEntireFile :: (
     file, error := openFile(filename, .READ | .SHARED_READ | .EXISTS | .SEQ);
 
     if error == .NONE {
-        buffer.count = fileSize(file);
+        buffer.count = getFileSize(file);
 
         if buffer.count > 0 {
             buffer.data = allocate(user_data, buffer.count, DEFAULT_CACHE_LINE_SIZE);
@@ -162,25 +135,25 @@ readEntireFile :: (
 
 writeFile :: (file : File, data : *void, bytes : s64) {
     #if OS == .WINDOWS {
-        debugCheck(WriteFile(file.handle, data, cast(u32) bytes, null, null), print_sys_error = true);
+        writeWindowsFile(file, data, bytes);
     } else {
         notImplemented();
     }
 }
 
-writeFile :: inline (file : File, buffer : string) {
-    writeFile(file, buffer.data, buffer.count);
+writeFile :: inline (file : File, data : string) {
+    writeFile(file, data.data, data.count);
 }
 
-writeFile :: inline (file : File, buffer : [] $T) {
-    writeFile(file, buffer.data, buffer.count * size_of(T));
+writeFile :: inline (file : File, data : [] $T) {
+    writeFile(file, data.data, data.count * size_of(T));
 }
 
-fileSize :: (file : File) -> s64 {
+getFileSize :: (file : File) -> s64 {
     file_size : s64;
 
     #if OS == .WINDOWS {
-        debugCheck(GetFileSizeEx(file.handle, cast(*LARGE_INTEGER) *file_size), print_sys_error = true);
+        file_size = getWindowsFileSize(file);
     } else {
         notImplemented();
     }
@@ -192,30 +165,12 @@ getFileCursorPosition :: (file : File) -> s64 {
     cursor_position : s64;
 
     #if OS == .WINDOWS {
-        debugCheck(SetFilePointerEx(file.handle, .{}, cast(*LARGE_INTEGER) *cursor_position, FILE_CURRENT), print_sys_error = true);
+        cursor_position = getWindowsFileCursorPosition(file);
     } else {
         notImplemented();
     }
 
     return cursor_position;
-}
-
-FileInfo :: struct {
-    name             : string;
-    creation_time    : Basic.Apollo_Time;
-    last_access_time : Basic.Apollo_Time;
-    last_write_time  : Basic.Apollo_Time;
-    size             : u64;
-    attributes       : enum_flags u8 {
-        READ_ONLY;
-        HIDDEN;
-        SYSTEM;
-        ARCHIVE;
-        DIRECTORY;
-        DEVICE;
-        TEMPORARY;
-        SYMLINK;
-    };
 }
 
 // @TODO: #Naming. Shorter name?
@@ -226,13 +181,15 @@ EnumerateFilesCallbackResult :: enum u8 {
 
 enumerateFiles :: inline (
     $$directory       : string,
-    callback          : (user_data : *$T, file_info : *FileInfo) -> EnumerateFilesCallbackResult,
+    callback          : (user_data : *$T, file_info : *File.Info) -> EnumerateFilesCallbackResult,
     user_data         : *T,
     $case_sensitive   := true,
     $recursively      := false,
     $skip_directories := true,
     $skip_symlinks    := true
 ) {
+    assertFileNameLength(directory);
+
     #if OS == .WINDOWS {
         enumerateWindowsFiles(directory, callback, user_data, case_sensitive, recursively, skip_directories, skip_symlinks);
     } else {
@@ -240,51 +197,45 @@ enumerateFiles :: inline (
     }
 }
 
-// @TODO: getFileInfo :: (file : File) -> (FileInfo, File.Error);
-getFileInfo :: (filename : string) -> (FileInfo, File.Error) {
-    assert(filename.count <= File.MAX_FILENAME_LENGTH, "Too long filename (length = %), max allowed: %", filename.count, File.MAX_FILENAME_LENGTH);
+getFileInfo :: (filename : string) -> (File.Info, File.Error) {
+    assertFileNameLength(filename);
 
-    file_info := FileInfo.{ name = filename };
+    file_info : File.Info = ---;
+    file_info.name = filename;
 
     #if OS == .WINDOWS {
-        wide_filename : [File.MAX_FILENAME_LENGTH + 1] WCHAR = ---;
-        asciiToWide(*wide_filename, filename, true);
-
-        attribute_data : WIN32_FILE_ATTRIBUTE_DATA = ---;
-        if !GetFileAttributesExW(wide_filename.data, .GetFileExInfoStandard, *attribute_data) {
-            file_error : File.Error = ---;
-
-            if GetLastError() == {
-                case ERROR_FILE_NOT_FOUND;    file_error = .FILE_NOT_FOUND;
-                case ERROR_PATH_NOT_FOUND;    file_error = .PATH_NOT_FOUND;
-                case ERROR_SHARING_VIOLATION; file_error = .SHARED_ACCESS_VIOLATION;
-                case;
-                    errorMessage("GetFileAttributesExW failed for file \"%\"", filename, print_sys_error = true);
-                    file_error = .UNHANDLED;
-            }
-
-            return file_info, file_error;
-        }
-
-        gatherFileInfo(*file_info, *attribute_data);
+        error := getWindowsFileInfo(*file_info);
     } else {
         notImplemented();
     }
 
-    return file_info, .NONE;
+    return file_info, error;
+}
+
+getFileInfo :: (file : File) -> (File.Info, File.Error) {
+    file_info : File.Info = ---;
+
+    #if OS == .WINDOWS {
+        error := getWindowsFileInfo(file, *file_info);
+    } else {
+        notImplemented();
+    }
+
+    return file_info, error;
 }
 
 fileExists :: (filename : string) -> bool {
-    #if OS == .WINDOWS {
-        wide_filename : [File.MAX_FILENAME_LENGTH + 1] WCHAR = ---;
-        asciiToWide(*wide_filename, filename, true);
+    assertFileNameLength(filename);
 
-        // PathFileExists just does "return GetFileAttributes(filename) != INVALID_FILE_ATTRIBUTES;",
-        // so we won't use it as it requires one more library to link
-        return GetFileAttributesW(wide_filename.data) != INVALID_FILE_ATTRIBUTES;
+    exists : bool;
+
+    #if OS == .WINDOWS {
+        exists = windowsFileExists(filename);
     } else {
         notImplemented();
     }
+
+    return exists;
 }
 
 getAbsolutePath :: (
@@ -292,19 +243,12 @@ getAbsolutePath :: (
     allocate      : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
     user_data     : *T
 ) -> string {
-    assert(relative_path.count <= File.MAX_FILENAME_LENGTH, "Too long relative path (length = %), max allowed: %", relative_path.count, File.MAX_FILENAME_LENGTH);
+    assertFileNameLength(relative_path);
 
     abosulte_path : string;
 
     #if OS == .WINDOWS {
-        wide_relative_path : [File.MAX_FILENAME_LENGTH + 1] WCHAR = ---;
-        asciiToWide(*wide_relative_path, relative_path, true);
-
-        wide_absolute_path : [File.MAX_FILENAME_LENGTH + 1] WCHAR;
-        absolute_path_length := GetFullPathNameW(wide_relative_path.data, wide_absolute_path.count, wide_absolute_path.data, null);
-        assert(absolute_path_length, print_sys_error = true);
-
-        abosulte_path = wideToAscii(wide_absolute_path.data, absolute_path_length, allocate, user_data);
+        abosulte_path = getWindowsAbsolutePath(relative_path, allocate, user_data);
     } else {
         notImplemented();
     }
@@ -312,20 +256,13 @@ getAbsolutePath :: (
     return abosulte_path;
 }
 
-getAbsolutePath :: (absolute_path_buffer : [] u8, relative_path : string) -> string {
-    assert(relative_path.count <= File.MAX_FILENAME_LENGTH, "Too long relative path (length = %), max allowed: %", relative_path.count, File.MAX_FILENAME_LENGTH);
+getAbsolutePath :: (absolute_path_buffer : *[$capacity] u8, relative_path : string) -> string {
+    assertFileNameLength(relative_path);
 
     absolute_path := string.{ data = absolute_path_buffer.data };
 
     #if OS == .WINDOWS {
-        wide_relative_path : [File.MAX_FILENAME_LENGTH + 1] WCHAR = ---;
-        asciiToWide(*wide_relative_path, relative_path, true);
-
-        wide_absolute_path : [File.MAX_FILENAME_LENGTH + 1] WCHAR;
-        absolute_path.count = GetFullPathNameW(wide_relative_path.data, wide_absolute_path.count, wide_absolute_path.data, null);
-        assert(absolute_path.count > 0, print_sys_error = true);
-
-        wideToAscii(*absolute_path, absolute_path_buffer.count, wide_absolute_path.data, absolute_path.count);
+        absolute_path.count = getWindowsAbsolutePath(absolute_path_buffer, relative_path);
     } else {
         notImplemented();
     }
@@ -335,262 +272,26 @@ getAbsolutePath :: (absolute_path_buffer : [] u8, relative_path : string) -> str
 
 #scope_file
 
+assertFileNameLength :: ($$filename : string, location := #caller_location) #expand #no_debug {
+    #if is_constant(filename) {
+        #run assert(filename.count <= File.MAX_FILENAME_LENGTH,
+                    "Filename \"%\" is too long: %, max allowed: %",
+                    filename,
+                    filename.count,
+                    File.MAX_FILENAME_LENGTH,
+                    location = location);
+    } else {
+        assert(filename.count <= File.MAX_FILENAME_LENGTH,
+               "Filename \"%\" is too long: %, max allowed: %",
+               filename,
+               filename.count,
+               File.MAX_FILENAME_LENGTH,
+               location = location);
+    }
+}
+
 #if OS == .WINDOWS {
-    flagsToWin32Flags :: (flags : File.Flags) -> (
-        desired_access       : u32,
-        shared_access        : u32,
-        creation_disposition : u32,
-        flags_and_attributes : u32
-    ) {
-        assert(flags & (.READ | .WRITE), "A file must be opened with READ and/or WRITE flags");
-
-        desired_access       : u32;
-        shared_access        : u32;
-        creation_disposition : u32;
-        flags_and_attributes : u32 = FILE_ATTRIBUTE_NORMAL;
-
-        // @Important: Until we do not use remote files we are good, but when we will, we should use GENERIC_READ | GENERIC_WRITE
-        //             instead of just GENERIC_WRITE:
-        //             https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew#:~:text=When%20an%20application%20creates,occasionally%20return%20ERROR_ACCESS_DENIED.&text=When%20an%20application%20creates,occasionally%20return%20ERROR_ACCESS_DENIED.
-        if flags & .READ  desired_access |= GENERIC_READ;
-        if flags & .WRITE desired_access |= GENERIC_WRITE;
-
-        if flags & .SHARED_READ   shared_access |= FILE_SHARE_READ;
-        if flags & .SHARED_WRITE  shared_access |= FILE_SHARE_WRITE;
-        if flags & .SHARED_DELETE shared_access |= FILE_SHARE_DELETE;
-
-        // CREATE_NEW        - if (exists) fails,     ERROR_FILE_EXISTS    else creates
-        // CREATE_ALWAYS     - if (exists) truncates, ERROR_ALREADY_EXISTS else creates
-        // OPEN_EXISTING     - if (exists) succeeds                        else fails,  ERROR_FILE_NOT_FOUND
-        // OPEN_ALWAYS       - if (exists) succeeds,  ERROR_ALREADY_EXISTS else creates
-        // TRUNCATE_EXISTING - if (exists) truncates                       else fails,  ERROR_FILE_NOT_FOUND. Must have GENERIC_WRITE.
-        if flags & .EXISTS {
-            if flags & .TRUNCATE {
-                assert(flags & .WRITE, "For truncating an existing file, you have to open it with the write access");
-                creation_disposition = TRUNCATE_EXISTING;
-            } else {
-                creation_disposition = OPEN_EXISTING;
-            }
-        } else if flags & .NEW {
-            if !(flags & .WRITE) {
-                warningMessage("You are going to create a new file, but without write access to it. Is that on purpose?");
-            }
-            creation_disposition = CREATE_NEW;
-        } else if flags & .TRUNCATE {
-            creation_disposition = CREATE_ALWAYS;
-        } else {
-            creation_disposition = OPEN_ALWAYS;
-        }
-
-        if flags & .RAND {
-            flags_and_attributes |= FILE_FLAG_RANDOM_ACCESS;
-        } else if flags & .SEQ {
-            flags_and_attributes |= FILE_FLAG_SEQUENTIAL_SCAN;
-        }
-
-        if flags & .TEMP {
-            assert(flags & .SHARED_DELETE, "For temporary files shared delete access is required");
-            flags_and_attributes |= FILE_ATTRIBUTE_TEMPORARY
-                                 |  FILE_FLAG_DELETE_ON_CLOSE;
-        }
-
-        if flags & .FLUSH {
-            flags_and_attributes |= FILE_FLAG_WRITE_THROUGH;
-        }
-
-        // FILE_ATTRIBUTE_NORMAL is valid only when used alone
-        if flags_and_attributes & ~FILE_ATTRIBUTE_NORMAL {
-            flags_and_attributes &= ~FILE_ATTRIBUTE_NORMAL;
-        }
-
-        return desired_access, shared_access, creation_disposition, flags_and_attributes;
-    }
-
-    createPathForFilename :: (wide_filename : *[] WCHAR) {
-        for * < wide_filename.* {
-            if it.* == #char "/" || it.* == #char "\\" {
-                old_symbol := it.*;
-                old_length := wide_filename.count;
-
-                it.*                = 0;
-                wide_filename.count = it_index;
-
-                if CreateDirectoryW(wide_filename.data, null) {
-                    wide_filename.count = old_length;
-                    it.*                = old_symbol;
-                } else {
-                    assert(GetLastError() == ERROR_PATH_NOT_FOUND, print_sys_error = true);
-
-                    createPathForFilename(wide_filename);
-
-                    wide_filename.count = old_length;
-                    it.*                = old_symbol;
-
-                    debugCheck(CreateDirectoryW(wide_filename.data, null), print_sys_error = true);
-                }
-
-                break;
-            }
-        }
-    }
-
-    enumerateWindowsFiles :: (
-        $$directory       : string,
-        callback          : (user_data : *$T, file_info : *FileInfo) -> EnumerateFilesCallbackResult,
-        user_data         : *T,
-        $case_sensitive   : bool,
-        $recursively      : bool,
-        $skip_directories : bool,
-        $skip_symlinks    : bool
-    ) -> EnumerateFilesCallbackResult {
-        #if is_constant(directory) {
-            #run assert(directory.count <= File.MAX_FILENAME_LENGTH, "Too long directory path (length = %), max allowed: %", directory.count, File.MAX_FILENAME_LENGTH);
-        } else {
-            assert(directory.count <= File.MAX_FILENAME_LENGTH, "Too long directory path (length = %), max allowed: %", directory.count, File.MAX_FILENAME_LENGTH);
-        }
-
-        wide_wildcard : [File.MAX_FILENAME_LENGTH + 1] WCHAR = ---;
-        asciiToWide(*wide_wildcard, directory, false);
-
-        #if is_constant(directory) {
-            #if directory[directory.count - 1] == #char "/" {
-                wide_wildcard[directory.count + 0] = #char "*";
-                wide_wildcard[directory.count + 1] = 0;
-            } else {
-                wide_wildcard[directory.count + 0] = #char "/";
-                wide_wildcard[directory.count + 1] = #char "*";
-                wide_wildcard[directory.count + 2] = 0;
-            }
-        } else {
-            if directory[directory.count - 1] == #char "/" {
-                wide_wildcard[directory.count + 0] = #char "*";
-                wide_wildcard[directory.count + 1] = 0;
-            } else {
-                wide_wildcard[directory.count + 0] = #char "/";
-                wide_wildcard[directory.count + 1] = #char "*";
-                wide_wildcard[directory.count + 2] = 0;
-            }
-        }
-
-        additional_flags := FIND_FIRST_EX_LARGE_FETCH;
-        #if case_sensitive additional_flags |= FIND_FIRST_EX_CASE_SENSITIVE;
-
-        find_data : WIN32_FIND_DATAW;
-        find_file := FindFirstFileExW(wide_wildcard.data, .FindExInfoBasic, *find_data, .FindExSearchNameMatch, null, additional_flags);
-        assert(find_file != INVALID_HANDLE_VALUE, print_sys_error = true);
-
-        filename_buffer : [File.MAX_FILENAME_LENGTH + 1] u8;
-
-        file_info : FileInfo;
-        file_info.name.data = filename_buffer.data;
-
-        result : EnumerateFilesCallbackResult = .CONTINUE;
-        while true {
-            wideToAscii(*file_info.name, filename_buffer.count, find_data.cFileName.data, ntStringLength(find_data.cFileName));
-
-            // Make file_info.name "<directory>/<relative_name>"
-            assert(directory.count + 1 + file_info.name.count <= filename_buffer.count);
-            memcpy(file_info.name.data + directory.count + 1, file_info.name.data, file_info.name.count);
-            memcpy(file_info.name.data, directory.data, directory.count);
-            file_info.name.count += directory.count + 1;
-            #no_abc { file_info.name[directory.count] = #char "/"; }
-
-            relative_name := string.{ file_info.name.count - (directory.count + 1), *file_info.name[directory.count + 1] };
-
-            if find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY {
-                if relative_name != "." && relative_name != ".." {
-                    #if !skip_directories {
-                        gatherFileInfo(*file_info, *find_data, true);
-
-                        #if skip_symlinks {
-                            if !(file_info.attributes & .SYMLINK) {
-                                result = callback(user_data, *file_info);
-                                if result == .BREAK break;
-                            }
-                        } else {
-                            result = callback(user_data, *file_info);
-                            if result == .BREAK break;
-                        }
-                    }
-
-                    #if recursively {
-                        result = enumerateWindowsFiles(file_info.name,
-                                                       callback,
-                                                       user_data,
-                                                       case_sensitive,
-                                                       recursively,
-                                                       skip_directories,
-                                                       skip_symlinks);
-                        if result == .BREAK break;
-                    }
-                }
-            } else {
-                gatherFileInfo(*file_info, *find_data, false);
-
-                #if skip_symlinks {
-                    if !(file_info.attributes & .SYMLINK) {
-                        result = callback(user_data, *file_info);
-                        if result == .BREAK break;
-                    }
-                } else {
-                    result = callback(user_data, *file_info);
-                    if result == .BREAK break;
-                }
-            }
-
-            if !FindNextFileW(find_file, *find_data) {
-                assert(GetLastError() == ERROR_NO_MORE_FILES, print_sys_error = true);
-                break;
-            }
-        }
-
-        debugCheck(FindClose(find_file), print_sys_error = true);
-        return result;
-    }
-
-    gatherFileInfo :: (file_info : *FileInfo, find_data : *WIN32_FIND_DATAW, $is_directory : bool) {
-        file_info.creation_time    = Basic.filetime_to_apollo(xx find_data.ftCreationTime);
-        file_info.last_access_time = Basic.filetime_to_apollo(xx find_data.ftLastAccessTime);
-        file_info.last_write_time  = Basic.filetime_to_apollo(xx find_data.ftLastWriteTime);
-
-        file_info.size = (cast(u64) find_data.nFileSizeHigh << 32) | find_data.nFileSizeLow;
-
-        file_info.attributes = 0;
-        if find_data.dwFileAttributes & FILE_ATTRIBUTE_READONLY then file_info.attributes |= .READ_ONLY;
-        if find_data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN   then file_info.attributes |= .HIDDEN;
-        if find_data.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM   then file_info.attributes |= .SYSTEM;
-        if find_data.dwFileAttributes & FILE_ATTRIBUTE_ARCHIVE  then file_info.attributes |= .ARCHIVE;
-
-        #if is_directory {
-            file_info.attributes |= .DIRECTORY;
-        }
-
-        if find_data.dwFileAttributes & FILE_ATTRIBUTE_DEVICE    then file_info.attributes |= .DEVICE;
-        if find_data.dwFileAttributes & FILE_ATTRIBUTE_TEMPORARY then file_info.attributes |= .TEMPORARY;
-
-        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) && find_data.dwReserved0 == IO_REPARSE_TAG_SYMLINK {
-            file_info.attributes |= .SYMLINK;
-        }
-    }
-
-    gatherFileInfo :: (file_info : *FileInfo, attribute_data : *WIN32_FILE_ATTRIBUTE_DATA) {
-        file_info.creation_time    = Basic.filetime_to_apollo(xx attribute_data.ftCreationTime);
-        file_info.last_access_time = Basic.filetime_to_apollo(xx attribute_data.ftLastAccessTime);
-        file_info.last_write_time  = Basic.filetime_to_apollo(xx attribute_data.ftLastWriteTime);
-
-        file_info.size = (cast(u64) attribute_data.nFileSizeHigh << 32) | attribute_data.nFileSizeLow;
-
-        file_info.attributes = 0;
-        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_READONLY  then file_info.attributes |= .READ_ONLY;
-        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN    then file_info.attributes |= .HIDDEN;
-        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM    then file_info.attributes |= .SYSTEM;
-        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_ARCHIVE   then file_info.attributes |= .ARCHIVE;
-        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY then file_info.attributes |= .DIRECTORY;
-        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_DEVICE    then file_info.attributes |= .DEVICE;
-        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_TEMPORARY then file_info.attributes |= .TEMPORARY;
-
-        if attribute_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT {
-            file_info.attributes |= .SYMLINK;
-        }
-    }
+    #load "windows/file.jai";
+} else {
+    notImplemented();
 }

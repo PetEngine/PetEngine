@@ -1117,6 +1117,70 @@ GetFileAttributesW :: (
     lpFileName : LPCWSTR
 ) -> u32 #foreign kernel32;
 
+BY_HANDLE_FILE_INFORMATION :: struct {
+    dwFileAttributes     : u32;
+    ftCreationTime       : FILETIME;
+    ftLastAccessTime     : FILETIME;
+    ftLastWriteTime      : FILETIME;
+    dwVolumeSerialNumber : u32;
+    nFileSizeHigh        : u32;
+    nFileSizeLow         : u32;
+    nNumberOfLinks       : u32;
+    nFileIndexHigh       : u32;
+    nFileIndexLow        : u32;
+}
+
+GetFileInformationByHandle :: (
+    hFile             : HANDLE,
+    lpFileInformation : *BY_HANDLE_FILE_INFORMATION
+) -> BOOL #foreign kernel32;
+
+FILE_INFO_BY_HANDLE_CLASS :: enum s32 {
+    FileBasicInfo;
+    FileStandardInfo;
+    FileNameInfo;
+    FileRenameInfo;
+    FileDispositionInfo;
+    FileAllocationInfo;
+    FileEndOfFileInfo;
+    FileStreamInfo;
+    FileCompressionInfo;
+    FileAttributeTagInfo;
+    FileIdBothDirectoryInfo;
+    FileIdBothDirectoryRestartInfo;
+    FileIoPriorityHintInfo;
+    FileRemoteProtocolInfo;
+    FileFullDirectoryInfo;
+    FileFullDirectoryRestartInfo;
+    FileStorageInfo;
+    FileAlignmentInfo;
+    FileIdInfo;
+    FileIdExtdDirectoryInfo;
+    FileIdExtdDirectoryRestartInfo;
+    FileDispositionInfoEx;
+    FileRenameInfoEx;
+    FileCaseSensitiveInfo;
+    FileNormalizedNameInfo;
+    MaximumFileInfoByHandleClass;
+}
+
+FILE_NAME_INFO :: struct {
+    FileNameLength : u32;
+    FileName       : [1] WCHAR;
+}
+
+FILE_ATTRIBUTE_TAG_INFO :: struct {
+    FileAttributes : u32;
+    ReparseTag     : u32;
+}
+
+GetFileInformationByHandleEx :: (
+    hFile                : HANDLE,
+    FileInformationClass : FILE_INFO_BY_HANDLE_CLASS,
+    lpFileInformation    : *void,
+    dwBufferSize         : u32
+) -> BOOL #foreign kernel32;
+
 GetFullPathNameW :: (
     lpFileName    : LPCWSTR,
     nBufferLength : u32,
