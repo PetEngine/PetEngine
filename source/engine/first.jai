@@ -109,6 +109,8 @@ createPerViewUniform :: (uniform : *PerViewUniform) {
 
     buffer_size := uniform.aligned_stride * PerViewUniform.MAX_VERSIONS * Device.MAX_FRAME_BUFFERING;
     uniform.buffer = createBuffer(buffer_size, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view");
+
+    uniform.data.view_matrix, uniform.data.inv_view_matrix = lookToMatrixAndItsInverse(uniform.data.camera_pos, uniform.data.camera_dir);
 }
 
 bindPerViewUniform :: (uniform : *PerViewUniform) {
@@ -333,34 +335,66 @@ petMain :: () {
             {
                 using per_view_uniform.data;
 
-                speed := 8.0;
-                if window.input.keyboard[Input.Key.LEFT_SHIFT] & .DOWN {
-                    speed *= 4.0;
-                }
+                speed := 8.0 * per_frame_uniform.data.dtime;
 
-                if window.input.keyboard[Input.Key.W] & .DOWN then camera_pos.z += speed * per_frame_uniform.data.dtime;
-                if window.input.keyboard[Input.Key.S] & .DOWN then camera_pos.z -= speed * per_frame_uniform.data.dtime;
-                if window.input.keyboard[Input.Key.A] & .DOWN then camera_pos.x -= speed * per_frame_uniform.data.dtime;
-                if window.input.keyboard[Input.Key.D] & .DOWN then camera_pos.x += speed * per_frame_uniform.data.dtime;
-                if window.input.keyboard[Input.Key.E] & .DOWN then camera_pos.y += speed * per_frame_uniform.data.dtime;
-                if window.input.keyboard[Input.Key.Q] & .DOWN then camera_pos.y -= speed * per_frame_uniform.data.dtime;
+                angleXY : v2f;
+                move    : v3f;
 
-                if window.input.mouse.button_right & .DOWN {
-                    camera_dir = rotationY(window.input.mouse.dx * per_frame_uniform.data.dtime) * camera_dir;
-                    camera_dir = rotationX(window.input.mouse.dy * per_frame_uniform.data.dtime) * camera_dir;
+                gamepad := *window.input.gamepads[0];
+                if gamepad.connected {
+                    move.x = gamepad.left_thumb.x * speed;
+                    move.z = gamepad.left_thumb.y * speed;
+                    move.y = (gamepad.right_trigger - gamepad.left_trigger) * speed;
+
+                    angleXY.x =  gamepad.right_thumb.x * per_frame_uniform.data.dtime;
+                    angleXY.y = -gamepad.right_thumb.y * per_frame_uniform.data.dtime;
                 } else {
-                    angleXY : v2f;
-                    if window.input.keyboard[Input.Key.LEFT]  & .DOWN then angleXY.x -= speed * per_frame_uniform.data.dtime;
-                    if window.input.keyboard[Input.Key.RIGHT] & .DOWN then angleXY.x += speed * per_frame_uniform.data.dtime;
-                    if window.input.keyboard[Input.Key.UP]    & .DOWN then angleXY.y -= speed * per_frame_uniform.data.dtime;
-                    if window.input.keyboard[Input.Key.DOWN]  & .DOWN then angleXY.y += speed * per_frame_uniform.data.dtime;
+                    if window.input.keyboard[Input.Key.LEFT_SHIFT] & .DOWN {
+                        speed *= 4.0;
+                    }
 
-                    camera_dir = rotationY(angleXY.x) * camera_dir;
-                    camera_dir = rotationX(angleXY.y) * camera_dir;
+                    if window.input.keyboard[Input.Key.W] & .DOWN then move.z =  speed;
+                    if window.input.keyboard[Input.Key.S] & .DOWN then move.z = -speed;
+                    if window.input.keyboard[Input.Key.A] & .DOWN then move.x = -speed;
+                    if window.input.keyboard[Input.Key.D] & .DOWN then move.x =  speed;
+                    if window.input.keyboard[Input.Key.E] & .DOWN then move.y =  speed;
+                    if window.input.keyboard[Input.Key.Q] & .DOWN then move.y = -speed;
+
+                    if window.input.mouse.button_right & .DOWN {
+                        angleXY.x = -window.input.mouse.dx * per_frame_uniform.data.dtime;
+                        angleXY.y = -window.input.mouse.dy * per_frame_uniform.data.dtime;
+                    } else {
+                        if window.input.keyboard[Input.Key.LEFT]  & .DOWN then angleXY.x += per_frame_uniform.data.dtime;
+                        if window.input.keyboard[Input.Key.RIGHT] & .DOWN then angleXY.x -= per_frame_uniform.data.dtime;
+                        if window.input.keyboard[Input.Key.UP]    & .DOWN then angleXY.y += per_frame_uniform.data.dtime;
+                        if window.input.keyboard[Input.Key.DOWN]  & .DOWN then angleXY.y -= per_frame_uniform.data.dtime;
+                    }
                 }
-                camera_dir = normalize(camera_dir);
 
-                view_matrix, inv_view_matrix = lookToMatrixAndItsInverse(camera_pos, camera_dir);
+                delta := identity(m4x4);
+                if angleXY.x then delta *= extend(rotationY(angleXY.x), m4x4, true);
+                if angleXY.y then delta *= extend(rotationX(angleXY.y), m4x4, true);
+                if isNonZero(move) {
+                    // negate because we want to move all objects opoosite to camera move direction
+                    delta *= extend(translation(-move), true);
+                }
+
+                if !isIdentity(delta) {
+                    view_matrix *= delta;
+                }
+
+                camera_dir = view_matrix[3].xyz;
+                assert(normalized(camera_dir));
+
+                camera_pos = -view_matrix[0].w / view_matrix[0].xyz;
+
+                inv_view_matrix = .{
+                    view_matrix[0].x, view_matrix[1].x, view_matrix[2].x, camera_pos.x,
+                    view_matrix[0].y, view_matrix[1].y, view_matrix[2].y, camera_pos.y,
+                    view_matrix[0].z, view_matrix[1].z, view_matrix[2].z, camera_pos.z,
+                                 0.0,              0.0,              0.0,          1.0
+                };
+
                 proj_matrix, inv_proj_matrix = perspectiveProjectionMatrixFromFovAndItsInverse(cast(f32) back_buffer.width / cast(f32) back_buffer.height,
                                                                                                PerViewUniform.CAMERA_FOV,
                                                                                                PerViewUniform.CAMERA_NEAR,

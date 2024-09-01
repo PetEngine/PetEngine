@@ -63,6 +63,10 @@ operator [] :: inline (m : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], index : int) 
     return m.rows[index];
 }
 
+operator *[] :: inline (m : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], index : int) -> *type_of(T.rows[0]) #no_context {
+    return *m.rows[index];
+}
+
 operator []= :: inline (m : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], index : int, value : type_of(T.rows[0])) #no_context {
     m.rows[index] = value;
 }
@@ -77,6 +81,76 @@ identity :: inline ($T : Type) -> T #no_context {
         case;      #assert false "Unhandled type";
     }
 }
+
+extend :: inline (from : m2x2, $To : Type, $identity := false) -> To {
+    #assert To = m3x3 || To == m3x4 || To == m4x3 || To == m4x4;
+
+    to := To.{
+        rows[0].xy = from.rows[0],
+        rows[1].xy = from.rows[1],
+    };
+
+    #if identity {
+        to.e22 = 1.0;
+
+        #if To == m4x4 {
+            to.e33 = 1.0;
+        }
+    }
+
+    return to;
+}
+
+extend :: inline (from : m3x3, $To : Type, $identity := false) -> To {
+    #assert To == m3x4 || To == m4x3 || To == m4x4;
+
+    #if To == m4x3 {
+        to := To.{
+            rows[0] = from.rows[0],
+            rows[1] = from.rows[1],
+            rows[2] = from.rows[2],
+        };
+    } else {
+        to := To.{
+            rows[0].xyz = from.rows[0],
+            rows[1].xyz = from.rows[1],
+            rows[2].xyz = from.rows[2],
+        };
+    }
+
+    #if identity && To == m4x4 {
+        to.e33 = 1.0;
+    }
+
+    return to;
+}
+
+extend :: inline (from : m3x4, $identity := false) -> m4x4 {
+    return .{
+        rows[0] = from.rows[0],
+        rows[1] = from.rows[1],
+        rows[2] = from.rows[2],
+        e33 = #ifx identity then 1.0 else 0.0,
+    };
+}
+
+extend :: inline (from : m4x3, $identity := false) -> m4x4 {
+    return .{
+        rows[0].xyz = from.rows[0],
+        rows[1].xyz = from.rows[1],
+        rows[2].xyz = from.rows[2],
+        rows[3].xyz = from.rows[3],
+        e33 = #ifx identity then 1.0 else 0.0,
+    };
+}
+
+isNonZero :: inline (m : m2x2)                 -> bool { return isNonZero(m.rows[0]) || isNonZero(m.rows[1]); }
+isNonZero :: inline (m : $T/Type.[m3x3, m3x4]) -> bool { return isNonZero(m.rows[0]) || isNonZero(m.rows[1]) || isNonZero(m.rows[2]); }
+isNonZero :: inline (m : $T/Type.[m4x3, m4x4]) -> bool { return isNonZero(m.rows[0]) || isNonZero(m.rows[1]) || isNonZero(m.rows[2]) || isNonZero(m.rows[3]); }
+
+isZero :: inline (m : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4]) -> bool { return !isNonZero(m); }
+
+isIdentity :: inline (m : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4]) -> bool { return m == identity(T); }
 
 operator + :: inline (a : m2x2, b : m2x2) -> m2x2 #no_context { return .{ rows[0] = a.rows[0] + b.rows[0], rows[1] = a.rows[1] + b.rows[1] }; }
 operator + :: inline (a : m3x3, b : m3x3) -> m3x3 #no_context { return .{ rows[0] = a.rows[0] + b.rows[0], rows[1] = a.rows[1] + b.rows[1], rows[2] = a.rows[2] + b.rows[2] }; }
@@ -160,6 +234,12 @@ operator * :: inline (a : m4x4, b : m4x4) -> m4x4 #no_context {
         dot(a.rows[3], bt.rows[0]), dot(a.rows[3], bt.rows[1]), dot(a.rows[3], bt.rows[2]), dot(a.rows[3], bt.rows[3]),
     };
 }
+
+// `b` should be on the left side becase we want to apply 'b' after 'a'
+operator *= :: inline (a : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) #no_context { a.* = b * a.*; }
+
+operator == :: inline (a : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) -> bool #no_context { return memcmp(*a, *b, size_of(T)) == 0; }
+operator != :: inline (a : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) -> bool #no_context { return memcmp(*a, *b, size_of(T)) != 0; }
 
 transpose :: inline (m : m2x2) -> m2x2 #no_context {
     return .{

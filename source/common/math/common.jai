@@ -97,14 +97,18 @@ bytesToTeraBytes :: inline (value : $T, $R := f32) -> R #no_context {
     return cast(R) (value / 1_099_511_627_776.0);
 }
 
-sign :: inline (value : $T/Type.[s8, s16, s32, s64, f32, f64]) -> T #no_context {
-    return ifx value < 0 then -1 else
-           ifx value > 0 then  1 else
-           0;
+sign :: inline (value : $T/Type.[s8, s16, s32, s64, f32, f64], $no_zero := false) -> T #no_context {
+    #if no_zero {
+        return cast(T) ifx value < 0 then -1 else 1;
+    } else {
+        return cast(T) ifx value < 0 then -1 else
+                       ifx value > 0 then  1 else
+                       0;
+    }
 }
 
-sign :: inline (value : $T/Type.[u8, u16, u32, u64]) -> T #no_context {
-    return value != 0;
+sign :: inline (value : $T/Type.[u8, u16, u32, u64], $no_zero := false) -> T #no_context {
+    return cast(T) #ifx no_zero then 1 else value != 0;
 }
 
 abs :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
@@ -126,6 +130,14 @@ almostEquals :: (a : $T/Type.[f32, f64], b : T) -> bool #no_context {
         return abs(a - b) <= F32_EPSILON;
     } else {
         return abs(a - b) <= F64_EPSILON;
+    }
+}
+
+almostZero :: (value : $T/Type.[f32, f64]) -> bool #no_context {
+    #if T == f32 {
+        return abs(value) <= F32_EPSILON;
+    } else {
+        return abs(value) <= F64_EPSILON;
     }
 }
 

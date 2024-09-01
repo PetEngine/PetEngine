@@ -120,6 +120,10 @@ operator []= :: inline (v : *$T/Type.[v2f, v2s, v2u, v3f, v3s, v3u, v4f, v4s, v4
     v.e[index] = value;
 }
 
+operator - :: inline (v : $T/Type.[v2f, v2s]) -> T #no_context { return .{ -v.x, -v.y }; }
+operator - :: inline (v : $T/Type.[v3f, v3s]) -> T #no_context { return .{ -v.x, -v.y, -v.z }; }
+operator - :: inline (v : $T/Type.[v4f, v4s]) -> T #no_context { return .{ -v.x, -v.y, -v.z, -v.w }; }
+
 operator + :: inline (a : $T/Type.[v2f, v2s, v2u], b : T) -> T #no_context { return .{ a.x + b.x, a.y + b.y }; }
 operator + :: inline (a : $T/Type.[v3f, v3s, v3u], b : T) -> T #no_context { return .{ a.x + b.x, a.y + b.y, a.z + b.z }; }
 operator + :: inline (a : $T/Type.[v4f, v4s, v4u], b : T) -> T #no_context { return .{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }
@@ -153,6 +157,12 @@ operator / :: inline (a : $T/Type.[v4f, v4s, v4u], b : type_of(T.x)) -> T #no_co
 operator / :: inline (a : type_of(T.x), b : $T/Type.[v2f, v2s, v2u]) -> T #no_context { return .{ a / b.x, a / b.y }; }
 operator / :: inline (a : type_of(T.x), b : $T/Type.[v3f, v3s, v3u]) -> T #no_context { return .{ a / b.x, a / b.y, a / b.z }; }
 operator / :: inline (a : type_of(T.x), b : $T/Type.[v4f, v4s, v4u]) -> T #no_context { return .{ a / b.x, a / b.y, a / b.z, a / b.w }; }
+
+isNonZero :: inline (v : $T/Type.[v2f, v2s, v2u]) -> bool { return v.x || v.y; }
+isNonZero :: inline (v : $T/Type.[v3f, v3s, v3u]) -> bool { return v.x || v.y || v.z; }
+isNonZero :: inline (v : $T/Type.[v4f, v4s, v4u]) -> bool { return v.x || v.y || v.z || v.w; }
+
+isZero :: inline (v : $T/Type.[v2f, v2s, v2u, v3f, v3s, v3u, v4f, v4s, v4u]) -> bool { return !isNonZero(v); }
 
 dot :: inline (a : $T/Type.[v2f, v2s, v2u], b : T) -> type_of(T.x) #no_context { return a.x * b.x + a.y * b.y; }
 dot :: inline (a : $T/Type.[v3f, v3s, v3u], b : T) -> type_of(T.x) #no_context { return a.x * b.x + a.y * b.y + a.z * b.z; }
