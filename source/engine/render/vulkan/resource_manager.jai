@@ -87,7 +87,7 @@ createVulkanResourceManager :: () {
     #if PRINT_VERBOSE_MESSAGES {
         Basic.print(*builder, "Available memory heaps (%):\n", device.memory_properties.memoryProperties.memoryHeapCount);
         for memory_heaps {
-            Basic.print(*builder, "    Size: % GB, Flags: %\n", bytesToGigaBytes(it.size), it.flags);
+            Basic.print(*builder, "    [%]: Size:  % GB\n         Flags: %\n", it_index, bytesToGigaBytes(it.size), it.flags);
         }
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
 

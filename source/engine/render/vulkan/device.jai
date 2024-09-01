@@ -1472,39 +1472,9 @@ recreateVulkanSwapchain :: (window : *Window) {
 
         info := type_info(VkFormat);
 
-        Basic.append(*builder, "Available surface formats:");
-        for format_it : surface_formats {
-            format_name : string;
-            for info.values {
-                if it == cast(s64) format_it.format {
-                    format_name = info.names[it_index];
-                    break;
-                }
-            }
-
-            Basic.append(*builder, "\n    Format: ");
-
-            spaces_to_append := 0;
-            if format_name {
-                Basic.append(*builder, format_name);
-                Basic.append(*builder, #char ",");
-
-                spaces_to_append = max(0, spaces.count - format_name.count);
-            } else {
-                length := Basic.builder_string_length(*builder);
-                Basic.append(*builder, "(enum out of range: ");
-                Basic.print_item_to_builder(*builder, cast(VkEnum) format_it.format);
-                Basic.append(*builder, "),");
-                printed := Basic.builder_string_length(*builder) - length - 1;
-
-                spaces_to_append = max(0, spaces.count - printed);
-            }
-
-            if spaces_to_append > 0 {
-                Basic.append(*builder, spaces.data, spaces_to_append);
-            }
-
-            Basic.print(*builder, " space: %", format_it.colorSpace);
+        Basic.print(*builder, "Available surface formats (%):\n", surface_formats.count);
+        for surface_formats {
+            Basic.print(*builder, "    [%]: Format: %\n         Space:  %\n", it_index, it.format, it.colorSpace);
         }
 
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
