@@ -123,9 +123,7 @@ vertexTypeToVertexFormat :: (vertex_type : Type) -> (VertexFormat, success : boo
         assert(member.type.runtime_size == size_of(*void));
 
         member_type_info := (cast(**Type_Info) *info.constant_storage[member.offset_into_constant_storage]).*;
-
-        Compiler :: #import "Compiler";
-        member_type := Compiler.get_type(member_type_info);
+        member_type      := Compiler.get_type(member_type_info);
 
         if member_type == vertex_type {
             vertex_format_info := type_info(VertexFormat);

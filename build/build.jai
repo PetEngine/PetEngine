@@ -124,6 +124,45 @@ END;
     }
 
     //
+    // Check CPU
+    //
+
+    #if CPU == .X64 {
+        machine_options := get_machine_options_x86(*build_options);
+        cpu_info        := get_cpu_info();
+
+        X64_FEATURES :: x86_Feature_Flag.[
+            .TSC,
+            .CX8, .CMOV, .MOVBE,
+            .ABM, .BMI1,
+            .SSE, .SSE2, .SSE3, .SSSE3, .SSE4_1, .SSE4_2, .AVX, .FMA
+        ];
+
+        for X64_FEATURES {
+            if !check_feature(machine_options.features.leaves, it) {
+                feature_supported := check_feature(cpu_info.feature_leaves, it);
+                check(feature_supported, "Required feature % is not supported", it, print_sys_error = false);
+
+                print("Enabling required feature % which is not enabled by default, but is supported on this CPU\n", it);
+                enable_feature(*machine_options.features.leaves, it);
+            }
+        }
+
+        features_to_check_string : string;
+        {
+            builder := String_Builder.{ allocator = temp };
+
+            append(*builder, "FEATURES_TO_CHECK :: Machine_X64.x86_Feature_Flag.[\n");
+            for X64_FEATURES {
+                print(*builder, "    .%,\n", it);
+            }
+            append(*builder, "];");
+
+            features_to_check_string = builder_to_string(*builder,, allocator = temp);
+        }
+    }
+
+    //
     // Do some platform specific stuff we cannot do through the code
     //
 
@@ -143,6 +182,7 @@ END;
     compiler_begin_intercept(workspace);
     {
         add_build_string(tprint(CONFIG_STRING, !build_arguments.optimized, build_arguments.verbose), workspace);
+        add_build_string(features_to_check_string, workspace);
         add_build_file(build_filename, workspace);
 
         while true {
@@ -333,7 +373,7 @@ XML;
     }
 }
 
-check :: (expression : Code, format := "", args: ..Any, location := #caller_location) #expand {
+check :: (expression : Code, format := "", args: ..Any, $print_sys_error := true, location := #caller_location) #expand {
     result := #insert expression;
 
     success : bool = ---;
@@ -348,7 +388,7 @@ check :: (expression : Code, format := "", args: ..Any, location := #caller_loca
 
     if success return;
 
-    #if OS == .WINDOWS {
+    #if OS == .WINDOWS && print_sys_error {
         sys_error_code := GetLastError();
     }
 
@@ -365,7 +405,7 @@ check :: (expression : Code, format := "", args: ..Any, location := #caller_loca
         print_expression(*builder, root);
     }
 
-    #if OS == .WINDOWS {
+    #if OS == .WINDOWS && print_sys_error {
         if sys_error_code != ERROR_SUCCESS {
             sys_error_message_buffer : [1024] u8 = ---;
             sys_error_message_length := FormatMessageA(FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
@@ -426,6 +466,9 @@ check :: (expression : Code, format := "", args: ..Any, location := #caller_loca
 #import "File_Utilities";
 #import "Check";
 #import "Program_Print";
+#if CPU == .X64 {
+    #import "Machine_X64";
+}
 #if OS == .WINDOWS {
     #import "Windows";
 } else if OS == .POSIX {

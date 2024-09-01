@@ -166,10 +166,10 @@ generatePlatformVtableInitialization :: (
                                     ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
                                     LINUX_FREE_ADVICE    = .FREE);
 }
+String   :: #import "String";
+Compiler :: #import "Compiler";
 
 #scope_module
 
-Basic    :: #import "Basic";
-Math     :: #import "Math";
-String   :: #import "String";
-Compiler :: #import "Compiler";
+Basic :: #import "Basic";
+Math  :: #import "Math";

@@ -182,6 +182,8 @@ petMain :: () {
 
     context.pet.core.initial_time = Basic.current_time_monotonic();
 
+    checkCPU();
+
     // @TODO: #Settings. Get persistent arena capacity from settings.
     createArena(*context.pet.arenas.persistent, gigaBytes(1), "Persistent");
     defer destroyArena(*context.pet.arenas.persistent);
@@ -405,9 +407,11 @@ operator> :: Basic.operator>;
 #load "heart.jai";
 
 Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
-String     :: #import "String";
 Reflection :: #import "Reflection";
 Atomics    :: #import "Atomics";
+#if CPU == .X64 {
+    Machine_X64 :: #import "Machine_X64";
+}
 
 #scope_file
 
@@ -592,4 +596,24 @@ initRuntimeAndCallEntryPoint :: () {
     }
 
     no_inline petMain();
+}
+
+checkCPU :: () {
+    #if CPU == .X64 {
+        BUILD_OPTIONS   :: #run Compiler.get_build_options();
+        machine_options := Machine_X64.get_machine_options_x86(*BUILD_OPTIONS);
+        cpu_info        := Machine_X64.get_cpu_info();
+
+        for FEATURES_TO_CHECK {
+            feature_supported := Machine_X64.check_feature(cpu_info.feature_leaves, it);
+
+            if Machine_X64.check_feature(machine_options.features.leaves, it) {
+                if !feature_supported {
+                    assertMessage("Feature % is not supported by this CPU, but was enabled during compilation", it);
+                }
+            } else if feature_supported {
+                warningMessage("Feature % was not enabled during compilation", it);
+            }
+        }
+    }
 }
