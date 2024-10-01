@@ -178,8 +178,9 @@ createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolut
         window.platform_flags |= .APPLY_DPI_SCALING_ON_SHOW;
     }
 
-    use_dark_theme := cast(BOOL) manager.use_dark_theme;
-    debugCheckHRESULT(DwmSetWindowAttribute(window.handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
+    if manager.use_dark_theme {
+        applyWindowTheme(window.handle);
+    }
 }
 
 destroyWin32Window :: (window : *Win32Window) {
@@ -269,20 +270,12 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             // DefWindowProc calls DestroyWindow to destroy the window
             result = DefWindowProcW(window_handle, message, wparam, lparam);
 
-        case WM_WININICHANGE; { // @TODO: Replace with WM_SETTINGCHANGE
+        case WM_SETTINGCHANGE; {
             push_context,defer_pop window.proc_context;
             autoResetPerFrameArenas();
             assertThreadKind(.WINDOW);
 
-            manager := cast(*Win32WindowManager) context.pet.core.window_manager;
-
-            was_using_dark_theme   := manager.use_dark_theme;
-            manager.use_dark_theme  = useDarkTheme();
-
-            if was_using_dark_theme != manager.use_dark_theme {
-                use_dark_theme := cast(BOOL) manager.use_dark_theme;
-                debugCheckHRESULT(DwmSetWindowAttribute(window_handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
-            }
+            checkWindowThemeChange(window_handle, wparam, lparam);
 
             result = DefWindowProcW(window_handle, message, wparam, lparam);
         }
@@ -423,7 +416,7 @@ applyInitialDPIScalingToWindow :: (window_handle : HWND, rect_resolution : Resol
 }
 
 useDarkTheme :: () -> bool {
-    SUBKEY       :: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+    SUBKEY       :: "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
     utf16_subkey : [SUBKEY.count + 1] WCHAR = ---;
     ASCIIToUTF16(*utf16_subkey, SUBKEY);
 
@@ -433,16 +426,50 @@ useDarkTheme :: () -> bool {
 
     apps_use_light_theme : u32;
     data_size            : u32 = size_of(u32);
-    debugCheckWin32(RegGetValueW(HKEY_CURRENT_USER,
-                                 utf16_subkey.data,
-                                 utf16_value.data,
-                                 RRF_RT_REG_DWORD,
-                                 null,
-                                 *apps_use_light_theme,
-                                 *data_size));
 
-    return !apps_use_light_theme;
+    status := RegGetValueW(HKEY_CURRENT_USER, utf16_subkey.data, utf16_value.data, RRF_RT_REG_DWORD, null, *apps_use_light_theme, *data_size);
+    if status == {
+        case ERROR_SUCCESS;
+            return !apps_use_light_theme;
+
+        case ERROR_FILE_NOT_FOUND;
+            warningMessage("\"HKEY_CURRENT_USER\\%\\%\" reg value is not found. Fallback to Windows default theme", SUBKEY, VALUE);
+
+        case;
+            assert(false, "RegGetValueW has failed", print_sys_error = true, cast,no_check(u32) status);
+    }
+
+    return false;;
+}
+
+applyWindowTheme :: (window_handle : HWND) {
+    manager := cast(*Win32WindowManager) context.pet.core.window_manager;
+
+    use_dark_theme := cast(BOOL) manager.use_dark_theme;
+    debugCheckHRESULT(DwmSetWindowAttribute(window_handle, .DWMWA_USE_IMMERSIVE_DARK_MODE, *use_dark_theme, size_of(BOOL)));
+}
+
+checkWindowThemeChange :: (window_handle : HWND, wparam : WPARAM, lparam : LPARAM) {
+    // Ignore computer policy
+    if wparam != 0 return;
+
+    if lparam {
+        utf16_setting_name        := cast(LPCWSTR) lparam;
+        utf16_immersive_color_set := cast(LPCWSTR) "I\0m\0m\0e\0r\0s\0i\0v\0e\0C\0o\0l\0o\0r\0S\0e\0t\0\0\0".data; // ImmersiveColorSet
+
+        if ntStringCompare(utf16_setting_name, utf16_immersive_color_set) {
+            return;
+        }
+    }
+
+    manager := cast(*Win32WindowManager) context.pet.core.window_manager;
+
+    was_using_dark_theme   := manager.use_dark_theme;
+    manager.use_dark_theme  = useDarkTheme();
+
+    if was_using_dark_theme != manager.use_dark_theme {
+        applyWindowTheme(window_handle);
+    }
 }
 
 Math :: #import "Math";
-

@@ -9,7 +9,7 @@ DEFAULT_CACHE_LINE_SIZE :: 64;
 DEFAULT_PAGE_SIZE       :: 4096;
 DEFAULT_ALIGNMENT       :: size_of(*void);
 
-ntStringLength :: inline (nt_string : [] $T) -> s64 #no_context {
+ntStringLength :: inline (nt_string : [] $T/ALLOWED_CHAR_TYPES) -> s64 #no_context {
     for nt_string {
         if it == 0 {
             return it_index;
@@ -18,12 +18,40 @@ ntStringLength :: inline (nt_string : [] $T) -> s64 #no_context {
     return nt_string.count;
 }
 
-ntStringLength :: inline (nt_string : *$T) -> s64 #no_context {
+ntStringLength :: inline (nt_string : *$T/ALLOWED_CHAR_TYPES) -> s64 #no_context {
     start := nt_string;
     while nt_string.* {
         nt_string += 1;
     }
     return nt_string - start;
+}
+
+ntStringCompare :: (a : [] $T/ALLOWED_CHAR_TYPES, b : [] T) -> s64 {
+    index := 0;
+    count := min(a.count, b.count);
+    a_it  := a.data;
+    b_it  := b.data;
+
+    while index < count && a_it.* && a_it.* == b_it.* {
+        index += 1;
+        a_it  += 1;
+        b_it  += 1;
+    }
+
+    a_s64 : s64 = a_it.*;
+    b_s64 : s64 = b_it.*;
+    return a_s64 - b_s64;
+}
+
+ntStringCompare :: (a : *$T/ALLOWED_CHAR_TYPES, b : *T) -> s64 {
+    while a.* && a.* == b.* {
+        a += 1;
+        b += 1;
+    }
+
+    a_s64 : s64 = a.*;
+    b_s64 : s64 = b.*;
+    return a_s64 - b_s64;
 }
 
 advance :: inline (str : *string, amount := 1) {
@@ -173,3 +201,9 @@ Compiler :: #import "Compiler";
 
 Basic :: #import "Basic";
 Math  :: #import "Math";
+
+#scope_file
+
+ALLOWED_CHAR_TYPES :: Type.[
+    u8, u16, u32,
+];
