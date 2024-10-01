@@ -370,13 +370,9 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
 
 setMonitorDPIAwareness :: () {
     debugCheck(SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2), print_sys_error = true);
-    debugCheck(SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2), print_sys_error = true);
 
     assert(GetAwarenessFromDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == .DPI_AWARENESS_PER_MONITOR_AWARE,
            print_sys_error = true);
-
-    previous_dpi_hosting_behavior := SetThreadDpiHostingBehavior(.DPI_HOSTING_BEHAVIOR_MIXED);
-    assert(previous_dpi_hosting_behavior != .DPI_HOSTING_BEHAVIOR_INVALID, print_sys_error = true);
 }
 
 deallocateWindow :: (window : *Win32Window) {
