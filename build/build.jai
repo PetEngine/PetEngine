@@ -12,7 +12,7 @@ PRINT_VERBOSE_MESSAGES :: %;
 END;
 
 #run {
-    checkCompilerVersion(.{0, 1, 88});
+    checkCompilerVersion(.{0, 1, 95});
 
     build_options := get_build_options();
 

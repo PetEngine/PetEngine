@@ -83,15 +83,9 @@ for_expansion :: (array : *StaticArray, body : Code, flags : For_Flags) #expand 
     REVERSE    :: cast(bool) (flags & .REVERSE);
     BY_POINTER :: cast(bool) (flags & .POINTER);
 
-    #if REVERSE {
-        from_index := array.count - 1;
-        to_index   :: 0;
-    } else {
-        from_index :: 0;
-        to_index   := array.count - 1;
-    }
+    last_index := array.count - 1;
 
-    for <=REVERSE `it_index : from_index .. to_index {
+    for #v2 <=REVERSE `it_index : 0 .. last_index {
         #if BY_POINTER {
             `it := *array.data[it_index];
         } else {
