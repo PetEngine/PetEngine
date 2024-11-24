@@ -389,25 +389,19 @@ petMain :: () {
                 if angleXY.x then preTransform(*camera_rotation, rotationY(angleXY.x));
                 if angleXY.y then postTransform(*camera_rotation, rotationX(angleXY.y));
 
-                camera_dir = camera_rotation[2];
+                camera_dir = camera_rotation[Z_AXIS];
                 assert(normalized(camera_dir));
 
                 if isNonZero(move) {
-                    dir_xz           := normalize(v2f.{ camera_dir.x, camera_dir.z });
-                    WORLD_FORWARD_XZ :: v2f.{ y = 1.0 };
+                    x_axis := camera_rotation[X_AXIS];
+                    z_axis := camera_rotation[Z_AXIS];
 
-                    cosa := dot(WORLD_FORWARD_XZ, dir_xz);
-                    sina := sqrt(1.0 - cosa * cosa);
+                    x_axis_xz := normalize(v3f.{ x_axis.x, 0.0, x_axis.z });
+                    z_axis_xz := normalize(v3f.{ z_axis.x, 0.0, z_axis.z });
 
-                    if dir_xz.x < WORLD_FORWARD_XZ.x then sina *= -1.0;
-
-                    rotation := m3x3.{
-                         cosa, 0.0, sina,
-                          0.0, 1.0,  0.0,
-                        -sina, 0.0, cosa
-                    };
-
-                    camera_pos += rotation * move;
+                    camera_pos   += x_axis_xz * move.x;
+                    camera_pos   += z_axis_xz * move.z;
+                    camera_pos.y += move.y;
                 }
 
                 // negate camera_pos because we want to move all objects oposite to camera move direction

@@ -1,5 +1,9 @@
 #scope_export
 
+X_AXIS :: 0;
+Y_AXIS :: 1;
+Z_AXIS :: 2;
+
 m2x2 :: struct {
     e00, e01 : f32;
     e10, e11 : f32;
