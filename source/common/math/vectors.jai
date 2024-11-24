@@ -186,7 +186,14 @@ operator != :: inline (a : $T/Type.[v2f, v2s, v2u], b : T) -> bool #no_context {
 operator != :: inline (a : $T/Type.[v3f, v3s, v3u], b : T) -> bool #no_context { return a.x != b.x || a.y != b.y || a.z != b.z; }
 operator != :: inline (a : $T/Type.[v4f, v4s, v4u], b : T) -> bool #no_context { return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w; }
 
+//
 // @Speed: Maybe at least here there is a sense to use SIMD?
+//
+
+sign :: inline (v : $T/Type.[v2f, v2s, v2u], $no_zero := false) -> T #no_context { return .{ sign(v.x, no_zero), sign(v.y, no_zero) }; }
+sign :: inline (v : $T/Type.[v3f, v3s, v3u], $no_zero := false) -> T #no_context { return .{ sign(v.x, no_zero), sign(v.y, no_zero), sign(v.z, no_zero) }; }
+sign :: inline (v : $T/Type.[v4f, v4s, v4u], $no_zero := false) -> T #no_context { return .{ sign(v.x, no_zero), sign(v.y, no_zero), sign(v.z, no_zero), sign(v.w, no_zero) }; }
+
 abs :: inline (v : $T/Type.[v2f, v2s]) -> T #no_context { return .{ abs(v.x), abs(v.y) }; }
 abs :: inline (v : $T/Type.[v3f, v3s]) -> T #no_context { return .{ abs(v.x), abs(v.y), abs(v.z) }; }
 abs :: inline (v : $T/Type.[v4f, v4s]) -> T #no_context { return .{ abs(v.x), abs(v.y), abs(v.z), abs(v.w) }; }
