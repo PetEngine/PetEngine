@@ -634,17 +634,26 @@ initRuntimeAndCallEntryPoint :: () {
         getWindowsCommandLine();
         defer Basic.free(__command_line_arguments.data);
 
+        console_was_allocated : bool;
         #if DEBUG_BUILD {
-            console_was_allocated : bool;
-
             if !AttachConsole(ATTACH_PARENT_PROCESS) {
                 debugCheck(AllocConsole(), print_sys_error = true);
                 console_was_allocated = true;
             }
-
-            defer if console_was_allocated {
-                debugCheck(FreeConsole(), print_sys_error = true);
+        } else {
+            for __command_line_arguments {
+                if !ntStringCompare(it, "console".data) {
+                    if !AttachConsole(ATTACH_PARENT_PROCESS) {
+                        debugCheck(AllocConsole(), print_sys_error = true);
+                        console_was_allocated = true;
+                    }
+                    break;
+                }
             }
+        }
+
+        defer if console_was_allocated {
+            debugCheck(FreeConsole(), print_sys_error = true);
         }
     }
 

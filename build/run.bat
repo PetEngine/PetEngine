@@ -8,7 +8,7 @@ if "%CONFIG%" equ "" set CONFIG=debug
 
 pushd "%~dp0%\..\output\windows"
     cd ".\%CONFIG%"
-    .\engine.exe
+    .\engine.exe %*
 popd
 
 :end
