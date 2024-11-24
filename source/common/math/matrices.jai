@@ -82,7 +82,7 @@ identity :: inline ($T : Type) -> T #no_context {
     }
 }
 
-extend :: inline (from : m2x2, $To : Type, $identity := false) -> To {
+extend :: inline (from : m2x2, $To : Type, $identity := true) -> To {
     #assert To = m3x3 || To == m3x4 || To == m4x3 || To == m4x4;
 
     to := To.{
@@ -101,7 +101,7 @@ extend :: inline (from : m2x2, $To : Type, $identity := false) -> To {
     return to;
 }
 
-extend :: inline (from : m3x3, $To : Type, $identity := false) -> To {
+extend :: inline (from : m3x3, $To : Type, $identity := true) -> To {
     #assert To == m3x4 || To == m4x3 || To == m4x4;
 
     #if To == m4x3 {
@@ -125,7 +125,7 @@ extend :: inline (from : m3x3, $To : Type, $identity := false) -> To {
     return to;
 }
 
-extend :: inline (from : m3x4, $identity := false) -> m4x4 {
+extend :: inline (from : m3x4, $identity := true) -> m4x4 {
     return .{
         rows[0] = from.rows[0],
         rows[1] = from.rows[1],
@@ -134,7 +134,7 @@ extend :: inline (from : m3x4, $identity := false) -> m4x4 {
     };
 }
 
-extend :: inline (from : m4x3, $identity := false) -> m4x4 {
+extend :: inline (from : m4x3, $identity := true) -> m4x4 {
     return .{
         rows[0].xyz = from.rows[0],
         rows[1].xyz = from.rows[1],
@@ -235,11 +235,13 @@ operator * :: inline (a : m4x4, b : m4x4) -> m4x4 #no_context {
     };
 }
 
-// `b` should be on the left side becase we want to apply 'b' after 'a'
-operator *= :: inline (a : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) #no_context { a.* = b * a.*; }
+operator *= :: inline (a : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) #no_context { postTransform(a, b); }
 
 operator == :: inline (a : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) -> bool #no_context { return memcmp(*a, *b, size_of(T)) == 0; }
 operator != :: inline (a : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) -> bool #no_context { return memcmp(*a, *b, size_of(T)) != 0; }
+
+preTransform  :: inline (a : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) #no_context { a.* = a.* * b; }
+postTransform :: inline (a : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) #no_context { a.* = b * a.*; }
 
 transpose :: inline (m : m2x2) -> m2x2 #no_context {
     return .{
@@ -314,12 +316,13 @@ lookToMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -
     axis_z := direction;
     axis_x := cross(world_up, axis_z);
     axis_y := cross(axis_z, axis_x);
+    view_t := -camera;
 
     return .{
-        axis_x.x, axis_x.y, axis_x.z, -dot(axis_x, camera),
-        axis_y.x, axis_y.y, axis_y.z, -dot(axis_y, camera),
-        axis_z.x, axis_z.y, axis_z.z, -dot(axis_z, camera),
-             0.0,      0.0,      0.0,                  1.0
+        axis_x.x, axis_x.y, axis_x.z, dot(axis_x, view_t),
+        axis_y.x, axis_y.y, axis_y.z, dot(axis_y, view_t),
+        axis_z.x, axis_z.y, axis_z.z, dot(axis_z, view_t),
+             0.0,      0.0,      0.0,                 1.0
     };
 }
 
@@ -331,12 +334,13 @@ lookToMatrixAndItsInverse :: (camera : v3f, direction : v3f, world_up : v3f = .{
     axis_z := direction;
     axis_x := cross(world_up, axis_z);
     axis_y := cross(axis_z, axis_x);
+    view_t := -camera;
 
     return .{
-        axis_x.x, axis_x.y, axis_x.z, -dot(axis_x, camera),
-        axis_y.x, axis_y.y, axis_y.z, -dot(axis_y, camera),
-        axis_z.x, axis_z.y, axis_z.z, -dot(axis_z, camera),
-             0.0,      0.0,      0.0,                  1.0
+        axis_x.x, axis_x.y, axis_x.z, dot(axis_x, view_t),
+        axis_y.x, axis_y.y, axis_y.z, dot(axis_y, view_t),
+        axis_z.x, axis_z.y, axis_z.z, dot(axis_z, view_t),
+             0.0,      0.0,      0.0,                 1.0
     }, .{
         axis_x.x, axis_y.x, axis_z.x, camera.x,
         axis_x.y, axis_y.y, axis_z.y, camera.y,

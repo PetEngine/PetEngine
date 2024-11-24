@@ -110,7 +110,7 @@ createPerViewUniform :: (uniform : *PerViewUniform) {
     buffer_size := uniform.aligned_stride * PerViewUniform.MAX_VERSIONS * Device.MAX_FRAME_BUFFERING;
     uniform.buffer = createBuffer(buffer_size, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view");
 
-    uniform.data.view_matrix, uniform.data.inv_view_matrix = lookToMatrixAndItsInverse(uniform.data.camera_pos, uniform.data.camera_dir);
+    uniform.data.view_matrix = lookToMatrix(uniform.data.camera_pos, uniform.data.camera_dir);
 }
 
 bindPerViewUniform :: (uniform : *PerViewUniform) {
@@ -337,18 +337,28 @@ petMain :: () {
 
                 speed := 8.0 * per_frame_uniform.data.dtime;
 
-                angleXY : v2f;
                 move    : v3f;
+                angleXY : v2f;
+
+                process_input_from_keyboard := true;
 
                 gamepad := *window.input.gamepads[0];
                 if gamepad.connected {
+                    if gamepad.left_shoulder & .DOWN {
+                        speed *= 4.0;
+                    }
+
                     move.x = gamepad.left_thumb.x * speed;
                     move.z = gamepad.left_thumb.y * speed;
-                    move.y = (gamepad.right_trigger - gamepad.left_trigger) * speed;
+                    move.y = (gamepad.left_trigger - gamepad.right_trigger) * speed;
 
-                    angleXY.x =  gamepad.right_thumb.x * per_frame_uniform.data.dtime;
-                    angleXY.y = -gamepad.right_thumb.y * per_frame_uniform.data.dtime;
-                } else {
+                    angleXY.x = -gamepad.right_thumb.x * per_frame_uniform.data.dtime;
+                    angleXY.y =  gamepad.right_thumb.y * per_frame_uniform.data.dtime;
+
+                    process_input_from_keyboard = isZero(move) && isZero(angleXY);
+                }
+
+                if process_input_from_keyboard {
                     if window.input.keyboard[Input.Key.LEFT_SHIFT] & .DOWN {
                         speed *= 4.0;
                     }
@@ -371,22 +381,37 @@ petMain :: () {
                     }
                 }
 
-                delta := identity(m4x4);
-                if angleXY.x then delta *= extend(rotationY(angleXY.x), m4x4, true);
-                if angleXY.y then delta *= extend(rotationX(angleXY.y), m4x4, true);
-                if isNonZero(move) {
-                    // negate because we want to move all objects opoosite to camera move direction
-                    delta *= extend(translation(-move), true);
-                }
+                camera_rotation := m3x3.{
+                    rows[0] = view_matrix[0].xyz,
+                    rows[1] = view_matrix[1].xyz,
+                    rows[2] = view_matrix[2].xyz,
+                };
+                if angleXY.x then preTransform(*camera_rotation, rotationY(angleXY.x));
+                if angleXY.y then postTransform(*camera_rotation, rotationX(angleXY.y));
 
-                if !isIdentity(delta) {
-                    view_matrix *= delta;
-                }
-
-                camera_dir = view_matrix[3].xyz;
+                camera_dir = camera_rotation[2];
                 assert(normalized(camera_dir));
 
-                camera_pos = -view_matrix[0].w / view_matrix[0].xyz;
+                if isNonZero(move) {
+                    dir_xz           := normalize(v2f.{ camera_dir.x, camera_dir.z });
+                    WORLD_FORWARD_XZ :: v2f.{ y = 1.0 };
+
+                    cosa := dot(WORLD_FORWARD_XZ, dir_xz);
+                    sina := sqrt(1.0 - cosa * cosa);
+
+                    if dir_xz.x < WORLD_FORWARD_XZ.x then sina *= -1.0;
+
+                    rotation := m3x3.{
+                         cosa, 0.0, sina,
+                          0.0, 1.0,  0.0,
+                        -sina, 0.0, cosa
+                    };
+
+                    camera_pos += rotation * move;
+                }
+
+                // negate camera_pos because we want to move all objects oposite to camera move direction
+                view_matrix = extend(camera_rotation, m4x4) * extend(translation(-camera_pos));
 
                 inv_view_matrix = .{
                     view_matrix[0].x, view_matrix[1].x, view_matrix[2].x, camera_pos.x,

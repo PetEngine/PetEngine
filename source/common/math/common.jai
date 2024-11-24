@@ -205,6 +205,8 @@ radToDeg :: inline (rad : f32) -> f32 #no_context {
     return rad * (180.0 / PI);
 }
 
+sqrt :: Math.sqrt;
+
 #scope_file
 
 rejectVectors :: inline (T : Type) -> bool #compile_time {
