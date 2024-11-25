@@ -416,6 +416,60 @@ PFN_vkCreateWin32SurfaceKHR :: #type (
 }
 
 //
+// Provided by VK_KHR_get_surface_capabilities2
+//
+
+VkPhysicalDeviceSurfaceInfo2KHR :: struct {
+    sType   : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
+    pNext   : *void;
+    surface : VkSurfaceKHR;
+}
+
+VkSurfaceCapabilities2KHR :: struct {
+    sType               : VkStructureType = .VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR;
+    pNext               : *void;
+    surfaceCapabilities : VkSurfaceCapabilitiesKHR;
+}
+
+PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR :: #type (
+    physicalDevice       : VkPhysicalDevice,
+    pSurfaceInfo         : *VkPhysicalDeviceSurfaceInfo2KHR,
+    pSurfaceCapabilities : *VkSurfaceCapabilities2KHR
+) -> VkResult #c_call;
+
+//
+// Provided by VK_EXT_surface_maintenance1
+//
+
+VkPresentScalingFlagsEXT :: enum VkEnum #specified {
+    VK_PRESENT_SCALING_ONE_TO_ONE_BIT_EXT           :: 0x00000001;
+    VK_PRESENT_SCALING_ASPECT_RATIO_STRETCH_BIT_EXT :: 0x00000002;
+    VK_PRESENT_SCALING_STRETCH_BIT_EXT              :: 0x00000004;
+}
+
+VkPresentGravityFlagsEXT :: enum VkEnum #specified {
+    VK_PRESENT_GRAVITY_MIN_BIT_EXT      :: 0x00000001;
+    VK_PRESENT_GRAVITY_MAX_BIT_EXT      :: 0x00000002;
+    VK_PRESENT_GRAVITY_CENTERED_BIT_EXT :: 0x00000004;
+}
+
+VkSurfacePresentModeEXT :: struct {
+    sType       : VkStructureType = .VK_STRUCTURE_TYPE_SURFACE_PRESENT_MODE_EXT;
+    pNext       : *void;
+    presentMode : VkPresentModeKHR;
+}
+
+VkSurfacePresentScalingCapabilitiesEXT :: struct {
+    sType                    : VkStructureType = .VK_STRUCTURE_TYPE_SURFACE_PRESENT_SCALING_CAPABILITIES_EXT;
+    pNext                    : *void;
+    supportedPresentScaling  : VkPresentScalingFlagsEXT;
+    supportedPresentGravityX : VkPresentGravityFlagsEXT;
+    supportedPresentGravityY : VkPresentGravityFlagsEXT;
+    minScaledImageExtent     : VkExtent2D;
+    maxScaledImageExtent     : VkExtent2D;
+}
+
+//
 // Provided by VK_EXT_validation_features
 //
 

@@ -248,10 +248,21 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR              :: 1000009000;
 }
 
+    // Provided by VK_KHR_get_surface_capabilities2
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR         :: 1000119000;
+    VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR                 :: 1000119001;
+
+    // Provided by VK_EXT_surface_maintenance1
+    VK_STRUCTURE_TYPE_SURFACE_PRESENT_MODE_EXT                   :: 1000274000;
+    VK_STRUCTURE_TYPE_SURFACE_PRESENT_SCALING_CAPABILITIES_EXT   :: 1000274001;
+
     // Provided by VK_KHR_swapchain
     VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR                  :: 1000001000;
     VK_STRUCTURE_TYPE_PRESENT_INFO_KHR                           :: 1000001001;
     VK_STRUCTURE_TYPE_ACQUIRE_NEXT_IMAGE_INFO_KHR                :: 1000060010;
+
+    // Provided by VK_EXT_swapchain_maintenance1
+    VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_SCALING_CREATE_INFO_EXT  :: 1000275004;
 
     // Provided by VK_EXT_validation_features
     VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT                    :: 1000247000;

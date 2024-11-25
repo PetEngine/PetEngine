@@ -71,6 +71,8 @@ Window :: struct {
     OS_DEFAULT_POSITION : s16 : 0xFFFF;
     OS_DEFAULT_SIZE     : u16 : 0xFFFF;
     INVALID_ID          : u8  : WindowManager.MAX_WINDOWS;
+    MIN_WIDTH           : s16 : 640;
+    MIN_HEIGHT          : s16 : 360;
 
     Flags :: enum_flags u8 {
         CLOSED;

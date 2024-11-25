@@ -172,3 +172,15 @@ PFN_vkQueuePresentKHR :: #type (
     queue        : VkQueue,
     pPresentInfo : *VkPresentInfoKHR
 ) -> VkResult #c_call;
+
+//
+// Provided by VK_EXT_swapchain_maintenance1
+//
+
+VkSwapchainPresentScalingCreateInfoEXT :: struct {
+    sType           : VkStructureType = .VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_SCALING_CREATE_INFO_EXT;
+    pNext           : *void;
+    scalingBehavior : VkPresentScalingFlagsEXT;
+    presentGravityX : VkPresentGravityFlagsEXT;
+    presentGravityY : VkPresentGravityFlagsEXT;
+}

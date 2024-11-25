@@ -137,11 +137,10 @@ createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolut
         window.surface.height = surface.height;
 
         window_rect := RECT.{ 0, 0, surface.width, surface.height };
-        if AdjustWindowRectEx(*window_rect, WINDOW_STYLES, FALSE, EXTENDED_WINDOW_STYLES) {
-            // @TODO: WS_EX_LAYOUTRTL ?
-            window_rect_width  = window_rect.right  - window_rect.left;
-            window_rect_height = window_rect.bottom - window_rect.top;
-        }
+        debugCheck(AdjustWindowRectEx(*window_rect, WINDOW_STYLES, FALSE, EXTENDED_WINDOW_STYLES), print_sys_error = true);
+
+        window_rect_width  = window_rect.right  - window_rect.left;
+        window_rect_height = window_rect.bottom - window_rect.top;
     }
 
     class_name := cast,no_check(LPCWSTR) manager.window_class;
@@ -280,12 +279,31 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             result = DefWindowProcW(window_handle, message, wparam, lparam);
         }
 
+        case WM_GETMINMAXINFO;
+            if window {
+                push_context,defer_pop window.proc_context;
+
+                info := cast(*MINMAXINFO) lparam;
+
+                window_style := cast(u32) GetWindowLongW(window_handle, GWL_STYLE);
+                assert(window_style, print_sys_error = true);
+
+                window_style_ex := cast(u32) GetWindowLongW(window_handle, GWL_EXSTYLE);
+                assert(window_style_ex, print_sys_error = true);
+
+                window_rect := RECT.{ 0, 0, Window.MIN_WIDTH, Window.MIN_HEIGHT };
+                debugCheck(AdjustWindowRectEx(*window_rect, window_style, FALSE, window_style_ex), print_sys_error = true);
+
+                info.ptMinTrackSize.x = window_rect.right  - window_rect.left;
+                info.ptMinTrackSize.y = window_rect.bottom - window_rect.top;
+            }
+
         case WM_WINDOWPOSCHANGED; {
             push_context,defer_pop window.proc_context;
             autoResetPerFrameArenas();
             assertThreadKind(.WINDOW);
 
-            window_position := cast,no_check(*WINDOWPOS) lparam;
+            window_position := cast(*WINDOWPOS) lparam;
 
             window.rect.x      = cast,trunc(s16) window_position.x;
             window.rect.y      = cast,trunc(s16) window_position.y;

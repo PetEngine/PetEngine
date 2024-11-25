@@ -421,6 +421,7 @@ endVulkanFrame :: () {
         assert(swapchains_count == context.pet.core.window_manager.active_windows.count);
 
         results : [WindowManager.MAX_WINDOWS] VkResult;
+        results_view := toView(results.data, swapchains_count);
 
         present_info := VkPresentInfoKHR.{
             waitSemaphoreCount = 1,
@@ -433,15 +434,17 @@ endVulkanFrame :: () {
 
         result := device.loader.extensions.device.required.vkQueuePresentKHR(device.queues[QueueType.GRAPHICS].handle, *present_info);
         if result == {
-            case .VK_ERROR_OUT_OF_DATE_KHR;
-            case .VK_ERROR_SURFACE_LOST_KHR;
+            case .VK_ERROR_OUT_OF_DATE_KHR;  #through;
+            case .VK_ERROR_SURFACE_LOST_KHR; #through;
             case .VK_SUBOPTIMAL_KHR;
-                for results {
+                for results_view {
                     if it == {
-                        case .VK_ERROR_OUT_OF_DATE_KHR;
+                        case .VK_ERROR_OUT_OF_DATE_KHR; #through;
                         case .VK_ERROR_SURFACE_LOST_KHR;
-                        case .VK_SUBOPTIMAL_KHR;
                             device.window_data[index_to_id[it_index]].swapchain_is_outdated = true;
+
+                        case .VK_SUBOPTIMAL_KHR;
+                            // Do nothing, it's because of scaling
 
                         case;
                             debugCheckVK(it);
@@ -450,7 +453,7 @@ endVulkanFrame :: () {
 
             case;
                 debugCheckVK(result);
-                for results {
+                for results_view {
                     debugCheckVK(it);
                 }
         }
@@ -1434,6 +1437,7 @@ createSurface :: (window : *Window) {
     }
 }
 
+// @Speed: Ask for surface capabilities only once at surface creation time
 recreateVulkanSwapchain :: (window : *Window) {
     assertThreadKind(.MAIN);
     device := cast(*VulkanDevice) context.pet.render.device;
@@ -1499,13 +1503,68 @@ recreateVulkanSwapchain :: (window : *Window) {
     }
 
     //
+    // Present mode
+    //
+
+    present_modes : [] VkPresentModeKHR;
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
+                                                                                                      vulkan_window_data.surface,
+                                                                                                      cast(*u32) *present_modes.count,
+                                                                                                      null));
+
+    present_modes.data = pushToArena(*context.pet.arenas.per_frame, VkPresentModeKHR, present_modes.count);
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
+                                                                                                      vulkan_window_data.surface,
+                                                                                                      cast(*u32) *present_modes.count,
+                                                                                                      present_modes.data));
+
+    #if PRINT_VERBOSE_MESSAGES {
+        Basic.print(*builder, "Supported present modes (%):\n", present_modes.count);
+        for present_modes {
+            Basic.print(*builder, "    %\n", it);
+        }
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
+    }
+
+    // @TODO: #Settings.
+    //     Vsync off, allow tearing off: VK_PRESENT_MODE_MAILBOX_KHR
+    //     Vsync off, allow tearing on:  VK_PRESENT_MODE_IMMEDIATE_KHR
+    //     Vsync on,  allow tearing off: VK_PRESENT_MODE_FIFO_KHR
+    //     Vsync on,  allow tearing on:  VK_PRESENT_MODE_FIFO_RELAXED_KHR
+    REQUESTED_PRESENT_MODE :: VkPresentModeKHR.VK_PRESENT_MODE_MAILBOX_KHR;
+
+    present_mode : VkPresentModeKHR = ---;
+    if Basic.array_find(present_modes, REQUESTED_PRESENT_MODE) {
+        present_mode = REQUESTED_PRESENT_MODE;
+        infoMessage("Using present mode: %", present_mode);
+    } else {
+        // FIFO is the only one which is guaranteed to be supported acording to Vulkan spec.
+        present_mode = .VK_PRESENT_MODE_FIFO_KHR;
+        warningMessage("Requested present mode (%) is not supported, % will be used", REQUESTED_PRESENT_MODE, present_mode);
+    }
+
+    //
     // Surface capabilities
     //
 
-    surface_capabilities : VkSurfaceCapabilitiesKHR = ---;
-    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.physical_device,
-                                                                                                      vulkan_window_data.surface,
-                                                                                                      *surface_capabilities));
+    surface_present_mode := VkSurfacePresentModeEXT.{
+        presentMode = present_mode,
+    };
+    surface_info := VkPhysicalDeviceSurfaceInfo2KHR.{
+        pNext   = *surface_present_mode,
+        surface = vulkan_window_data.surface
+    };
+
+    scaling_capabilities  : VkSurfacePresentScalingCapabilitiesEXT;
+    surface_capabilities2 := VkSurfaceCapabilities2KHR.{ pNext = *scaling_capabilities };
+    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfaceCapabilities2KHR(device.physical_device,
+                                                                                                       *surface_info,
+                                                                                                       *surface_capabilities2));
+    surface_capabilities := surface_capabilities2.surfaceCapabilities;
+
+    //
+    // Swapchain buffers count
+    //
 
     requested_swapchain_buffers_count := cast,no_check(u32) device.frame_buffering;
     if requested_swapchain_buffers_count < surface_capabilities.minImageCount {
@@ -1527,28 +1586,85 @@ recreateVulkanSwapchain :: (window : *Window) {
                       requested_swapchain_buffers_count);
     }
 
+    //
+    // Swapchain scaling
+    //
+
+    // @TOOD: #Settings.
+    REQUESTED_SCALING_MODE :: VkPresentScalingFlagsEXT.VK_PRESENT_SCALING_ASPECT_RATIO_STRETCH_BIT_EXT;
+    if !(scaling_capabilities.supportedPresentScaling & REQUESTED_SCALING_MODE) {
+        assertMessage("Requested scaling mode is not supported: %. Supported are: %",
+                      REQUESTED_SCALING_MODE,
+                      scaling_capabilities.supportedPresentScaling);
+    }
+
+    REQUESTED_GRAVITY_MODE :: VkPresentGravityFlagsEXT.VK_PRESENT_GRAVITY_CENTERED_BIT_EXT;
+    if !(scaling_capabilities.supportedPresentGravityX & REQUESTED_GRAVITY_MODE) {
+        assertMessage("Requested gravity mode along x axis is not supported: %. Supported are: %",
+                      REQUESTED_GRAVITY_MODE,
+                      scaling_capabilities.supportedPresentGravityX);
+    }
+    if !(scaling_capabilities.supportedPresentGravityY & REQUESTED_GRAVITY_MODE) {
+        assertMessage("Requested gravity mode along y axis is not supported: %. Supported are: %",
+                      REQUESTED_GRAVITY_MODE,
+                      scaling_capabilities.supportedPresentGravityY);
+    }
+
+    //
+    // Swapchain resolution
+    //
+
     surface_extent := VkExtent2D.{
-        width  = window.surface.width,
-        height = window.surface.height
+        width  = device.render_resolution.width,
+        height = device.render_resolution.height
     };
 
-    if !memcmp(*surface_capabilities.maxImageExtent, *(VkExtent2D.{}), size_of(VkExtent2D)) {
-        assertMessage("There is no way to create swapchain while window is minimized");
-    } else if memcmp(*surface_extent, *surface_capabilities.maxImageExtent, size_of(VkExtent2D)) > 0 {
-        warningMessage("Requested surface extent for swapchain (% x %) is too big. Will be adjusted to % x %",
-                       surface_extent.width,
-                       surface_extent.height,
-                       surface_capabilities.maxImageExtent.width,
-                       surface_capabilities.maxImageExtent.height);
-        surface_extent = surface_capabilities.maxImageExtent;
-    } else if memcmp(*surface_extent, *surface_capabilities.minImageExtent, size_of(VkExtent2D)) < 0 {
-        warningMessage("Requested surface extent for swapchain (% x %) is too small. Will be adjusted to % x %",
-                       surface_extent.width,
-                       surface_extent.height,
-                       surface_capabilities.minImageExtent.width,
-                       surface_capabilities.minImageExtent.height);
-        surface_extent = surface_capabilities.minImageExtent;
+    if scaling_capabilities.maxScaledImageExtent.width != 0xFFFF_FFFF {
+        assert(scaling_capabilities.maxScaledImageExtent.height != 0xFFFF_FFFF);
+
+        adjusted : bool;
+        if surface_extent.width > scaling_capabilities.maxScaledImageExtent.width {
+            surface_extent.width = scaling_capabilities.maxScaledImageExtent.width;
+            adjusted = true;
+        }
+        if surface_extent.height > scaling_capabilities.maxScaledImageExtent.height {
+            surface_extent.height = scaling_capabilities.maxScaledImageExtent.height;
+            adjusted = true;
+        }
+
+        if adjusted {
+            warningMessage("Requested surface extent for swapchain (% x %) is too big. It will be adjusted to % x %",
+                           surface_extent.width,
+                           surface_extent.height,
+                           scaling_capabilities.maxScaledImageExtent.width,
+                           scaling_capabilities.maxScaledImageExtent.height);
+        }
     }
+    if scaling_capabilities.minScaledImageExtent.width != 0xFFFF_FFFF {
+        assert(scaling_capabilities.minScaledImageExtent.height != 0xFFFF_FFFF);
+
+        adjusted : bool;
+        if surface_extent.width < scaling_capabilities.minScaledImageExtent.width {
+            surface_extent.width = scaling_capabilities.minScaledImageExtent.width;
+            adjusted = true;
+        }
+        if surface_extent.height < scaling_capabilities.minScaledImageExtent.height {
+            surface_extent.height = scaling_capabilities.minScaledImageExtent.height;
+            adjusted = true;
+        }
+
+        if adjusted {
+            warningMessage("Requested surface extent for swapchain (% x %) is too small. It will be adjusted to % x %",
+                           surface_extent.width,
+                           surface_extent.height,
+                           scaling_capabilities.minScaledImageExtent.width,
+                           scaling_capabilities.minScaledImageExtent.height);
+        }
+    }
+
+    //
+    // Other stuff
+    //
 
     REQUESTED_USAGE_FLAGS :: VkImageUsageFlags.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
                            | .VK_IMAGE_USAGE_SAMPLED_BIT
@@ -1576,43 +1692,18 @@ recreateVulkanSwapchain :: (window : *Window) {
         assertMessage("Surface does not support opaque alpha mode");
     }
 
-    //
-    // Present mode
-    //
-
-    present_modes : [] VkPresentModeKHR;
-    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
-                                                                                                      vulkan_window_data.surface,
-                                                                                                      cast(*u32) *present_modes.count,
-                                                                                                      null));
-
-    present_modes.data = pushToArena(*context.pet.arenas.per_frame, VkPresentModeKHR, present_modes.count);
-    debugCheckVK(device.loader.extensions.instance.required.vkGetPhysicalDeviceSurfacePresentModesKHR(device.physical_device,
-                                                                                                      vulkan_window_data.surface,
-                                                                                                      cast(*u32) *present_modes.count,
-                                                                                                      present_modes.data));
-
-    // @TODO: #Settings.
-    //     Vsync off, allow tearing off: VK_PRESENT_MODE_MAILBOX_KHR
-    //     Vsync off, allow tearing on:  VK_PRESENT_MODE_IMMEDIATE_KHR
-    //     Vsync on,  allow tearing off: VK_PRESENT_MODE_FIFO_KHR
-    //     Vsync on,  allow tearing on:  VK_PRESENT_MODE_FIFO_RELAXED_KHR
-    REQUESTED_PRESENT_MODE :: VkPresentModeKHR.VK_PRESENT_MODE_MAILBOX_KHR;
-
-    present_mode : VkPresentModeKHR = ---;
-    if Basic.array_find(present_modes, REQUESTED_PRESENT_MODE) {
-        present_mode = REQUESTED_PRESENT_MODE;
-    } else {
-        // FIFO is the only one which is guaranteed to be supported acording to Vulkan spec.
-        present_mode = .VK_PRESENT_MODE_FIFO_KHR;
-        warningMessage("Requested present mode (%) is not supported, % will be used", REQUESTED_PRESENT_MODE, present_mode);
-    }
-
     queue_families_having_access_to_swapchain_images := u32.[
         device.queues[QueueType.GRAPHICS].family_index
     ];
 
+    SCALING_BEHAVIOUR :: VkSwapchainPresentScalingCreateInfoEXT.{
+        scalingBehavior = REQUESTED_SCALING_MODE,
+        presentGravityX = REQUESTED_GRAVITY_MODE,
+        presentGravityY = REQUESTED_GRAVITY_MODE,
+    };
+
     create_info := VkSwapchainCreateInfoKHR.{
+        pNext                 = *SCALING_BEHAVIOUR,
         flags                 = 0,
         surface               = vulkan_window_data.surface,
         minImageCount         = requested_swapchain_buffers_count,

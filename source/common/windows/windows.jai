@@ -260,6 +260,14 @@ LoadCursorW :: (
     lpCursorName : LPCWSTR
 ) -> HCURSOR #foreign user32;
 
+GWL_STYLE   : s32 : -16;
+GWL_EXSTYLE : s32 : -20;
+
+GetWindowLongW :: (
+    hWnd   : HWND,
+    nIndex : s32
+) -> s32 #foreign user32;
+
 GWLP_USERDATA : s32 : -21;
 
 GetWindowLongPtrW :: (
@@ -278,6 +286,7 @@ WM_MOVE                : u32 : 0x0003;
 WM_SIZE                : u32 : 0x0005;
 WM_CLOSE               : u32 : 0x0010;
 WM_SETTINGCHANGE       : u32 : 0x001A;
+WM_GETMINMAXINFO       : u32 : 0x0024;
 WM_WINDOWPOSCHANGED    : u32 : 0x0047;
 WM_DISPLAYCHANGE       : u32 : 0x007E;
 WM_INPUT_DEVICE_CHANGE : u32 : 0x00FE;
@@ -402,6 +411,14 @@ SetWindowPos :: (
     cy              : s32,
     uFlags          : u32
 ) -> BOOL #foreign user32;
+
+MINMAXINFO :: struct {
+    ptReserved     : POINT;
+    ptMaxSize      : POINT;
+    ptMaxPosition  : POINT;
+    ptMinTrackSize : POINT;
+    ptMaxTrackSize : POINT;
+}
 
 GetCurrentThreadId :: (
 ) -> u32 #foreign kernel32;

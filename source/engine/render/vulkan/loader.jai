@@ -24,6 +24,8 @@ VulkanLoader :: struct {
                 } else {
                     notImplemented();
                 }
+                vkGetPhysicalDeviceSurfaceCapabilities2KHR : PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR; @VK_KHR_get_surface_capabilities2
+                surface_maintenance1                       : void;                                           @VK_EXT_surface_maintenance1
             };
 
             optional : struct {
@@ -46,6 +48,7 @@ VulkanLoader :: struct {
                 vkGetSwapchainImagesKHR : PFN_vkGetSwapchainImagesKHR; @VK_KHR_swapchain
                 vkAcquireNextImage2KHR  : PFN_vkAcquireNextImage2KHR;  @VK_KHR_swapchain
                 vkQueuePresentKHR       : PFN_vkQueuePresentKHR;       @VK_KHR_swapchain
+                swapchain_maintenance1  : void;                        @VK_EXT_swapchain_maintenance1
             };
 
             optional : struct {
@@ -198,6 +201,8 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
     assert(struct_info.type == .STRUCT);
 
     for struct_info.members {
+        if it.type.type == .VOID continue;
+
         function := vkGetInstanceProcAddr(instance, it.name.data);
         if function == null {
             assertMessage("Function \"%\" was not found, but \"%\" instance extension was enabled", it.name, it.notes[0]);
@@ -213,6 +218,8 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
     assert(struct_info.type == .STRUCT);
 
     for struct_info.members {
+        if it.type.type == .VOID continue;
+
         member_extension_name := it.notes[0];
         if !Basic.array_find(enabled_instance_extensions.*, member_extension_name) {
             continue;
@@ -235,6 +242,8 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
     assert(struct_info.type == .STRUCT);
 
     for struct_info.members {
+        if it.type.type == .VOID continue;
+
         function := vkGetDeviceProcAddr(device, it.name.data);
         if function == null {
             assertMessage("Function \"%\" was not found, but \"%\" device extension was enabled", it.name, it.notes[0]);
@@ -250,6 +259,8 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
     assert(struct_info.type == .STRUCT);
 
     for struct_info.members {
+        if it.type.type == .VOID continue;
+
         member_extension_name := it.notes[0];
         if !Basic.array_find(enabled_device_extensions.*, member_extension_name) {
             continue;
