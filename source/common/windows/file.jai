@@ -402,9 +402,9 @@ createPathToFilename :: (filename : *[] WCHAR) {
 }
 
 translateFileInfo :: (file_info : *File.Info, find_data : WIN32_FIND_DATAW, $is_directory : bool) {
-    file_info.creation_time    = Basic.filetime_to_apollo(xx find_data.ftCreationTime);
-    file_info.last_access_time = Basic.filetime_to_apollo(xx find_data.ftLastAccessTime);
-    file_info.last_write_time  = Basic.filetime_to_apollo(xx find_data.ftLastWriteTime);
+    file_info.creation_time    = Basic.filetime_to_apollo(xx,force find_data.ftCreationTime);
+    file_info.last_access_time = Basic.filetime_to_apollo(xx,force find_data.ftLastAccessTime);
+    file_info.last_write_time  = Basic.filetime_to_apollo(xx,force find_data.ftLastWriteTime);
 
     file_info.size = (cast(u64) find_data.nFileSizeHigh << 32) | find_data.nFileSizeLow;
 
@@ -428,9 +428,9 @@ translateFileInfo :: (file_info : *File.Info, find_data : WIN32_FIND_DATAW, $is_
 }
 
 translateFileInfo :: (file_info : *File.Info, attribute_data : WIN32_FILE_ATTRIBUTE_DATA) {
-    file_info.creation_time    = Basic.filetime_to_apollo(xx attribute_data.ftCreationTime);
-    file_info.last_access_time = Basic.filetime_to_apollo(xx attribute_data.ftLastAccessTime);
-    file_info.last_write_time  = Basic.filetime_to_apollo(xx attribute_data.ftLastWriteTime);
+    file_info.creation_time    = Basic.filetime_to_apollo(xx,force attribute_data.ftCreationTime);
+    file_info.last_access_time = Basic.filetime_to_apollo(xx,force attribute_data.ftLastAccessTime);
+    file_info.last_write_time  = Basic.filetime_to_apollo(xx,force attribute_data.ftLastWriteTime);
 
     file_info.size = (cast(u64) attribute_data.nFileSizeHigh << 32) | attribute_data.nFileSizeLow;
 
@@ -446,9 +446,9 @@ translateFileInfo :: (file_info : *File.Info, attribute_data : WIN32_FILE_ATTRIB
 }
 
 translateFileInfo :: (file_info : *File.Info, by_handle_info : BY_HANDLE_FILE_INFORMATION, attribute_tag_info : FILE_ATTRIBUTE_TAG_INFO) {
-    file_info.creation_time    = Basic.filetime_to_apollo(xx by_handle_info.ftCreationTime);
-    file_info.last_access_time = Basic.filetime_to_apollo(xx by_handle_info.ftLastAccessTime);
-    file_info.last_write_time  = Basic.filetime_to_apollo(xx by_handle_info.ftLastWriteTime);
+    file_info.creation_time    = Basic.filetime_to_apollo(xx,force by_handle_info.ftCreationTime);
+    file_info.last_access_time = Basic.filetime_to_apollo(xx,force by_handle_info.ftLastAccessTime);
+    file_info.last_write_time  = Basic.filetime_to_apollo(xx,force by_handle_info.ftLastWriteTime);
 
     file_info.size = (cast(u64) by_handle_info.nFileSizeHigh << 32) | by_handle_info.nFileSizeLow;
 
