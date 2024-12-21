@@ -58,7 +58,7 @@ destroyWin32WindowManager :: () {
 
     for manager.windows {
         if it.handle {
-            SendMessageW(it.handle, WM_CLOSE, 0, 0);
+            SendMessageW(it.handle, .WM_CLOSE, 0, 0);
             assert(it.handle == null);
         }
     }
@@ -183,7 +183,7 @@ createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolut
 }
 
 destroyWin32Window :: (window : *Win32Window) {
-    PostMessageW(window.handle, WM_CLOSE, 0, 0);
+    PostMessageW(window.handle, .WM_CLOSE, 0, 0);
 }
 
 showWin32Window :: (window : *Win32Window) {
@@ -230,12 +230,12 @@ processWin32WindowEvents :: (window : *Win32Window) {
 
 #scope_file
 
-windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, lparam : LPARAM) -> LRESULT #c_call {
+windowEventsCallback :: (window_handle : HWND, message : WM, wparam : WPARAM, lparam : LPARAM) -> LRESULT #c_call {
     result : LRESULT;
     window := cast,no_check(*Win32Window) GetWindowLongPtrW(window_handle, GWLP_USERDATA);
 
     if message == {
-        case WM_DESTROY; {
+        case .WM_DESTROY; {
             push_context,defer_pop window.proc_context;
             autoResetPerFrameArenas();
             assertThreadKind(.WINDOW);
@@ -245,13 +245,13 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             result = DefWindowProcW(window_handle, message, wparam, lparam);
         }
 
-        case WM_MOVE;
+        case .WM_MOVE;
             window.flags |= .MOVED;
 
             window.surface.x = cast,trunc(s16) (lparam & 0xFFFF);
             window.surface.y = cast,trunc(s16) (lparam >> 16);
 
-        case WM_SIZE;
+        case .WM_SIZE;
             window.flags |= .RESIZED;
             window.flags &= ~(.MINIMIZED | .MAXIMIZED);
 
@@ -263,13 +263,13 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             window.surface.width  = cast(u16) (lparam & 0xFFFF);
             window.surface.height = cast(u16) (lparam >> 16);
 
-        case WM_CLOSE;
+        case .WM_CLOSE;
             window.flags |= .CLOSED;
 
             // DefWindowProc calls DestroyWindow to destroy the window
             result = DefWindowProcW(window_handle, message, wparam, lparam);
 
-        case WM_SETTINGCHANGE; {
+        case .WM_SETTINGCHANGE; {
             push_context,defer_pop window.proc_context;
             autoResetPerFrameArenas();
             assertThreadKind(.WINDOW);
@@ -279,7 +279,7 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             result = DefWindowProcW(window_handle, message, wparam, lparam);
         }
 
-        case WM_GETMINMAXINFO;
+        case .WM_GETMINMAXINFO;
             if window {
                 push_context,defer_pop window.proc_context;
 
@@ -298,7 +298,7 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
                 info.ptMinTrackSize.y = window_rect.bottom - window_rect.top;
             }
 
-        case WM_WINDOWPOSCHANGED; {
+        case .WM_WINDOWPOSCHANGED; {
             push_context,defer_pop window.proc_context;
             autoResetPerFrameArenas();
             assertThreadKind(.WINDOW);
@@ -319,11 +319,11 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             result = DefWindowProcW(window_handle, message, wparam, lparam);
         }
 
-        case WM_DISPLAYCHANGE;
+        case .WM_DISPLAYCHANGE;
             window.screen.width  = cast(u16) (lparam & 0xFFFF);
             window.screen.height = cast(u16) (lparam >> 16);
 
-        case WM_INPUT_DEVICE_CHANGE; {
+        case .WM_INPUT_DEVICE_CHANGE; {
             push_context,defer_pop window.proc_context;
             autoResetPerFrameArenas();
             assertThreadKind(.WINDOW);
@@ -331,7 +331,7 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             onRawInputDeviceChange(cast(HANDLE) lparam, wparam);
         }
 
-        case WM_INPUT; {
+        case .WM_INPUT; {
             push_context,defer_pop window.proc_context;
             autoResetPerFrameArenas();
             assertThreadKind(.WINDOW);
@@ -343,13 +343,13 @@ windowEventsCallback :: (window_handle : HWND, message : u32, wparam : WPARAM, l
             result = DefWindowProcW(window_handle, message, wparam, lparam);
         }
 
-        case WM_MENUCHAR;
+        case .WM_MENUCHAR;
             // To suppress bip sound on Alt+Enter when there is no menu created
             if !lparam && (wparam & 0xFFFF) == #char "\n" {
                 result = MNC_CLOSE;
             }
 
-        case WM_DPICHANGED; {
+        case .WM_DPICHANGED; {
             push_context,defer_pop window.proc_context;
             autoResetPerFrameArenas();
             assertThreadKind(.WINDOW);
