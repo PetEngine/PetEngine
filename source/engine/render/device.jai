@@ -1,8 +1,10 @@
 Device :: struct {
     Type :: enum u8 {
-        INVALID;
+        UNKNOWN;
         DISCRETE;
         INTEGRATED;
+        VIRTUAL;
+        CPU;
     }
 
     WindowData :: struct {

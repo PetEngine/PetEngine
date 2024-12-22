@@ -530,7 +530,8 @@ setVulkanObjectName :: (object : $T, $format : string, args : ..Any) {
 
 #scope_file
 
-Hash :: #import "Hash";
+Hash      :: #import "Hash";
+IntroSort :: #import "IntroSort";
 
 FrameData :: struct {
     fences : [VulkanDevice.queues.count] VkFence;
@@ -561,6 +562,16 @@ VulkanWindowData :: struct {
     swapchain               : VkSwapchainKHR;
     swapchain_textures      : [Device.MAX_SWAPCHAIN_BUFFERS] VulkanTexture;
     swapchain_texture_views : [Device.MAX_SWAPCHAIN_BUFFERS] [2] VulkanTextureView;
+}
+
+PhysicalDeviceInfo :: struct {
+    physical_device : VkPhysicalDevice;
+    memory_size     : VkDeviceSize;
+
+    // bits [5, 3] - device type priority
+    // bit 2       - API version priority
+    // bits [1, 0] - vendor ID priority
+    priority : u8;
 }
 
 createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
@@ -952,79 +963,77 @@ initMessengerCallback :: () {
 selectPhysicalDevice :: () -> u32 {
     device := cast(*VulkanDevice) context.pet.render.device;
 
-    physical_devices : [] VkPhysicalDevice;
-    debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, null));
+    physical_device_infos := sortPhysicalDevices();
 
-    physical_devices.data = pushToArena(*context.pet.arenas.per_frame, VkPhysicalDevice, physical_devices.count);
-    debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, physical_devices.data));
+    properties2 : VkPhysicalDeviceProperties2;
 
-    physical_device_properties : VkPhysicalDeviceProperties2;
-    properties := *physical_device_properties.properties;
+    #if PRINT_VERBOSE_MESSAGES {
+        builder := Basic.String_Builder.{ allocator = Basic.temp };
+        Basic.print(*builder, "Available physical devices (%):\n", physical_device_infos.count);
 
-    COMPATIBLE_PHYSICAL_DEVICE_TYPES :: VkPhysicalDeviceType.[
-        .VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
-        .VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU
-    ];
+        PHYSICAL_DEVICE_VERBOSE_MESSAGE :: #string END
+    [%]: Vendor ID:      % (0x%)
+         Device ID:      0x%
+         Device type:    %
+         Device name:    %
+         Device memory:  % GB
+         Driver ID:      %
+         Driver name:    %
+         Driver info:    %
+         Driver version: %.%.%.% (0x%)
+         API version:    %.%.%.%
+END;
 
-    memory_properties : VkPhysicalDeviceMemoryProperties2;
+        for physical_device_infos {
+            properties12 : VkPhysicalDeviceVulkan12Properties;
+            properties2.pNext = *properties12;
+            vkGetPhysicalDeviceProperties2(it.physical_device, *properties2);
 
-    available_device_memory : VkDeviceSize;
-
-    for type : COMPATIBLE_PHYSICAL_DEVICE_TYPES {
-        max_memory_size : VkDeviceSize;
-
-        for physical_devices {
-            vkGetPhysicalDeviceProperties2(it, *physical_device_properties);
-
-            if properties.deviceType == type {
-                vkGetPhysicalDeviceMemoryProperties2(it, *memory_properties);
-
-                memory_heaps := toView(memory_properties.memoryProperties.memoryHeaps.data,
-                                       memory_properties.memoryProperties.memoryHeapCount);
-
-                memory_size : VkDeviceSize;
-                if type == {
-                    case .VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
-                        device.type = .DISCRETE;
-
-                        for memory_heaps {
-                            if it.flags & .VK_MEMORY_HEAP_DEVICE_LOCAL_BIT {
-                                memory_size += it.size;
-                            }
-                        }
-
-                    case .VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
-                        device.type = .INTEGRATED;
-
-                        for memory_heaps {
-                            memory_size += it.size;
-                        }
-                }
-
-                if memory_size > max_memory_size {
-                    max_memory_size        = memory_size;
-                    device.physical_device = it;
-                }
-            }
+            Basic.print(*builder,
+                        PHYSICAL_DEVICE_VERBOSE_MESSAGE,
+                        it_index,
+                        vendorIdToString(properties2.properties.vendorID),
+                        formatHex(properties2.properties.vendorID),
+                        formatHex(properties2.properties.deviceID),
+                        properties2.properties.deviceType,
+                        cast(string) properties2.properties.deviceName,
+                        bytesToGigaBytes(it.memory_size),
+                        properties12.driverID,
+                        cast(string) properties12.driverName,
+                        cast(string) properties12.driverInfo,
+                        properties12.conformanceVersion.major,
+                        properties12.conformanceVersion.minor,
+                        properties12.conformanceVersion.subminor,
+                        properties12.conformanceVersion.patch,
+                        formatHex(properties2.properties.driverVersion),
+                        VK_API_VERSION_VARIANT(properties2.properties.apiVersion),
+                        VK_API_VERSION_MAJOR(properties2.properties.apiVersion),
+                        VK_API_VERSION_MINOR(properties2.properties.apiVersion),
+                        VK_API_VERSION_PATCH(properties2.properties.apiVersion));
         }
 
-        if device.physical_device {
-            available_device_memory = max_memory_size;
-            break;
-        }
+        verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
-    if device.physical_device == VK_NULL_HANDLE {
-        #assert COMPATIBLE_PHYSICAL_DEVICE_TYPES.count == 2;
-        assertMessage("Vulkan back end supports only % types of GPUs: % and %. None of them were found",
-                      COMPATIBLE_PHYSICAL_DEVICE_TYPES.count,
-                      COMPATIBLE_PHYSICAL_DEVICE_TYPES[0],
-                      COMPATIBLE_PHYSICAL_DEVICE_TYPES[1]);
+    // @TODO: #Settings. Choose device from settings by name, fallback to the [0] one.
+    selected_physical_device := *physical_device_infos[0];
+    device.physical_device = selected_physical_device.physical_device;
+
+    properties2.pNext         = *device.properties11;
+    device.properties11.pNext = *device.properties12;
+    device.properties12.pNext = *device.descriptor_buffer_properties;
+    vkGetPhysicalDeviceProperties2(device.physical_device, *properties2);
+
+    device.vendor_id = cast(PCIVendorID) properties2.properties.vendorID;
+    if #complete properties2.properties.deviceType == {
+        case .VK_PHYSICAL_DEVICE_TYPE_OTHER;          device.type = .UNKNOWN;
+        case .VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU; device.type = .INTEGRATED;
+        case .VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;   device.type = .DISCRETE;
+        case .VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU;    device.type = .VIRTUAL;
+        case .VK_PHYSICAL_DEVICE_TYPE_CPU;            device.type = .CPU;
     }
 
-    infoMessage("Using % physical device with % GB of memory", device.type, available_device_memory / 1_073_741_824.0);
-
-    if properties.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
+    if properties2.properties.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
         assertMessage("Physical device API version is less than minimal requied API version: %.%.%.%",
                       VK_API_VERSION_VARIANT(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
                       VK_API_VERSION_MAJOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION),
@@ -1032,56 +1041,43 @@ selectPhysicalDevice :: () -> u32 {
                       VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION));
     }
 
-    device.vendor_id = cast(PCIVendorID) properties.vendorID;
-
     PHYSICAL_DEVICE_INFO_MESSAGE :: #string END
-Physical device info:
-    API version:    %.%.%.%
-    Driver version: 0x%
+Using physical device:
     Vendor ID:      % (0x%)
     Device ID:      0x%
     Device type:    %
     Device name:    %
+    Device memory:  % GB
+    Driver ID:      %
+    Driver name:    %
+    Driver info:    %
+    Driver version: %.%.%.% (0x%)
+    API version:    %.%.%.%
 END;
 
     infoMessage(PHYSICAL_DEVICE_INFO_MESSAGE,
-                VK_API_VERSION_VARIANT(properties.apiVersion),
-                VK_API_VERSION_MAJOR(properties.apiVersion),
-                VK_API_VERSION_MINOR(properties.apiVersion),
-                VK_API_VERSION_PATCH(properties.apiVersion),
-                formatHex(properties.driverVersion),
-                vendorIdToString(properties.vendorID),
-                formatHex(properties.vendorID),
-                formatHex(properties.deviceID),
-                properties.deviceType,
-                cast(string) properties.deviceName);
-
-    physical_device_properties.pNext = *device.properties11;
-    device.properties11.pNext        = *device.properties12;
-    device.properties12.pNext        = *device.descriptor_buffer_properties;
-
-    vkGetPhysicalDeviceProperties2(device.physical_device, *physical_device_properties);
-
-    DRIVER_INFO_MESSAGE :: #string END
-Driver info:
-    Driver ID:           %
-    Driver name:         %
-    Driver info:         %
-    Conformance version: %.%.%.%
-END;
-
-    infoMessage(DRIVER_INFO_MESSAGE,
+                vendorIdToString(properties2.properties.vendorID),
+                formatHex(properties2.properties.vendorID),
+                formatHex(properties2.properties.deviceID),
+                properties2.properties.deviceType,
+                cast(string) properties2.properties.deviceName,
+                bytesToGigaBytes(selected_physical_device.memory_size),
                 device.properties12.driverID,
                 cast(string) device.properties12.driverName,
                 cast(string) device.properties12.driverInfo,
                 device.properties12.conformanceVersion.major,
                 device.properties12.conformanceVersion.minor,
                 device.properties12.conformanceVersion.subminor,
-                device.properties12.conformanceVersion.patch);
+                device.properties12.conformanceVersion.patch,
+                formatHex(properties2.properties.driverVersion),
+                VK_API_VERSION_VARIANT(properties2.properties.apiVersion),
+                VK_API_VERSION_MAJOR(properties2.properties.apiVersion),
+                VK_API_VERSION_MINOR(properties2.properties.apiVersion),
+                VK_API_VERSION_PATCH(properties2.properties.apiVersion));
 
-    device.limits = properties.limits;
+    device.limits = properties2.properties.limits;
 
-    return properties.apiVersion;
+    return properties2.properties.apiVersion;
 }
 
 findQueueFamily :: ($condition : Code) #expand {
@@ -2022,4 +2018,85 @@ vkTypeToObjectType :: inline ($vkType : Type) -> VkObjectType #compile_time {
             #assert false "Unhandled Vk* type";
             return .VK_OBJECT_TYPE_UNKNOWN;
     }
+}
+
+sortPhysicalDevices :: () -> [] PhysicalDeviceInfo {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
+    physical_devices : [] VkPhysicalDevice;
+    debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, null));
+
+    if physical_devices.count <= 0 {
+        assertMessage("Vulkan did not found compatible GPU");
+        return .{};
+    }
+
+    physical_devices.data = pushToArena(*context.pet.arenas.per_frame, VkPhysicalDevice, physical_devices.count);
+    debugCheckVK(vkEnumeratePhysicalDevices(device.instance, cast(*u32) *physical_devices.count, physical_devices.data));
+
+    infos : [] PhysicalDeviceInfo = ---;
+    infos.count = physical_devices.count;
+    infos.data  = pushToArena(*context.pet.arenas.per_frame, PhysicalDeviceInfo, infos.count);
+
+    properties2        : VkPhysicalDeviceProperties2;
+    memory_properties2 : VkPhysicalDeviceMemoryProperties2;
+
+    for * infos {
+        it.physical_device = physical_devices[it_index];
+
+        vkGetPhysicalDeviceProperties2(it.physical_device, *properties2);
+        if properties2.properties.apiVersion < VulkanDevice.MINIMAL_SUPPORTED_API_VERSION {
+            continue;
+        }
+
+        vkGetPhysicalDeviceMemoryProperties2(it.physical_device, *memory_properties2);
+        memory_heaps := toView(memory_properties2.memoryProperties.memoryHeaps.data,
+                               memory_properties2.memoryProperties.memoryHeapCount);
+
+        if properties2.properties.deviceType == {
+            case .VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+                for heap : memory_heaps {
+                    if heap.flags & .VK_MEMORY_HEAP_DEVICE_LOCAL_BIT {
+                        it.memory_size += heap.size;
+                    }
+                }
+
+            case .VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
+                for heap : memory_heaps {
+                    it.memory_size += heap.size;
+                }
+        }
+
+        if #complete properties2.properties.deviceType == {
+            case .VK_PHYSICAL_DEVICE_TYPE_OTHER;          it.priority += 0 << 3;
+            case .VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU; it.priority += 3 << 3;
+            case .VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;   it.priority += 4 << 3;
+            case .VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU;    it.priority += 2 << 3;
+            case .VK_PHYSICAL_DEVICE_TYPE_CPU;            it.priority += 1 << 3;
+        }
+
+        if properties2.properties.apiVersion >= VK_API_VERSION_1_3 {
+            it.priority += 1 << 2;
+        } else if properties2.properties.apiVersion >= VK_API_VERSION_1_2 {
+            it.priority += 0 << 2;
+        }
+
+        if cast(PCIVendorID) properties2.properties.vendorID == {
+            case .NVIDIA; it.priority += 2 << 0;
+            case .AMD;    it.priority += 1 << 0;
+            case .INTEL;  it.priority += 0 << 0;
+        }
+    }
+
+    IntroSort.intro_sort(infos, (left : PhysicalDeviceInfo, right : PhysicalDeviceInfo) -> int {
+        if left.priority > right.priority return -1;
+        if left.priority < right.priority return  1;
+
+        if left.memory_size > right.memory_size return -1;
+        if left.memory_size < right.memory_size return  1;
+
+        return 0;
+    });
+
+    return infos;
 }
