@@ -25,7 +25,7 @@ VulkanDevice :: struct {
 
     messenger                           : VkDebugUtilsMessengerEXT;
     message_hashes                      : [..] u32;
-    messenger_context                   : Context;
+    messenger_context                   : #Context;
     messenger_context_temporary_storage : Temporary_Storage;
 
     loader : VulkanLoader;
@@ -915,7 +915,7 @@ initMessengerCallback :: () {
         // We do not need globals for messenger callback
 
         push_context device.messenger_context {
-            context.context_info    = type_info(Context);
+            context.context_info    = type_info(#Context);
             context.thread_index    = getNextThreadIndex();
             context.pet.thread.name = "Vulkan Device Messenger";
             context.pet.thread.kind = .DEVICE_MESSENGER;

@@ -887,7 +887,7 @@ resolveIncludeCallback :: (
     requesting_source : *u8,
     include_depth     : size_t
 ) -> *shaderc_include_result #c_call {
-    push_context,defer_pop cast(*Context) user_data;
+    push_context,defer_pop cast(*#Context) user_data;
 
     include_filename := String.join(SOURCE_SHADERS_FOLDER, "/", to_string(requested_source),, allocator = Basic.temp);
 

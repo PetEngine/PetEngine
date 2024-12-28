@@ -10,7 +10,7 @@ Thread :: struct(Data : Type) {
     procedure : Procedure;
     data      : *Data;
 
-    jai_context : Context;
+    jai_context : #Context;
 }
 
 ThreadKind :: enum u8 {
@@ -34,7 +34,7 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
     thread.jai_context.print_style     = context.print_style;
     thread.jai_context.pet.thread.name = name;
     thread.jai_context.pet.thread.kind = kind;
-    Context.pet.initGlobals(*thread.jai_context);
+    #Context.pet.initGlobals(*thread.jai_context);
 
     #if OS == .WINDOWS {
         Data :: thread.Data;
@@ -149,7 +149,7 @@ getNextThreadIndex :: inline () -> u32 #no_context {
     thread_index : u32 = 1;
     next_thread_index := *g_next_thread_index;
     #if CPU == .X64 {
-        #asm { lock_xadd [next_thread_index], thread_index; }
+        #asm { lock_xadd.d [next_thread_index], thread_index; }
     } else {
         notImplemented();
     }
@@ -159,7 +159,7 @@ getNextThreadIndex :: inline () -> u32 #no_context {
 #scope_file
 
 threadProc :: no_inline (thread : *Thread) {
-    context.context_info = type_info(Context);
+    context.context_info = type_info(#Context);
     context.thread_index = getNextThreadIndex();
 
     context.allocator.proc(.THREAD_START, 0, 0, null, context.allocator.data);

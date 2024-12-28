@@ -41,11 +41,11 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
         binding_manager  : *BindingManager;
     };
 
-    initGlobals :: (new_context : *Context) {
+    initGlobals :: (new_context : *#Context) {
         #insert -> string {
             builder := Basic.String_Builder.{ allocator = Basic.temp };
 
-            info := type_info(type_of(Context.pet.core));
+            info := type_info(type_of(#Context.pet.core));
             assert(info.type == .STRUCT);
 
             for info.members {
@@ -55,7 +55,7 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
                 Basic.print(*builder, "new_context.pet.core.%1 = context.pet.core.%1;\n", it.name);
             }
 
-            info = type_info(type_of(Context.pet.render));
+            info = type_info(type_of(#Context.pet.render));
             assert(info.type == .STRUCT);
 
             for info.members {
@@ -472,7 +472,7 @@ Atomics    :: #import "Atomics";
     // #CRT. WinMainCRTStartup
     #program_export
     WinMain :: (instance : HINSTANCE, prev_instance : HINSTANCE, cmd_line : PSTR, cmd_show : s32) -> s32 #c_call {
-        first_context : Context;
+        first_context : #Context;
 
         // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
         #if _STACK_TRACE {
@@ -578,7 +578,7 @@ Atomics    :: #import "Atomics";
         __command_line_arguments.count = argc;
         __command_line_arguments.data  = argv;
 
-        first_context : Context;
+        first_context : #Context;
 
         // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
         #if _STACK_TRACE {
@@ -605,7 +605,7 @@ Atomics    :: #import "Atomics";
 }
 
 initRuntimeAndCallEntryPoint :: () {
-    context.context_info = type_info(Context);
+    context.context_info = type_info(#Context);
 
     context.print_style.default_format_int.digits_per_comma                                = 3;
     context.print_style.default_format_int.comma_string                                    = "'";

@@ -94,7 +94,7 @@ Window :: struct {
 
     input : Input;
 
-    proc_context                   : Context;
+    proc_context                   : #Context;
     proc_context_temporary_storage : Temporary_Storage;
 }
 
@@ -130,10 +130,10 @@ createWindow :: (
         window.proc_context.logger      = context.logger;
         window.proc_context.logger_data = context.logger_data;
         window.proc_context.print_style = context.print_style;
-        Context.pet.initGlobals(*window.proc_context);
+        #Context.pet.initGlobals(*window.proc_context);
 
         push_context window.proc_context {
-            context.context_info    = type_info(Context);
+            context.context_info    = type_info(#Context);
             context.thread_index    = getNextThreadIndex();
             context.pet.thread.kind = .WINDOW;
 
