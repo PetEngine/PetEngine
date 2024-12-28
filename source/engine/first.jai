@@ -203,7 +203,7 @@ petMain :: () {
     //    - Get graphics API from settings.
     //    - Get render resolution from settings.
     //    - Get buffering from settings.
-    createDevice(.VULKAN, .{ 960, 540 }, .DOUBLE);
+    createDevice(.VULKAN, .{ 1920, 1080 }, .DOUBLE);
     defer destroyDevice();
 
     createResourceManager();
@@ -302,7 +302,7 @@ petMain :: () {
             }
 
             // @TODO: #Scene. New scene
-            if window.input.keyboard[Input.Key.O] & .PRESSED {
+            if window.input.keyboard[Input.Key.O] & .RELEASED {
                 // Reset
                 resetResourceMemory(.PER_SCENE);
                 resetAssetManagerAssets();

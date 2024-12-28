@@ -84,9 +84,10 @@ Window :: struct {
 
     next_active : *Window;
 
-    rect      : Rect;
-    surface   : Rect;
-    screen    : Resolution;
+    rect    : Rect;
+    surface : Rect;
+    screen  : Resolution;
+
     dpi_scale : f32;
 
     id    : u8    = INVALID_ID;
@@ -94,6 +95,7 @@ Window :: struct {
 
     input : Input;
 
+    // @TODO: We have only 1 "input" thread: main thread, so we can just store a pointer to its context in WindowManager
     proc_context                   : #Context;
     proc_context_temporary_storage : Temporary_Storage;
 }

@@ -751,7 +751,7 @@ SetThreadDpiAwarenessContext :: (
     dpiContext : DPI_AWARENESS_CONTEXT
 ) -> DPI_AWARENESS_CONTEXT #foreign user32;
 
-DPI_AWARENESS :: enum s32 {
+DPI_AWARENESS :: enum s32 #specified {
     DPI_AWARENESS_INVALID           :: -1;
     DPI_AWARENESS_UNAWARE           ::  0;
     DPI_AWARENESS_SYSTEM_AWARE      ::  1;
@@ -761,16 +761,6 @@ DPI_AWARENESS :: enum s32 {
 GetAwarenessFromDpiAwarenessContext :: (
     value : DPI_AWARENESS_CONTEXT
 ) -> DPI_AWARENESS #foreign user32;
-
-DPI_HOSTING_BEHAVIOR :: enum s32 {
-    DPI_HOSTING_BEHAVIOR_INVALID :: -1;
-    DPI_HOSTING_BEHAVIOR_DEFAULT ::  0;
-    DPI_HOSTING_BEHAVIOR_MIXED   ::  1;
-}
-
-SetThreadDpiHostingBehavior :: (
-    value : DPI_HOSTING_BEHAVIOR
-) -> DPI_HOSTING_BEHAVIOR #foreign user32;
 
 PostMessageW :: (
     hWnd   : HWND,
@@ -874,6 +864,10 @@ SetWindowTextW :: (
     hWnd     : HWND,
     lpString : LPCWSTR
 ) -> BOOL #foreign user32;
+
+//
+// Memory
+//
 
 MEM_COMMIT      : u32 : 0x00001000;
 MEM_RESERVE     : u32 : 0x00002000;

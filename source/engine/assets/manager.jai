@@ -35,7 +35,7 @@ createAssetManager :: () {
 
     manager.command_buffer = createCommandBuffer(AssetManager.command_buffer.usage);
 
-    // #Settings. Capacity
+    // @TODO: #Settings. Capacity
     BUFFER_CAPACITY :: #run megaBytes(512);
     #assert isPowerOfTwo(BUFFER_CAPACITY);
 

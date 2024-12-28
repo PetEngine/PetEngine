@@ -282,6 +282,8 @@ windowEventsCallback :: (window_handle : HWND, message : WM, wparam : WPARAM, lp
         case .WM_GETMINMAXINFO;
             if window {
                 push_context,defer_pop window.proc_context;
+                autoResetPerFrameArenas();
+                assertThreadKind(.WINDOW);
 
                 info := cast(*MINMAXINFO) lparam;
 
@@ -407,9 +409,9 @@ applyInitialDPIScalingToWindow :: (window_handle : HWND, rect_resolution : Resol
     assert(rect_resolution.width  && rect_resolution.width  != Window.OS_DEFAULT_SIZE);
     assert(rect_resolution.height && rect_resolution.height != Window.OS_DEFAULT_SIZE);
 
-    monitor_dpi := cast(f32) GetDpiForWindow(window_handle);
+    window_dpi  := cast(f32) GetDpiForWindow(window_handle);
     DEFAULT_DPI :: 96.0;
-    dpi_scale   := monitor_dpi / DEFAULT_DPI;
+    dpi_scale   := window_dpi / DEFAULT_DPI;
 
     scaled_width  := cast(u16) Math.ceil(rect_resolution.width  * dpi_scale);
     scaled_height := cast(u16) Math.ceil(rect_resolution.height * dpi_scale);
