@@ -1300,14 +1300,17 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
 
     // Test feature support
     {
-        available_descriptor_buffer_features : VkPhysicalDeviceDescriptorBufferFeaturesEXT;
-        available_dynamic_rendering_features : VkPhysicalDeviceDynamicRenderingFeatures;
-        available_features_1_2               := VkPhysicalDeviceVulkan12Features.{ pNext = *available_dynamic_rendering_features };
-        available_features_1_1               := VkPhysicalDeviceVulkan11Features.{ pNext = *available_features_1_2 };
-        available_features                   := VkPhysicalDeviceFeatures2.{ pNext = *available_features_1_1 };
+        available_swapchain_maintenance1_features :  VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT;
+        available_descriptor_buffer_features      := VkPhysicalDeviceDescriptorBufferFeaturesEXT.{ pNext = *available_swapchain_maintenance1_features };
+        available_dynamic_rendering_features      :  VkPhysicalDeviceDynamicRenderingFeatures;
+        available_features_1_2                    := VkPhysicalDeviceVulkan12Features.{ pNext = *available_dynamic_rendering_features };
+        available_features_1_1                    := VkPhysicalDeviceVulkan11Features.{ pNext = *available_features_1_2 };
+        available_features                        := VkPhysicalDeviceFeatures2.{ pNext = *available_features_1_1 };
 
         if device.descriptor_buffers_supported {
             available_dynamic_rendering_features.pNext = *available_descriptor_buffer_features;
+        } else {
+            available_dynamic_rendering_features.pNext = *available_swapchain_maintenance1_features;
         }
 
         vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
@@ -1331,13 +1334,21 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
         assert(available_features_1_2.bufferDeviceAddress == VK_TRUE);
         // gl_BaseInstance etc support
         assert(available_features_1_1.shaderDrawParameters == VK_TRUE);
+        // VK_EXT_swapchain_maintenance1
+        assert(available_swapchain_maintenance1_features.swapchainMaintenance1 == VK_TRUE);
     }
 
+    swapchain_maintenance1_features_to_enable := VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT.{
+        swapchainMaintenance1 = VK_TRUE,
+    };
     descriptor_buffer_features_to_enable := VkPhysicalDeviceDescriptorBufferFeaturesEXT.{
+        pNext            = *swapchain_maintenance1_features_to_enable,
         descriptorBuffer = VK_TRUE,
     };
     dynamic_rendering_features_to_enable := VkPhysicalDeviceDynamicRenderingFeatures.{
-        pNext            = ifx device.descriptor_buffers_supported then *descriptor_buffer_features_to_enable else null,
+        pNext            = ifx  device.descriptor_buffers_supported
+                           then cast(*void) *descriptor_buffer_features_to_enable
+                           else cast(*void) *swapchain_maintenance1_features_to_enable,
         dynamicRendering = VK_TRUE,
     };
     features_1_2_to_enable := VkPhysicalDeviceVulkan12Features.{

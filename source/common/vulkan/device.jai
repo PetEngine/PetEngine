@@ -177,6 +177,12 @@ PFN_vkQueuePresentKHR :: #type (
 // Provided by VK_EXT_swapchain_maintenance1
 //
 
+VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT :: struct {
+    sType                 : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT;
+    pNext                 : *void;
+    swapchainMaintenance1 : VkBool32;
+}
+
 VkSwapchainPresentScalingCreateInfoEXT :: struct {
     sType           : VkStructureType = .VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_SCALING_CREATE_INFO_EXT;
     pNext           : *void;
