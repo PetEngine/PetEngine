@@ -269,11 +269,9 @@ petMain :: () {
     command_buffer := createCommandBuffer(.GRAPHICS);
 
     showWindow(window);
-    while processAllWindowsEvents() {
+    while processWindowsEvents() {
         resetArena(*context.pet.arenas.per_frame);
         Basic.reset_temporary_storage();
-
-        if window.flags & .MINIMIZED continue;
 
         updateHeart(*heart, *window.input);
 

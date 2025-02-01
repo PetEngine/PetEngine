@@ -1,6 +1,6 @@
 #assert OS == .WINDOWS "This file should not be used anywhere except Windows builds";
 
-// @Cleanup:
+// @TODO:
 //    - Split everything into different files like we did it with Vulkan.
 
 #scope_export
@@ -192,6 +192,7 @@ UnregisterClassW :: (
     hInstance   : HINSTANCE
 ) -> BOOL #foreign user32;
 
+GET_MODULE_HANDLE_EX_FLAG_PIN                : u32 : 1;
 GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT : u32 : 2;
 GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS       : u32 : 4;
 
@@ -200,10 +201,6 @@ GetModuleHandleExW :: (
     lpModuleName : LPCWSTR,
     phModule     : *HMODULE
 ) -> BOOL #foreign kernel32;
-
-GetModuleHandleW :: (
-    lpModuleName : LPCWSTR
-) -> HMODULE #foreign kernel32;
 
 LoadLibraryA :: (
     lpLibFileName : LPCSTR
@@ -553,6 +550,31 @@ DefWindowProcW :: (
     lParam : LPARAM
 ) -> LRESULT #foreign user32;
 
+SC :: enum u32 #specified {
+    SC_SIZE         :: 0xF000;
+    SC_MOVE         :: 0xF010;
+    SC_MINIMIZE     :: 0xF020;
+    SC_MAXIMIZE     :: 0xF030;
+    SC_NEXTWINDOW   :: 0xF040;
+    SC_PREVWINDOW   :: 0xF050;
+    SC_CLOSE        :: 0xF060;
+    SC_VSCROLL      :: 0xF070;
+    SC_HSCROLL      :: 0xF080;
+    SC_MOUSEMENU    :: 0xF090;
+    SC_KEYMENU      :: 0xF100;
+    SC_ARRANGE      :: 0xF110;
+    SC_RESTORE      :: 0xF120;
+    SC_TASKLIST     :: 0xF130;
+    SC_SCREENSAVE   :: 0xF140;
+    SC_HOTKEY       :: 0xF150;
+    SC_DEFAULT      :: 0xF160;
+    SC_MONITORPOWER :: 0xF170;
+    SC_CONTEXTHELP  :: 0xF180;
+    SC_SEPARATOR    :: 0xF00F;
+
+    SCF_ISSECURE    :: 0x00000001;
+}
+
 // The only supported system colors since Windows 10
 COLOR_WINDOW        : s32 : 5;
 COLOR_WINDOWTEXT    : s32 : 8;
@@ -621,6 +643,10 @@ SendMessageW :: (
     lParam : LPARAM
 ) -> LRESULT #foreign user32;
 
+PostQuitMessage :: (
+    nExitCode : s32
+) #foreign user32;
+
 WINDOWPOS :: struct {
     hwnd            : HWND;
     hwndInsertAfter : HWND;
@@ -630,10 +656,6 @@ WINDOWPOS :: struct {
     cy              : s32;
     flags           : u32;
 }
-
-DestroyWindow :: (
-    hWnd : HWND
-) -> BOOL #foreign user32;
 
 RECT :: struct {
     left   : s32;
@@ -681,8 +703,6 @@ GetCurrentProcess :: (
 SIZE_MINIMIZED : u32 : 1;
 SIZE_MAXIMIZED : u32 : 2;
 
-MNC_CLOSE : u32 : 1;
-
 SW_SHOWNORMAL : s32 : 1;
 SW_SHOW       : s32 : 5;
 
@@ -723,6 +743,10 @@ CreateWindowExW :: (
     lpParam      : *void
 ) -> HWND #foreign user32;
 
+DestroyWindow :: (
+    hWnd : HWND
+) -> BOOL #foreign user32;
+
 AdjustWindowRectEx :: (
     lpRect    : *RECT,
     dwStyle   : u32,
@@ -762,13 +786,6 @@ GetAwarenessFromDpiAwarenessContext :: (
     value : DPI_AWARENESS_CONTEXT
 ) -> DPI_AWARENESS #foreign user32;
 
-PostMessageW :: (
-    hWnd   : HWND,
-    Msg    : WM,
-    wParam : WPARAM,
-    lParam : LPARAM
-) -> BOOL #foreign user32;
-
 POINT :: struct {
     x : s32;
     y : s32;
@@ -792,10 +809,6 @@ PeekMessageW :: (
     wMsgFilterMin : WM,
     wMsgFilterMax : WM,
     wRemoveMsg    : u32
-) -> BOOL #foreign user32;
-
-TranslateMessage :: (
-    lpMsg : *MSG
 ) -> BOOL #foreign user32;
 
 DispatchMessageW :: (

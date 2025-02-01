@@ -5,26 +5,43 @@
 WindowManager :: struct {
     MAX_WINDOWS :: 16;
 
-    active_windows : struct {
+    WindowsList :: struct {
         first : *Window;
         last  : *Window;
         count : u8;
-    };
+    }
 
-    mutex : Mutex;
+    windows : WindowsList;
+
+    // This is a context for a Win32 window procedure. Since we process all input and all events for all windows on the same thread,
+    // wich is main thread, we do not create a context for each window and instead just store a pointer to main thread's context
+    // for all windows.
+    jai_context : *#Context;
 }
 
 createWindowManager :: () {
     assert(!context.pet.core.window_manager);
+    assertThreadKind(.MAIN);
 
     #if OS == .WINDOWS {
         createWin32WindowManager();
     } else {
         notImplemented();
     }
+
+    // We will probably need to split platform version of creating window manager into 'allocate' and 'create'
+    // to save context into `jai_context` just in case we will need it during the process of WindowManager creation.
+    context.pet.core.window_manager.jai_context = *context;
 }
 
 destroyWindowManager :: () {
+    assertThreadKind(.MAIN);
+
+    for * context.pet.core.window_manager.windows {
+        warningMessage("Window \"%\" with ID = % has not been destroyed", getWindowTitle(it), it.id);
+        destroyWindow(it);
+    }
+
     #if OS == .WINDOWS {
         destroyWin32WindowManager();
     } else {
@@ -32,35 +49,63 @@ destroyWindowManager :: () {
     }
 }
 
-processAllWindowsEvents :: () -> bool {
+processWindowsEvents :: () -> bool {
     assertThreadKind(.MAIN);
 
     manager := context.pet.core.window_manager;
-    scopedLock(*manager.mutex);
 
-    windows_it := context.pet.core.window_manager.active_windows.first;
-    while windows_it {
-        processWindowEvents(windows_it);
-        if windows_it.flags == .CLOSED {
-            destroyWindow(windows_it);
+    for * manager.windows {
+        // Reset flags for a new frame.
+        it.flags &= ~(.MOVED | .RESIZED);
+        resetInput(*it.input);
+
+        #if OS == .WINDOWS {
+            processXInput(*it.input);
+        } else {
+            notImplemented();
         }
-        windows_it = windows_it.next_active;
     }
 
-    return manager.active_windows.count > 0;
+    #if OS == .WINDOWS {
+        pollRawInputBuffer();
+        quit := processWin32Messages();
+    } else {
+        quit :: true;
+        notImplemented();
+    }
+
+    assert(!quit || !manager.windows.count);
+    return !quit;
 }
 
-forEachActiveWindow :: (code : Code) #expand {
-    windows_it := context.pet.core.window_manager.active_windows.first;
-    while windows_it {
-        assert(!(windows_it.flags & .CLOSED));
-        assert(windows_it.id != Window.INVALID_ID);
+for_expansion :: (list : *WindowManager.WindowsList, body : Code, flags : For_Flags) #expand {
+    #assert flags & .POINTER "The only way to iterate over WindowManager.WindowsList is by pointer";
 
-        // Should work with 'continue'
-        defer windows_it = windows_it.next_active;
+    `it       := list.first;
+    `it_index : int;
 
-        #insert,scope() code;
+    while it {
+        assert(it.id != Window.INVALID_ID);
+        #if OS == .WINDOWS {
+            assert((cast(*Win32Window) it).handle);
+        } else {
+            notImplemented();
+        }
+
+        // we will have it.next == null if the user will use remove statement
+        next      := it.next;
+        increment := 1;
+
+        #insert(
+            continue = { it = next; it_index += increment; continue; },
+            remove   = { destroyWindow(it); increment = 0; }
+        ) body;
+
+        it        = next;
+        it_index += increment;
     }
+
+    assert(it_index <= list.count, "it_index (%) <= list.count (%)", it_index, list.count);
 }
 
 //
@@ -75,14 +120,13 @@ Window :: struct {
     MIN_HEIGHT          : s16 : 360;
 
     Flags :: enum_flags u8 {
-        CLOSED;
         MOVED;
         RESIZED;
         MINIMIZED;
         MAXIMIZED;
     }
 
-    next_active : *Window;
+    next : *Window;
 
     rect    : Rect;
     surface : Rect;
@@ -91,13 +135,9 @@ Window :: struct {
     dpi_scale : f32;
 
     id    : u8    = INVALID_ID;
-    flags : Flags = .CLOSED;
+    flags : Flags;
 
     input : Input;
-
-    // @TODO: We have only 1 "input" thread: main thread, so we can just store a pointer to its context in WindowManager
-    proc_context                   : #Context;
-    proc_context_temporary_storage : Temporary_Storage;
 }
 
 createWindow :: (
@@ -106,58 +146,41 @@ createWindow :: (
     surface : Resolution = .{ Window.OS_DEFAULT_SIZE, Window.OS_DEFAULT_SIZE },
     title   : string     = ENGINE_NAME
 ) -> *Window #must {
-    window : *Window;
+    assertThreadKind(.MAIN);
 
+    manager := context.pet.core.window_manager;
+
+    //
+    // Allocate
+    //
+
+    assert(manager.windows.count < WindowManager.MAX_WINDOWS,
+           "You have created too many windows, maximum number allowed is %",
+           WindowManager.MAX_WINDOWS);
+
+    window : *Window;
     #if OS == .WINDOWS {
         window = allocateWin32Window();
     } else {
         notImplemented();
     }
 
-    {
-        manager := context.pet.core.window_manager;
-        scopedLock(*manager.mutex);
+    assert(window);
+    assert(window.id == Window.INVALID_ID);
 
-        if manager.active_windows.last {
-            manager.active_windows.last.next_active = window;
-        } else {
-            manager.active_windows.first = window;
-        }
-        manager.active_windows.last = window;
+    window.id = manager.windows.count;
+    manager.windows.count += 1;
+
+    if manager.windows.last {
+        manager.windows.last.next = window;
+    } else {
+        manager.windows.first = window;
     }
+    manager.windows.last = window;
 
-    // Window does not have its own thread, but ideologically separate window = separate thread.
-    {
-        window.proc_context.allocator   = context.allocator;
-        window.proc_context.logger      = context.logger;
-        window.proc_context.logger_data = context.logger_data;
-        window.proc_context.print_style = context.print_style;
-        #Context.pet.initGlobals(*window.proc_context);
-
-        push_context window.proc_context {
-            context.context_info    = type_info(#Context);
-            context.thread_index    = getNextThreadIndex();
-            context.pet.thread.kind = .WINDOW;
-
-            context.allocator.proc(.THREAD_START, 0, 0, null, context.allocator.data);
-
-            thread_name_length := title.count + " window".count;
-            context.pet.thread.name.data = Basic.alloc(thread_name_length);
-            appendToString(*context.pet.thread.name, thread_name_length, title, " window");
-
-            context.temporary_storage = *window.proc_context_temporary_storage;
-
-            // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
-            temporary_storage_data := Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
-            set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
-
-            // @TODO: #Settings. Get persistent arena capacity from settings.
-            createArena(*context.pet.arenas.persistent, gigaBytes(1), "Persistent");
-
-            // @TODO: #Settings. Get per frame arena capacity from settings.
-            createArena(*context.pet.arenas.per_frame, megaBytes(512), "Per frame");
-        }
-    }
+    //
+    // Create
+    //
 
     #if OS == .WINDOWS {
         createWin32Window(cast(*Win32Window) window, x, y, surface, title);
@@ -168,14 +191,22 @@ createWindow :: (
     return window;
 }
 
+// There is no need to call this function if you do not want to close the window prematurely
+// i.e. before the user close it via OS UI
+destroyWindow :: (window : *Window) {
+    #if OS == .WINDOWS {
+        destroyWin32Window(cast(*Win32Window) window);
+    } else {
+        notImplemented();
+    }
+}
+
 showWindow :: (window : *Window) {
     #if OS == .WINDOWS {
         showWin32Window(cast(*Win32Window) window);
     } else {
         notImplemented();
     }
-
-    window.flags &= ~.CLOSED;
 }
 
 getWindowTitle :: (window : *Window) -> string {
@@ -198,69 +229,55 @@ setWindowTitle :: (window : *Window, title : string) {
     }
 }
 
-#scope_file
+#scope_module
 
-destroyWindow :: (window : *Window) {
-    #if OS == .WINDOWS {
-        destroyWin32Window(cast(*Win32Window) window);
+deallocateWindow :: (window : *Window) {
+    assertThreadKind(.MAIN);
+
+    manager := context.pet.core.window_manager;
+
+    //
+    // Deallocate
+    //
+
+    assert(manager.windows.count > 0);
+    manager.windows.count -= 1;
+
+    if !manager.windows.count {
+       manager.windows.first = null;
+       manager.windows.last  = null;
+    } else if manager.windows.first == window {
+        manager.windows.first = window.next;
     } else {
-        notImplemented();
-    }
+        prev := manager.windows.first;
+        assert(prev);
 
-    {
-        manager := context.pet.core.window_manager;
-        assert(!tryLock(*manager.mutex), "Lock should have already been acquired in processAllWindowsEvents");
-
-        if manager.active_windows.count == 0 {
-           manager.active_windows.first = null;
-           manager.active_windows.last  = null;
-        } else if manager.active_windows.first == window {
-            manager.active_windows.first = window.next_active;
-        } else {
-            prev_active := manager.active_windows.first;
-            assert(prev_active);
-
-            while prev_active.next_active != window {
-                assert(prev_active.next_active);
-                prev_active = prev_active.next_active;
-            }
-
-            if manager.active_windows.last == window {
-                manager.active_windows.last = prev_active;
-            }
-
-            prev_active.next_active = window.next_active;
+        while prev.next != window {
+            assert(prev.next);
+            prev = prev.next;
         }
 
-        window.next_active = null;
+        if manager.windows.last == window {
+            manager.windows.last = prev;
+            assert(!window.next);
+        }
+
+        prev.next = window.next;
     }
 
-    push_context window.proc_context {
-        destroyArena(*context.pet.arenas.per_frame);
-        destroyArena(*context.pet.arenas.persistent);
-
-        Allocator.rpfree(context.temporary_storage.original_data);
-        Basic.free(context.pet.thread.name.data);
-        context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
-    }
-
+    //
     // Reset the entire state for future reuse
-    window.* = .{};
-}
-
-processWindowEvents :: (window : *Window) {
-    // Reset flags for a new frame.
-    window.flags &= ~(.MOVED | .RESIZED);
-    resetInput(*window.input);
+    //
 
     #if OS == .WINDOWS {
-        processRawInput(cast(*Win32Window) window);
-        processXInput(*window.input);
-        processWin32WindowEvents(cast(*Win32Window) window);
+        (cast(*Win32Window) window).* = .{};
     } else {
         notImplemented();
+        window.* = .{};
     }
 }
+
+#scope_file
 
 #if OS == .WINDOWS {
     #load "windows/window.jai";

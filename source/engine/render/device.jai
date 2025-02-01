@@ -103,7 +103,10 @@ destroyDevice :: inline () {
     context.pet.render.device.destroyPlatformDevice();
 }
 
-initWindowData :: inline (window : *Window) {
+initWindowData :: (window : *Window) {
+    // Reset window data before potential reuse
+    context.pet.render.device.window_data[window.id] = .{};
+
     context.pet.render.device.initPlatformWindowData(window);
 }
 

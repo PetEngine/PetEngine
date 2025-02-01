@@ -15,22 +15,23 @@ setupInitialInputState :: (window : *Win32Window) {
     calcInitialMousePosition(window);
 }
 
+// @Important: Only one window per raw input device class may be registered to receive raw input within a process
+// (the window passed in the last call to RegisterRawInputDevices). If hwndTarget == null, raw input events follow
+// the keyboard focus to ensure only the focused application window receives the events.
+//
+// @TODO: #Input. What if we press a key -> focus to another window -> release the key?
 registerRawInput :: (window : *Win32Window) {
-    assert(window, "Input sink is not supported");
-
-    NOTIFY_FLAG : RIDEV : #ifx PRINT_VERBOSE_MESSAGES then .DEVNOTIFY else 0;
-
     raw_input_devices := RAWINPUTDEVICE.[
         .{
             usUsagePage = .GENERIC,
             usUsage     = .GENERIC_KEYBOARD,
-            dwFlags     = NOTIFY_FLAG,
+            dwFlags     = .DEVNOTIFY,
             hwndTarget  = window.handle,
         },
         .{
             usUsagePage = .GENERIC,
             usUsage     = .GENERIC_MOUSE,
-            dwFlags     = NOTIFY_FLAG,
+            dwFlags     = .DEVNOTIFY,
             hwndTarget  = window.handle,
         },
     ];
@@ -82,8 +83,10 @@ END;
     }
 }
 
-processRawInput :: (window : *Win32Window) {
-    data_buffer : [1024 / size_of(RAWINPUT)] RAWINPUT #align RAWINPUT_ALIGNMENT;
+// @TODO: #Input. Raw input buffer retrieves _all_ raw input from the thread's message queue
+//        and it does not know about window. We should not call it for each window.
+pollRawInputBuffer :: () {
+    /* data_buffer : [1024 / size_of(RAWINPUT)] RAWINPUT #align RAWINPUT_ALIGNMENT;
 
     while true {
         data_capacity : u32 = data_buffer.count * size_of(RAWINPUT);
@@ -107,7 +110,7 @@ processRawInput :: (window : *Win32Window) {
             raw_input_it  = NEXTRAWINPUTBLOCK(raw_input_it);
             data_count   -= 1;
         }
-    }
+    } */
 }
 
 onRawInput :: (window : *Win32Window, ri_handle : HRAWINPUT) {
@@ -130,6 +133,8 @@ onRawInput :: (window : *Win32Window, ri_handle : HRAWINPUT) {
     }
 }
 
+// @TODO: #Input. If we poll xinput sate on the frame start, we will probably miss some input.
+//        Register raw input gamepad and poll xinput state on WM_INPUT.
 processXInput :: (input : *Input) {
     state : XINPUT_STATE = ---;
 

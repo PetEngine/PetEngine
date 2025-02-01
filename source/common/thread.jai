@@ -18,12 +18,11 @@ ThreadKind :: enum u8 {
     SHADERS_HOT_RELOAD;
 
     // Internal
-    WINDOW;
     DEVICE_MESSENGER;
 }
 
 createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.Data, $name : string, kind : ThreadKind, stack_size := 0) {
-    assert(kind != .MAIN && kind != .WINDOW && kind != .DEVICE_MESSENGER);
+    assert(kind != .MAIN && kind != .DEVICE_MESSENGER);
 
     thread.procedure = procedure;
     thread.data      = data;

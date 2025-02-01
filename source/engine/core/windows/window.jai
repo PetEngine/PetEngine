@@ -10,7 +10,7 @@ Win32WindowManager :: struct {
     app_instance : HMODULE;
     window_class : ATOM;
 
-    windows : [WindowManager.MAX_WINDOWS] Win32Window;
+    windows_storage : [MAX_WINDOWS] Win32Window;
 
     use_dark_theme : bool;
 }
@@ -18,9 +18,10 @@ Win32WindowManager :: struct {
 createWin32WindowManager :: () {
     manager := pushToArena(*context.pet.arenas.persistent, Win32WindowManager);
     context.pet.core.window_manager = manager;
+    g_win32WindowManager = manager;
 
-    manager.app_instance = GetModuleHandleW(null);
-    assert(manager.app_instance, print_sys_error = true);
+    debugCheck(GetModuleHandleExW(0, null, *manager.app_instance), print_sys_error = true);
+    assert(manager.app_instance);
 
     setMonitorDPIAwareness();
 
@@ -56,46 +57,36 @@ createWin32WindowManager :: () {
 destroyWin32WindowManager :: () {
     manager := cast(*Win32WindowManager) context.pet.core.window_manager;
 
-    for manager.windows {
-        if it.handle {
-            SendMessageW(it.handle, .WM_CLOSE, 0, 0);
-            assert(it.handle == null);
-        }
-    }
-    assert(manager.active_windows.count == 0);
-
-    debugCheck(UnregisterClassW(cast,no_check(LPCWSTR) manager.window_class, manager.app_instance),
-               print_sys_error = true);
-
-    debugCheck(FreeLibrary(manager.app_instance),
-               print_sys_error = true);
+    debugCheck(UnregisterClassW(cast,no_check(LPCWSTR) manager.window_class, manager.app_instance), print_sys_error = true);
+    debugCheck(FreeLibrary(manager.app_instance), print_sys_error = true);
 }
 
 allocateWin32Window :: () -> *Win32Window #must {
     manager := cast(*Win32WindowManager) context.pet.core.window_manager;
-    scopedLock(*manager.mutex);
-
-    assert(manager.active_windows.count < Win32WindowManager.MAX_WINDOWS,
-           "You have created too many windows, maximum number allowed is %",
-           Win32WindowManager.MAX_WINDOWS);
 
     window : *Win32Window;
-    for * manager.windows {
+    for * manager.windows_storage {
         if !it.handle {
             window = it;
             break;
         }
     }
 
-    assert(window);
-    assert(window.flags == .CLOSED);
-    assert(window.id    == Window.INVALID_ID);
-
-    window.id = manager.active_windows.count;
-    manager.active_windows.count += 1;
-
     return window;
 }
+
+processWin32Messages :: () -> bool {
+    msg : MSG;
+    while PeekMessageW(*msg, null, 0, 0, PM_REMOVE) {
+        // @Cleanup: #Input. Raw input emits WM_INPUT after WM_QUIT if hwndTarget != null
+        if (msg.message == .WM_QUIT)
+            return true;
+
+        DispatchMessageW(*msg);
+    }
+    return false;
+}
+
 
 //
 // Win32 window
@@ -113,6 +104,10 @@ Win32Window :: struct {
         // Win32 MakeCode for Key.PAUSE is 0xE11D45, which is > 0xFFFF, so it's split in 2 reports: 0xE11D and 0x0045.
         // We know that 0xE11D is used with Key.PAUSE only, so we just skip the second report assuming it == 0x0045.
         HANDLING_KEY_PAUSE;
+
+        // "An application should specify SW_SHOWNORMAL when displaying the window for the first time."
+        // https://learn.microsoft.com/en-us/winows/win32/api/winuser/nf-winuser-showwindow#parameters
+        HAS_BEEN_SHOWN_AT_LEAST_ONCE;
     }
 
     handle         : HWND;
@@ -183,16 +178,18 @@ createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolut
 }
 
 destroyWin32Window :: (window : *Win32Window) {
-    PostMessageW(window.handle, .WM_CLOSE, 0, 0);
+    if window.handle {
+        debugCheck(DestroyWindow(window.handle), print_sys_error = true);
+        assert(!window.handle);
+    }
 }
 
 showWin32Window :: (window : *Win32Window) {
-    if window.flags & .CLOSED {
-        // "An application should specify SW_SHOWNORMAL when displaying the window for the first time."
-        // https://learn.microsoft.com/en-us/winows/win32/api/winuser/nf-winuser-showwindow#parameters
-        ShowWindow(window.handle, SW_SHOWNORMAL);
-    } else {
+    if window.platform_flags & .HAS_BEEN_SHOWN_AT_LEAST_ONCE {
         ShowWindow(window.handle, SW_SHOW);
+    } else {
+        ShowWindow(window.handle, SW_SHOWNORMAL);
+        window.platform_flags |= .HAS_BEEN_SHOWN_AT_LEAST_ONCE;
     }
 }
 
@@ -220,30 +217,25 @@ setWin32WindowTitle :: (window : *Win32Window, title : string) {
     }
 }
 
-processWin32WindowEvents :: (window : *Win32Window) {
-    msg : MSG;
-    while PeekMessageW(*msg, window.handle, 0, 0, PM_REMOVE) {
-        TranslateMessage(*msg);
-        DispatchMessageW(*msg);
-    }
-}
-
 #scope_file
 
+g_win32WindowManager : *Win32WindowManager; // Used only in `windowEventsCallback` to push `WindowManager.jai_context`
+
 windowEventsCallback :: (window_handle : HWND, message : WM, wparam : WPARAM, lparam : LPARAM) -> LRESULT #c_call {
+    push_context,defer_pop g_win32WindowManager.jai_context.*;
+    autoResetPerFrameArenas();
+    assertThreadKind(.MAIN);
+
     result : LRESULT;
     window := cast,no_check(*Win32Window) GetWindowLongPtrW(window_handle, GWLP_USERDATA);
 
     if message == {
-        case .WM_DESTROY; {
-            push_context,defer_pop window.proc_context;
-            autoResetPerFrameArenas();
-            assertThreadKind(.WINDOW);
-
+        case .WM_DESTROY;
             deallocateWindow(window);
-
+            if !context.pet.core.window_manager.windows.count {
+                PostQuitMessage(0);
+            }
             result = DefWindowProcW(window_handle, message, wparam, lparam);
-        }
 
         case .WM_MOVE;
             window.flags |= .MOVED;
@@ -263,48 +255,27 @@ windowEventsCallback :: (window_handle : HWND, message : WM, wparam : WPARAM, lp
             window.surface.width  = cast(u16) (lparam & 0xFFFF);
             window.surface.height = cast(u16) (lparam >> 16);
 
-        case .WM_CLOSE;
-            window.flags |= .CLOSED;
-
-            // DefWindowProc calls DestroyWindow to destroy the window
-            result = DefWindowProcW(window_handle, message, wparam, lparam);
-
-        case .WM_SETTINGCHANGE; {
-            push_context,defer_pop window.proc_context;
-            autoResetPerFrameArenas();
-            assertThreadKind(.WINDOW);
-
+        case .WM_SETTINGCHANGE;
             checkWindowThemeChange(window_handle, wparam, lparam);
 
             result = DefWindowProcW(window_handle, message, wparam, lparam);
-        }
 
         case .WM_GETMINMAXINFO;
-            if window {
-                push_context,defer_pop window.proc_context;
-                autoResetPerFrameArenas();
-                assertThreadKind(.WINDOW);
+            info := cast(*MINMAXINFO) lparam;
 
-                info := cast(*MINMAXINFO) lparam;
+            window_style := cast(u32) GetWindowLongW(window_handle, GWL_STYLE);
+            assert(window_style, print_sys_error = true);
 
-                window_style := cast(u32) GetWindowLongW(window_handle, GWL_STYLE);
-                assert(window_style, print_sys_error = true);
+            window_style_ex := cast(u32) GetWindowLongW(window_handle, GWL_EXSTYLE);
+            assert(window_style_ex, print_sys_error = true);
 
-                window_style_ex := cast(u32) GetWindowLongW(window_handle, GWL_EXSTYLE);
-                assert(window_style_ex, print_sys_error = true);
+            window_rect := RECT.{ 0, 0, Window.MIN_WIDTH, Window.MIN_HEIGHT };
+            debugCheck(AdjustWindowRectEx(*window_rect, window_style, FALSE, window_style_ex), print_sys_error = true);
 
-                window_rect := RECT.{ 0, 0, Window.MIN_WIDTH, Window.MIN_HEIGHT };
-                debugCheck(AdjustWindowRectEx(*window_rect, window_style, FALSE, window_style_ex), print_sys_error = true);
+            info.ptMinTrackSize.x = window_rect.right  - window_rect.left;
+            info.ptMinTrackSize.y = window_rect.bottom - window_rect.top;
 
-                info.ptMinTrackSize.x = window_rect.right  - window_rect.left;
-                info.ptMinTrackSize.y = window_rect.bottom - window_rect.top;
-            }
-
-        case .WM_WINDOWPOSCHANGED; {
-            push_context,defer_pop window.proc_context;
-            autoResetPerFrameArenas();
-            assertThreadKind(.WINDOW);
-
+        case .WM_WINDOWPOSCHANGED;
             window_position := cast(*WINDOWPOS) lparam;
 
             window.rect.x      = cast,trunc(s16) window_position.x;
@@ -319,43 +290,28 @@ windowEventsCallback :: (window_handle : HWND, message : WM, wparam : WPARAM, lp
 
             // WM_SIZE and WM_MOVE are not sent if an application handles the WM_WINDOWPOSCHANGED without calling DefWindowProc
             result = DefWindowProcW(window_handle, message, wparam, lparam);
-        }
 
         case .WM_DISPLAYCHANGE;
             window.screen.width  = cast(u16) (lparam & 0xFFFF);
             window.screen.height = cast(u16) (lparam >> 16);
 
-        case .WM_INPUT_DEVICE_CHANGE; {
-            push_context,defer_pop window.proc_context;
-            autoResetPerFrameArenas();
-            assertThreadKind(.WINDOW);
-
+        case .WM_INPUT_DEVICE_CHANGE;
             onRawInputDeviceChange(cast(HANDLE) lparam, wparam);
-        }
 
-        case .WM_INPUT; {
-            push_context,defer_pop window.proc_context;
-            autoResetPerFrameArenas();
-            assertThreadKind(.WINDOW);
-
+        case .WM_INPUT;
             assert(GET_RAWINPUT_CODE_WPARAM(wparam) == RIM_INPUT, "Input sink is not supported");
             onRawInput(window, cast(HRAWINPUT) lparam);
 
             // The application must call DefWindowProc so the system can perform cleanup
             result = DefWindowProcW(window_handle, message, wparam, lparam);
-        }
 
-        case .WM_MENUCHAR;
+        case .WM_SYSCOMMAND;
             // To suppress bip sound on Alt+Enter when there is no menu created
-            if !lparam && (wparam & 0xFFFF) == #char "\n" {
-                result = MNC_CLOSE;
+            if (wparam & 0xFFFF) != cast(WPARAM) SC.SC_KEYMENU {
+                result = DefWindowProcW(window_handle, message, wparam, lparam);
             }
 
-        case .WM_DPICHANGED; {
-            push_context,defer_pop window.proc_context;
-            autoResetPerFrameArenas();
-            assertThreadKind(.WINDOW);
-
+        case .WM_DPICHANGED;
             new_dpi          := cast(f32) (wparam & 0xFFFF);
             DEFAULT_DPI      :: 96.0;
             window.dpi_scale  = new_dpi / DEFAULT_DPI;
@@ -379,7 +335,6 @@ windowEventsCallback :: (window_handle : HWND, message : WM, wparam : WPARAM, lp
                                     SET_WINDOW_POS_FLAGS);
 
             assert(success, print_sys_error = true);
-        }
 
         case;
             result = DefWindowProcW(window_handle, message, wparam, lparam);
@@ -393,16 +348,6 @@ setMonitorDPIAwareness :: () {
 
     assert(GetAwarenessFromDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == .DPI_AWARENESS_PER_MONITOR_AWARE,
            print_sys_error = true);
-}
-
-deallocateWindow :: (window : *Win32Window) {
-    assert(window.flags == .CLOSED);
-
-    window.id     = Window.INVALID_ID;
-    window.handle = null;
-
-    old := Atomics.atomic_add(*context.pet.core.window_manager.active_windows.count, -1);
-    assert(old > 0);
 }
 
 applyInitialDPIScalingToWindow :: (window_handle : HWND, rect_resolution : Resolution) -> f32 {
