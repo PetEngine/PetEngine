@@ -204,11 +204,25 @@ requestMesh :: (name : string) -> *Mesh {
     //
 
     {
+        // @Cleanup: #Atomics.
+        atomicCompareAndSwap :: inline (mem : *$T, old : T, new : T) -> T {
+            #assert size_of(T) == 1 || size_of(T) == 2 || size_of(T) == 4 || size_of(T) == 8;
+
+            #if CPU == .X64 #asm {
+                old === a;
+                lock_cmpxchg?T old, [mem], new;
+            } else {
+                notImplemented();
+            }
+
+            return old;
+        }
+
         all_bytes : u64 = all_vertices_bytes + all_indices_bytes;
 
         old_index := manager.upload_buffer.write_index;
         new_index := old_index + all_bytes;
-        while lock_cmpxchg(*manager.upload_buffer.write_index, old_index, new_index) != old_index {
+        while atomicCompareAndSwap(*manager.upload_buffer.write_index, old_index, new_index) != old_index {
             old_index = manager.upload_buffer.write_index;
             new_index = old_index + all_bytes;
         }

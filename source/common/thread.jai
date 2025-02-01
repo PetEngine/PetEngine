@@ -124,7 +124,7 @@ exitThread :: (exit_code : u32 = 0xFFFF_FFFF) {
         if exit_code == 0xFFFF_FFFF {
             exit_code = GetLastError();
         }
-        _endthreadex(exit_code);
+        _endthreadex(exit_code); // #CRT.
     } else {
         notImplemented();
     }
@@ -141,7 +141,7 @@ exitProcess :: (exit_code : u32 = 0xFFFF_FFFF) #no_context {
         }
     }
 
-    exit(cast,no_check(s32) exit_code);
+    exit(cast,no_check(s32) exit_code); // #CRT.
 }
 
 getNextThreadIndex :: inline () -> u32 #no_context {
