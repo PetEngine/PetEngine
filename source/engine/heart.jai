@@ -1,14 +1,8 @@
 Heart :: struct {
-    PushConstants :: union {
-        StructuredData :: struct {
-            index_buffer_reference  : u64;
-            vertex_buffer_reference : u64;
-            per_view_uniform_index  : u32;
-        } #no_padding
-        using structured_data : StructuredData;
-
-        _packed : [2] v4u;
-        #assert(size_of(type_of(_packed)) >= size_of(StructuredData));
+    PushConstants :: struct {
+        index_buffer_reference  : u64;
+        vertex_buffer_reference : u64;
+        per_view_uniform_index  : u32;
     } #no_padding
 
     shader                : *Shader;

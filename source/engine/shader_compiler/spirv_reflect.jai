@@ -344,6 +344,8 @@ SpvReflectTypeDescription :: struct {
     type_name               : *u8;
     // Non-NULL if type is member of a struct
     struct_member_name      : *u8;
+
+    // The storage class (SpvStorageClass) if the type, and -1 if it does not have a storage class.
     storage_class           : SpvStorageClass;
     type_flags              : SpvReflectTypeFlags;
     decoration_flags        : SpvReflectDecorationFlags;
@@ -380,6 +382,8 @@ SpvReflectInterfaceVariable :: struct {
     storage_class    : SpvStorageClass;
     semantic         : *u8;
     decoration_flags : SpvReflectDecorationFlags;
+
+    // The builtin id (SpvBuiltIn) if the variable is a builtin, and -1 otherwise.
     built_in         : SpvBuiltIn;
     numeric          : SpvReflectNumericTraits;
     array            : SpvReflectArrayTraits;

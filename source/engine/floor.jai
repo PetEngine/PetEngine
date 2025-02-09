@@ -1,12 +1,6 @@
 Floor :: struct {
-    PushConstants :: union {
-        StructuredData :: struct {
-            per_view_uniform_index : u32;
-        } #no_padding
-        using structured_data : StructuredData;
-
-        _packed : [1] v4u;
-        #assert(size_of(type_of(_packed)) >= size_of(StructuredData));
+    PushConstants :: struct {
+        per_view_uniform_index : u32;
     } #no_padding
 
     shader                : *Shader;
