@@ -281,8 +281,6 @@ resetArenaToMarker :: (arena : *Arena, marker : s64, $zero_memory := true) {
 
 // Seems legit for most ABIs
 alignmentOf :: (info : *Type_Info) -> s64 #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
     type := Compiler.get_type(info);
 
     is_variant : bool;

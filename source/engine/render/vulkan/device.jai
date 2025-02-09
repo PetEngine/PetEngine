@@ -1991,7 +1991,6 @@ vendorIdToString :: (vendor_id : u32) -> string #no_context {
 }
 
 vkTypeToObjectType :: inline ($vkType : Type) -> VkObjectType #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
     #if vkType == {
         case VkInstance;               return .VK_OBJECT_TYPE_INSTANCE;
         case VkPhysicalDevice;         return .VK_OBJECT_TYPE_PHYSICAL_DEVICE;

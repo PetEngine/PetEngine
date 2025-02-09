@@ -210,22 +210,16 @@ sqrt :: Math.sqrt;
 #scope_file
 
 rejectVectors :: inline (T : Type) -> bool #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
     return T != v2f && T != v2s && T != v2u
         && T != v3f && T != v3s && T != v3u
         && T != v4f && T != v4s && T != v4u;
 }
 
 rejectMatrices :: inline (T : Type) -> bool #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
     return T != m2x2 && T != m3x3 && T != m3x4 && T != m4x3 && T != m4x4;
 }
 
 isAnyOf :: (type : Type, types : ..Type_Info_Tag) -> bool #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
     info := cast(*Type_Info) type;
 
     while info.type == .VARIANT {

@@ -106,8 +106,6 @@ getVertexStride :: (format : VertexFormat) -> s64 {
 #scope_file
 
 vertexTypeToVertexFormat :: (vertex_type : Type) -> (VertexFormat, success : bool) #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
     info := type_info(VertexTypes);
     assert(info.type == .STRUCT);
 
@@ -146,8 +144,6 @@ vertexTypeToVertexFormat :: (vertex_type : Type) -> (VertexFormat, success : boo
 }
 
 vertexFormatToVertexType :: (format : VertexFormat) -> Type #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
     if #complete format == {
         case .DEFAULT; return VertexTypes.Default;
     }

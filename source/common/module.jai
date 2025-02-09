@@ -146,8 +146,6 @@ generatePlatformVtableInitialization :: (
     vtable_storage_instance_name : string,
     platform_name                : string
 ) -> string #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
     assert(vtable_storage_instance_name);
     assert(platform_name);
 

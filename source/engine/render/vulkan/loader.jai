@@ -63,8 +63,6 @@ VulkanLoader :: struct {
 }
 
 gatherVulkanLayers :: () -> (required : [] string, optional : [] string) #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
     required_layers : [..] string;
     required_layers.allocator = Basic.temp;
 
@@ -107,8 +105,6 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) #compil
 }
 
 gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] string) #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
     required_extensions : [..] string;
     required_extensions.allocator = Basic.temp;
 
@@ -151,8 +147,6 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
 }
 
 gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] string) #compile_time {
-    assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
     required_extensions : [..] string;
     required_extensions.allocator = Basic.temp;
 

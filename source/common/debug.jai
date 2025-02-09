@@ -32,12 +32,12 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
     ) #expand #no_debug {
         #if is_constant(#insert expression) {
             #if !(#insert expression) {
-                FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
+                FORMAT_OR_EXPRESSION :: #ifx format.count > 0 then format else #run codeToString(expression);
                 assertMessage(FORMAT_OR_EXPRESSION, ..args, print_sys_error = print_sys_error, custom_sys_code, location);
             }
         } else {
             if !(#insert expression) {
-                FORMAT_OR_EXPRESSION :: #run formatOrExpression(format, expression);
+                FORMAT_OR_EXPRESSION :: #ifx format.count > 0 then format else #run codeToString(expression);
                 assertMessage(FORMAT_OR_EXPRESSION, ..args, print_sys_error = print_sys_error, custom_sys_code, location);
             }
         }
@@ -199,9 +199,6 @@ notImplemented :: ($assert_in_run_time := false, location := #caller_location) #
 }
 
 codeToString :: (code : Code) -> string #compile_time {
-    // @Cleanup: #CompileTime. Remove this assert when prevent_compile_time_calls_from_runtime will be fixed
-    Basic.assert(#compile_time, "This function should be run only in compile time");
-
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
     root := Compiler.compiler_get_nodes(code);
@@ -372,16 +369,6 @@ message :: (
     #if priority == .ASSERT {
         debugBreakIfDebugging();
         exitProcess(ifx sys_error_code then sys_error_code else 1);
-    }
-}
-
-formatOrExpression :: ($format : string, expression : Code) -> string #compile_time {
-    Basic.assert(#compile_time, "This function should be run only in compile time"); // @Cleanup: #CompileTime.
-
-    #if format.count > 0 {
-        return format;
-    } else {
-        return codeToString(expression);
     }
 }
 

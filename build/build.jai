@@ -12,7 +12,7 @@ PRINT_VERBOSE_MESSAGES :: %;
 END;
 
 #run {
-    checkCompilerVersion(.{0, 2, 2});
+    checkCompilerVersion(.{0, 2, 9});
 
     build_options := get_build_options();
 
@@ -102,7 +102,7 @@ END;
     build_options.dead_code_elimination                   = .ALL;
     build_options.runtime_support_definitions             = .OMIT;
     build_options.backtrace_on_crash                      = .OFF;
-    build_options.prevent_compile_time_calls_from_runtime = false; // @TODO: Replace with true when it will work properly
+    build_options.prevent_compile_time_calls_from_runtime = true;
     build_options.info_flags                              = .POLYMORPH_DEDUPLICATE; // | .POLYMORPH_MATCH;
     build_options.text_output_flags                       = .OUTPUT_TIMING_INFO;    // | .OUTPUT_LINK_LINE;
     build_options.output_executable_name                  = "engine";
@@ -168,6 +168,7 @@ END;
 
     #if OS == .WINDOWS {
         prepareManifest(build_options.output_executable_name);
+        defer check(DeleteFileA("windows.manifest"));
     }
 
     //
@@ -198,10 +199,6 @@ END;
         }
     }
     compiler_end_intercept(workspace);
-
-    #if OS == .WINDOWS {
-        check(DeleteFileA("windows.manifest"));
-    }
 
     //
     // Post-build copies
