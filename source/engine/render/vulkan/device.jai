@@ -8,7 +8,6 @@ VulkanDevice :: struct {
     #as using public_data : Device;
 
     MINIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_2;
-    LATEST_VULKAN_MINOR_VERSION   :: 3;
 
     api_version : u32;
 
@@ -579,16 +578,8 @@ PhysicalDeviceInfo :: struct {
 }
 
 createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
-    MINIMAL_MINOR_VERSION :: #run VK_API_VERSION_MINOR(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION);
-
-    api_version : u32;
-    for #v2 < MINIMAL_MINOR_VERSION .. VulkanDevice.LATEST_VULKAN_MINOR_VERSION {
-        api_version = VK_MAKE_API_VERSION(0, 1, cast(u32) it, 0);
-
-        if vkEnumerateInstanceVersion(*api_version) == .VK_SUCCESS {
-            break;
-        }
-    }
+    api_version := VK_API_VERSION_1_4;
+    debugCheckVK(vkEnumerateInstanceVersion(*api_version));
 
     infoMessage("Vulkan instance API version: %.%.%.%",
                 VK_API_VERSION_VARIANT(api_version),

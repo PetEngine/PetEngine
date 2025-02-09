@@ -33,7 +33,7 @@ VK_API_VERSION_PATCH :: inline (version : u32) -> u32 #no_context {
 
 // Provided by VK_VERSION_1_0
 VK_MAKE_API_VERSION :: inline (variant : u32, major : u32, minor : u32, patch : u32) -> u32 #no_context {
-    return variant << 29 | major << 22 | minor << 12 | patch;
+    return (variant << 29) | (major << 22) | (minor << 12) | patch;
 }
 
 // Provided by VK_VERSION_1_0
@@ -51,6 +51,10 @@ VK_API_VERSION_1_2 :: #run VK_MAKE_API_VERSION(0, 1, 2, 0); // Patch version sho
 // Provided by VK_VERSION_1_3
 // Vulkan 1.3 version number
 VK_API_VERSION_1_3 :: #run VK_MAKE_API_VERSION(0, 1, 3, 0); // Patch version should always be set to 0
+
+// Provided by VK_VERSION_1_4
+// Vulkan 1.4 version number
+VK_API_VERSION_1_4 :: #run VK_MAKE_API_VERSION(0, 1, 4, 0); // Patch version should always be set to 0
 
 // Provided by VK_VERSION_1_0
 VkResult :: enum VkEnum #specified {
