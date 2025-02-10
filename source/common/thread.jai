@@ -158,7 +158,6 @@ getNextThreadIndex :: inline () -> u32 #no_context {
 #scope_file
 
 threadProc :: no_inline (thread : *Thread) {
-    context.context_info = type_info(#Context);
     context.thread_index = getNextThreadIndex();
 
     context.allocator.proc(.THREAD_START, 0, 0, null, context.allocator.data);

@@ -910,7 +910,6 @@ initMessengerCallback :: () {
         // We do not need globals for messenger callback
 
         push_context device.messenger_context {
-            context.context_info    = type_info(#Context);
             context.thread_index    = getNextThreadIndex();
             context.pet.thread.name = "Vulkan Device Messenger";
             context.pet.thread.kind = .DEVICE_MESSENGER;

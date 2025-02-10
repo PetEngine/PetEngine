@@ -603,8 +603,6 @@ Atomics    :: #import "Atomics";
 }
 
 initRuntimeAndCallEntryPoint :: () {
-    context.context_info = type_info(#Context);
-
     context.print_style.default_format_int.digits_per_comma                                = 3;
     context.print_style.default_format_int.comma_string                                    = "'";
     context.print_style.default_format_float.thousand_separators                           = true;
