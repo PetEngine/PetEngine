@@ -66,8 +66,6 @@ END;
         #if OS == .WINDOWS {
             array_add(*additional_linker_arguments,
                       "/SUBSYSTEM:WINDOWS",
-                      "/MANIFEST:EMBED",
-                      "/MANIFESTINPUT:windows.manifest",
                       "/IGNORE:4216", // LNK4216: Exported entry point WinMainCRTStartup
                       join("/LIBPATH:", vk_sdk_path, "/Lib",, allocator = temp),
                       "/LIBPATH:../third_party/spirv_reflect");
@@ -163,15 +161,6 @@ END;
     }
 
     //
-    // Do some platform specific stuff we cannot do through the code
-    //
-
-    #if OS == .WINDOWS {
-        prepareManifest(build_options.output_executable_name);
-        defer check(DeleteFileA("windows.manifest"));
-    }
-
-    //
     // Create and initialize workspace
     //
 
@@ -210,6 +199,14 @@ END;
     } else {
         copy_file(join(vk_sdk_path, "/Bin/shaderc_sharedd.dll",, allocator = temp),
                   join(output_path,     "/shaderc_sharedd.dll",, allocator = temp));
+    }
+
+    //
+    // Do some platform specific stuff we cannot do through the code
+    //
+
+    #if OS == .WINDOWS {
+        addManifest(build_options.output_path, build_options.output_executable_name);
     }
 }
 
@@ -280,94 +277,66 @@ checkCompilerVersion :: (minimal_supported_version : Version_Info) {
 }
 
 #if OS == .WINDOWS {
-    prepareManifest :: (application_name : string) {
+    addManifest :: (output_path : string, application_name : string) {
         //
-        // Write manifest file
+        // Generate
         //
-MANIFEST_FORMAT_STRING :: #string XML
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity language="neutral" name="%" processorArchitecture="*" type="win32" version="1.0.0.0" />
-  <application>
-    <windowsSettings>
-      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
-    </windowsSettings>
-  </application>
-</assembly>
-XML;
+
         manifest := tprint(MANIFEST_FORMAT_STRING, application_name);
 
-        // We cannot use FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE because:
-        // "general error c1010070: Failed to load and parse the manifest. The process cannot access the file because it is being used by another process."
-        file := CreateFileA("windows.manifest", GENERIC_WRITE, 0, null, CREATE_NEW, FILE_ATTRIBUTE_HIDDEN, null);
-        check(file != INVALID_HANDLE_VALUE);
-
-        check(WriteFile(file, manifest.data, cast(u32) manifest.count, null, null));
-
-        check(CloseHandle(file));
-
         //
-        // Add mt.exe to PATH
+        // Write
         //
 
-        program_files_path := to_string(getenv("ProgramFiles(x86)"));
+        exe_path := join(output_path, "/", application_name, ".exe",, allocator = temp);
 
-        search_path := join(program_files_path, "\\Windows Kits\\10\\bin\\10.*\0",, allocator = temp);
+        utf16_exe_path, success := utf8_to_wide(exe_path,, allocator = temp);
+        check(success, "utf8_to_wide(\"%\") has failed", exe_path);
 
-        find_data : WIN32_FIND_DATAA;
-        find_handle := FindFirstFileExA(search_path.data, .FindExInfoBasic, *find_data, .FindExSearchLimitToDirectories, null, 0);
-        check(find_handle != INVALID_HANDLE_VALUE);
+        handle := BeginUpdateResourceW(utf16_exe_path, FALSE);
+        check(handle != null, "BeginUpdateResourceW(\"%\", FALSE) has failed", exe_path);
 
-        Version :: [4] u32;
+        RESOURCE_ID :: cast(*u16) 1; // resource ID == 1 allows to skip some stuff
+        language_id := MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT);
 
-        max :: (a : Version, b : Version) -> Version {
-            for 0 .. a.count - 1 {
-                if a[it] > b[it] return a;
-                if a[it] < b[it] return b;
-            }
-            return a;
-        }
+        check(UpdateResourceW(handle, RT_MANIFEST, RESOURCE_ID, language_id, manifest.data, cast(u32) manifest.count));
 
-        latest_version : Version;
-        while true {
-            check(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
-
-            dirname := to_string(find_data.cFileName.data);
-
-            version : Version;
-            for * version {
-                it.*, success:, dirname = string_to_int(dirname, T = u32);
-                check(success);
-
-                if dirname && dirname[0] == #char "." {
-                    advance(*dirname);
-                } else {
-                    break;
-                }
-            }
-
-            latest_version = max(version, latest_version);
-
-            if !FindNextFileA(find_handle, *find_data) {
-                check(GetLastError() == ERROR_NO_MORE_FILES);
-                break;
-            }
-        }
-
-        mt_folder := tprint("%\\Windows Kits\\10\\bin\\%.%.%.%\\x64\0",
-                            program_files_path,
-                            latest_version[0],
-                            latest_version[1],
-                            latest_version[2],
-                            latest_version[3]);
-        print("mt.exe location: \"%\"\n", mt_folder);
-
-        path_value := to_string(getenv("PATH"));
-        if !contains(path_value, mt_folder) {
-            new_path_value := join(path_value, ";", mt_folder,, allocator = temp);
-            check(SetEnvironmentVariableA("PATH", new_path_value.data));
-        }
+        check(EndUpdateResourceW(handle, FALSE));
     }
+
+// @TOOD: Profile SegmentHeap
+MANIFEST_FORMAT_STRING :: #string XML
+<?xml version="1.0" encoding="UTF-8"?>
+<asm:assembly xmlns:asm="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+    <asm:assemblyIdentity type="win32" name="%" processorArchitecture="amd64" version="1.0.0.0" />
+        <comp:compatibility xmlns:comp="urn:schemas-microsoft-com:compatibility.v1">
+            <comp:application>
+                <!-- Windows 10 and Windows 11 -->
+                <comp:supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+            </comp:application>
+        </comp:compatibility>
+    <asm:application>
+        <asm:windowsSettings xmlns:ws05="http://schemas.microsoft.com/SMI/2005/WindowsSettings"
+                             xmlns:ws16="http://schemas.microsoft.com/SMI/2016/WindowsSettings"
+                             xmlns:ws19="http://schemas.microsoft.com/SMI/2019/WindowsSettings"
+                             xmlns:ws20="http://schemas.microsoft.com/SMI/2020/WindowsSettings">
+            <ws05:disableTheming>false</ws05:disableTheming>
+            <ws05:dpiAware>true</ws05:dpiAware>
+            <ws16:dpiAwareness>permonitorv2, permonitor, system</ws16:dpiAwareness>
+            <ws16:longPathAware>true</ws16:longPathAware>
+            <ws19:activeCodePage>UTF-8</ws19:activeCodePage>
+            <ws20:heapType>SegmentHeap</ws20:heapType>
+        </asm:windowsSettings>
+    </asm:application>
+    <asm:trustInfo>
+        <asm:security>
+            <asm:requestedPrivileges>
+                <asm:requestedExecutionLevel level="asInvoker" uiAccess="false" />
+            </asm:requestedPrivileges>
+        </asm:security>
+    </asm:trustInfo>
+</asm:assembly>
+XML;
 }
 
 check :: (expression : Code, format := "", args: ..Any, $print_sys_error := true, location := #caller_location) #expand {
@@ -375,18 +344,24 @@ check :: (expression : Code, format := "", args: ..Any, $print_sys_error := true
 
     success : bool = ---;
     #if type_of(result) == {
-        case bool; success = result;
-        case BOOL; success = result == TRUE;
-        case s32;  success = result == TRUE;
-        case u32;  success = result != 0;
+        case bool;    success = result;
+        case BOOL;    success = result != FALSE;
+        case HRESULT; success = result == 0;
+        case u32;     success = result != 0;
         case;
             compiler_report(tprint("Unhandled type: %", type_of(result)));
     }
 
     if success return;
 
+    IS_HRESULT :: type_of(result) == HRESULT;
+
     #if OS == .WINDOWS && print_sys_error {
-        sys_error_code := GetLastError();
+        #if IS_HRESULT {
+            sys_error_code := cast,no_check(u32) result;
+        } else {
+            sys_error_code : u32 = GetLastError();
+        }
     }
 
     builder := String_Builder.{ allocator = temp };
@@ -397,7 +372,7 @@ check :: (expression : Code, format := "", args: ..Any, $print_sys_error := true
         } else {
             append(*builder, format);
         }
-    } else {
+    } else if #compile_time {
         root := compiler_get_nodes(expression);
         print_expression(*builder, root);
     }
@@ -408,49 +383,57 @@ check :: (expression : Code, format := "", args: ..Any, $print_sys_error := true
             sys_error_message_length := FormatMessageA(FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
                                                        null,
                                                        sys_error_code,
-                                                       MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
+                                                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                                                        cast,no_check(**u8) sys_error_message_buffer.data,
                                                        sys_error_message_buffer.count,
                                                        null);
-            sys_error_message_length -= ".\r\n".count;
+
+            #if !IS_HRESULT {
+                sys_error_message_length -= ".\r\n".count;
+            }
             assert(sys_error_message_length > 0);
 
             sys_error_message := string.{ sys_error_message_length, sys_error_message_buffer.data };
-            print(*builder, ". System error (%): %", sys_error_code, sys_error_message);
+            #if IS_HRESULT {
+                print(*builder, ". System error (0x%): %", formatInt(sys_error_code, base = 16), sys_error_message);
+            } else {
+                print(*builder, ". System error (%): %", sys_error_code, sys_error_message);
+            }
         }
     }
 
     message := builder_to_string(*builder);
-    compiler_report(message, loc = location);
+    if #compile_time {
+        compiler_report(message, loc = location);
+    } else {
+        assert(false, message, loc = location);
+    }
 }
 
 #if OS == .WINDOWS {
-    TRUE :: 1;
+    FALSE : BOOL : 0;
 
-    ERROR_SUCCESS       :: 0;
-    ERROR_NO_MORE_FILES :: 18;
+    ERROR_SUCCESS :: 0;
 
-    SUBLANG_ENGLISH_US : u16 : 0x01;
+    BeginUpdateResourceW :: (
+        pFileName                : *u16,
+        bDeleteExistingResources : BOOL
+    ) -> HANDLE #foreign kernel32;
 
-    WIN32_FIND_DATAA :: struct {
-        dwFileAttributes   : u32;
-        ftCreationTime     : FILETIME;
-        ftLastAccessTime   : FILETIME;
-        ftLastWriteTime    : FILETIME;
-        nFileSizeHigh      : u32;
-        nFileSizeLow       : u32;
-        dwReserved0        : u32;
-        dwReserved1        : u32;
-        cFileName          : [MAX_PATH] u8;
-        cAlternateFileName : [14]       u8;
-        dwFileType         : u32; // Obsolete. Do not use.
-        dwCreatorType      : u32; // Obsolete. Do not use
-        wFinderFlags       : u16; // Obsolete. Do not use
-    }
+    RT_MANIFEST :: cast(*u16) 24;
 
-    SetEnvironmentVariableA :: (
-        lpName  : LPCSTR,
-        lpValue : LPCSTR
+    UpdateResourceW :: (
+        hUpdate   : HANDLE,
+        lpType    : *u16,
+        lpName    : *u16,
+        wLanguage : WORD,
+        lpData    : *void,
+        cbData    : DWORD
+    ) -> BOOL #foreign kernel32;
+
+    EndUpdateResourceW :: (
+        hUpdate  : HANDLE,
+        fDiscard : BOOL
     ) -> BOOL #foreign kernel32;
 
     kernel32 :: #library,system "kernel32";
@@ -468,6 +451,7 @@ check :: (expression : Code, format := "", args: ..Any, $print_sys_error := true
 }
 #if OS == .WINDOWS {
     #import "Windows";
+    #import "Windows_Utf8";
 } else if OS == .POSIX {
     #import "POSIX";
 } else {

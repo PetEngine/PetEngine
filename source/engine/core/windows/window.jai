@@ -23,8 +23,6 @@ createWin32WindowManager :: () {
     debugCheck(GetModuleHandleExW(0, null, *manager.app_instance), print_sys_error = true);
     assert(manager.app_instance);
 
-    setMonitorDPIAwareness();
-
     CLASS_NAME       :: "PetEngineWindowClass";
     utf16_class_name : [CLASS_NAME.count + 1] WCHAR = ---;
     ASCIIToUTF16(*utf16_class_name, CLASS_NAME);
@@ -341,13 +339,6 @@ windowEventsCallback :: (window_handle : HWND, message : WM, wparam : WPARAM, lp
     }
 
     return result;
-}
-
-setMonitorDPIAwareness :: () {
-    debugCheck(SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2), print_sys_error = true);
-
-    assert(GetAwarenessFromDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == .DPI_AWARENESS_PER_MONITOR_AWARE,
-           print_sys_error = true);
 }
 
 applyInitialDPIScalingToWindow :: (window_handle : HWND, rect_resolution : Resolution) -> f32 {
