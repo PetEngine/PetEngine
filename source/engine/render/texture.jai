@@ -15,6 +15,8 @@ Texture :: struct {
         UNKNOWN :: 0;
 
         // Uncompressed
+        RGBA8_UNORM;
+        RGBA8_SRGB;
         BGRA8_UNORM;
         BGRA8_SNORM;
         BGRA8_SRGB;
@@ -27,6 +29,20 @@ Texture :: struct {
         S8;
 
         // Compressed
+        BC1_UNORM;
+        BC1_SRGB;
+        BC1_A1_UNORM;
+        BC1_A1_SRGB;
+        BC2_UNORM;
+        BC2_SRGB;
+        BC3_UNORM;
+        BC3_SRGB;
+        BC4_UNORM;
+        BC4_SNORM;
+        BC5_UNORM;
+        BC5_SNORM;
+        BC6H_UFLOAT;
+        BC6H_SFLOAT;
         BC7_UNORM;
         BC7_SRGB;
 
@@ -50,7 +66,6 @@ Texture :: struct {
     }
 
     FormatFlags :: enum_flags u8 {
-        UNCOMPRESSED;
         COMPRESSED;
         PACKED;
         COLOR;
@@ -58,6 +73,7 @@ Texture :: struct {
         STENCIL;
         INTEGER;
         SRGB;
+        HDR;
     }
 
     ClearValue :: union {
@@ -173,14 +189,30 @@ createTexture :: (
 textureFormatFlags :: (format : Texture.Format) -> Texture.FormatFlags {
     if #complete format == {
         case .UNKNOWN;       return 0;
-        case .BGRA8_UNORM;   return .UNCOMPRESSED | .COLOR;
-        case .BGRA8_SNORM;   return .UNCOMPRESSED | .COLOR;
-        case .BGRA8_SRGB;    return .UNCOMPRESSED | .COLOR   | .SRGB;
-        case .RGB10A2_UNORM; return .UNCOMPRESSED | .COLOR   | .PACKED;
-        case .D32;           return .UNCOMPRESSED | .DEPTH;
-        case .S8;            return .UNCOMPRESSED | .STENCIL | .INTEGER;
-        case .BC7_UNORM;     return .COMPRESSED   | .COLOR;
-        case .BC7_SRGB;      return .COMPRESSED   | .COLOR   | .SRGB;
+        case .RGBA8_UNORM;   return .COLOR;
+        case .RGBA8_SRGB;    return .COLOR | .SRGB;
+        case .BGRA8_UNORM;   return .COLOR;
+        case .BGRA8_SNORM;   return .COLOR;
+        case .BGRA8_SRGB;    return .COLOR | .SRGB;
+        case .RGB10A2_UNORM; return .COLOR | .PACKED;
+        case .D32;           return .DEPTH;
+        case .S8;            return .STENCIL | .INTEGER;
+        case .BC1_UNORM;     return .COMPRESSED | .COLOR;
+        case .BC1_SRGB;      return .COMPRESSED | .COLOR | .SRGB;
+        case .BC1_A1_UNORM;  return .COMPRESSED | .COLOR;
+        case .BC1_A1_SRGB;   return .COMPRESSED | .COLOR | .SRGB;
+        case .BC2_UNORM;     return .COMPRESSED | .COLOR;
+        case .BC2_SRGB;      return .COMPRESSED | .COLOR | .SRGB;
+        case .BC3_UNORM;     return .COMPRESSED | .COLOR;
+        case .BC3_SRGB;      return .COMPRESSED | .COLOR | .SRGB;
+        case .BC4_UNORM;     return .COMPRESSED | .COLOR;
+        case .BC4_SNORM;     return .COMPRESSED | .COLOR;
+        case .BC5_UNORM;     return .COMPRESSED | .COLOR;
+        case .BC5_SNORM;     return .COMPRESSED | .COLOR;
+        case .BC6H_UFLOAT;   return .COMPRESSED | .COLOR | .HDR;
+        case .BC6H_SFLOAT;   return .COMPRESSED | .COLOR | .HDR;
+        case .BC7_UNORM;     return .COMPRESSED | .COLOR;
+        case .BC7_SRGB;      return .COMPRESSED | .COLOR | .SRGB;
     }
 
     assertMessage("Invalid Texture.Format value: %", format);
