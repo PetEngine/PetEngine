@@ -162,15 +162,37 @@ getFileSize :: (file : File) -> s64 {
 }
 
 getFileCursorPosition :: (file : File) -> s64 {
-    cursor_position : s64;
+    position : s64;
 
     #if OS == .WINDOWS {
-        cursor_position = getWindowsFileCursorPosition(file);
+        position = getWindowsFileCursorPosition(file);
     } else {
         notImplemented();
     }
 
-    return cursor_position;
+    return position;
+}
+
+FileOffset :: enum u32 #specified {
+    BEGIN   :: 0;
+    CURRENT :: 1;
+    END     :: 2;
+}
+
+setFileCursorPosition :: (file : File, offset : FileOffset, position : s64) -> s64 {
+    new_position : s64;
+
+    #if OS == .WINDOWS {
+        #assert FileOffset.BEGIN   == FILE_BEGIN
+             && FileOffset.CURRENT == FILE_CURRENT
+             && FileOffset.END     == FILE_END;
+
+        new_position = setWindowsFileCursorPosition(file, cast(u32) offset, position);
+    } else {
+        notImplemented();
+    }
+
+    return new_position;
 }
 
 // @TODO: #Naming. Shorter name?

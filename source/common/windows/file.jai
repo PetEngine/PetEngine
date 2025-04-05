@@ -94,6 +94,13 @@ getWindowsFileCursorPosition :: (file : File) -> s64 {
     return cursor_position.QuadPart;
 }
 
+setWindowsFileCursorPosition :: (file : File, move_method : u32, position : s64) -> s64 {
+    distance_to_move    := LARGE_INTEGER.{ QuadPart = position };
+    new_cursor_position : LARGE_INTEGER = ---;
+    debugCheck(SetFilePointerEx(file.handle, distance_to_move, *new_cursor_position, move_method), print_sys_error = true);
+    return new_cursor_position.QuadPart;
+}
+
 enumerateWindowsFiles :: (
     $$directory       : string,
     callback          : (user_data : *$T, file_info : *File.Info) -> EnumerateFilesCallbackResult,
