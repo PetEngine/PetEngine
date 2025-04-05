@@ -26,6 +26,20 @@ VkFormat :: enum VkEnum #specified {
     VK_FORMAT_A2B10G10R10_UNORM_PACK32 :: 64;
     VK_FORMAT_D32_SFLOAT               :: 126;
     VK_FORMAT_S8_UINT                  :: 127;
+    VK_FORMAT_BC1_RGB_UNORM_BLOCK      :: 131;
+    VK_FORMAT_BC1_RGB_SRGB_BLOCK       :: 132;
+    VK_FORMAT_BC1_RGBA_UNORM_BLOCK     :: 133;
+    VK_FORMAT_BC1_RGBA_SRGB_BLOCK      :: 134;
+    VK_FORMAT_BC2_UNORM_BLOCK          :: 135;
+    VK_FORMAT_BC2_SRGB_BLOCK           :: 136;
+    VK_FORMAT_BC3_UNORM_BLOCK          :: 137;
+    VK_FORMAT_BC3_SRGB_BLOCK           :: 138;
+    VK_FORMAT_BC4_UNORM_BLOCK          :: 139;
+    VK_FORMAT_BC4_SNORM_BLOCK          :: 140;
+    VK_FORMAT_BC5_UNORM_BLOCK          :: 141;
+    VK_FORMAT_BC5_SNORM_BLOCK          :: 142;
+    VK_FORMAT_BC6H_UFLOAT_BLOCK        :: 143;
+    VK_FORMAT_BC6H_SFLOAT_BLOCK        :: 144;
     VK_FORMAT_BC7_UNORM_BLOCK          :: 145;
     VK_FORMAT_BC7_SRGB_BLOCK           :: 146;
 }

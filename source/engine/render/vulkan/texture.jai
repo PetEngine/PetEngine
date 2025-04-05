@@ -96,12 +96,28 @@ createVulkanTexture :: (texture_ : *Texture, lifetime : ResourceManager.Lifetime
 textureFormatToVulkanFormat :: inline (format : Texture.Format) -> VkFormat {
     if #complete format == {
         case .UNKNOWN;       return .VK_FORMAT_UNDEFINED;
+        case .RGBA8_UNORM;   return .VK_FORMAT_R8G8B8A8_UNORM;
+        case .RGBA8_SRGB;    return .VK_FORMAT_R8G8B8A8_SRGB;
         case .BGRA8_UNORM;   return .VK_FORMAT_B8G8R8A8_UNORM;
         case .BGRA8_SNORM;   return .VK_FORMAT_B8G8R8A8_SNORM;
         case .BGRA8_SRGB;    return .VK_FORMAT_B8G8R8A8_SRGB;
         case .RGB10A2_UNORM; return .VK_FORMAT_A2B10G10R10_UNORM_PACK32;
         case .D32;           return .VK_FORMAT_D32_SFLOAT;
         case .S8;            return .VK_FORMAT_S8_UINT;
+        case .BC1_UNORM;     return .VK_FORMAT_BC1_RGB_UNORM_BLOCK;
+        case .BC1_SRGB;      return .VK_FORMAT_BC1_RGB_SRGB_BLOCK;
+        case .BC1_A1_UNORM;  return .VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
+        case .BC1_A1_SRGB;   return .VK_FORMAT_BC1_RGBA_SRGB_BLOCK;
+        case .BC2_UNORM;     return .VK_FORMAT_BC2_UNORM_BLOCK;
+        case .BC2_SRGB;      return .VK_FORMAT_BC2_SRGB_BLOCK;
+        case .BC3_UNORM;     return .VK_FORMAT_BC3_UNORM_BLOCK;
+        case .BC3_SRGB;      return .VK_FORMAT_BC3_SRGB_BLOCK;
+        case .BC4_UNORM;     return .VK_FORMAT_BC4_UNORM_BLOCK;
+        case .BC4_SNORM;     return .VK_FORMAT_BC4_SNORM_BLOCK;
+        case .BC5_UNORM;     return .VK_FORMAT_BC5_UNORM_BLOCK;
+        case .BC5_SNORM;     return .VK_FORMAT_BC5_SNORM_BLOCK;
+        case .BC6H_UFLOAT;   return .VK_FORMAT_BC6H_UFLOAT_BLOCK;
+        case .BC6H_SFLOAT;   return .VK_FORMAT_BC6H_SFLOAT_BLOCK;
         case .BC7_UNORM;     return .VK_FORMAT_BC7_UNORM_BLOCK;
         case .BC7_SRGB;      return .VK_FORMAT_BC7_SRGB_BLOCK;
     }
@@ -111,14 +127,30 @@ textureFormatToVulkanFormat :: inline (format : Texture.Format) -> VkFormat {
 }
 
 vulkanFormatToTextureFormat :: inline (format : VkFormat) -> Texture.Format {
-    if format == {
+    if #complete format == {
         case .VK_FORMAT_UNDEFINED;                return .UNKNOWN;
+        case .VK_FORMAT_R8G8B8A8_UNORM;           return .RGBA8_UNORM;
+        case .VK_FORMAT_R8G8B8A8_SRGB;            return .RGBA8_SRGB;
         case .VK_FORMAT_B8G8R8A8_UNORM;           return .BGRA8_UNORM;
         case .VK_FORMAT_B8G8R8A8_SNORM;           return .BGRA8_SNORM;
         case .VK_FORMAT_B8G8R8A8_SRGB;            return .BGRA8_SRGB;
         case .VK_FORMAT_A2B10G10R10_UNORM_PACK32; return .RGB10A2_UNORM;
         case .VK_FORMAT_D32_SFLOAT;               return .D32;
         case .VK_FORMAT_S8_UINT;                  return .S8;
+        case .VK_FORMAT_BC1_RGB_UNORM_BLOCK;      return .BC1_UNORM;
+        case .VK_FORMAT_BC1_RGB_SRGB_BLOCK;       return .BC1_SRGB;
+        case .VK_FORMAT_BC1_RGBA_UNORM_BLOCK;     return .BC1_A1_UNORM;
+        case .VK_FORMAT_BC1_RGBA_SRGB_BLOCK;      return .BC1_A1_SRGB;
+        case .VK_FORMAT_BC2_UNORM_BLOCK;          return .BC2_UNORM;
+        case .VK_FORMAT_BC2_SRGB_BLOCK;           return .BC2_SRGB;
+        case .VK_FORMAT_BC3_UNORM_BLOCK;          return .BC3_UNORM;
+        case .VK_FORMAT_BC3_SRGB_BLOCK;           return .BC3_SRGB;
+        case .VK_FORMAT_BC4_UNORM_BLOCK;          return .BC4_UNORM;
+        case .VK_FORMAT_BC4_SNORM_BLOCK;          return .BC4_SNORM;
+        case .VK_FORMAT_BC5_UNORM_BLOCK;          return .BC5_UNORM;
+        case .VK_FORMAT_BC5_SNORM_BLOCK;          return .BC5_SNORM;
+        case .VK_FORMAT_BC6H_UFLOAT_BLOCK;        return .BC6H_UFLOAT;
+        case .VK_FORMAT_BC6H_SFLOAT_BLOCK;        return .BC6H_SFLOAT;
         case .VK_FORMAT_BC7_UNORM_BLOCK;          return .BC7_UNORM;
         case .VK_FORMAT_BC7_SRGB_BLOCK;           return .BC7_SRGB;
     }
@@ -162,10 +194,26 @@ getVulkanImageAspectFlags :: inline (format : Texture.Format) -> VkImageAspectFl
     if #complete format == {
         case .UNKNOWN;
             return .VK_IMAGE_ASPECT_NONE;
+        case .RGBA8_UNORM;   #through;
+        case .RGBA8_SRGB;    #through;
         case .BGRA8_UNORM;   #through;
         case .BGRA8_SNORM;   #through;
         case .BGRA8_SRGB;    #through;
         case .RGB10A2_UNORM; #through;
+        case .BC1_UNORM;     #through;
+        case .BC1_SRGB;      #through;
+        case .BC1_A1_UNORM;  #through;
+        case .BC1_A1_SRGB;   #through;
+        case .BC2_UNORM;     #through;
+        case .BC2_SRGB;      #through;
+        case .BC3_UNORM;     #through;
+        case .BC3_SRGB;      #through;
+        case .BC4_UNORM;     #through;
+        case .BC4_SNORM;     #through;
+        case .BC5_UNORM;     #through;
+        case .BC5_SNORM;     #through;
+        case .BC6H_UFLOAT;   #through;
+        case .BC6H_SFLOAT;   #through;
         case .BC7_UNORM;     #through;
         case .BC7_SRGB;
             return .VK_IMAGE_ASPECT_COLOR_BIT;
