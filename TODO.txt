@@ -5,6 +5,8 @@
 Converter:
     - Materials.
     - Thread pool.
+    - Cube textures.
+    - Texture arrays.
 
 Manager:
     - Possible owners for resource

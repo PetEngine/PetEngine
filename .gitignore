@@ -3,5 +3,6 @@ output/
 vtune/
 .build/
 source/assets/meshes/runtime/
+source/assets/textures/runtime/
 *.rdbg
 *.raddbg_project
