@@ -126,7 +126,7 @@ createTexture :: (
     assert(width == height || !(flags & .CUBE),
            "Cube textures must have identical width and height");
 
-    max_mips_count := maxMipsCount(width, height, depth_or_array_size * cast,no_check(u16) (flags & .ARRAY));
+    max_mips_count := maxMipsCount(width, height, depth_or_array_size * cast,no_check(u16) !(flags & .ARRAY));
     if mips_count == Texture.ALL_MIPS {
         mips_count = max_mips_count;
     } else {
