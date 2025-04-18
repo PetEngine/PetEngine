@@ -10,11 +10,21 @@ AssetConverter :: struct {
 }
 
 convertExchangeAssetsToRuntime :: () {
+    meshes_count : u64;
+    meshes_begin := Basic.current_time_monotonic();
     if fileExists(AssetConverter.EXCHANGE_MESHES_FOLDER) {
-        enumerateFiles(AssetConverter.EXCHANGE_MESHES_FOLDER, convertMeshesCallback, null, recursively = true);
+        enumerateFiles(AssetConverter.EXCHANGE_MESHES_FOLDER, convertMeshesCallback, *meshes_count, recursively = true);
     } else {
         verboseMessage("Exchange meshes folder is not found: %", AssetConverter.EXCHANGE_MESHES_FOLDER);
     }
+    meshes_end := Basic.current_time_monotonic();
+
+    infoMessage(#string END
+AssetConverter has converted:
+    Meshes:   % for % seconds
+END,
+                Basic.FormatInt.{ value = meshes_count, minimum_digits = 4, padding = #char " " },
+                Basic.FormatFloat.{ value = Basic.to_float64_seconds(meshes_end - meshes_begin), width = 11, trailing_width = 6 });
 }
 
 makeRuntimeMeshFilename :: (name : string) -> string {
@@ -30,7 +40,7 @@ makeRuntimeMeshFilename :: (name : string) -> string {
 
 #scope_file
 
-convertMeshesCallback :: (user_data : *void, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
+convertMeshesCallback :: (meshes_count : *u64, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
         "obj"
     ];
@@ -72,8 +82,10 @@ convertMeshesCallback :: (user_data : *void, exchange_file_info : *File.Info) ->
         case;       notImplemented(true);
     }
 
-    if !success {
-        errorMessage("Failed to convert %1.%2 to %1.mesh", mesh_name, extension);
+    if success {
+        meshes_count.* += 1;
+    } else {
+        errorMessage("Failed to convert \"%1.%2\" to \"%1.mesh\"", mesh_name, extension);
     }
 
     return .CONTINUE;
