@@ -9,33 +9,82 @@ AssetConverter :: struct {
 }
 
 convertExchangeAssetsToRuntime :: () {
-    meshes_count : u64;
-    meshes_begin := Basic.current_time_monotonic();
+    meshes_context : MeshesContext;
     if fileExists(AssetConverter.EXCHANGE_MESHES_FOLDER) {
-        enumerateFiles(AssetConverter.EXCHANGE_MESHES_FOLDER, convertMeshesCallback, *meshes_count, recursively = true);
+        meshes_begin := Basic.current_time_monotonic();
+        enumerateFiles(AssetConverter.EXCHANGE_MESHES_FOLDER, convertMeshesCallback, *meshes_context, recursively = true);
+        meshes_end := Basic.current_time_monotonic();
+
+        meshes_context.duration = Basic.to_float64_seconds(meshes_end - meshes_begin);
     } else {
         verboseMessage("Exchange meshes folder is not found: %", AssetConverter.EXCHANGE_MESHES_FOLDER);
     }
-    meshes_end := Basic.current_time_monotonic();
 
-    textures_count : u64;
-    textures_begin := Basic.current_time_monotonic();
+    textures_context : TexturesContext;
     if fileExists(AssetConverter.EXCHANGE_TEXTURES_FOLDER) {
-        enumerateFiles(AssetConverter.EXCHANGE_TEXTURES_FOLDER, convertTexturesCallback, *textures_count, recursively = true);
+        autoResetPerFrameArenas();
+
+        textures_begin := Basic.current_time_monotonic();
+        defer textures_context.duration = Basic.to_float64_seconds(Basic.current_time_monotonic() - textures_begin);
+
+        messageCallback :: (severity : NvttSeverity, error : NvttError, message : *u8, userData : *void) #c_call {
+            push_context,defer_pop cast(*#Context) userData;
+
+            if severity == {
+                case .Info;    infoMessage("%", to_string(message));
+                case .Warning; warningMessage("%", to_string(message));
+                case .Error;   errorMessage("%", to_string(message));
+            }
+        }
+
+        nvtt_success := nvttSetMessageCallback(messageCallback, *context);
+        assert(nvtt_success == .True);
+
+        nvtt_output_options := nvttCreateOutputOptions();
+        defer nvttDestroyOutputOptions(nvtt_output_options);
+        nvttSetOutputOptionsOutputHandler(nvtt_output_options, null, outputHandler, null);
+        nvttSetOutputOptionsOutputHeader(nvtt_output_options, .False);
+
+        cuda_supported := nvttIsCudaSupported();
+        if cuda_supported == .False {
+            warningMessage("CUDA is not supported. Convertion will take much more time since it will be done on CPU.");
+        }
+
+        nvtt_context := nvttCreateContext();
+        defer nvttDestroyContext(nvtt_context);
+        nvttSetContextCudaAcceleration(nvtt_context, cuda_supported);
+
+        if cuda_supported == .True {
+            assert(nvttContextIsCudaAccelerationEnabled(nvtt_context) == .True);
+        }
+
+        textures_context.nvtt_context        = nvtt_context;
+        textures_context.nvtt_output_options = nvtt_output_options;
+        textures_context.cuda_supported      = cuda_supported;
+
+        enumerateFiles(AssetConverter.EXCHANGE_TEXTURES_FOLDER, convertTexturesCallback, *textures_context, recursively = true);
     } else {
         verboseMessage("Exchange textures folder is not found: %", AssetConverter.EXCHANGE_TEXTURES_FOLDER);
     }
-    textures_end := Basic.current_time_monotonic();
+
+    formatStatisticsInt   :: inline (value : $T) -> Basic.FormatInt   { return .{ value = value, minimum_digits = 4, padding = #char " " }; }
+    formatStatisticsFloat :: inline (value : $T) -> Basic.FormatFloat { return .{ value = value, width = 11, trailing_width = 6 }; }
 
     infoMessage(#string END
-AssetConverter has converted:
-    Meshes:   % for % seconds
-    Textures: % for % seconds
+AssetConverter statistics:
+    Meshes:   total: %, converted: %, failed: %, skipped: %, duration: % seconds
+    Textures: total: %, converted: %, failed: %, skipped: %, duration: % seconds
 END,
-                Basic.FormatInt.{ value = meshes_count, minimum_digits = 4, padding = #char " " },
-                Basic.FormatFloat.{ value = Basic.to_float64_seconds(meshes_end - meshes_begin), width = 11, trailing_width = 6 },
-                Basic.FormatInt.{ value = textures_count, minimum_digits = 4, padding = #char " " },
-                Basic.FormatFloat.{ value = Basic.to_float64_seconds(textures_end - textures_begin), width = 11, trailing_width = 6 });
+                formatStatisticsInt(meshes_context.total + meshes_context.skipped),
+                formatStatisticsInt(meshes_context.converted),
+                formatStatisticsInt(meshes_context.total - meshes_context.converted),
+                formatStatisticsInt(meshes_context.skipped),
+                formatStatisticsFloat(meshes_context.duration),
+                formatStatisticsInt(textures_context.total + textures_context.skipped),
+                formatStatisticsInt(textures_context.converted),
+                formatStatisticsInt(textures_context.total - textures_context.converted),
+                formatStatisticsInt(textures_context.skipped),
+                formatStatisticsFloat(textures_context.duration));
 }
 
 makeRuntimeMeshFilename :: (name : string) -> string {
@@ -62,15 +111,35 @@ makeRuntimeTextureFilename :: (name : string) -> string {
 
 #scope_file
 
-convertMeshesCallback :: (meshes_count : *u64, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
+MeshesContext :: struct {
+    converted : s64;
+    skipped   : s64;
+    duration  : f64;
+
+    total : s64; // #Temp.
+}
+
+TexturesContext :: struct {
+    nvtt_context        : *NvttContext;
+    nvtt_output_options : *NvttOutputOptions;
+    cuda_supported      : NvttBoolean;
+
+    converted : s64;
+    skipped   : s64;
+    duration  : f64;
+    total     : s64;
+}
+
+convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
         "obj"
     ];
 
     extension, found := String.path_extension(exchange_file_info.name);
-    if !found return .CONTINUE;
-
-    if !Basic.array_find(VALID_EXCHANGE_EXTENSIONS, extension) {
+    if !found || !Basic.array_find(VALID_EXCHANGE_EXTENSIONS, extension) {
+        errorMessage("Mesh \"%\" is not supported by AssetConverter: invalid extension. Valid extensions are: %",
+                     exchange_file_info.name,
+                     VALID_EXCHANGE_EXTENSIONS);
         return .CONTINUE;
     }
 
@@ -94,9 +163,12 @@ convertMeshesCallback :: (meshes_count : *u64, exchange_file_info : *File.Info) 
         header : MeshFile.Header = ---;
         readFile(runtime_file, *header);
         if header.version == MeshFile.VERSION {
+            meshes_context.skipped += 1;
             return .CONTINUE;
         }
     }
+
+    meshes_context.total += 1;
 
     success : bool;
     if extension == {
@@ -105,7 +177,7 @@ convertMeshesCallback :: (meshes_count : *u64, exchange_file_info : *File.Info) 
     }
 
     if success {
-        meshes_count.* += 1;
+        meshes_context.converted += 1;
     } else {
         errorMessage("Failed to convert \"%1.%2\" to \"%1.mesh\"", mesh_name, extension);
     }
@@ -113,7 +185,7 @@ convertMeshesCallback :: (meshes_count : *u64, exchange_file_info : *File.Info) 
     return .CONTINUE;
 }
 
-convertTexturesCallback :: (textures_count : *u64, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
+convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
         "png",
         "dds",
@@ -122,13 +194,12 @@ convertTexturesCallback :: (textures_count : *u64, exchange_file_info : *File.In
     ];
 
     extension, found := String.path_extension(exchange_file_info.name);
-    if !found return .CONTINUE;
-
-    if !Basic.array_find(VALID_EXCHANGE_EXTENSIONS, extension) {
+    if !found || !Basic.array_find(VALID_EXCHANGE_EXTENSIONS, extension) {
+        errorMessage("Texture \"%\" is not supported by AssetConverter: invalid extension. Valid extensions are: %",
+                     exchange_file_info.name,
+                     VALID_EXCHANGE_EXTENSIONS);
         return .CONTINUE;
     }
-
-    autoResetPerFrameArenas();
 
     texture_name := string.{
         exchange_file_info.name.count - (AssetConverter.EXCHANGE_TEXTURES_FOLDER.count + "/".count) - (".".count + extension.count),
@@ -149,12 +220,15 @@ convertTexturesCallback :: (textures_count : *u64, exchange_file_info : *File.In
         header : TextureFile.Header = ---;
         readFile(runtime_file, *header);
         if header.version == TextureFile.VERSION {
+            textures_context.skipped += 1;
             return .CONTINUE;
         }
     } */
 
-    if convertTextureNVTT(exchange_file_info.name, texture_name, extension) {
-        textures_count.* += 1;
+    textures_context.total += 1;
+
+    if convertTextureNVTT(textures_context, exchange_file_info.name, texture_name, extension) {
+        textures_context.converted += 1;
     } else {
         errorMessage("Failed to convert \"%1.%2\" to \"%1.texture\"", texture_name, extension);
     }
@@ -162,25 +236,11 @@ convertTexturesCallback :: (textures_count : *u64, exchange_file_info : *File.In
     return .CONTINUE;
 }
 
-convertTextureNVTT :: (exchange_filename : string, name : string, extension : string) -> bool {
+convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : string, name : string, extension : string) -> bool {
     infoMessage("Converting \"%.%\"...", name, extension);
 
     file_data, error := readEntireFile(exchange_filename, pushToArena, *context.pet.arenas.per_frame);
     assert(error == .NONE);
-
-    nvtt_success := nvttSetMessageCallback((severity : NvttSeverity, error : NvttError, message : *u8, userData : *void) #c_call {
-        push_context,defer_pop cast(*#Context) userData;
-
-        if severity == {
-            case .Info;    infoMessage("%", to_string(message));
-            case .Warning; warningMessage("%", to_string(message));
-            case .Error;   errorMessage("%", to_string(message));
-        }
-    }, *context);
-    if nvtt_success == .False return false;
-
-    nvtt_surface := nvttCreateSurface();
-    defer nvttDestroySurface(nvtt_surface);
 
     is_srgb       := false; // @TODO: #TextureLoader. Detect sRGB.
     is_hdr        := false; // @TODO: #TextureLoader. Detect HDR.
@@ -189,19 +249,24 @@ convertTextureNVTT :: (exchange_filename : string, name : string, extension : st
     assert(!(is_normal_map && is_hdr), "Normals cannot be stored in HDR");
     assert(!(is_srgb && is_hdr), "Texture cannot be stored in HDR and sRGB at the same time");
 
+    nvtt_surface := nvttCreateSurface();
+    defer nvttDestroySurface(nvtt_surface);
+
     has_alpha : NvttBoolean;
-    nvtt_success = nvttSurfaceLoadFromMemory(nvtt_surface,
-                                             file_data.data,
-                                             cast(u64) file_data.count,
-                                             *has_alpha,
-                                             cast(NvttBoolean) is_normal_map);
+    nvtt_success := nvttSurfaceLoadFromMemory(nvtt_surface,
+                                              file_data.data,
+                                              cast(u64) file_data.count,
+                                              *has_alpha,
+                                              cast(NvttBoolean) is_normal_map);
     if nvtt_success == .False return false;
+
+    MIN_TEXTURE_SIDE_SIZE :: 2;
 
     texture_file_header := TextureFile.Header.{
         width      = cast(u16) nvttSurfaceWidth(nvtt_surface),
         height     = cast(u16) nvttSurfaceHeight(nvtt_surface),
         depth      = cast(u16) nvttSurfaceDepth(nvtt_surface),
-        mips_count = cast(u8)  nvttSurfaceCountMipmaps(nvtt_surface, 4),
+        mips_count = cast(u8)  nvttSurfaceCountMipmaps(nvtt_surface, MIN_TEXTURE_SIDE_SIZE),
     };
 
     nvtt_compression_options := nvttCreateCompressionOptions();
@@ -228,31 +293,9 @@ convertTextureNVTT :: (exchange_filename : string, name : string, extension : st
     }
     assert(texture_file_header.format != .UNKNOWN);
 
-    nvtt_output_options := nvttCreateOutputOptions();
-    defer nvttDestroyOutputOptions(nvtt_output_options);
-    nvttSetOutputOptionsOutputHandler(nvtt_output_options, null, outputHandler, null);
-    nvttSetOutputOptionsOutputHeader(nvtt_output_options, .False);
-
-    cuda_supported := nvttIsCudaSupported();
-    if cuda_supported == .False {
-        warningMessage("CUDA is not supported. Convertion will take much more time since it will be done on CPU.");
-    }
-
-    nvtt_context := nvttCreateContext();
-    defer nvttDestroyContext(nvtt_context);
-    nvttSetContextCudaAcceleration(nvtt_context, cuda_supported);
-
-    if cuda_supported {
-        assert(nvttContextIsCudaAccelerationEnabled(nvtt_context) == .True);
+    if textures_context.cuda_supported {
         nvttSurfaceToGPU(nvtt_surface);
     }
-
-    texture_file := beginTextureFileSerialization(name);
-    defer endTextureFileSerialization(*texture_file);
-
-    context.pet.converter.texture_file = *texture_file;
-    defer context.pet.converter = .{};
-    g_contextForOutputHandler = *context;
 
     nvtt_texture_type := nvttSurfaceType(nvtt_surface);
     if #complete nvtt_texture_type == {
@@ -274,38 +317,72 @@ convertTextureNVTT :: (exchange_filename : string, name : string, extension : st
     assert(!(array_size > 1 && (texture_file_header.dimension == ._3D || texture_file_header.depth > 1)),
            "Array textures cannot contain 3D textures");
 
-    writeTextureFileHeader(*texture_file, texture_file_header);
+    nvtt_surfaces : StaticArray(*NvttSurface, Texture.MAX_MIPS_SUPPORTED);
+    defer for nvtt_surfaces {
+        if it_index > 0 nvttDestroySurface(it); // see: nvttDestroySurface(nvtt_surface)
+    }
 
-    for 0 .. array_size - 1 {
-        for 0 .. texture_file_header.mips_count - 1 {
-            nvtt_surface_copy := nvttSurfaceClone(nvtt_surface);
-            defer nvttDestroySurface(nvtt_surface_copy);
+    //
+    // Generate mips and prepare surfaces
+    //
 
-            if is_normal_map {
-                nvttSurfacePackNormals(nvtt_surface_copy); // [-1; 1] -> [0; 1]
-            } else if !is_srgb && !is_hdr {
-                nvttSurfaceToSrgb(nvtt_surface_copy);
+    pushBack(*nvtt_surfaces, nvtt_surface);
+
+    for 1 .. texture_file_header.mips_count - 1 {
+        nvtt_surface_copy := nvttSurfaceClone(nvtt_surfaces[it - 1]);
+        pushBack(*nvtt_surfaces, nvtt_surface_copy);
+
+        if !is_normal_map && has_alpha == .True {
+            nvttSurfacePremultiplyAlpha(nvtt_surface_copy);
+        }
+
+        nvtt_success = nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, MIN_TEXTURE_SIDE_SIZE);
+        if nvtt_success == .False return false;
+
+        if is_normal_map {
+            nvttSurfaceNormalizeNormalMap(nvtt_surface_copy);
+            nvttSurfacePackNormals(nvtt_surface_copy); // [-1; 1] -> [0; 1]
+        } else {
+            if has_alpha == .True {
+                nvttSurfaceDemultiplyAlpha(nvtt_surface_copy);
             }
-
-            nvtt_success = nvttContextCompress(nvtt_context, nvtt_surface_copy, 0, it, nvtt_compression_options, nvtt_output_options);
-            if nvtt_success == .False return false;
-
-            if it < texture_file_header.mips_count - 1 {
-                if !is_normal_map && has_alpha == .True {
-                    nvttSurfacePremultiplyAlpha(nvtt_surface);
-                }
-
-                nvtt_success = nvttSurfaceBuildNextMipmapDefaults(nvtt_surface, .Kaiser, 4);
-                if nvtt_success == .False return false;
-
-                if is_normal_map {
-                    nvttSurfaceNormalizeNormalMap(nvtt_surface);
-                } else if has_alpha == .True {
-                    nvttSurfaceDemultiplyAlpha(nvtt_surface);
-                }
+            if !is_srgb && !is_hdr {
+                nvttSurfaceToSrgb(nvtt_surface_copy);
             }
         }
     }
+
+    if is_normal_map {
+        nvttSurfacePackNormals(nvtt_surface); // [-1; 1] -> [0; 1]
+    } else if !is_srgb && !is_hdr {
+        nvttSurfaceToSrgb(nvtt_surface);
+    }
+
+    //
+    // Fill batch list
+    //
+
+    batch_list := nvttCreateBatchList();
+    defer nvttDestroyBatchList(batch_list);
+
+    for nvtt_surfaces {
+        nvttBatchListAppend(batch_list, it, 0, cast(s32) it_index, textures_context.nvtt_output_options);
+    }
+
+    //
+    // Compress batch
+    //
+
+    texture_file := beginTextureFileSerialization(name);
+    defer endTextureFileSerialization(*texture_file);
+    writeTextureFileHeader(*texture_file, texture_file_header);
+
+    context.pet.converter.texture_file = *texture_file;
+    defer context.pet.converter = .{};
+    g_contextForOutputHandler = *context;
+
+    nvtt_success = nvttContextCompressBatch(textures_context.nvtt_context, batch_list, nvtt_compression_options);
+    if nvtt_success == .False return false;
 
     infoMessage("\"%.texture\" has been converted", name);
     return true;
@@ -313,12 +390,7 @@ convertTextureNVTT :: (exchange_filename : string, name : string, extension : st
 
 outputHandler :: (data : *void, size : s32) -> NvttBoolean #c_call {
     push_context, defer_pop g_contextForOutputHandler;
-
-    if context.pet.converter.last_data != data {
-        context.pet.converter.last_data = data;
-        appendTextureFileData(context.pet.converter.texture_file, .{ count = size, data = data });
-    }
-
+    appendTextureFileData(context.pet.converter.texture_file, .{ count = size, data = data });
     return .True;
 }
 

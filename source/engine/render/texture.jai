@@ -3,6 +3,8 @@ Texture :: struct {
     ALL_LAYERS  : u16 : 0xFFFF;
     MAX_SAMPLES : u8  : 0xFF;
 
+    MAX_MIPS_SUPPORTED : u8 : 16;
+
     Dimension :: enum u8 {
         _1D;
         _2D;

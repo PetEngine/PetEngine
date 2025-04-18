@@ -43,7 +43,6 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 
     converter : struct {
         texture_file : *TextureFile;
-        last_data    : *void; // for some reason outputHandler is called twice, so we ignore second time with that workaround
     }
 
     initGlobals :: (new_context : *#Context) {

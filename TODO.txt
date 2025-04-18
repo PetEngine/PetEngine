@@ -6,7 +6,7 @@ Converter:
     - Materials.
     - Thread pool.
     - Cube textures.
-    - Texture arrays.
+    - Texture arrays: NvttSurfaceSet, only DDS.
 
 Manager:
     - Possible owners for resource

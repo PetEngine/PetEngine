@@ -1,3 +1,5 @@
+NVTT_VERSION :: 30205;
+
 NvttBoolean :: enum s32 {
     False;
     True;
@@ -47,6 +49,11 @@ nvttContextCompress :: (
     mipmap             : s32,
     compressionOptions : *NvttCompressionOptions,
     outputOptions      : *NvttOutputOptions
+) -> NvttBoolean #foreign nvtt;
+nvttContextCompressBatch :: (
+    context_           : *NvttContext,
+    lst                : *NvttBatchList,
+    compressionOptions : *NvttCompressionOptions
 ) -> NvttBoolean #foreign nvtt;
 
 NvttTimingContext :: struct {
@@ -273,3 +280,17 @@ nvttSetOutputOptionsOutputHandler :: (
     endImageHandler   : nvttEndImageHandler
 ) #foreign nvtt;
 nvttSetOutputOptionsOutputHeader :: (outputOptions : *NvttOutputOptions, b : NvttBoolean) #foreign nvtt;
+
+NvttBatchList :: struct {
+    pimpl : *void;
+}
+
+nvttCreateBatchList :: () -> *NvttBatchList #foreign nvtt;
+nvttDestroyBatchList :: (batchList : *NvttBatchList) #foreign nvtt;
+nvttBatchListAppend :: (
+    batchList     : *NvttBatchList,
+    pImg          : *NvttSurface,
+    face          : s32,
+    mipmap        : s32,
+    outputOptions : *NvttOutputOptions = null
+) #foreign nvtt;
