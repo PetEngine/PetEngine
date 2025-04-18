@@ -149,6 +149,10 @@ writeFile :: inline (file : File, data : [] $T) {
     writeFile(file, data.data, data.count * size_of(T));
 }
 
+writeFile :: inline (file : File, data : *$T) {
+    writeFile(file, data, size_of(T));
+}
+
 getFileSize :: (file : File) -> s64 {
     file_size : s64;
 

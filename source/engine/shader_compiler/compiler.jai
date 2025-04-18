@@ -432,9 +432,9 @@ compileShader :: (name : string) -> bool {
     }
     defer closeFile(*output_file);
 
-    writeFile(output_file, *header, size_of(Header));
-    writeFile(output_file, *pipeline_state, size_of(PipelineState));
-    writeFile(output_file, *binding_table, size_of(BindingTable));
+    writeFile(output_file, *header);
+    writeFile(output_file, *pipeline_state);
+    writeFile(output_file, *binding_table);
     for stage_spirvs { if it writeFile(output_file, it); }
 
     infoMessage("Shader \"%\" has been compiled", name);

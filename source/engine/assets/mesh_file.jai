@@ -78,7 +78,7 @@ serializeMesh :: (
     }
     defer closeFile(*file);
 
-    writeFile(file, *header, size_of(MeshFile.Header));
+    writeFile(file, *header);
 
     vertices_it = vertices.data;
     indices_it  = indices.data;
