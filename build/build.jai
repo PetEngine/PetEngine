@@ -202,6 +202,8 @@ END;
         copy_file("../third_party/shaderc/bin/shaderc_sharedd.dll",
                   join(output_path, "/shaderc_sharedd.dll",, allocator = temp));
     }
+    copy_file("../third_party/nvtt/bin/nvtt30205.dll",
+              join(output_path, "/nvtt30205.dll",, allocator = temp));
 
     //
     // Do some platform specific stuff we cannot do through the code
