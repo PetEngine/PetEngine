@@ -1,7 +1,3 @@
-// @TODO:
-//     - Split into 2 files: shader_manager.jai and shader.jai
-//     - #MTRendering. Thread safety for shaders_storage
-
 VulkanShaderManager :: struct {
     #as using public_data : ShaderManager;
 
@@ -31,7 +27,6 @@ createVulkanShaderManager :: () {
 
     #insert -> string { return generatePlatformVtableInitialization(ShaderManager, "manager", "Vulkan"); }
 
-    // @TODO: #PipelineCache. Initial data.
     create_info : VkPipelineCacheCreateInfo;
     debugCheckVK(vkCreatePipelineCache(device.device, *create_info, null, *manager.pipeline_cache));
 }
@@ -55,8 +50,6 @@ resetVulkanShaderManager :: () {
     manager := cast(*VulkanShaderManager) context.pet.render.shader_manager;
 
     // @TODO: #FrameBuffering.
-    //    - If manager.per_frame_*.count < device.frame_buffering then allocate new memory
-    //    - If manager.per_frame_*.count > device.frame_buffering then free unusused memory
     assert(manager.per_frame_reset_data.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
     manager.per_frame_reset_data.count = cast,no_check(s64) device.frame_buffering;
 
@@ -376,22 +369,20 @@ initRasterizationState :: inline (this : *VkPipelineRasterizationStateCreateInfo
     this.lineWidth               = 1.0;
 }
 
-// @TODO: #ShaderCompiler. Get from shader:
-//          1. Should we execute shader per sample or per pixel
+// @TODO: #ShaderCompiler.
 initMultisampleState :: inline (this : *VkPipelineMultisampleStateCreateInfo) #no_context {
     this.sType                 = .VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     this.pNext                 = null;
     this.flags                 = 0;
-    this.rasterizationSamples  = .VK_SAMPLE_COUNT_1_BIT; // @TODO: Get from createVulkanShader
+    this.rasterizationSamples  = .VK_SAMPLE_COUNT_1_BIT;
     this.sampleShadingEnable   = VK_FALSE;
     this.minSampleShading      = 0.0;
     this.pSampleMask           = null; // If pSampleMask is NULL, it is treated as if the mask has all bits set to 1.
-    this.alphaToCoverageEnable = VK_FALSE; // @TODO: AlphaToCoverage
-    this.alphaToOneEnable      = VK_FALSE; // @TODO: AlphaToOne
+    this.alphaToCoverageEnable = VK_FALSE;
+    this.alphaToOneEnable      = VK_FALSE;
 }
 
-// @TODO: #ShaderCompiler. Get from shader:
-//          1. stencilTestEnable
+// @TODO: #ShaderCompiler.
 initDepthStencilState :: inline (this : *VkPipelineDepthStencilStateCreateInfo, state : *ShaderCompiler.GraphicsPipelineState) {
     this.sType            = .VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     this.pNext            = null;

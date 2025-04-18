@@ -140,7 +140,6 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
     notImplemented();
 }
 
-// @TODO: #ThreadPool.
 reloadShader :: (filename : string) {
     if String.path_extension(filename) != "shader" {
         return;

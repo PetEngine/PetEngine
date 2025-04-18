@@ -172,11 +172,11 @@ threadProc :: no_inline (thread : *Thread) {
 
     set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
 
-    // @TODO: #Settings. Get persistent arena capacity from settings.
+    // @TODO: #Settings.
     createArena(*context.pet.arenas.persistent, gigaBytes(1), "Persistent");
     defer destroyArena(*context.pet.arenas.persistent);
 
-    // @TODO: #Settings. Get per frame arena capacity from settings.
+    // @TODO: #Settings.
     createArena(*context.pet.arenas.per_frame, megaBytes(512), "Per frame");
     defer destroyArena(*context.pet.arenas.per_frame);
 

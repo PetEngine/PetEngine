@@ -1,10 +1,3 @@
-// @TODO: #AssetManager.
-//     - Possible owners for resource
-//     - Transfer command buffer
-//     - Pipeline barriers before and after copies
-//     - @Cleanup vulkan stuff
-//     - Move copies to upload buffer from processRequestedAssets to requestMesh
-
 AssetManager :: struct {
     UploadRingBuffer :: struct {
         buffer      : *Buffer;
@@ -35,7 +28,7 @@ createAssetManager :: () {
 
     manager.command_buffer = createCommandBuffer(AssetManager.command_buffer.usage);
 
-    // @TODO: #Settings. Capacity
+    // @TODO: #Settings.
     BUFFER_CAPACITY :: #run megaBytes(512);
     #assert isPowerOfTwo(BUFFER_CAPACITY);
 

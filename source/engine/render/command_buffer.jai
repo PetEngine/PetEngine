@@ -1,8 +1,3 @@
-// @TODO:
-//     - Move all the platform stuff to other file.
-//     - CommandBufferManager for vtable?
-//     - Rename CommandBuffer.usage to owner or type
-
 CommandBuffer :: struct(usage : QueueType) {
     handles : StaticArray(*void, Device.MAX_FRAME_BUFFERING);
 
@@ -75,7 +70,6 @@ CopyRegion :: struct {
     bytes         : u32 = REMAINING_BYTES;
 }
 
-// @TODO: Per-frame command buffers
 createCommandBuffer :: ($usage : QueueType) -> CommandBuffer(usage) #must {
     command_buffer : CommandBuffer(usage);
     command_buffer.handles.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
@@ -92,8 +86,6 @@ createCommandBuffer :: ($usage : QueueType) -> CommandBuffer(usage) #must {
 
 resetCommandBuffer :: (command_buffer : *CommandBuffer) {
     // @TODO: #FrameBuffering.
-    //    - If command_buffer.handles.count < device.frame_buffering then allocate new memory
-    //    - If command_buffer.handles.count > device.frame_buffering then free unusused memory
     assert(command_buffer.handles.count == cast,no_check(s64) context.pet.render.device.frame_buffering, "It's illegal to change frame buffering for now");
     command_buffer.handles.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
 
@@ -130,7 +122,6 @@ clearTexture :: (command_buffer : *CommandBuffer, texture : *Texture) {
     }
 }
 
-// @TOOD: #Viewport. If shaderc_compile_options_set_invert_y will work out, remove flipped viewport for Vulkan
 setViewport :: (command_buffer : *CommandBuffer, viewport : *Viewport, render_target_height : u16) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can set viewport";
 
@@ -269,7 +260,6 @@ drawPrimitives :: (
     }
 }
 
-// @TODO: Other shaders
 setPushConstants :: inline (command_buffer : *CommandBuffer, handle : PushConstantsHandle, data : *$T) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use push constants for now";
 

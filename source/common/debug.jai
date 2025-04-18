@@ -1,10 +1,5 @@
 #scope_export
 
-// @TODO:
-//     - #StackTrace. Find out how Visual Studio handles inline procedures
-//     - Tags
-//     - Log messages to files depending on tag
-
 MessagePriority :: enum u8 {
     VERBOSE;
     DEBUG;
@@ -444,7 +439,6 @@ printStackTrace :: (builder : *Basic.String_Builder) {
             Basic.print(builder, "%\n", procedure_name);
         }
     } else {
-        // @TODO: #StackTrace. This implementation is ok for now, but we have to rewrite it to something similar to what we do on Windows
         printStackTraceFromJaiContext(builder);
     }
 }

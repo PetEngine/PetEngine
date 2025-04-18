@@ -1,6 +1,3 @@
-// @TODO: #BindingManager.
-//     - Separate bindings for compute queue?
-
 VulkanBindingManager :: struct {
     #as using public_data : BindingManager;
 
@@ -147,8 +144,6 @@ resetVulkanBindings :: (descriptor_set : DescriptorSet) {
     if #complete descriptor_set == {
         case .PER_FRAME;
             // @TODO: #FrameBuffering.
-            //    - If manager.per_frame_*.count < device.frame_buffering then allocate new memory
-            //    - If manager.per_frame_*.count > device.frame_buffering then free unusused memory
             assert(manager.per_frame_bindings.count == cast,no_check(s64) context.pet.render.device.frame_buffering, "It's illegal to change frame buffering for now");
             manager.per_frame_bindings.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
 

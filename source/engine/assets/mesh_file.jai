@@ -1,7 +1,3 @@
-// @TODO: #AssetConverter.
-//     - Vertex format for 1 position and 1 varying streams?
-//     - u16 indices
-
 MeshFile :: struct {
     VERSION :: 1;
 

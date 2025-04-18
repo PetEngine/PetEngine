@@ -29,7 +29,6 @@ rebindVulkanDescriptorBuffers :: (command_buffer : VkCommandBuffer) {
     }
 }
 
-// @TODO: #VulkanTexture. MIPs, layers.
 clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture) {
     if texture.current_layout != .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL {
         changeVulkanTextureLayout(command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -135,8 +134,6 @@ setVulkanShader :: (command_buffer : *CommandBuffer, bind_point : ShaderBindPoin
     }
 }
 
-// @TODO: #MSAA.
-//     - #Limits. maxColorAttachments, maxFramebufferWidth, maxFramebufferHeight
 beginVulkanRendering :: (command_buffer : VkCommandBuffer, color_targets : [] ColorTargetDesc, depth_target : *DepthTargetDesc) {
     barriers    := pushToArena(*context.pet.arenas.per_frame, VkImageMemoryBarrier, color_targets.count + cast,no_check(s64) (depth_target != null));
     barriers_it := barriers;
@@ -426,7 +423,7 @@ changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *Vulka
 
 loadActionToVulkanLoadOp :: inline (action : TargetLoadAction) -> VkAttachmentLoadOp #no_context {
     if #complete action == {
-        case .NONE;  return .VK_ATTACHMENT_LOAD_OP_DONT_CARE; // @TODO: VK_ATTACHMENT_LOAD_OP_NONE_EXT
+        case .NONE;  return .VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         case .CLEAR; return .VK_ATTACHMENT_LOAD_OP_CLEAR;
         case .LOAD;  return .VK_ATTACHMENT_LOAD_OP_LOAD;
     }
@@ -434,7 +431,7 @@ loadActionToVulkanLoadOp :: inline (action : TargetLoadAction) -> VkAttachmentLo
 
 storeActionToVulkanStoreOp :: inline (action : TargetStoreAction) -> VkAttachmentStoreOp #no_context {
     if #complete action == {
-        case .NONE;  return .VK_ATTACHMENT_STORE_OP_DONT_CARE; // @TODO: VK_ATTACHMENT_STORE_OP_NONE
+        case .NONE;  return .VK_ATTACHMENT_STORE_OP_DONT_CARE;
         case .STORE; return .VK_ATTACHMENT_STORE_OP_STORE;
     }
 }

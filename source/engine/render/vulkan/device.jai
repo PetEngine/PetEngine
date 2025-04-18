@@ -1,9 +1,3 @@
-// @TODO: #Device.
-//     - Revisit submits and post frame job
-//     - #DeviceFeatures. Define optional and required features and validate it.
-//     - VK_EXT_full_screen_exclusive
-//     - Do not store all the properties and limits. Chose the ones we need and store only them
-
 VulkanDevice :: struct {
     #as using public_data : Device;
 
@@ -758,7 +752,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
     }
 
     application_info := VkApplicationInfo.{
-        pApplicationName   = null, // @TODO: window title or something, don't know
+        pApplicationName   = null,
         applicationVersion = 0,
         pEngineName        = ENGINE_NAME.data,
         engineVersion      = ENGINE_VERSION,
@@ -953,7 +947,6 @@ initMessengerCallback :: () {
     }
 }
 
-// @TODO: Multiple GPU support: vkEnumeratePhysicalDeviceGroupsKHR (VK_KHR_device_group_creation)
 selectPhysicalDevice :: () -> u32 {
     device := cast(*VulkanDevice) context.pet.render.device;
 
@@ -1009,7 +1002,7 @@ END;
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
-    // @TODO: #Settings. Choose device from settings by name, fallback to the [0] one.
+    // @TODO: #Settings.
     selected_physical_device := *physical_device_infos[0];
     device.physical_device = selected_physical_device.physical_device;
 
@@ -1190,14 +1183,12 @@ END;
     }
 }
 
-// @TODO: VkDeviceMemoryOverallocationCreateInfoAMD (VK_AMD_memory_overallocation_behavior) sounds useful.
 createVirtualDevice :: (enabled_device_extensions : *[..] string) {
     device := cast(*VulkanDevice) context.pet.render.device;
 
     queues_count_per_family : [VulkanDevice.queues.count] u32;
     for device.queues  queues_count_per_family[it.family_index] += 1;
 
-    // @TODO: For now queues have equal priority. Should be tweaked later.
     queues_priorities : [VulkanDevice.queues.count] f32;
     for * queues_priorities  it.* = 1.0;
 
@@ -1485,12 +1476,11 @@ recreateVulkanSwapchain :: (window : *Window) {
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
-    // @TODO: #HDR. Hardware HDR support
+    // @TODO: #HDR.
     REQUESTED_SURFACE_FORMAT :: VkFormat.VK_FORMAT_B8G8R8A8_SRGB;
     allowed_surface_format : *VkSurfaceFormatKHR;
 
     for * surface_formats {
-        // @TODO: #HDR. Hardware HDR support
         if it.format == REQUESTED_SURFACE_FORMAT && it.colorSpace == .VK_COLOR_SPACE_SRGB_NONLINEAR_KHR {
             allowed_surface_format = it;
             break;
@@ -1591,7 +1581,7 @@ recreateVulkanSwapchain :: (window : *Window) {
     // Swapchain scaling
     //
 
-    // @TOOD: #Settings.
+    // @TODO: #Settings.
     REQUESTED_SCALING_MODE :: VkPresentScalingFlagsEXT.VK_PRESENT_SCALING_ASPECT_RATIO_STRETCH_BIT_EXT;
     if !(scaling_capabilities.supportedPresentScaling & REQUESTED_SCALING_MODE) {
         assertMessage("Requested scaling mode is not supported: %. Supported are: %",
@@ -1759,7 +1749,7 @@ recreateVulkanSwapchain :: (window : *Window) {
 
     device.back_buffer_format = vulkanFormatToTextureFormat(allowed_surface_format.format);
 
-    // @TODO: #Settings. Get back buffer clear color from settings.
+    // @TODO: #Settings.
     clear_color := ifx textureFormatFlags(device.back_buffer_format) & .SRGB
                    then gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 })
                    else v4f.{ 0.3, 0.3, 0.3, 0.0 };
@@ -1768,7 +1758,7 @@ recreateVulkanSwapchain :: (window : *Window) {
 
     swapchain_images_it := swapchain_images.data;
 
-    // @TODO: #VulkanTexture. #SwapchainBuffers. Add these images to resource manager
+    // @TODO: #SwapchainBuffers.
     for * texture : toView(vulkan_window_data.swapchain_textures.data, window_data.swapchain_buffers_count) {
         texture.dimension             = ._2D;
         texture.format                = device.back_buffer_format;
@@ -1801,7 +1791,6 @@ recreateVulkanSwapchain :: (window : *Window) {
             .SHADER_READ,
         ];
 
-        // @TODO: #Views.
         for * view : vulkan_window_data.swapchain_texture_views[it_index] {
             if !(texture.usages & VIEW_USAGES[it_index]) continue;
 
@@ -1894,9 +1883,6 @@ createWindowSemaphores :: (window : *Window) {
     }
 }
 
-// Actually, we do not want to create additional command pools for queues we don't have,
-// but anyway it's just chipper to have slightly bigger amount of them.
-// Maybe someday we will have better behaviour for not existed compute and transfer queues.
 // @TODO: #NotExistedQueues
 createCommandPools :: () {
     device := cast(*VulkanDevice) context.pet.render.device;

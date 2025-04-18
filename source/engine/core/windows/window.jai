@@ -114,8 +114,6 @@ Win32Window :: struct {
 createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolution, title : string) {
     manager := cast(*Win32WindowManager) context.pet.core.window_manager;
 
-    // @TODO: #Editor. WS_EX_ACCEPTFILES only in editor builds.
-    // @TODO: System language reading alignment: WS_EX_LAYOUTRTL, WS_EX_RTLREADING
     WINDOW_STYLES          :: WS_OVERLAPPEDWINDOW;
     EXTENDED_WINDOW_STYLES :: WS_EX_OVERLAPPEDWINDOW
                             | WS_EX_ACCEPTFILES

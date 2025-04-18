@@ -1,9 +1,5 @@
 #assert OS == .WINDOWS "This file should not be used anywhere except Windows builds";
 
-// @TODO: #Input
-//    1. In a multimonitor system, MOUSE.MOVE_ABSOLUTE coordinates map to the primary monitor
-//    2. MOUSE.VIRTUAL_DESKTOP
-
 setupInitialInputState :: (window : *Win32Window) {
     // Not all virtual key states report correct state of the keys, so we don't check them at all.
     // We only care about CAPS_LOCK, NUM_LOCK and SCROLL_LOCK toggle state.
@@ -18,8 +14,6 @@ setupInitialInputState :: (window : *Win32Window) {
 // @Important: Only one window per raw input device class may be registered to receive raw input within a process
 // (the window passed in the last call to RegisterRawInputDevices). If hwndTarget == null, raw input events follow
 // the keyboard focus to ensure only the focused application window receives the events.
-//
-// @TODO: #Input. What if we press a key -> focus to another window -> release the key?
 registerRawInput :: (window : *Win32Window) {
     raw_input_devices := RAWINPUTDEVICE.[
         .{
@@ -83,8 +77,6 @@ END;
     }
 }
 
-// @TODO: #Input. Raw input buffer retrieves _all_ raw input from the thread's message queue
-//        and it does not know about window. We should not call it for each window.
 pollRawInputBuffer :: () {
     /* data_buffer : [1024 / size_of(RAWINPUT)] RAWINPUT #align RAWINPUT_ALIGNMENT;
 
@@ -133,8 +125,6 @@ onRawInput :: (window : *Win32Window, ri_handle : HRAWINPUT) {
     }
 }
 
-// @TODO: #Input. If we poll xinput sate on the frame start, we will probably miss some input.
-//        Register raw input gamepad and poll xinput state on WM_INPUT.
 processXInput :: (input : *Input) {
     state : XINPUT_STATE = ---;
 

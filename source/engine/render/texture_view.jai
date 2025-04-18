@@ -1,6 +1,3 @@
-// @TODO: #Views.
-//     - Compatible formats
-
 TextureView :: struct {
     texture      : *Texture;
     dimension    : Texture.Dimension;

@@ -1,10 +1,5 @@
 #scope_export
 
-// @TODO: #File.
-//     - Remove MAX_PATH limit prepending \\?\ to the filename when filename.count >= MAX_PATH.
-//     - Return File.Error.PATH_NOT_FOUND in enumerateFiles when 'directory' does not exist.
-//     - NO_CACHE for readEntireFile?
-
 File :: struct {
     #if OS == .WINDOWS {
         MAX_FILENAME_LENGTH :: MAX_PATH - 1;
@@ -199,7 +194,6 @@ setFileCursorPosition :: (file : File, offset : FileOffset, position : s64) -> s
     return new_position;
 }
 
-// @TODO: #Naming. Shorter name?
 EnumerateFilesCallbackResult :: enum u8 {
     CONTINUE;
     BREAK;

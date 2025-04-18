@@ -1,9 +1,3 @@
-// @TODO:
-//     1. Organize bindings by update frequency
-//     2. Enrich error messages with <shader name>(col, line)
-//     3. Allow comments in pipeline state description
-//     4. Dump shaders
-
 ShaderCompiler :: struct {
     VERSION :: 1;
 
@@ -292,14 +286,12 @@ compileShader :: (name : string) -> bool {
         shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_performance);
     }
     shaderc_compile_options_set_forced_version_profile(shaderc_options, 460, .shaderc_profile_none);
-    // @TODO, @Cleanup: if Vulkan. Get vulkan version from Device.
     shaderc_compile_options_set_target_env(shaderc_options,
                                            .shaderc_target_env_vulkan,
                                            cast(u32) shaderc_env_version.shaderc_env_version_vulkan_1_3);
     shaderc_compile_options_set_target_spirv(shaderc_options, .shaderc_spirv_version_1_6);
     shaderc_compile_options_set_auto_bind_uniforms(shaderc_options, false);
     shaderc_compile_options_set_auto_map_locations(shaderc_options, true);
-    // @TOOD: #Viewport. Experiment with shaderc_compile_options_set_invert_y
     shaderc_compile_options_set_include_callbacks(shaderc_options, resolveIncludeCallback, releaseIncludeResult, *context);
 
     nt_name : string = ---;

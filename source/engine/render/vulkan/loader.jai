@@ -1,4 +1,3 @@
-// @TODO: Link all Vulkan functions dynamically
 VulkanLoader :: struct {
     layers : struct {
         required : struct {

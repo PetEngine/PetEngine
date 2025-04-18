@@ -1,6 +1,3 @@
-// @TODO: #BindingManager.
-//     - Per view & per material bindings.
-
 BindingManager :: struct {
     MAX_DESCRIPTOR_SETS      :: #run Basic.enum_highest_value(DescriptorSet)     + 1;
     MAX_DESCRIPTOR_SET_SLOTS :: #run Basic.enum_highest_value(DescriptorSetSlot) + 1;

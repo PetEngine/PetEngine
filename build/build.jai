@@ -302,7 +302,6 @@ checkCompilerVersion :: (minimal_supported_version : Version_Info) {
         check(EndUpdateResourceW(handle, FALSE));
     }
 
-// @TOOD: Profile SegmentHeap
 MANIFEST_FORMAT_STRING :: #string XML
 <?xml version="1.0" encoding="UTF-8"?>
 <asm:assembly xmlns:asm="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">

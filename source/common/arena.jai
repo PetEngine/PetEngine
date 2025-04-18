@@ -1,8 +1,5 @@
 #scope_export
 
-// @TODO: #Arena.
-//     - MEM_LARGE_PAGES?
-
 Arena :: struct {
     memory       : *void;
     occupied     : s64;

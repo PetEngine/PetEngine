@@ -1,0 +1,161 @@
+//
+// Assets
+//
+
+Converter:
+    - Materials.
+    - Thread pool.
+
+Manager:
+    - Possible owners for resource
+    - Transfer command buffer
+    - Pipeline barriers before and after copies
+    - @Cleanup vulkan stuff
+    - Move copies to upload buffer from processRequestedAssets to requestMesh
+    - Persistent assets
+
+Mesh file:
+    ? Vertex format for separate position and varying streams.
+    - u16 indices.
+
+//
+// Build
+//
+
+- Profile SegmentHeap
+
+//
+// Core
+//
+
+- Do something "Mysterious stash".
+
+Debug:
+    - Find out how Visual Studio handles inline procedures.
+    - #StackTrace. Stack trace for other platforms. Initial implementation using jai context stack trace is ok for now, but we have to rewrite it to something similar to what we do on Windows.
+    - Tags.
+    ? Log messages to files depending on tag.
+
+File:
+    - Remove MAX_PATH limit prepending \\?\ to the filename when filename.count >= MAX_PATH.
+    - Return File.Error.PATH_NOT_FOUND in enumerateFiles when 'directory' does not exist.
+    ? NO_CACHE for readEntireFile.
+    - Atomatically setup shared access.
+    - Shorter name for EnumerateFilesCallbackResult.
+
+Input:
+    - In a multimonitor system, MOUSE.MOVE_ABSOLUTE coordinates map to the primary monitor.
+    - MOUSE.VIRTUAL_DESKTOP.
+    - registerRawInput: What if we press a key -> focus to another window -> release the key?
+    - Raw Input Buffer retrieves _all_ raw input from the thread's message queue and it does not know about a window. We should not call it for each window.
+    - If we poll XInput sate on the frame start, we will probably miss some input. Register raw input gamepad and poll xinput state on WM_INPUT.
+
+#Settings:
+    - Asset Manager:
+        - Upload ring buffer capacity.
+    - Core:
+        - Persistent arena capacity.
+        - Per frame arena capacity.
+    - Device:
+        - Graphics API.
+        - Render resolution.
+        - Buffering.
+        - Choose device by name, fallback to the [0] one.
+        - Vsync.
+        - Back buffer scaling mode.
+        - Back buffer clear color.
+    - Window:
+        - Surface dimension.
+
+Window:
+    - WS_EX_ACCEPTFILES only in editor builds.
+    ? System language reading alignment: WS_EX_LAYOUTRTL, WS_EX_RTLREADING.
+    - Multi-monitor systems.
+    - Window modes: windowed, fullscreen borderless, exclusive fullscreen.
+
+//
+// Render
+//
+
+- #FrameBuffering.
+  count < device.frame_buffering then allocate new memory
+  count > device.frame_buffering then free unusused memory
+- #PerFrameResources. Delete unused per frame resources memory when number of swapchain buffers is decreased.
+- #PerFrameResources. Should we be able to upload data to per frame resources? Maybe we want to restrict it?
+  Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame resources
+  since we do not want to release memory which is in use by async queues.
+
+Binding Manager:
+    - Per view & per material bindings.
+    ? Separate bindings for compute queue
+
+Command Buffers:
+    - Move all the platform stuff to other file.
+    - Rename CommandBuffer.usage to owner or type.
+    ? Per-frame command buffers.
+    - Push constants for other ShaderBindPoint's.
+    - #Viewport. setViewport: If shaderc_compile_options_set_invert_y will work out, remove flipped viewport for Vulkan.
+    - clearVulkanTexture: MIPs, layers.
+    - beginVulkanRendering: VkPhysicalDeviceLimits.maxColorAttachments, VkPhysicalDeviceLimits.maxFramebufferWidth, VkPhysicalDeviceLimits.maxFramebufferHeight.
+    - beginVulkanRendering: MSAA: resolveAttachments.
+    - VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_NONE_EXT, VkAttachmentLoadOp.VK_ATTACHMENT_STORE_OP_NONE.
+
+Device:
+    - Revisit submits and post frame job.
+    - Define optional and required features and validate it.
+    - VK_EXT_full_screen_exclusive.
+    - Do not store all the properties and limits. Choose the ones we need and store only them.
+    - Pass application name to VkApplicationInfo.pApplicationName.
+    ? selectPhysicalDevice: Multiple GPU support: vkEnumeratePhysicalDeviceGroupsKHR (VK_KHR_device_group_creation).
+    ? createVirtualDevice: VkDeviceMemoryOverallocationCreateInfoAMD (VK_AMD_memory_overallocation_behavior) sounds useful.
+    - For now queues have equal priority. Should be tweaked later.
+    - #NotExistedQueues. Actually, we do not want to create additional command pools for queues we don't have,
+      but anyway it's just cheaper to have slightly bigger amount of them.
+      Maybe someday we will have better behaviour for not existed compute and transfer queues.
+    - #HDR. Hardware HDR support.
+    - #SwapchainBuffers. Swapchain buffer views.
+    - Link all Vulkan functions dynamically.
+
+Resource Manager:
+    ? #SwapchainBuffers. Add swapchain buffers to Resource Manager.
+    - Rework resource layout changing mechanism. If we gonna compile our command buffers concurrently,
+      current way of tracking current texture layout will not work.
+    - Use reserved resources or something instead of freeing memory on reset. Use sparce bindings maybe?
+    - Robust buffer and image access.
+    - #MTRendering. Thread safety for memory pools and name arenas.
+
+Shader Manager:
+    ? Split into 2 files: shader_manager.jai and shader.jai.
+    - #MTRendering. Thread safety for shaders_storage.
+    - Pipeline cache.
+
+Texture:
+    - Explicit layout setup on high level.
+
+Texture view:
+    - Compatible formats.
+
+//
+// OS
+//
+
+Windows:
+    - Split everything into different files like we did it with Vulkan.
+
+//
+// Shader compiler
+//
+
+Compiler:
+    - Enrich error messages with <shader name>(col, line)
+    - Allow comments in pipeline state description
+    - Dump shaders
+    - If Vulkan, get vulkan version from Device.
+    - #Viewport. Experiment with shaderc_compile_options_set_invert_y.
+    - #ShaderCompiler. Should we execute shader per sample or per pixel.
+    - #ShaderCompiler. alphaToCoverageEnable.
+    - #ShaderCompiler. alphaToOneEnable.
+    - #ShaderCompiler. stencilTestEnable.
+
+Hot reload:
+    - Thread pool

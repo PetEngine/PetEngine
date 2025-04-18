@@ -2,7 +2,7 @@ VulkanTexture :: struct {
     #as using public_data : Texture;
 
     image          : VkImage;
-    current_layout : VkImageLayout; // @TODO: Rename to just layout
+    current_layout : VkImageLayout;
 }
 
 pushVulkanTexture :: (lifetime : ResourceManager.Lifetime) -> *Texture #must {

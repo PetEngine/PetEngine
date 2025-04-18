@@ -30,7 +30,7 @@ Texture :: struct {
         BC7_UNORM;
         BC7_SRGB;
 
-        // @TODO: Planar
+        // Planar
     }
 
     Flags :: enum_flags u8 {
@@ -107,7 +107,7 @@ createTexture :: (
     assert(!(flags & .SWAPCHAIN),
            "You cannot explicitly set SWAPCHAIN flag");
     assert(depth_or_array_size > 0 || !(flags & .ARRAY),
-           "Number of elements in array of textures cannot be 0"); // @TODO: Dynamic arrays?
+           "Number of elements in texture array cannot be 0");
     assert((usages & (.COLOR_TARGET | .DEPTH_TARGET)) != (.COLOR_TARGET | .DEPTH_TARGET),
            "COLOR_TARGET and DEPTH_TARGET usages cannot be combined");
     assert((usages & (.DEPTH_TARGET | .DEPTH_READ_ONLY)) == (.DEPTH_TARGET | .DEPTH_READ_ONLY) || !(usages & .DEPTH_READ_ONLY),

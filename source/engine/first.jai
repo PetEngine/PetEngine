@@ -186,11 +186,11 @@ petMain :: () {
 
     checkCPU();
 
-    // @TODO: #Settings. Get persistent arena capacity from settings.
+    // @TODO: #Settings.
     createArena(*context.pet.arenas.persistent, gigaBytes(1), "Persistent");
     defer destroyArena(*context.pet.arenas.persistent);
 
-    // @TODO: #Settings. Get per frame arena capacity from settings.
+    // @TODO: #Settings.
     createArena(*context.pet.arenas.per_frame, megaBytes(512), "Per frame");
     defer destroyArena(*context.pet.arenas.per_frame);
 
@@ -200,9 +200,6 @@ petMain :: () {
     defer destroyWindowManager();
 
     // @TODO: #Settings.
-    //    - Get graphics API from settings.
-    //    - Get render resolution from settings.
-    //    - Get buffering from settings.
     createDevice(.VULKAN, .{ 1920, 1080 }, .DOUBLE);
     defer destroyDevice();
 
@@ -221,7 +218,7 @@ petMain :: () {
     createShadersHotReload(*shaders_hot_reload);
     defer destroyShadersHotReload(*shaders_hot_reload);
 
-    // @TODO: #Settings. Get surface dimension from settings.
+    // @TODO: #Settings.
     window := createWindow(surface = .{ 960, 540 }, "Это окно \U0001F920");
     initWindowData(window);
 
@@ -279,7 +276,7 @@ petMain :: () {
         {
             // Reset
             {
-                // @TODO: #PerFrameResources. Delete unused per frame resources memory when number of swapchain buffers is decreased.
+                // @TODO: #PerFrameResources.
                 resetResourceMemory(.PER_FRAME);
                 resetAssetManager();
                 resetShaderManager();
@@ -292,10 +289,7 @@ petMain :: () {
 
             // Commit
             {
-                // @TODO: #PerFrameResources. Should we be able to upload data to per frame resources?
-                //        Maybe we want to restrict it?
-                //        Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame resources
-                //        since we do not want to release memory which is in use by async queues.
+                // @TODO: #PerFrameResources.
                 commitResourceMemory(.PER_FRAME);
             }
 

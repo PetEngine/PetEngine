@@ -1,7 +1,3 @@
-// @TODO: #AssetConverter.
-//    - Materials
-//    - #ThreadPool.
-
 AssetConverter :: struct {
     VERSION :: 1;
 

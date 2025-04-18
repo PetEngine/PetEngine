@@ -1,8 +1,5 @@
 #assert OS == .WINDOWS "This file should not be used anywhere except Windows builds";
 
-// @TODO:
-//    - Split everything into different files like we did it with Vulkan.
-
 #scope_export
 
 HANDLE :: *void;
