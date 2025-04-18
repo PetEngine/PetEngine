@@ -601,9 +601,9 @@ spvReflectDestroyShaderModule :: (
 #scope_file
 
 #if DEBUG_BUILD {
-    spirv_reflect :: #library,system,no_dll "spirv-reflectd";
+    spirv_reflect :: #library,no_dll "../../../third_party/spirv_reflect/spirv-reflectd";
 } else {
-    spirv_reflect :: #library,system,no_dll "spirv-reflect";
+    spirv_reflect :: #library,no_dll "../../../third_party/spirv_reflect/spirv-reflect";
 }
 
 size_t :: u64; // We target only 64-bit systems, so... whatever.

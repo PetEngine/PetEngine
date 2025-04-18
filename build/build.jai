@@ -67,8 +67,7 @@ END;
             array_add(*additional_linker_arguments,
                       "/SUBSYSTEM:WINDOWS",
                       "/IGNORE:4216", // LNK4216: Exported entry point WinMainCRTStartup
-                      join("/LIBPATH:", vk_sdk_path, "/Lib",, allocator = temp),
-                      "/LIBPATH:../third_party/spirv_reflect");
+                      join("/LIBPATH:", vk_sdk_path, "/Lib",, allocator = temp));
 
             if build_arguments.optimized {
                 array_add(*additional_linker_arguments, "/LTCG"); // For SPIRV-Reflect
@@ -80,8 +79,7 @@ END;
             }
         } else {
             array_add(*additional_linker_arguments,
-                      join("--library-path=", vk_sdk_path, "/Lib",, allocator = temp),
-                      "--library-path=../third_party/spirv_reflect");
+                      join("--library-path=", vk_sdk_path, "/Lib",, allocator = temp));
         }
     }
 
