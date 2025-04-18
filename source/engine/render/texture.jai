@@ -79,7 +79,7 @@ Texture :: struct {
     union {
         depth       : u16;
         array_size  : u16;
-    };
+    }
     samples_count   : u8;
     mips_count      : u8;
     clear_value     : ClearValue;

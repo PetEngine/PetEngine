@@ -85,7 +85,6 @@ processWin32Messages :: () -> bool {
     return false;
 }
 
-
 //
 // Win32 window
 //
