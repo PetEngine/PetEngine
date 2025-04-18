@@ -453,8 +453,8 @@ makeBinaryShaderFilename :: inline (name : string) -> string {
 
 #scope_file
 
-#load "shaderc.jai";
-#load "spirv_reflect.jai";
+#import "shaderc"()(DEBUG_BUILD);
+#import "spirv_reflect"()(DEBUG_BUILD);
 
 using ShaderCompiler;
 

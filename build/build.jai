@@ -51,8 +51,8 @@ END;
     import_paths : [..] string;
     {
         import_paths.allocator = temp;
+        array_add(*import_paths, "../source", "../third_party");
         array_add(*import_paths, ..build_options.import_path);
-        array_add(*import_paths, "../source");
     }
 
     vk_sdk_path := getVulkanSDKPath();
@@ -192,11 +192,11 @@ END;
     //
 
     if build_arguments.optimized {
-        copy_file(join(vk_sdk_path, "/Bin/shaderc_shared.dll",, allocator = temp),
-                  join(output_path,     "/shaderc_shared.dll",, allocator = temp));
+        copy_file("../third_party/shaderc/bin/shaderc_shared.dll",
+                  join(output_path, "/shaderc_shared.dll",, allocator = temp));
     } else {
-        copy_file(join(vk_sdk_path, "/Bin/shaderc_sharedd.dll",, allocator = temp),
-                  join(output_path,     "/shaderc_sharedd.dll",, allocator = temp));
+        copy_file("../third_party/shaderc/bin/shaderc_sharedd.dll",
+                  join(output_path, "/shaderc_sharedd.dll",, allocator = temp));
     }
 
     //
