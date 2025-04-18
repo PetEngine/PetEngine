@@ -57,9 +57,22 @@ pushBack :: inline (array : *StaticArray) -> *array.T #must #no_context {
     return new;
 }
 
+pushBack :: inline (array : *StaticArray, element : array.T) #no_context {
+    #if DEBUG_BUILD {
+        if array.count >= array.capacity {
+            write_string("[ASSERT]: StaticArray overflow\n", true);
+            debugBreakIfDebugging();
+            exitProcess(1);
+        }
+    }
+
+    array.data[array.count] = element;
+    array.count += 1;
+}
+
 pushBack :: inline (array : *StaticArray, data : [] array.T) #no_context {
     #if DEBUG_BUILD {
-        if array.count + data.count >= array.capacity {
+        if array.count + data.count > array.capacity {
             write_string("[ASSERT]: StaticArray overflow\n", true);
             debugBreakIfDebugging();
             exitProcess(1);

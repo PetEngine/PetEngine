@@ -274,7 +274,7 @@ reloadGraphicsVulkanShader :: (shader_ : *Shader, shader_file_data : string) {
     per_frame_reset_data := *manager.per_frame_reset_data[context.pet.render.device.frame_index];
     scopedLock(*per_frame_reset_data.mutex);
 
-    pushBack(*per_frame_reset_data.data).* = reset_data;
+    pushBack(*per_frame_reset_data.data, reset_data);
 }
 
 shaderStageToVulkanStage :: inline (stage : ShaderStage) -> VkShaderStageFlags #no_context {
