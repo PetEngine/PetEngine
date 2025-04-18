@@ -67,18 +67,19 @@ END;
             array_add(*additional_linker_arguments,
                       "/SUBSYSTEM:WINDOWS",
                       "/IGNORE:4216", // LNK4216: Exported entry point WinMainCRTStartup
+                      "/STACK:0x100000,0x100000",
                       join("/LIBPATH:", vk_sdk_path, "/Lib",, allocator = temp));
 
             if build_arguments.optimized {
                 array_add(*additional_linker_arguments, "/LTCG"); // For SPIRV-Reflect
-                array_add(*additional_linker_arguments, "/STACK:0x100000,0x100000");
             }
 
-            if !build_arguments.optimized || !build_arguments.no_debug_info {
+            if !build_arguments.no_debug_info {
                 array_add(*additional_linker_arguments, "/DEBUG:FULL"); // For RemedyBG
             }
         } else {
             array_add(*additional_linker_arguments,
+                      "-z stack-size=0x100000",
                       join("--library-path=", vk_sdk_path, "/Lib",, allocator = temp));
         }
     }
@@ -115,7 +116,7 @@ END;
         set_optimization(*build_options, .VERY_OPTIMIZED, !build_arguments.no_debug_info);
         build_options.backend = .LLVM;
     } else {
-        set_optimization(*build_options, .VERY_DEBUG, true);
+        set_optimization(*build_options, .VERY_DEBUG, !build_arguments.no_debug_info);
         build_options.arithmetic_overflow_check = .FATAL;
     }
 
@@ -167,6 +168,7 @@ END;
 
     set_build_options(build_options, workspace);
 
+    compilation_failed : bool;
     compiler_begin_intercept(workspace);
     {
         add_build_string(tprint(CONFIG_STRING, !build_arguments.optimized, build_arguments.verbose), workspace);
@@ -181,11 +183,13 @@ END;
                     do_error_checking(null, message);
 
                 case .COMPLETE;
+                    compilation_failed = (cast(*Message_Complete) message).error_code != .NONE;
                     break;
             }
         }
     }
     compiler_end_intercept(workspace);
+    if compilation_failed return;
 
     //
     // Post-build copies
