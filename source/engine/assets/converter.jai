@@ -155,7 +155,7 @@ convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : 
     runtime_file_info, error := getFileInfo(runtime_filename);
     assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
 
-    if runtime_file_info.last_write_time > exchange_file_info.last_write_time {
+    if runtime_file_info.last_write_time >= exchange_file_info.last_write_time {
         runtime_file:, error = openFile(runtime_filename, .READ | .SHARED_READ | .EXISTS);
         assert(error == .NONE);
         defer closeFile(*runtime_file);
@@ -206,13 +206,12 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
         exchange_file_info.name.data  + (AssetConverter.EXCHANGE_TEXTURES_FOLDER.count + "/".count)
     };
 
-    /* @Cleanup: #TextureLoader. Uncomment
     runtime_filename := makeRuntimeTextureFilename(texture_name);
 
     runtime_file_info, error := getFileInfo(runtime_filename);
     assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
 
-    if runtime_file_info.last_write_time > exchange_file_info.last_write_time {
+    if runtime_file_info.last_write_time >= exchange_file_info.last_write_time {
         runtime_file:, error = openFile(runtime_filename, .READ | .SHARED_READ | .EXISTS);
         assert(error == .NONE);
         defer closeFile(*runtime_file);
@@ -223,7 +222,7 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
             textures_context.skipped += 1;
             return .CONTINUE;
         }
-    } */
+    }
 
     textures_context.total += 1;
 

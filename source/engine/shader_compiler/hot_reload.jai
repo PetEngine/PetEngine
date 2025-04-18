@@ -175,7 +175,7 @@ recompileOutOfDateShaders :: inline (hot_reload : *ShadersHotReload) {
         binary_file_info, error := getFileInfo(binary_filename);
         assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
 
-        if binary_file_info.last_write_time > source_file_info.last_write_time {
+        if binary_file_info.last_write_time >= source_file_info.last_write_time {
             binary_file:, error = openFile(binary_filename, .READ | .SHARED_READ | .EXISTS);
             assert(error == .NONE);
             defer closeFile(*binary_file);

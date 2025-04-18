@@ -434,9 +434,8 @@ petMain :: () {
     waitDeviceIdle();
 }
 
-operator! :: Basic.operator!;
-operator- :: Basic.operator-;
-operator> :: Basic.operator>;
+operator -  :: Basic.operator -;
+operator >= :: Basic.operator >=;
 
 #import "common"()(DEBUG_BUILD = DEBUG_BUILD, PRINT_VERBOSE_MESSAGES = PRINT_VERBOSE_MESSAGES);
 
