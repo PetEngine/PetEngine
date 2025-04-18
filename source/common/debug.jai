@@ -247,7 +247,11 @@ message :: (
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
-    Basic.print(*builder, "[%]: ", priority);
+    if context.pet.thread.name {
+        Basic.print(*builder, "[%]<%>: ", priority, context.pet.thread.name);
+    } else {
+        Basic.print(*builder, "[%]<kind:% tid:%>: ", priority, context.pet.thread.kind, context.thread_index);
+    }
 
     #if priority == .ASSERT {
         absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
