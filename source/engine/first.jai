@@ -625,19 +625,17 @@ initRuntimeAndCallEntryPoint :: () {
         defer Basic.free(__command_line_arguments.data);
 
         console_was_allocated : bool;
-        #if DEBUG_BUILD {
-            if !AttachConsole(ATTACH_PARENT_PROCESS) {
+        if !AttachConsole(ATTACH_PARENT_PROCESS) {
+            #if DEBUG_BUILD {
                 debugCheck(AllocConsole(), print_sys_error = true);
                 console_was_allocated = true;
-            }
-        } else {
-            for __command_line_arguments {
-                if !ntStringCompare(it, "console".data) {
-                    if !AttachConsole(ATTACH_PARENT_PROCESS) {
+            } else {
+                for __command_line_arguments {
+                    if !ntStringCompare(it, "console".data) {
                         debugCheck(AllocConsole(), print_sys_error = true);
                         console_was_allocated = true;
+                        break;
                     }
-                    break;
                 }
             }
         }
