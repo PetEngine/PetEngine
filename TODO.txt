@@ -13,7 +13,7 @@ Manager:
     - Transfer command buffer
     - Pipeline barriers before and after copies
     - @Cleanup vulkan stuff
-    - Move copies to upload buffer from processRequestedAssets to requestMesh
+    - #SinglePointWait. Make a single point where we wait for all requested assets.
     - Persistent assets
 
 Mesh file:
@@ -31,6 +31,7 @@ Mesh file:
 //
 
 - Do something "Mysterious stash".
+- #Atomics. Implement atomics
 
 Debug:
     - Find out how Visual Studio handles inline procedures.
@@ -86,6 +87,7 @@ Window:
 - #PerFrameResources. Should we be able to upload data to per frame resources? Maybe we want to restrict it?
   Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame resources
   since we do not want to release memory which is in use by async queues.
+- Implement Event and Fence
 
 Binding Manager:
     - Per view & per material bindings.
