@@ -1,7 +1,6 @@
 Texture :: struct {
-    ALL_MIPS    : u8  : 0xFF;
-    ALL_LAYERS  : u16 : 0xFFFF;
-    MAX_SAMPLES : u8  : 0xFF;
+    ALL_MIPS    : u8 : 0xFF;
+    MAX_SAMPLES : u8 : 0xFF;
 
     MAX_MIPS_SUPPORTED : u8 : 16;
 
