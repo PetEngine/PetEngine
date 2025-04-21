@@ -30,9 +30,7 @@ rebindVulkanDescriptorBuffers :: (command_buffer : VkCommandBuffer) {
 }
 
 clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture) {
-    if texture.current_layout != .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL {
-        changeVulkanTextureLayout(command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    }
+    changeVulkanTextureLayout(command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     range := VkImageSubresourceRange.{
         aspectMask     = .VK_IMAGE_ASPECT_NONE,
@@ -447,9 +445,9 @@ changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *Vulka
         subresourceRange    = .{
             aspectMask     = getVulkanImageAspectFlags(texture.format),
             baseMipLevel   = 0,
-            levelCount     = 1,
+            levelCount     = texture.mips_count,
             baseArrayLayer = 0,
-            layerCount     = 1
+            layerCount     = ifx texture.flags & .ARRAY then texture.array_size else 1
         },
     };
 
