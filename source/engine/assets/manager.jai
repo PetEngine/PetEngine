@@ -8,7 +8,8 @@ AssetManager :: struct {
     command_buffer : CommandBuffer(.GRAPHICS);
     upload_buffer  : UploadRingBuffer;
 
-    mesh_assets : StaticArray(MeshAsset, 1024);
+    mesh_assets    : StaticArray(MeshAsset, 1024);
+    texture_assets : StaticArray(TextureAsset, 1024);
 }
 
 MeshAsset :: struct {
@@ -20,9 +21,21 @@ MeshAsset :: struct {
     vertex_buffer_regions_count : u32;
     index_buffer_regions_count  : u32;
 
-    // +1 because only one submesh may cycle (have 2 copy regions), otherwise we overflow upload buffer
+    // +1 because only one submesh may cycle (have 2 copy regions), otherwise we overflow upload ring buffer
     vertex_buffer_regions : [Mesh.MAX_SUBMESHES + 1] CopyRegion;
     index_buffer_regions  : [Mesh.MAX_SUBMESHES + 1] CopyRegion;
+}
+
+TextureAsset :: struct {
+    texture : *Texture;
+
+    ready_event : *void;
+    is_ready    : bool;
+
+    texture_size : u64;
+
+    // @TODO: #TextureLoader. Add space for array layers
+    regions : StaticArray(BufferToTextureCopyRegion, Texture.MAX_MIPS_SUPPORTED * 6);
 }
 
 createAssetManager :: () {
@@ -60,9 +73,16 @@ resetAssetManagerAssets :: () {
                     vkDestroyEvent(vulkan_device.device, cast(VkEvent) it.ready_event, null);
                 }
             }
+
+            for context.pet.render.asset_manager.texture_assets {
+                if it.ready_event {
+                    vkDestroyEvent(vulkan_device.device, cast(VkEvent) it.ready_event, null);
+                }
+            }
     }
 
     reset(*context.pet.render.asset_manager.mesh_assets);
+    reset(*context.pet.render.asset_manager.texture_assets);
 }
 
 processRequestedAssets :: () {
@@ -79,6 +99,16 @@ processRequestedAssets :: () {
 
         copyBufferRegions(*manager.command_buffer, it.vertex_buffer, manager.upload_buffer.buffer, vertex_buffer_regions_view);
         copyBufferRegions(*manager.command_buffer, it.index_buffer,  manager.upload_buffer.buffer, index_buffer_regions_view);
+
+        if #complete device.graphics_api == {
+            case .VULKAN;
+                vk_command_buffer := manager.command_buffer.handles[device.frame_index];
+                vkCmdSetEvent(vk_command_buffer, cast(VkEvent) it.ready_event, .VK_PIPELINE_STAGE_TRANSFER_BIT);
+        }
+    }
+
+    for manager.texture_assets {
+        copyBufferToTexture(*manager.command_buffer, it.texture, manager.upload_buffer.buffer, toView(it.regions));
 
         if #complete device.graphics_api == {
             case .VULKAN;
@@ -136,7 +166,9 @@ requestMesh :: (name : string) -> *Mesh {
     // Read data to upload buffer
     //
 
-    upload_offset := cast(u32) getUploadBufferOffset(total_bytes);
+    success, upload_offset := cast(u32) acquireUploadBufferMemory(total_bytes);
+    assert(success, "Upload ring buffer overflow");
+
     vertex_offset : u32;
     index_offset  : u32;
 
@@ -244,50 +276,213 @@ isMeshReady :: (mesh : *Mesh) -> bool {
                         +  it.indices_count  * INDEX_STRIDE;
         }
 
-        atomicAdd(*manager.upload_buffer.read_offset, total_bytes);
+        Atomics.atomic_add(*manager.upload_buffer.read_offset, total_bytes);
     }
 
     return mesh_asset.is_ready;
 }
 
-#scope_file
+requestTexture :: (name : string) -> *TextureAsset {
+    assert(!resourceMemoryCommitted(.PER_SCENE));
 
-getUploadBufferOffset :: (data_size : u64) -> u64 {
+    file, file_error := openFile(makeRuntimeTextureFilename(name), .READ | .SHARED_READ | .EXISTS | .SEQ);
+    assert(file_error == .NONE);
+    defer closeFile(*file);
+
+    header : TextureFile.Header = ---;
+    readFile(file, *header);
+    assert(header.version == MeshFile.VERSION);
+
     manager := context.pet.render.asset_manager;
 
-    old_offset := manager.upload_buffer.write_offset;
-    new_offset := old_offset + data_size;
-    while atomicCompareAndSwap(*manager.upload_buffer.write_offset, old_offset, new_offset) != old_offset {
-        old_offset = manager.upload_buffer.write_offset;
-        new_offset = old_offset + data_size;
+    asset := pushBack(*manager.texture_assets);
+
+    //
+    // Read surface offsets
+    //
+
+    faces_count := cast(u8) ifx header.flags & .CUBE then 6 else 1;
+    array_size  := ifx header.flags & .ARRAY then header.array_size else 1;
+
+    surfaces_count := header.mips_count * array_size * faces_count;
+
+    surface_offsets : [] u64;
+    if surfaces_count > 1 {
+        surface_offsets.count = surfaces_count - 1;
+        surface_offsets.data  = pushToArena(*context.pet.arenas.per_frame, u64, surface_offsets.count);
+        readFile(file, surface_offsets);
     }
 
-    assert(new_offset - manager.upload_buffer.read_offset <= manager.upload_buffer.buffer.size, "Upload ring buffer overflow");
+    //
+    // Read texture into the upload buffer and fill copy regions
+    //
 
-    return old_offset & (manager.upload_buffer.buffer.size - 1);
+    texture_offset := cast(u64) (size_of(TextureFile.Header) + surface_offsets.count * size_of(u64));
+    assert(cast(s64) texture_offset == getFileCursorPosition(file));
+
+    file_size := cast(u64) getFileSize(file);
+    asset.texture_size = file_size - texture_offset;
+
+    this_surface_offset := texture_offset;
+    next_surface_offset := ifx surface_offsets.count > 0 then surface_offsets[0] else file_size;
+
+    // 16:    BC7 block size. @TODO: #TextureLoader. Align to the actual block size.
+    // false: there is no way to copy a surface which is splitted in half
+    success, upload_offset := acquireUploadBufferMemory(asset.texture_size, 16, false);
+    if success {
+        destination := manager.upload_buffer.buffer.mapped_memory + upload_offset;
+        readFile(file, destination, cast(s64) asset.texture_size);
+
+        for face : 0 .. faces_count - 1 {
+            for layer : 0 .. array_size - 1 {
+                for mip : 0 .. header.mips_count - 1 {
+                    this_surface_size := next_surface_offset - this_surface_offset;
+
+                    region := pushBack(*asset.regions);
+                    region.buffer_offset       = cast(u32) upload_offset;
+                    region.texture_array_layer = layer;
+                    region.texture_face        = face;
+                    region.texture_mip         = mip;
+
+                    surface_index := mip + (layer * header.mips_count) + (face * array_size * header.mips_count);
+
+                    upload_offset       = (upload_offset + this_surface_size) & (manager.upload_buffer.buffer.size - 1);
+                    this_surface_offset = next_surface_offset;
+                    next_surface_offset = ifx surface_index < surface_offsets.count then surface_offsets[surface_index] else file_size;
+                }
+            }
+        }
+    } else {
+        for face : 0 .. faces_count - 1 {
+            for layer : 0 .. array_size - 1 {
+                for mip : 0 .. header.mips_count - 1 {
+                    this_surface_size := next_surface_offset - this_surface_offset;
+
+                    // 16:    BC7 block size
+                    // false: there is no way to copy a surface which is splitted in half
+                    success, upload_offset = acquireUploadBufferMemory(this_surface_size, 16, false);
+                    assert(success, "Upload ring buffer overflow");
+
+                    destination := manager.upload_buffer.buffer.mapped_memory + upload_offset;
+                    readFile(file, destination, cast(s64) this_surface_size);
+
+                    region := pushBack(*asset.regions);
+                    region.buffer_offset       = cast(u32) upload_offset;
+                    region.texture_array_layer = layer;
+                    region.texture_face        = face;
+                    region.texture_mip         = mip;
+
+                    surface_index := mip + (layer * header.mips_count) + (face * array_size * header.mips_count);
+
+                    this_surface_offset = next_surface_offset;
+                    next_surface_offset = ifx surface_index < surface_offsets.count then surface_offsets[surface_index] else file_size;
+                }
+            }
+        }
+    }
+
+    //
+    // Create texture
+    //
+
+    asset.texture = createTexture(header.format,
+                                  header.width,
+                                  header.height,
+                                  header.depth,
+                                  mips_count = header.mips_count,
+                                  header.flags,
+                                  usages = .SHADER_READ,
+                                  .PER_SCENE,
+                                  name);
+
+    //
+    // Create event
+    //
+
+    if #complete context.pet.render.device.graphics_api == {
+        case .VULKAN;
+            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
+
+            create_info : VkEventCreateInfo;
+            debugCheckVK(vkCreateEvent(vulkan_device.device, *create_info, null, cast(*VkEvent) *asset.ready_event));
+            setVulkanObjectName(cast(VkEvent) asset.ready_event, "% texture ready event", name);
+    }
+
+    return asset;
 }
 
-// @TODO: #Atomics.
-atomicCompareAndSwap :: inline (mem : *$T, old : T, new : T) -> T #no_context {
-    #assert size_of(T) == 1 || size_of(T) == 2 || size_of(T) == 4 || size_of(T) == 8;
+isTextureReady :: (asset : *TextureAsset) -> bool {
+    if !asset         return false;
+    if asset.is_ready return true;
 
-    #if CPU == .X64 #asm {
-        old === a;
-        lock_cmpxchg?T old, [mem], new;
-    } else {
-        notImplemented();
+    if #complete context.pet.render.device.graphics_api == {
+        case .VULKAN;
+            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
+
+            result := vkGetEventStatus(vulkan_device.device, cast(VkEvent) asset.ready_event);
+            assert(result == .VK_EVENT_SET || result == .VK_EVENT_RESET, "vkGetEventStatus returned %", result);
+
+            asset.is_ready = result == .VK_EVENT_SET;
     }
 
-    return old;
+    // @TODO: #SinglePointWait. This is incorrect if the order is not guaranteed.
+    if asset.is_ready {
+        manager := context.pet.render.asset_manager;
+        Atomics.atomic_add(*manager.upload_buffer.read_offset, asset.texture_size);
+    }
+
+    return asset.is_ready;
 }
 
-// @TODO: #Atomics.
-atomicAdd :: inline (mem : *$T, add : T) #no_context {
-    #assert size_of(T) == 1 || size_of(T) == 2 || size_of(T) == 4 || size_of(T) == 8;
+#scope_file
 
-    #if CPU == .X64 #asm {
-        lock_add?T [mem], add;
+acquireUploadBufferMemory :: (data_size : u64, alignment : u64 = 1, $may_cycle := true) -> (success : bool, offset : u64) {
+    manager := context.pet.render.asset_manager;
+
+    buffer_size_mask   : u64 = manager.upload_buffer.buffer.size - 1;
+    old_offset_aligned : u64 = ---;
+
+    #if may_cycle {
+        old_offset := manager.upload_buffer.write_offset;
+
+        while true {
+            if alignment > 1 {
+                old_offset_aligned = alignUpWithPowerOfTwo(old_offset, alignment);
+            } else {
+                old_offset_aligned = old_offset;
+            }
+
+            new_offset := old_offset_aligned + data_size;
+            if new_offset - manager.upload_buffer.read_offset > manager.upload_buffer.buffer.size {
+                return false, 0;
+            }
+
+            success:, old_offset = compare_and_swap(*manager.upload_buffer.write_offset, old_offset, new_offset);
+            if success break;
+        }
     } else {
-        notImplemented();
+        old_offset := manager.upload_buffer.write_offset;
+
+        while true {
+            bytes_until_end := manager.upload_buffer.buffer.size - (old_offset & buffer_size_mask);
+
+            if bytes_until_end < data_size {
+                old_offset_aligned = alignUpWithPowerOfTwo(old_offset, manager.upload_buffer.buffer.size);
+            } else if alignment > 1 {
+                old_offset_aligned = alignUpWithPowerOfTwo(old_offset, alignment);
+            } else {
+                old_offset_aligned = old_offset;
+            }
+
+            new_offset := old_offset_aligned + data_size;
+            if new_offset - manager.upload_buffer.read_offset > manager.upload_buffer.buffer.size {
+                return false, 0;
+            }
+
+            success:, old_offset = compare_and_swap(*manager.upload_buffer.write_offset, old_offset, new_offset);
+            if success break;
+        }
     }
+
+    return true, old_offset_aligned & buffer_size_mask;
 }
