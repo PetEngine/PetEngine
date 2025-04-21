@@ -9,6 +9,12 @@ Heart :: struct {
     mesh                  : *Mesh;
     push_constants_handle : PushConstantsHandle;
     submesh_index         : s8;
+
+    sampler                 : *Sampler;
+    sampler_binding_handle  : BindingHandle;
+
+    texture_assets          : [10] *TextureAsset;
+    texture_binding_handles : [10] BindingHandle;
 }
 
 createHeart :: (depth_format : Texture.Format) -> Heart {
@@ -18,8 +24,20 @@ createHeart :: (depth_format : Texture.Format) -> Heart {
     return heart;
 }
 
-loadHeartMesh :: (heart : *Heart) {
+loadHeart :: (heart : *Heart) {
     heart.mesh = requestMesh("HumanHeart_OBJ");
+
+    heart.sampler = createSampler(.{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR }, .PER_SCENE, "Trilinear sampler" );
+
+    heart.texture_assets[0] = requestTexture("HumanBase__color");
+    // @TODO: #TextureLoader. Load other textures
+}
+
+bindHeart :: (heart : *Heart) {
+    heart.sampler_binding_handle = pushBinding(.PER_SCENE, heart.sampler);
+
+    // @TODO: #TextureLoader. Bind other textures
+    heart.texture_binding_handles[0] = pushBinding(.PER_SCENE, heart.texture_assets[0].texture_view);
 }
 
 updateHeart :: (heart : *Heart, input : *Input) {
@@ -38,6 +56,7 @@ updateHeart :: (heart : *Heart, input : *Input) {
 
 drawHeart :: (command_buffer : *CommandBuffer, heart : *Heart, per_view_uniform : *PerViewUniform) {
     if !isMeshReady(heart.mesh) return;
+    if !isTextureReady(heart.texture_assets[0]) return;
 
     render_resolution := context.pet.render.device.render_resolution;
 

@@ -8,7 +8,7 @@ layout(push_constant) uniform PushConstants {
     uint32_t         per_view_uniform_index;
 } g_push_constants;
 
-out vec3 o_color;
+out vec2 o_uv;
 
 void main() {
     Indices32Ref     index_ref  = g_push_constants.indices_ref[gl_VertexIndex];
@@ -32,16 +32,20 @@ void main() {
     }
 
     gl_Position = g_per_view_uniforms[g_push_constants.per_view_uniform_index].view_proj_matrix * position;
-    o_color     = vertex_ref.normal_v.xyz;
+    o_uv        = vec2(vertex_ref.position_u.w, vertex_ref.normal_v.w);
 }
 
 #fragment_shader
 
-in  vec3 i_color;
+in  vec2 i_uv;
 out vec4 o_color;
 
 void main() {
-    o_color = vec4(i_color, 1.0);
+    // @TODO: #TextureLoader. Pass indices to push constants
+    #define TEXTURE_INDEX 0
+    #define SAMPLER_INDEX 0
+
+    o_color = texture(sampler2D(g_per_scene_textures_2d[TEXTURE_INDEX], g_per_scene_samplers[SAMPLER_INDEX]), i_uv);
 }
 
 #pipeline_state

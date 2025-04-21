@@ -305,10 +305,12 @@ petMain :: () {
                 resetBindings(.PER_SCENE);
 
                 // Create per scene resources here...
-                loadHeartMesh(*heart);
+                loadHeart(*heart);
 
                 // Commit
                 commitResourceMemory(.PER_SCENE);
+
+                bindHeart(*heart);
 
                 // @Important: Should be after per scene memory commit
                 processRequestedAssets();
