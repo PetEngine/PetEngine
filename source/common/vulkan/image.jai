@@ -375,6 +375,14 @@ VkImageViewUsageCreateInfo :: struct {
 }
 
 // Provided by VK_VERSION_1_0
+VkImageSubresourceLayers :: struct {
+    aspectMask     : VkImageAspectFlags;
+    mipLevel       : u32;
+    baseArrayLayer : u32;
+    layerCount     : u32;
+}
+
+// Provided by VK_VERSION_1_0
 vkCreateImage :: (
     device      : VkDevice,
     pCreateInfo : *VkImageCreateInfo,

@@ -70,6 +70,14 @@ CopyRegion :: struct {
     bytes         : u32 = REMAINING_BYTES;
 }
 
+BufferToTextureCopyRegion :: struct {
+    buffer_offset : u32;
+
+    texture_array_layer : u16;
+    texture_face        : u8;
+    texture_mip         : u8;
+}
+
 createCommandBuffer :: ($usage : QueueType) -> CommandBuffer(usage) #must {
     command_buffer : CommandBuffer(usage);
     command_buffer.handles.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
@@ -350,6 +358,50 @@ copyBufferRegions :: (
                                     cast(*VulkanBuffer) dest_buffer,
                                     cast(*VulkanBuffer) source_buffer,
                                     regions);
+    }
+}
+
+copyBufferToTexture :: (
+    command_buffer : *CommandBuffer,
+    texture        : *Texture,
+    buffer         : *Buffer,
+    regions        : [] BufferToTextureCopyRegion
+) {
+    if regions.count <= 0 return;
+
+    assert(buffer.current_owner == command_buffer.usage,
+           "You are trying to copy from buffer \"%\" in % command buffer, but buffer's current owner is %. Change buffers's owner first to do so.",
+           buffer.name,
+           command_buffer.usage,
+           buffer.current_owner);
+    assert(texture.current_owner == command_buffer.usage,
+           "You are trying to copy to texture \"%\" in % command buffer, but texture's current owner is %. Change texture's owner first to do so.",
+           buffer.name,
+           command_buffer.usage,
+           texture.current_owner);
+
+    for regions {
+        assert(it.buffer_offset < buffer.size);
+
+        if texture.flags & .ARRAY {
+            assert(it.texture_array_layer < texture.array_size);
+        } else {
+            assert(it.texture_array_layer == 0);
+        }
+        if texture.flags & .CUBE {
+            assert(it.texture_face < 6);
+        } else {
+            assert(it.texture_face == 0);
+        }
+        assert(it.texture_mip < texture.mips_count);
+    }
+
+    if #complete context.pet.render.device.graphics_api == {
+        case .VULKAN;
+            copyVulkanBufferToTexture(command_buffer.handles[context.pet.render.device.frame_index],
+                                      cast(*VulkanTexture) texture,
+                                      cast(*VulkanBuffer) buffer,
+                                      regions);
     }
 }
 

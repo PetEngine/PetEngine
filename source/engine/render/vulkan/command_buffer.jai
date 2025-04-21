@@ -385,10 +385,53 @@ copyVulkanBufferRegions :: (
     vkCmdCopyBuffer2(command_buffer, *info);
 }
 
+copyVulkanBufferToTexture :: (
+    command_buffer : VkCommandBuffer,
+    texture        : *VulkanTexture,
+    buffer         : *VulkanBuffer,
+    regions        : [] BufferToTextureCopyRegion
+) {
+    changeVulkanTextureLayout(command_buffer, texture, .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    vk_regions : [] VkBufferImageCopy2 = ---;
+    vk_regions.count = regions.count;
+    vk_regions.data  = pushToArena(*context.pet.arenas.per_frame, VkBufferImageCopy2, regions.count);
+
+    vk_aspect_flags := getVulkanImageAspectFlags(texture.format);
+
+    regions_it := regions.data;
+    for * vk_regions {
+        it.bufferOffset = cast(VkDeviceSize) regions_it.buffer_offset;
+
+        it.imageSubresource.aspectMask     = vk_aspect_flags;
+        it.imageSubresource.mipLevel       = regions_it.texture_mip;
+        it.imageSubresource.baseArrayLayer = regions_it.texture_array_layer * 6 + regions_it.texture_face;
+        it.imageSubresource.layerCount     = 1;
+
+        it.imageExtent.width  = max(texture.width  >> regions_it.texture_mip, 1);
+        it.imageExtent.height = max(texture.height >> regions_it.texture_mip, 1);
+        it.imageExtent.depth  = ifx  texture.dimension == ._3D
+                                then max(texture.depth >> regions_it.texture_mip, 1)
+                                else 1;
+
+        regions_it += 1;
+    }
+
+    info := VkCopyBufferToImageInfo2.{
+        srcBuffer      = buffer.buffer,
+        dstImage       = texture.image,
+        dstImageLayout = .VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        regionCount    = cast(u32) vk_regions.count,
+        pRegions       = vk_regions.data
+    };
+
+    vkCmdCopyBufferToImage2(command_buffer, *info);
+}
+
 #scope_file
 
 // @Speed: Figure out something more optimal with access masks and pipeline stages.
-changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, new_layout : VkImageLayout) #no_context {
+changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture, new_layout : VkImageLayout) {
     if texture.current_layout == new_layout {
         return;
     }

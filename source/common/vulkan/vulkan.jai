@@ -238,7 +238,11 @@ VkStructureType :: enum VkEnum #specified {
     // Provided by VK_VERSION_1_3
     VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2                                   :: 1000337000;
     // Provided by VK_VERSION_1_3
+    VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2                          :: 1000337002;
+    // Provided by VK_VERSION_1_3
     VK_STRUCTURE_TYPE_BUFFER_COPY_2                                        :: 1000337006;
+    // Provided by VK_VERSION_1_3
+    VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2                                  :: 1000337009;
 
     // Provided by VK_EXT_debug_utils
     VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT                     :: 1000128000;
