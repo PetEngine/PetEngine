@@ -27,7 +27,8 @@ MeshAsset :: struct {
 }
 
 TextureAsset :: struct {
-    texture : *Texture;
+    texture      : *Texture;
+    texture_view : *TextureView;
 
     ready_event : *void;
     is_ready    : bool;
@@ -382,7 +383,7 @@ requestTexture :: (name : string) -> *TextureAsset {
     }
 
     //
-    // Create texture
+    // Create texture and view
     //
 
     asset.texture = createTexture(header.format,
@@ -394,6 +395,8 @@ requestTexture :: (name : string) -> *TextureAsset {
                                   usages = .SHADER_READ,
                                   .PER_SCENE,
                                   name);
+
+    asset.texture_view = createTextureView(asset.texture, .SHADER_READ, lifetime = .PER_SCENE);
 
     //
     // Create event
