@@ -262,10 +262,10 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     MIN_TEXTURE_SIDE_SIZE :: 2;
 
     texture_file_header := TextureFile.Header.{
+        mips_count = cast(u8)  nvttSurfaceCountMipmaps(nvtt_surface, MIN_TEXTURE_SIDE_SIZE),
         width      = cast(u16) nvttSurfaceWidth(nvtt_surface),
         height     = cast(u16) nvttSurfaceHeight(nvtt_surface),
         depth      = cast(u16) nvttSurfaceDepth(nvtt_surface),
-        mips_count = cast(u8)  nvttSurfaceCountMipmaps(nvtt_surface, MIN_TEXTURE_SIDE_SIZE),
     };
 
     nvtt_compression_options := nvttCreateCompressionOptions();
@@ -297,23 +297,12 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     }
 
     nvtt_texture_type := nvttSurfaceType(nvtt_surface);
-    if #complete nvtt_texture_type == {
-        case ._2D;
-            texture_file_header.dimension = ._2D;
-
-        case ._Cube;
-            texture_file_header.dimension = ._2D;
-            texture_file_header.flags     = .CUBE;
-
-        case ._3D;
-            texture_file_header.dimension = ._3D;
-
-        case;
-	       assertMessage("Corrupted NvttTextureType value: %", nvtt_texture_type);
+    if nvtt_texture_type == ._Cube {
+        texture_file_header.flags = .CUBE;
     }
 
     array_size := 1; // @TODO: #TextureLoader. Detect array.
-    assert(!(array_size > 1 && (texture_file_header.dimension == ._3D || texture_file_header.depth > 1)),
+    assert(!(array_size > 1 && (nvtt_texture_type == ._3D || texture_file_header.depth > 1)),
            "Array textures cannot contain 3D textures");
 
     nvtt_surfaces : StaticArray(*NvttSurface, Texture.MAX_MIPS_SUPPORTED);
