@@ -265,8 +265,13 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
         mips_count = cast(u8)  nvttSurfaceCountMipmaps(nvtt_surface, MIN_TEXTURE_SIDE_SIZE),
         width      = cast(u16) nvttSurfaceWidth(nvtt_surface),
         height     = cast(u16) nvttSurfaceHeight(nvtt_surface),
-        depth      = cast(u16) nvttSurfaceDepth(nvtt_surface),
     };
+
+    nvtt_texture_type := nvttSurfaceType(nvtt_surface);
+    if nvtt_texture_type == {
+        case ._Cube; texture_file_header.flags = .CUBE;
+        case ._3D;   texture_file_header.depth = cast(u16) nvttSurfaceDepth(nvtt_surface);
+    }
 
     nvtt_compression_options := nvttCreateCompressionOptions();
     defer nvttDestroyCompressionOptions(nvtt_compression_options);
@@ -292,17 +297,8 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     }
     assert(texture_file_header.format != .UNKNOWN);
 
-    if textures_context.cuda_supported {
-        nvttSurfaceToGPU(nvtt_surface);
-    }
-
-    nvtt_texture_type := nvttSurfaceType(nvtt_surface);
-    if nvtt_texture_type == ._Cube {
-        texture_file_header.flags = .CUBE;
-    }
-
     array_size := 1; // @TODO: #TextureLoader. Detect array.
-    assert(!(array_size > 1 && (nvtt_texture_type == ._3D || texture_file_header.depth > 1)),
+    assert(!(array_size > 1 && texture_file_header.depth > 1),
            "Array textures cannot contain 3D textures");
 
     nvtt_surfaces : StaticArray(*NvttSurface, Texture.MAX_MIPS_SUPPORTED);
@@ -313,6 +309,10 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     //
     // Generate mips and prepare surfaces
     //
+
+    if textures_context.cuda_supported {
+        nvttSurfaceToGPU(nvtt_surface);
+    }
 
     pushBack(*nvtt_surfaces, nvtt_surface);
 
