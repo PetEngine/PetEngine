@@ -324,8 +324,10 @@ requestTexture :: (name : string) -> *TextureAsset {
     file_size := cast(u64) getFileSize(file);
     asset.texture_size = file_size - texture_offset;
 
+    next_surface_offset_index := 0;
+
     this_surface_offset := texture_offset;
-    next_surface_offset := ifx surface_offsets.count > 0 then surface_offsets[0] else file_size;
+    next_surface_offset := ifx surface_offsets.count > 0 then surface_offsets[next_surface_offset_index] else file_size;
 
     // 16:    BC7 block size. @TODO: #TextureLoader. Align to the actual block size.
     // false: there is no way to copy a surface which is splitted in half
@@ -345,11 +347,15 @@ requestTexture :: (name : string) -> *TextureAsset {
                     region.texture_face        = face;
                     region.texture_mip         = mip;
 
-                    surface_index := mip + (layer * header.mips_count) + (face * array_size * header.mips_count);
-
-                    upload_offset       = (upload_offset + this_surface_size) & (manager.upload_buffer.buffer.size - 1);
+                    upload_offset       += this_surface_size;
                     this_surface_offset = next_surface_offset;
-                    next_surface_offset = ifx surface_index < surface_offsets.count then surface_offsets[surface_index] else file_size;
+
+                    next_surface_offset_index += 1;
+                    if next_surface_offset_index < surface_offsets.count {
+                        next_surface_offset = surface_offsets[next_surface_offset_index];
+                    } else {
+                        next_surface_offset = file_size;
+                    }
                 }
             }
         }
@@ -373,10 +379,14 @@ requestTexture :: (name : string) -> *TextureAsset {
                     region.texture_face        = face;
                     region.texture_mip         = mip;
 
-                    surface_index := mip + (layer * header.mips_count) + (face * array_size * header.mips_count);
-
                     this_surface_offset = next_surface_offset;
-                    next_surface_offset = ifx surface_index < surface_offsets.count then surface_offsets[surface_index] else file_size;
+
+                    next_surface_offset_index += 1;
+                    if next_surface_offset_index < surface_offsets.count {
+                        next_surface_offset = surface_offsets[next_surface_offset_index];
+                    } else {
+                        next_surface_offset = file_size;
+                    }
                 }
             }
         }
