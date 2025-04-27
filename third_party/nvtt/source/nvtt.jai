@@ -42,6 +42,13 @@ nvttCreateContext :: () -> *NvttContext #foreign nvtt;
 nvttDestroyContext :: (context_ : *NvttContext) #foreign nvtt;
 nvttSetContextCudaAcceleration :: (context_ : *NvttContext, enable : NvttBoolean) #foreign nvtt;
 nvttContextIsCudaAccelerationEnabled :: (context_ : *NvttContext) -> NvttBoolean #foreign nvtt;
+nvttContextOutputHeader :: (
+    context_           : *NvttContext,
+    img                : *NvttSurface,
+    mipmapCount        : s32,
+    compressionOptions : *NvttCompressionOptions,
+    outputOptions      : *NvttOutputOptions
+) -> NvttBoolean #foreign nvtt;
 nvttContextCompress :: (
     context_           : *NvttContext,
     img                : *NvttSurface,
@@ -134,6 +141,7 @@ NvttMipmapFilter :: enum s32 {
 nvttCreateSurface :: () -> *NvttSurface #foreign nvtt;
 nvttDestroySurface :: (surface : *NvttSurface) #foreign nvtt;
 nvttSurfaceClone :: (surface : *NvttSurface) -> *NvttSurface #foreign nvtt;
+nvttSetSurfaceNormalMap :: (surface : *NvttSurface, isNormalMap : NvttBoolean) #foreign nvtt;
 nvttSurfaceWidth :: (surface : *NvttSurface) -> s32 #foreign nvtt;
 nvttSurfaceHeight :: (surface : *NvttSurface) -> s32 #foreign nvtt;
 nvttSurfaceDepth :: (surface : *NvttSurface) -> s32 #foreign nvtt;
@@ -155,9 +163,11 @@ nvttSurfaceBuildNextMipmapDefaults :: (
     tc       : *NvttTimingContext = null
 ) -> NvttBoolean #foreign nvtt;
 nvttSurfaceToSrgb :: (surface : *NvttSurface, tc : *NvttTimingContext = null) #foreign nvtt;
+nvttSurfaceToLinearFromSrgb :: (surface : *NvttSurface, tc : *NvttTimingContext = null) #foreign nvtt;
 nvttSurfacePremultiplyAlpha :: (surface : *NvttSurface, tc : *NvttTimingContext = null) #foreign nvtt;
 nvttSurfaceDemultiplyAlpha :: (surface : *NvttSurface, epsilon : float32 = 1.0e-12, tc : *NvttTimingContext = null) #foreign nvtt;
 nvttSurfacePackNormals :: (surface : *NvttSurface, scale : float32 = 0.5, bias : float32 = 0.5, tc : *NvttTimingContext = null) #foreign nvtt;
+nvttSurfaceExpandNormals :: (surface : *NvttSurface, scale : float32 = 2.0, bias : float32 = -1.0, tc : *NvttTimingContext = null) #foreign nvtt;
 nvttSurfaceNormalizeNormalMap :: (surface : *NvttSurface, tc : *NvttTimingContext = null) #foreign nvtt;
 
 NvttCompressionOptions :: struct {
@@ -273,6 +283,7 @@ nvttEndImageHandler   :: #type () #c_call;
 
 nvttCreateOutputOptions :: () -> *NvttOutputOptions #foreign nvtt;
 nvttDestroyOutputOptions :: (outputOptions : *NvttOutputOptions) #foreign nvtt;
+nvttSetOutputOptionsFileName :: (outputOptions : *NvttOutputOptions, fileName : *u8) #foreign nvtt;
 nvttSetOutputOptionsOutputHandler :: (
     outputOptions     : *NvttOutputOptions,
     beginImageHandler : nvttBeginImageHandler,
@@ -280,6 +291,7 @@ nvttSetOutputOptionsOutputHandler :: (
     endImageHandler   : nvttEndImageHandler
 ) #foreign nvtt;
 nvttSetOutputOptionsOutputHeader :: (outputOptions : *NvttOutputOptions, b : NvttBoolean) #foreign nvtt;
+nvttSetOutputOptionsSrgbFlag :: (outputOptions : *NvttOutputOptions, b : NvttBoolean) #foreign nvtt;
 
 NvttBatchList :: struct {
     pimpl : *void;

@@ -43,7 +43,7 @@ convertExchangeAssetsToRuntime :: () {
         nvtt_output_options := nvttCreateOutputOptions();
         defer nvttDestroyOutputOptions(nvtt_output_options);
         nvttSetOutputOptionsOutputHandler(nvtt_output_options, null, outputHandler, null);
-        nvttSetOutputOptionsOutputHeader(nvtt_output_options, .False);
+        nvttSetOutputOptionsOutputHeader(nvtt_output_options, #ifx TEST_TEXTURES then .True else .False);
 
         cuda_supported := nvttIsCudaSupported();
         if cuda_supported == .False {
@@ -110,6 +110,8 @@ makeRuntimeTextureFilename :: (name : string) -> string {
 #load "texture_file.jai";
 
 #scope_file
+
+TEST_TEXTURES :: false;
 
 MeshesContext :: struct {
     converted : s64;
@@ -206,25 +208,32 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
         exchange_file_info.name.data  + (AssetConverter.EXCHANGE_TEXTURES_FOLDER.count + "/".count)
     };
 
-    runtime_filename := makeRuntimeTextureFilename(texture_name);
+    #if !TEST_TEXTURES {
+        runtime_filename := makeRuntimeTextureFilename(texture_name);
 
-    runtime_file_info, error := getFileInfo(runtime_filename);
-    assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
+        runtime_file_info, error := getFileInfo(runtime_filename);
+        assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
 
-    if runtime_file_info.last_write_time >= exchange_file_info.last_write_time {
-        runtime_file:, error = openFile(runtime_filename, .READ | .SHARED_READ | .EXISTS);
-        assert(error == .NONE);
-        defer closeFile(*runtime_file);
+        if runtime_file_info.last_write_time >= exchange_file_info.last_write_time {
+            runtime_file:, error = openFile(runtime_filename, .READ | .SHARED_READ | .EXISTS);
+            assert(error == .NONE);
+            defer closeFile(*runtime_file);
 
-        header : TextureFile.Header = ---;
-        readFile(runtime_file, *header);
-        if header.version == TextureFile.VERSION {
-            textures_context.skipped += 1;
-            return .CONTINUE;
+            header : TextureFile.Header = ---;
+            readFile(runtime_file, *header);
+            if header.version == TextureFile.VERSION {
+                textures_context.skipped += 1;
+                return .CONTINUE;
+            }
         }
     }
 
     textures_context.total += 1;
+
+    #if TEST_TEXTURES {
+        test_filename := makeTestTextureFilename(texture_name);
+        nvttSetOutputOptionsFileName(textures_context.nvtt_output_options, test_filename.data);
+    }
 
     if convertTextureNVTT(textures_context, exchange_file_info.name, texture_name, extension) {
         textures_context.converted += 1;
@@ -241,10 +250,9 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     file_data, error := readEntireFile(exchange_filename, pushToArena, *context.pet.arenas.per_frame);
     assert(error == .NONE);
 
-    is_srgb       := false; // @TODO: #TextureLoader. Detect sRGB.
-    is_hdr        := false; // @TODO: #TextureLoader. Detect HDR.
     is_normal_map := String.ends_with(name, "_normals");
-    assert(!(is_normal_map && is_srgb), "Normals cannot be stored in sRGB");
+    is_srgb       := extension == "png"; // @TODO: #TextureLoader. Detect sRGB.
+    is_hdr        := false; // @TODO: #TextureLoader. Detect HDR.
     assert(!(is_normal_map && is_hdr), "Normals cannot be stored in HDR");
     assert(!(is_srgb && is_hdr), "Texture cannot be stored in HDR and sRGB at the same time");
 
@@ -280,7 +288,7 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC6U);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
     } else if has_alpha == .False {
-        texture_file_header.format = .BC1_SRGB;
+        texture_file_header.format = ifx is_normal_map then .BC1_UNORM else .BC1_SRGB;
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC1);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Highest);
     } else {
@@ -306,6 +314,19 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
         if it_index > 0 nvttDestroySurface(it); // see: nvttDestroySurface(nvtt_surface)
     }
 
+    #if TEST_TEXTURES {
+        if is_normal_map {
+            nvttSetSurfaceNormalMap(nvtt_surface, .True);
+            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
+        } else if is_hdr {
+            nvttSetSurfaceNormalMap(nvtt_surface, .False);
+            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
+        } else {
+            nvttSetSurfaceNormalMap(nvtt_surface, .False);
+            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .True);
+        }
+    }
+
     //
     // Generate mips and prepare surfaces
     //
@@ -314,14 +335,31 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
         nvttSurfaceToGPU(nvtt_surface);
     }
 
+    // Some PNG textures store normals in sRGB...
+    if is_normal_map && is_srgb {
+        nvttSurfaceToLinearFromSrgb(nvtt_surface);
+        nvttSurfaceExpandNormals(nvtt_surface); // [0; 1] -> [-1; 1]
+        nvttSurfaceNormalizeNormalMap(nvtt_surface);
+        is_srgb = false;
+    }
+
     pushBack(*nvtt_surfaces, nvtt_surface);
 
     for 1 .. texture_file_header.mips_count - 1 {
         nvtt_surface_copy := nvttSurfaceClone(nvtt_surfaces[it - 1]);
         pushBack(*nvtt_surfaces, nvtt_surface_copy);
 
-        if !is_normal_map && has_alpha == .True {
-            nvttSurfacePremultiplyAlpha(nvtt_surface_copy);
+        if is_normal_map {
+            if it > 1 {
+                nvttSurfaceExpandNormals(nvtt_surface_copy); // [0; 1] -> [-1; 1]
+            }
+        } else {
+            if has_alpha == .True {
+                nvttSurfacePremultiplyAlpha(nvtt_surface_copy);
+            }
+            if !is_hdr {
+                nvttSurfaceToLinearFromSrgb(nvtt_surface_copy);
+            }
         }
 
         nvtt_success = nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, MIN_TEXTURE_SIDE_SIZE);
@@ -334,7 +372,7 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
             if has_alpha == .True {
                 nvttSurfaceDemultiplyAlpha(nvtt_surface_copy);
             }
-            if !is_srgb && !is_hdr {
+            if !is_hdr {
                 nvttSurfaceToSrgb(nvtt_surface_copy);
             }
         }
@@ -365,6 +403,14 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     defer endTextureFileSerialization(*texture_file);
     writeTextureFileHeader(*texture_file, texture_file_header);
 
+    #if TEST_TEXTURES {
+        nvttContextOutputHeader(textures_context.nvtt_context,
+                                nvtt_surface,
+                                texture_file_header.mips_count,
+                                nvtt_compression_options,
+                                textures_context.nvtt_output_options);
+    }
+
     context.pet.converter.texture_file = *texture_file;
     defer context.pet.converter = .{};
     g_contextForOutputHandler = *context;
@@ -380,6 +426,19 @@ outputHandler :: (data : *void, size : s32) -> NvttBoolean #c_call {
     push_context, defer_pop g_contextForOutputHandler;
     appendTextureFileData(context.pet.converter.texture_file, .{ count = size, data = data });
     return .True;
+}
+
+#if TEST_TEXTURES {
+    makeTestTextureFilename :: (name : string) -> string {
+        TEST_TEXTURES_FOLDER   :: "../../../source/assets/textures/test/";
+
+        capacity := TEST_TEXTURES_FOLDER.count + name.count + ".dds\0".count;
+
+        filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
+        appendToString(*filename, capacity, TEST_TEXTURES_FOLDER, name, ".dds\0");
+
+        return filename;
+    }
 }
 
 // @Cleanup: #TextureLoader.

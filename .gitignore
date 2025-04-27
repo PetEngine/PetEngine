@@ -4,5 +4,6 @@ vtune/
 .build/
 source/assets/meshes/runtime/
 source/assets/textures/runtime/
+source/assets/textures/test/
 *.rdbg
 *.raddbg_project
