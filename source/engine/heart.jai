@@ -1,14 +1,22 @@
 Heart :: struct {
-    PushConstants :: struct {
+    VSPushConstants :: struct {
         index_buffer_reference  : u64;
         vertex_buffer_reference : u64;
         per_view_uniform_index  : u32;
     } #no_padding
 
-    shader                : *Shader;
-    mesh                  : *Mesh;
-    push_constants_handle : PushConstantsHandle;
-    submesh_index         : s8;
+    PSPushConstants :: struct {
+        texture_index : u16;
+        sampler_index : u16;
+    } #no_padding
+
+    shader : *Shader;
+
+    mesh          : *Mesh;
+    submesh_index : s8;
+
+    vs_push_constants_handle : PushConstantsHandle;
+    ps_push_constants_handle : PushConstantsHandle;
 
     sampler                 : *Sampler;
     sampler_binding_handle  : BindingHandle;
@@ -19,8 +27,9 @@ Heart :: struct {
 
 createHeart :: (depth_format : Texture.Format) -> Heart {
     heart : Heart;
-    heart.shader                = createShader("heart", .[ context.pet.render.device.back_buffer_format ], depth_format );
-    heart.push_constants_handle = getPushConstantsHandle(heart.shader, "g_push_constants");
+    heart.shader                   = createShader("heart", .[ context.pet.render.device.back_buffer_format ], depth_format );
+    heart.vs_push_constants_handle = getPushConstantsHandle(heart.shader, "g_vs_push_constants");
+    heart.ps_push_constants_handle = getPushConstantsHandle(heart.shader, "g_ps_push_constants");
     return heart;
 }
 
@@ -72,10 +81,15 @@ drawHeart :: (command_buffer : *CommandBuffer, heart : *Heart, per_view_uniform 
 
     setShader(command_buffer, heart.shader);
 
-    setPushConstants(command_buffer, heart.push_constants_handle, *(Heart.PushConstants.{
+    setPushConstants(command_buffer, heart.vs_push_constants_handle, *(Heart.VSPushConstants.{
         index_buffer_reference  = heart.mesh.index_buffer.device_address,
         vertex_buffer_reference = heart.mesh.vertex_buffer.device_address,
         per_view_uniform_index  = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
+    }));
+
+    setPushConstants(command_buffer, heart.ps_push_constants_handle, *(Heart.PSPushConstants.{
+        texture_index = heart.texture_binding_handles[0].descriptor,
+        sampler_index = heart.sampler_binding_handle.descriptor,
     }));
 
     if heart.submesh_index == 0 {
