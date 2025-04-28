@@ -245,8 +245,6 @@ petMain :: () {
 
     depth_buffer_dsv := createTextureView(depth_buffer, .DEPTH_TARGET, lifetime = .PERSISTENT);
 
-    depth_sampler := createSampler(.{ anisotropy = Sampler.MAX_ANISOTROPY }, .PERSISTENT, "Depth sampler");
-
     // Create persistent buffers and textures here...
 
     commitResourceMemory(.PERSISTENT);
