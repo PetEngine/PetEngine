@@ -304,6 +304,11 @@ getWindowsAbsolutePath :: (absolute_path_buffer : *[$capacity] u8, relative_path
     return UTF16ToUTF8(absolute_path_buffer, .{ utf16_absolute_path_length, utf16_absolute_path.data });
 }
 
+createWindowsDirectory :: (filename : string) {
+    utf16_filename := UTF8ToUTF16(filename, pushToArena, *context.pet.arenas.per_frame);
+    createPathToFilename(*utf16_filename);
+}
+
 #scope_file
 
 flagsToWin32Flags :: (flags : File.Flags) -> (

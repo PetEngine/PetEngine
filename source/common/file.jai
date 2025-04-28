@@ -290,6 +290,14 @@ getAbsolutePath :: (absolute_path_buffer : *[$capacity] u8, relative_path : stri
     return absolute_path;
 }
 
+createDirectory :: (filename : string) {
+    #if OS == .WINDOWS {
+        createWindowsDirectory(filename);
+    } else {
+        notImplemented();
+    }
+}
+
 #scope_file
 
 assertFileNameLength :: ($$filename : string, location := #caller_location) #expand #no_debug {

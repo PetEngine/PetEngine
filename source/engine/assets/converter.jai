@@ -43,7 +43,13 @@ convertExchangeAssetsToRuntime :: () {
         nvtt_output_options := nvttCreateOutputOptions();
         defer nvttDestroyOutputOptions(nvtt_output_options);
         nvttSetOutputOptionsOutputHandler(nvtt_output_options, null, outputHandler, null);
-        nvttSetOutputOptionsOutputHeader(nvtt_output_options, #ifx TEST_TEXTURES then .True else .False);
+
+        #if TEST_TEXTURES {
+            createDirectory(TEST_TEXTURES_FOLDER);
+            nvttSetOutputOptionsOutputHeader(nvtt_output_options, .True);
+        } else {
+            nvttSetOutputOptionsOutputHeader(nvtt_output_options, .False);
+        }
 
         cuda_supported := nvttIsCudaSupported();
         if cuda_supported == .False {
@@ -429,9 +435,9 @@ outputHandler :: (data : *void, size : s32) -> NvttBoolean #c_call {
 }
 
 #if TEST_TEXTURES {
-    makeTestTextureFilename :: (name : string) -> string {
-        TEST_TEXTURES_FOLDER   :: "../../../source/assets/textures/test/";
+    TEST_TEXTURES_FOLDER :: "../../../source/assets/textures/test/";
 
+    makeTestTextureFilename :: (name : string) -> string {
         capacity := TEST_TEXTURES_FOLDER.count + name.count + ".dds\0".count;
 
         filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
