@@ -38,15 +38,24 @@ loadHeart :: (heart : *Heart) {
 
     heart.sampler = createSampler(.{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR }, .PER_SCENE, "Trilinear sampler" );
 
-    heart.texture_assets[0] = requestTexture("HumanBase__color");
-    // @TODO: #TextureLoader. Load other textures
+    heart.texture_assets[0] = requestTexture("HumanBase___cavity");
+    heart.texture_assets[1] = requestTexture("HumanBase__color");
+    heart.texture_assets[2] = requestTexture("HumanBase__normals");
+    heart.texture_assets[3] = requestTexture("HumanOpening__cavity");
+    heart.texture_assets[4] = requestTexture("HumanOpening__color");
+    heart.texture_assets[5] = requestTexture("HumanOpening__normals");
+    heart.texture_assets[6] = requestTexture("MitralValve__cavity");
+    heart.texture_assets[7] = requestTexture("MitralValve_normals");
+    heart.texture_assets[8] = requestTexture("TricuspidValve_cavity");
+    heart.texture_assets[9] = requestTexture("TricuspidValve_normals");
 }
 
 bindHeart :: (heart : *Heart) {
     heart.sampler_binding_handle = pushBinding(.PER_SCENE, heart.sampler);
 
-    // @TODO: #TextureLoader. Bind other textures
-    heart.texture_binding_handles[0] = pushBinding(.PER_SCENE, heart.texture_assets[0].texture_view);
+    for heart.texture_assets {
+        heart.texture_binding_handles[it_index] = pushBinding(.PER_SCENE, it.texture_view);
+    }
 }
 
 updateHeart :: (heart : *Heart, input : *Input) {
@@ -88,7 +97,7 @@ drawHeart :: (command_buffer : *CommandBuffer, heart : *Heart, per_view_uniform 
     }));
 
     setPushConstants(command_buffer, heart.ps_push_constants_handle, *(Heart.PSPushConstants.{
-        texture_index = heart.texture_binding_handles[0].descriptor,
+        texture_index = heart.texture_binding_handles[1].descriptor,
         sampler_index = heart.sampler_binding_handle.descriptor,
     }));
 
