@@ -138,6 +138,12 @@ TexturesContext :: struct {
     total     : s64;
 }
 
+ExchangeTextureFlags :: enum_flags u8 {
+    SRGB;
+    HDR;
+    NORMAL_MAP;
+}
+
 convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
         "obj"
@@ -256,11 +262,7 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     file_data, error := readEntireFile(exchange_filename, pushToArena, *context.pet.arenas.per_frame);
     assert(error == .NONE);
 
-    is_normal_map := String.ends_with(name, "_normals");
-    is_srgb       := extension == "png"; // @TODO: #TextureLoader. Detect sRGB.
-    is_hdr        := false; // @TODO: #TextureLoader. Detect HDR.
-    assert(!(is_normal_map && is_hdr), "Normals cannot be stored in HDR");
-    assert(!(is_srgb && is_hdr), "Texture cannot be stored in HDR and sRGB at the same time");
+    exchange_texutre_flags := getExchangeTextureFlags(file_data, name, extension);
 
     nvtt_surface := nvttCreateSurface();
     defer nvttDestroySurface(nvtt_surface);
@@ -270,7 +272,7 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
                                               file_data.data,
                                               cast(u64) file_data.count,
                                               *has_alpha,
-                                              cast(NvttBoolean) is_normal_map);
+                                              cast(NvttBoolean) (exchange_texutre_flags & .NORMAL_MAP));
     if nvtt_success == .False return false;
 
     MIN_TEXTURE_SIDE_SIZE :: 2;
@@ -289,16 +291,16 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
 
     nvtt_compression_options := nvttCreateCompressionOptions();
     defer nvttDestroyCompressionOptions(nvtt_compression_options);
-    if is_hdr {
+    if exchange_texutre_flags & .HDR {
         texture_file_header.format = .BC6H_UFLOAT;
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC6U);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
     } else if has_alpha == .False {
-        texture_file_header.format = ifx is_normal_map then .BC1_UNORM else .BC1_SRGB;
+        texture_file_header.format = ifx exchange_texutre_flags & .NORMAL_MAP then .BC1_UNORM else .BC1_SRGB;
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC1);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Highest);
     } else {
-        if is_normal_map {
+        if exchange_texutre_flags & .NORMAL_MAP {
             texture_file_header.format = .BC3_UNORM;
             warningMessage("Normal map \"%\" contains alpha channel. Is it intended?", name);
             nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC3);
@@ -321,10 +323,10 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     }
 
     #if TEST_TEXTURES {
-        if is_normal_map {
+        if exchange_texutre_flags & .NORMAL_MAP {
             nvttSetSurfaceNormalMap(nvtt_surface, .True);
             nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
-        } else if is_hdr {
+        } else if exchange_texutre_flags & .HDR {
             nvttSetSurfaceNormalMap(nvtt_surface, .False);
             nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
         } else {
@@ -341,12 +343,12 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
         nvttSurfaceToGPU(nvtt_surface);
     }
 
-    // Some PNG textures store normals in sRGB...
-    if is_normal_map && is_srgb {
+    // PNG and JPG textures store normals in sRGB...
+    if exchange_texutre_flags & (.NORMAL_MAP | .SRGB) == (.NORMAL_MAP | .SRGB) {
         nvttSurfaceToLinearFromSrgb(nvtt_surface);
         nvttSurfaceExpandNormals(nvtt_surface); // [0; 1] -> [-1; 1]
         nvttSurfaceNormalizeNormalMap(nvtt_surface);
-        is_srgb = false;
+        exchange_texutre_flags &= ~.SRGB;
     }
 
     pushBack(*nvtt_surfaces, nvtt_surface);
@@ -355,7 +357,7 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
         nvtt_surface_copy := nvttSurfaceClone(nvtt_surfaces[it - 1]);
         pushBack(*nvtt_surfaces, nvtt_surface_copy);
 
-        if is_normal_map {
+        if exchange_texutre_flags & .NORMAL_MAP {
             if it > 1 {
                 nvttSurfaceExpandNormals(nvtt_surface_copy); // [0; 1] -> [-1; 1]
             }
@@ -363,7 +365,7 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
             if has_alpha == .True {
                 nvttSurfacePremultiplyAlpha(nvtt_surface_copy);
             }
-            if !is_hdr {
+            if !(exchange_texutre_flags & .HDR) {
                 nvttSurfaceToLinearFromSrgb(nvtt_surface_copy);
             }
         }
@@ -371,22 +373,22 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
         nvtt_success = nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, MIN_TEXTURE_SIDE_SIZE);
         if nvtt_success == .False return false;
 
-        if is_normal_map {
+        if exchange_texutre_flags & .NORMAL_MAP {
             nvttSurfaceNormalizeNormalMap(nvtt_surface_copy);
             nvttSurfacePackNormals(nvtt_surface_copy); // [-1; 1] -> [0; 1]
         } else {
             if has_alpha == .True {
                 nvttSurfaceDemultiplyAlpha(nvtt_surface_copy);
             }
-            if !is_hdr {
+            if !(exchange_texutre_flags & .HDR) {
                 nvttSurfaceToSrgb(nvtt_surface_copy);
             }
         }
     }
 
-    if is_normal_map {
+    if exchange_texutre_flags & .NORMAL_MAP {
         nvttSurfacePackNormals(nvtt_surface); // [-1; 1] -> [0; 1]
-    } else if !is_srgb && !is_hdr {
+    } else if !(exchange_texutre_flags & (.SRGB | .HDR)) {
         nvttSurfaceToSrgb(nvtt_surface);
     }
 
@@ -432,6 +434,141 @@ outputHandler :: (data : *void, size : s32) -> NvttBoolean #c_call {
     push_context, defer_pop g_contextForOutputHandler;
     appendTextureFileData(context.pet.converter.texture_file, .{ count = size, data = data });
     return .True;
+}
+
+DDS_HEADER :: struct {
+    dwSize              : u32;
+    dwFlags             : u32;
+    dwHeight            : u32;
+    dwWidth             : u32;
+    dwPitchOrLinearSize : u32;
+    dwDepth             : u32;
+    dwMipMapCount       : u32;
+    dwReserved1         : [11] u32;
+    ddspf               : DDS_PIXELFORMAT;
+    dwCaps              : u32;
+    dwCaps2             : u32;
+    dwCaps3             : u32;
+    dwCaps4             : u32;
+    dwReserved2         : u32;
+}
+
+DDS_PIXELFORMAT :: struct {
+    dwSize        : u32;
+    dwFlags       : u32;
+    dwFourCC      : u32;
+    dwRGBBitCount : u32;
+    dwRBitMask    : u32;
+    dwGBitMask    : u32;
+    dwBBitMask    : u32;
+    dwABitMask    : u32;
+};
+
+DDS_HEADER_DXT10 :: struct {
+    dxgiFormat        : DXGI_FORMAT;
+    resourceDimension : s32;
+    miscFlag          : u32;
+    arraySize         : u32;
+    miscFlags2        : u32;
+}
+
+DXGI_FORMAT :: enum u32 #specified {
+    // sRGB
+    R8G8B8A8_UNORM_SRGB :: 29;
+    BC1_UNORM_SRGB      :: 72;
+    BC2_UNORM_SRGB      :: 75;
+    BC3_UNORM_SRGB      :: 78;
+    B8G8R8A8_UNORM_SRGB :: 91;
+    B8G8R8X8_UNORM_SRGB :: 93;
+    BC7_UNORM_SRGB      :: 99;
+
+    // HDR
+    R32G32B32A32_FLOAT       :: 2;
+    R32G32B32_FLOAT          :: 6;
+    R16G16B16A16_FLOAT       :: 10;
+    R32G32_FLOAT             :: 16;
+    R32_FLOAT_X8X24_TYPELESS :: 21;
+    R11G11B10_FLOAT          :: 26;
+    R16G16_FLOAT             :: 34;
+    R32_FLOAT                :: 41;
+    R16_FLOAT                :: 54;
+    R9G9B9E5_SHAREDEXP       :: 67;
+    BC6H_TYPELESS            :: 94;
+    BC6H_UF16                :: 95;
+    BC6H_SF16                :: 96;
+}
+
+DDS_MAGIC    : u32 : #char "D" | (#char "D" << 8) | (#char "S" << 16) | (#char " " << 24);
+DXT10_FOURCC : u32 : #char "D" | (#char "X" << 8) | (#char "1" << 16) | (#char "0" << 24);
+NVTT_FOURCC  : u32 : #char "N" | (#char "V" << 8) | (#char "T" << 16) | (#char "T" << 24);
+DDPF_SRGB    : u32 : 0x4000_0000;
+DDPF_NORMAL  : u32 : 0x8000_0000;
+
+getExchangeTextureFlags :: (file_data : string, name : string, extension : string) -> ExchangeTextureFlags {
+    flags : ExchangeTextureFlags;
+
+    if extension == {
+        case "png"; #through;
+        case "jpg"; #through;
+        case "jpeg";
+            // All (most?) browsers assume that png images are stored in sRGB space,
+            // so we do the same no matter if sRGB and iCCP chunks are presented or not.
+            // The same for jpg. Also no HDR support.
+            flags |= .SRGB;
+
+        case "dds";
+            assert((cast(*u32) file_data.data).* == DDS_MAGIC);
+
+            dds_header := cast(*DDS_HEADER) (file_data.data + size_of(u32));
+            if dds_header.dwReserved1[9] == NVTT_FOURCC {
+                if dds_header.ddspf.dwFlags & DDPF_SRGB   then flags |= .SRGB;
+                if dds_header.ddspf.dwFlags & DDPF_NORMAL then flags |= .NORMAL_MAP;
+            } else if dds_header.ddspf.dwFourCC == DXT10_FOURCC {
+                dxt10_header := cast(*DDS_HEADER_DXT10) (dds_header + 1);
+                if dxt10_header.dxgiFormat == {
+                    case .R8G8B8A8_UNORM_SRGB; #through;
+                    case .BC1_UNORM_SRGB;      #through;
+                    case .BC2_UNORM_SRGB;      #through;
+                    case .BC3_UNORM_SRGB;      #through;
+                    case .B8G8R8A8_UNORM_SRGB; #through;
+                    case .B8G8R8X8_UNORM_SRGB; #through;
+                    case .BC7_UNORM_SRGB;
+                        flags |= .SRGB;
+
+                    case .R32G32B32A32_FLOAT;       #through;
+                    case .R32G32B32_FLOAT;          #through;
+                    case .R16G16B16A16_FLOAT;       #through;
+                    case .R32G32_FLOAT;             #through;
+                    case .R32_FLOAT_X8X24_TYPELESS; #through;
+                    case .R11G11B10_FLOAT;          #through;
+                    case .R16G16_FLOAT;             #through;
+                    case .R32_FLOAT;                #through;
+                    case .R16_FLOAT;                #through;
+                    case .R9G9B9E5_SHAREDEXP;       #through;
+                    case .BC6H_TYPELESS;            #through;
+                    case .BC6H_UF16;                #through;
+                    case .BC6H_SF16;
+                        flags |= .HDR;
+                }
+            }
+
+        case;
+            assertMessage("Unhandled extension: \"%\"", extension);
+    }
+
+    if !(flags & .NORMAL_MAP) {
+        // heuristics
+        if String.ends_with(name, "_n")
+        || String.ends_with(name, "_norm")
+        || String.ends_with(name, "_normal")
+        || String.ends_with(name, "_normals") {
+            flags |= .NORMAL_MAP;
+        }
+    }
+
+    assert(flags & (.HDR | .NORMAL_MAP) != (.HDR | .NORMAL_MAP), "Normals cannot be stored in HDR format");
+    assert(flags & (.SRGB | .HDR) != (.SRGB | .HDR), "Texture cannot be stored in HDR and sRGB formats at the same time");
+    return flags;
 }
 
 #if TEST_TEXTURES {
