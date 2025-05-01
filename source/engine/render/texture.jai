@@ -231,5 +231,5 @@ maxMipsCount :: inline (width : u16, height : u16, depth : u16) -> u8 #no_contex
     } else {
         notImplemented();
     }
-    return cast,no_check(u8) max_mips;
+    return cast,no_check(u8) (max_mips + 1);
 }
