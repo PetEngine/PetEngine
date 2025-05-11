@@ -42,12 +42,12 @@ convertExchangeAssetsToRuntime :: () {
 
         nvtt_output_options := nvttCreateOutputOptions();
         defer nvttDestroyOutputOptions(nvtt_output_options);
-        nvttSetOutputOptionsOutputHandler(nvtt_output_options, null, outputHandler, null);
 
         #if TEST_TEXTURES {
             createDirectory(TEST_TEXTURES_FOLDER);
             nvttSetOutputOptionsOutputHeader(nvtt_output_options, .True);
         } else {
+            nvttSetOutputOptionsOutputHandler(nvtt_output_options, null, outputHandler, null);
             nvttSetOutputOptionsOutputHeader(nvtt_output_options, .False);
         }
 
@@ -410,21 +410,21 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     // Compress batch
     //
 
-    texture_file := beginTextureFileSerialization(name);
-    defer endTextureFileSerialization(*texture_file);
-    writeTextureFileHeader(*texture_file, texture_file_header);
-
     #if TEST_TEXTURES {
         nvttContextOutputHeader(textures_context.nvtt_context,
                                 nvtt_surface,
                                 texture_file_header.mips_count,
                                 nvtt_compression_options,
                                 textures_context.nvtt_output_options);
-    }
+    } else {
+        texture_file := beginTextureFileSerialization(name);
+        defer endTextureFileSerialization(*texture_file);
+        writeTextureFileHeader(*texture_file, texture_file_header);
 
-    context.pet.converter.texture_file = *texture_file;
-    defer context.pet.converter = .{};
-    g_contextForOutputHandler = *context;
+        context.pet.converter.texture_file = *texture_file;
+        defer context.pet.converter = .{};
+        g_contextForOutputHandler = *context;
+    }
 
     nvtt_success = nvttContextCompressBatch(textures_context.nvtt_context, batch_list, nvtt_compression_options);
     if nvtt_success == .False return false;
@@ -433,10 +433,12 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     return true;
 }
 
-outputHandler :: (data : *void, size : s32) -> NvttBoolean #c_call {
-    push_context, defer_pop g_contextForOutputHandler;
-    appendTextureFileData(context.pet.converter.texture_file, .{ count = size, data = data });
-    return .True;
+#if !TEST_TEXTURES {
+    outputHandler :: (data : *void, size : s32) -> NvttBoolean #c_call {
+        push_context, defer_pop g_contextForOutputHandler;
+        appendTextureFileData(context.pet.converter.texture_file, .{ count = size, data = data });
+        return .True;
+    }
 }
 
 DDS_HEADER :: struct {
