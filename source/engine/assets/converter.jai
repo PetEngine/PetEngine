@@ -269,7 +269,7 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
     }
 
     nvtt_surface := nvttCreateSurface();
-    defer nvttDestroySurface(nvtt_surface);
+    // Do not defer nvttDestroySurface here, all the surfaces will be destroyed in the defered loop below
 
     has_alpha : NvttBoolean;
     nvtt_success := nvttSurfaceLoadFromMemory(nvtt_surface,
@@ -322,7 +322,7 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
 
     nvtt_surfaces : StaticArray(*NvttSurface, Texture.MAX_MIPS_SUPPORTED);
     defer for nvtt_surfaces {
-        if it_index > 0 nvttDestroySurface(it); // see: nvttDestroySurface(nvtt_surface)
+        nvttDestroySurface(it);
     }
 
     #if TEST_TEXTURES {
@@ -346,53 +346,42 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
         nvttSurfaceToGPU(nvtt_surface);
     }
 
-    // PNG and JPG textures store normals in sRGB...
-    if exchange_texutre_flags & (.NORMAL_MAP | .SRGB) == (.NORMAL_MAP | .SRGB) {
+    if exchange_texutre_flags & .SRGB {
         nvttSurfaceToLinearFromSrgb(nvtt_surface);
+    }
+
+    if exchange_texutre_flags & .NORMAL_MAP {
         nvttSurfaceExpandNormals(nvtt_surface); // [0; 1] -> [-1; 1]
         nvttSurfaceNormalizeNormalMap(nvtt_surface);
-        exchange_texutre_flags &= ~.SRGB;
+        exchange_texutre_flags &= ~.SRGB; // PNG and JPG textures store normals in sRGB...
+    } else if has_alpha == .True {
+        nvttSurfacePremultiplyAlpha(nvtt_surface);
     }
 
     pushBack(*nvtt_surfaces, nvtt_surface);
-
     for 1 .. texture_file_header.mips_count - 1 {
         nvtt_surface_copy := nvttSurfaceClone(nvtt_surfaces[it - 1]);
         pushBack(*nvtt_surfaces, nvtt_surface_copy);
-
-        if exchange_texutre_flags & .NORMAL_MAP {
-            if it > 1 {
-                nvttSurfaceExpandNormals(nvtt_surface_copy); // [0; 1] -> [-1; 1]
-            }
-        } else {
-            if has_alpha == .True {
-                nvttSurfacePremultiplyAlpha(nvtt_surface_copy);
-            }
-            if !(exchange_texutre_flags & .HDR) {
-                nvttSurfaceToLinearFromSrgb(nvtt_surface_copy);
-            }
-        }
 
         nvtt_success = nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, MIN_TEXTURE_SIDE_SIZE);
         if nvtt_success == .False return false;
 
         if exchange_texutre_flags & .NORMAL_MAP {
             nvttSurfaceNormalizeNormalMap(nvtt_surface_copy);
-            nvttSurfacePackNormals(nvtt_surface_copy); // [-1; 1] -> [0; 1]
-        } else {
-            if has_alpha == .True {
-                nvttSurfaceDemultiplyAlpha(nvtt_surface_copy);
-            }
-            if !(exchange_texutre_flags & .HDR) {
-                nvttSurfaceToSrgb(nvtt_surface_copy);
-            }
         }
     }
 
-    if exchange_texutre_flags & .NORMAL_MAP {
-        nvttSurfacePackNormals(nvtt_surface); // [-1; 1] -> [0; 1]
-    } else if !(exchange_texutre_flags & (.SRGB | .HDR)) {
-        nvttSurfaceToSrgb(nvtt_surface);
+    for nvtt_surfaces {
+        if exchange_texutre_flags & .NORMAL_MAP {
+            nvttSurfacePackNormals(it); // [-1; 1] -> [0; 1]
+        } else {
+            if has_alpha == .True {
+                nvttSurfaceDemultiplyAlpha(it);
+            }
+            if !(exchange_texutre_flags & .HDR) {
+                nvttSurfaceToSrgb(it);
+            }
+        }
     }
 
     //
