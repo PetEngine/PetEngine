@@ -18,7 +18,7 @@ openWindowsFile :: (filename : string, flags : File.Flags, $create_path_if_does_
                 #if create_path_if_does_not_exist {
                     warningMessage("Path to file \"%\" does not exist, so it will be created", filename);
 
-                    createPathToFilename(*utf16_filename);
+                    createPathToFilename(*utf16_filename, false);
 
                     file.handle = CreateFileW(utf16_filename.data, desired_access, shared_access, null, creation_disposition, flags_and_attributes, null);
                     if file.handle == INVALID_HANDLE_VALUE {
@@ -306,7 +306,7 @@ getWindowsAbsolutePath :: (absolute_path_buffer : *[$capacity] u8, relative_path
 
 createWindowsDirectory :: (filename : string) {
     utf16_filename := UTF8ToUTF16(filename, pushToArena, *context.pet.arenas.per_frame);
-    createPathToFilename(*utf16_filename);
+    createPathToFilename(*utf16_filename, true);
 }
 
 #scope_file
@@ -381,7 +381,7 @@ flagsToWin32Flags :: (flags : File.Flags) -> (
     return desired_access, shared_access, creation_disposition, flags_and_attributes;
 }
 
-createPathToFilename :: (filename : *[] WCHAR) {
+createPathToFilename :: (filename : *[] WCHAR, $may_exist : bool) {
     directory_end := filename.data + filename.count - 1;
     while directory_end > filename.data {
         if directory_end.* == #char "/" || directory_end.* == #char "\\" {
@@ -401,15 +401,20 @@ createPathToFilename :: (filename : *[] WCHAR) {
         directory_end.* = old_symbol;
         filename.count  = old_length;
     } else if GetLastError() == ERROR_PATH_NOT_FOUND {
-        createPathToFilename(filename);
+        createPathToFilename(filename, may_exist);
 
         directory_end.* = old_symbol;
         filename.count  = old_length;
 
         debugCheck(CreateDirectoryW(filename.data, null), print_sys_error = true);
     } else {
-        // We do not handle ERROR_ALREADY_EXISTS because this function is called only when CreateFileW returns ERROR_PATH_NOT_FOUND
-        assertMessage("CreateDirectoryW has failed", print_sys_error = true);
+        #if may_exist {
+            if GetLastError() != ERROR_ALREADY_EXISTS {
+                assertMessage("CreateDirectoryW has failed", print_sys_error = true);
+            }
+        } else {
+            assertMessage("CreateDirectoryW has failed", print_sys_error = true);
+        }
     }
 }
 
