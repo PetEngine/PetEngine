@@ -22,8 +22,6 @@ convertExchangeAssetsToRuntime :: () {
 
     textures_context : TexturesContext;
     if fileExists(AssetConverter.EXCHANGE_TEXTURES_FOLDER) {
-        autoResetPerFrameArenas();
-
         textures_begin := Basic.current_time_monotonic();
         defer textures_context.duration = Basic.to_float64_seconds(Basic.current_time_monotonic() - textures_begin);
 
@@ -53,7 +51,7 @@ convertExchangeAssetsToRuntime :: () {
 
         cuda_supported := nvttIsCudaSupported();
         if cuda_supported == .False {
-            warningMessage("CUDA is not supported. Convertion will take much more time since it will be done on CPU.");
+            warningMessage("CUDA is not supported. Conversion will take much more time since it will be done on CPU.");
         }
 
         nvtt_context := nvttCreateContext();
@@ -144,6 +142,17 @@ ExchangeTextureFlags :: enum_flags u8 {
     NORMAL_MAP;
 }
 
+// @TODO: #ConversionRules.
+TextureConversionRule :: struct {
+    max_texture_width  : u16 = 4096;
+    max_texture_height : u16 = 4096;
+    max_texture_depth  : u16 = 2048;
+
+    min_texture_width  : u16 = 4;
+    min_texture_height : u16 = 4;
+    min_texture_depth  : u16 = 2;
+}
+
 convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
         "obj"
@@ -215,6 +224,8 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
         return .CONTINUE;
     }
 
+    autoResetPerFrameArenas();
+
     texture_name := string.{
         exchange_file_info.name.count - (AssetConverter.EXCHANGE_TEXTURES_FOLDER.count + "/".count) - (".".count + extension.count),
         exchange_file_info.name.data  + (AssetConverter.EXCHANGE_TEXTURES_FOLDER.count + "/".count)
@@ -247,7 +258,10 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
         nvttSetOutputOptionsFileName(textures_context.nvtt_output_options, test_filename.data);
     }
 
-    if convertTextureNVTT(textures_context, exchange_file_info.name, texture_name, extension) {
+    // @TODO: #ConversionRules.
+    rule : TextureConversionRule;
+
+    if convertTextureNVTT(textures_context.*, rule, exchange_file_info.name, texture_name, extension) {
         textures_context.converted += 1;
     } else {
         errorMessage("Failed to convert \"%1.%2\" to \"%1.texture\"", texture_name, extension);
@@ -256,7 +270,13 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
     return .CONTINUE;
 }
 
-convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : string, name : string, extension : string) -> bool {
+convertTextureNVTT :: (
+    textures_context  : TexturesContext,
+    rule              : TextureConversionRule,
+    exchange_filename : string,
+    name              : string,
+    extension         : string
+) -> bool {
     infoMessage("Converting \"%.%\"...", name, extension);
 
     file_data, error := readEntireFile(exchange_filename, pushToArena, *context.pet.arenas.per_frame);
@@ -279,12 +299,13 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
                                               cast(NvttBoolean) (exchange_texutre_flags & .NORMAL_MAP));
     if nvtt_success == .False return false;
 
-    MIN_TEXTURE_SIDE_SIZE :: 4;
+    source_width  := cast(u16) nvttSurfaceWidth(nvtt_surface);
+    source_height := cast(u16) nvttSurfaceHeight(nvtt_surface);
+    source_depth  : u16;
 
     texture_file_header := TextureFile.Header.{
-        mips_count = cast(u8)  nvttSurfaceCountMipmaps(nvtt_surface, MIN_TEXTURE_SIDE_SIZE),
-        width      = cast(u16) nvttSurfaceWidth(nvtt_surface),
-        height     = cast(u16) nvttSurfaceHeight(nvtt_surface),
+        width  = min(source_width,  rule.max_texture_width),
+        height = min(source_height, rule.max_texture_height),
     };
 
     if nvttSurfaceType(nvtt_surface) == {
@@ -292,9 +313,18 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
             texture_file_header.flags = .CUBE;
 
         case ._3D;
-            texture_file_header.depth = cast(u16) nvttSurfaceDepth(nvtt_surface);
+            source_depth = cast(u16) nvttSurfaceDepth(nvtt_surface);
+            texture_file_header.depth = min(source_depth, rule.max_texture_depth);
             assert(!array_size, "Texture arrays cannot contain 3D textures");
     }
+
+    min_texture_width  := min(source_width,  rule.min_texture_width);
+    min_texture_height := min(source_height, rule.min_texture_height);
+
+    tail_mips_count_to_drop := maxMipsCount(min_texture_width, min_texture_height, min(source_depth, rule.min_texture_depth)) - 1;
+
+    texture_file_header.mips_count = maxMipsCount(texture_file_header.width, texture_file_header.height, texture_file_header.depth);
+    texture_file_header.mips_count = max(texture_file_header.mips_count - tail_mips_count_to_drop, 1);
 
     nvtt_compression_options := nvttCreateCompressionOptions();
     defer nvttDestroyCompressionOptions(nvtt_compression_options);
@@ -358,12 +388,36 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
         nvttSurfacePremultiplyAlpha(nvtt_surface);
     }
 
-    pushBack(*nvtt_surfaces, nvtt_surface);
+    source_mips_count := maxMipsCount(source_width, source_height, source_depth);
+    source_mips_count  = max(source_mips_count - tail_mips_count_to_drop, 1);
+
+    assert(source_mips_count >= texture_file_header.mips_count);
+    head_mips_count_to_drop := source_mips_count - texture_file_header.mips_count;
+
+    min_texture_wh := min(min_texture_width, min_texture_height);
+
+    prev_surface := nvtt_surface;
+    for 1 .. head_mips_count_to_drop {
+        nvtt_surface_copy := nvttSurfaceClone(prev_surface);
+        defer {
+            nvttDestroySurface(prev_surface);
+            prev_surface = nvtt_surface_copy;
+        }
+
+        nvtt_success = nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, min_texture_wh);
+        if nvtt_success == .False return false;
+
+        if exchange_texutre_flags & .NORMAL_MAP {
+            nvttSurfaceNormalizeNormalMap(nvtt_surface_copy);
+        }
+    }
+
+    pushBack(*nvtt_surfaces, prev_surface);
     for 1 .. texture_file_header.mips_count - 1 {
         nvtt_surface_copy := nvttSurfaceClone(nvtt_surfaces[it - 1]);
         pushBack(*nvtt_surfaces, nvtt_surface_copy);
 
-        nvtt_success = nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, MIN_TEXTURE_SIDE_SIZE);
+        nvtt_success = nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, min_texture_wh);
         if nvtt_success == .False return false;
 
         if exchange_texutre_flags & .NORMAL_MAP {
@@ -401,7 +455,7 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
 
     #if TEST_TEXTURES {
         nvttContextOutputHeader(textures_context.nvtt_context,
-                                nvtt_surface,
+                                nvtt_surfaces[0],
                                 texture_file_header.mips_count,
                                 nvtt_compression_options,
                                 textures_context.nvtt_output_options);

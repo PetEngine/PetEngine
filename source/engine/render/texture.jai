@@ -220,11 +220,10 @@ textureFormatFlags :: (format : Texture.Format) -> Texture.FormatFlags {
     return 0;
 }
 
-#scope_file
-
-// We may not to check for all_bits != 0 since we have assert for width > 0 in createTexture
-maxMipsCount :: inline (width : u16, height : u16, depth : u16) -> u8 #no_context {
+maxMipsCount :: inline (width : u16, height : u16, depth : u16) -> u8 {
     all_bits := width | height | depth;
+    assert(all_bits != 0);
+
     max_mips : u16 = 0;
     #if CPU == .X64 {
         #asm { bsr.w max_mips, all_bits; }

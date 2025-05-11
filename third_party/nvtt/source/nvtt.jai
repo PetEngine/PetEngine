@@ -155,7 +155,6 @@ nvttSurfaceLoadFromMemory :: (
     tc           : *NvttTimingContext = null
 ) -> NvttBoolean #foreign nvtt;
 nvttSurfaceToGPU :: (surface : *NvttSurface, performCopy : NvttBoolean = .True, tc : *NvttTimingContext = null) #foreign nvtt;
-nvttSurfaceCountMipmaps :: (surface : *NvttSurface, min_size : s32) -> s32 #foreign nvtt;
 nvttSurfaceBuildNextMipmapDefaults :: (
     surface  : *NvttSurface,
     filter   : NvttMipmapFilter,
