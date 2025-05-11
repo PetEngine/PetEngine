@@ -279,7 +279,7 @@ convertTextureNVTT :: (textures_context : *TexturesContext, exchange_filename : 
                                               cast(NvttBoolean) (exchange_texutre_flags & .NORMAL_MAP));
     if nvtt_success == .False return false;
 
-    MIN_TEXTURE_SIDE_SIZE :: 2;
+    MIN_TEXTURE_SIDE_SIZE :: 4;
 
     texture_file_header := TextureFile.Header.{
         mips_count = cast(u8)  nvttSurfaceCountMipmaps(nvtt_surface, MIN_TEXTURE_SIDE_SIZE),
