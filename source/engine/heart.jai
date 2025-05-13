@@ -58,7 +58,7 @@ bindHeart :: (heart : *Heart) {
     }
 }
 
-updateHeart :: (heart : *Heart, input : *Input) {
+updateHeart :: (heart : *Heart, input : Input) {
     if !heart.mesh return;
 
     first_key := Input.Key.KEY_0;
@@ -72,7 +72,7 @@ updateHeart :: (heart : *Heart, input : *Input) {
     }
 }
 
-drawHeart :: (command_buffer : *CommandBuffer, heart : *Heart, per_view_uniform : *PerViewUniform) {
+drawHeart :: (command_buffer : *CommandBuffer, heart : Heart, per_view_uniform : PerViewUniform) {
     if !isMeshReady(heart.mesh) return;
     if !isTextureReady(heart.texture_assets[0]) return;
 

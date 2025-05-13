@@ -273,7 +273,7 @@ petMain :: () {
         resetArena(*context.pet.arenas.per_frame);
         Basic.reset_temporary_storage();
 
-        updateHeart(*heart, *window.input);
+        updateHeart(*heart, window.input);
         updateSkybox(*skybox, window.input);
 
         beginFrame();
@@ -427,8 +427,8 @@ petMain :: () {
                            .[ .{ back_buffer_view, .CLEAR, .STORE } ],
                            *(DepthTargetDesc.{ view = depth_buffer_dsv, depth_load_action = .CLEAR, depth_store_action = .NONE }));
             {
-                drawFloor(*command_buffer, *floor, *per_view_uniform);
-                drawHeart(*command_buffer, *heart, *per_view_uniform);
+                drawHeart(*command_buffer, heart, per_view_uniform);
+                drawFloor(*command_buffer, floor, per_view_uniform);
                 drawSkybox(*command_buffer, skybox, per_view_uniform);
             }
             endRendering(*command_buffer);
