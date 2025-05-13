@@ -59,7 +59,7 @@ bindHeart :: (heart : *Heart) {
 }
 
 updateHeart :: (heart : *Heart, input : Input) {
-    if !heart.mesh return;
+    if !heart.mesh || isAnyOfModKeysDown(input) return;
 
     first_key := Input.Key.KEY_0;
     last_key  := Input.Key.KEY_0 + cast(Input.Key) heart.mesh.submeshes_count; // no need for -1
