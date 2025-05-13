@@ -445,9 +445,9 @@ changeVulkanTextureLayout :: (command_buffer : VkCommandBuffer, texture : *Vulka
         subresourceRange    = .{
             aspectMask     = getVulkanImageAspectFlags(texture.format),
             baseMipLevel   = 0,
-            levelCount     = texture.mips_count,
+            levelCount     = VK_REMAINING_MIP_LEVELS,
             baseArrayLayer = 0,
-            layerCount     = ifx texture.flags & .ARRAY then texture.array_size else 1
+            layerCount     = VK_REMAINING_ARRAY_LAYERS,
         },
     };
 
