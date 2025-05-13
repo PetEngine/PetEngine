@@ -29,9 +29,9 @@ convertExchangeAssetsToRuntime :: () {
             push_context,defer_pop cast(*#Context) userData;
 
             if severity == {
-                case .Info;    infoMessage("%", to_string(message));
-                case .Warning; warningMessage("%", to_string(message));
-                case .Error;   errorMessage("%", to_string(message));
+                case .Info;    infoMessage("NVTT: %", to_string(message));
+                case .Warning; warningMessage("NVTT: %", to_string(message));
+                case .Error;   errorMessage("NVTT: %", to_string(message));
             }
         }
 
@@ -142,6 +142,14 @@ ExchangeTextureFlags :: enum_flags u8 {
     NORMAL_MAP;
 }
 
+SurfaceInfo :: struct {
+    surface     : *NvttSurface;
+    array_layer : u16;
+    face        : u8;
+    mip         : u8;
+}
+SurfaceInfoArray :: StaticArray(SurfaceInfo, 6 * Texture.MAX_MIPS_SUPPORTED);
+
 // @TODO: #ConversionRules.
 TextureConversionRule :: struct {
     max_texture_width  : u16 = 4096;
@@ -231,7 +239,16 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
         exchange_file_info.name.data  + (AssetConverter.EXCHANGE_TEXTURES_FOLDER.count + "/".count)
     };
 
-    #if !TEST_TEXTURES {
+    #if TEST_TEXTURES {
+        test_filename := makeTestTextureFilename(texture_name);
+
+        test_file_info, error := getFileInfo(test_filename);
+        assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
+
+        if test_file_info.last_write_time >= exchange_file_info.last_write_time {
+            return .CONTINUE;
+        }
+    } else {
         runtime_filename := makeRuntimeTextureFilename(texture_name);
 
         runtime_file_info, error := getFileInfo(runtime_filename);
@@ -254,7 +271,6 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
     textures_context.total += 1;
 
     #if TEST_TEXTURES {
-        test_filename := makeTestTextureFilename(texture_name);
         nvttSetOutputOptionsFileName(textures_context.nvtt_output_options, test_filename.data);
     }
 
@@ -263,6 +279,8 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
 
     if convertTextureNVTT(textures_context.*, rule, exchange_file_info.name, texture_name, extension) {
         textures_context.converted += 1;
+    } else #if TEST_TEXTURES {
+        errorMessage("Failed to convert \"%1.%2\" to \"%1.dds\"", texture_name, extension);
     } else {
         errorMessage("Failed to convert \"%1.%2\" to \"%1.texture\"", texture_name, extension);
     }
@@ -282,41 +300,87 @@ convertTextureNVTT :: (
     file_data, error := readEntireFile(exchange_filename, pushToArena, *context.pet.arenas.per_frame);
     assert(error == .NONE);
 
-    exchange_texutre_flags, array_size := getExchangeTextureFlags(file_data, name, extension);
+    exchange_texture_flags, array_size := getExchangeTextureFlags(file_data, name, extension);
     if array_size {
         errorMessage("NVTT 3.0 has no support for texture arrays, so they are not supported yet");
         return false;
     }
 
+    texture_file_header : TextureFile.Header;
+
     nvtt_surface := nvttCreateSurface();
-    // Do not defer nvttDestroySurface here, all the surfaces will be destroyed in the defered loop below
+    // Do not defer nvttDestroySurface for regular textures,
+    // all the surfaces will be destroyed in the defered loop below
+    defer if texture_file_header.flags & .CUBE {
+        nvttDestroySurface(nvtt_surface);
+    }
 
     has_alpha : NvttBoolean;
     nvtt_success := nvttSurfaceLoadFromMemory(nvtt_surface,
                                               file_data.data,
                                               cast(u64) file_data.count,
                                               *has_alpha,
-                                              cast(NvttBoolean) (exchange_texutre_flags & .NORMAL_MAP));
-    if nvtt_success == .False return false;
+                                              cast(NvttBoolean) (exchange_texture_flags & .NORMAL_MAP));
+    if nvtt_success == .False {
+        errorMessage("nvttSurfaceLoadFromMemory has failed");
+        return false;
+    }
 
-    source_width  := cast(u16) nvttSurfaceWidth(nvtt_surface);
-    source_height := cast(u16) nvttSurfaceHeight(nvtt_surface);
+    #if TEST_TEXTURES {
+        if exchange_texture_flags & .NORMAL_MAP {
+            nvttSetSurfaceNormalMap(nvtt_surface, .True);
+            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
+        } else if exchange_texture_flags & .HDR {
+            nvttSetSurfaceNormalMap(nvtt_surface, .False);
+            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
+        } else {
+            nvttSetSurfaceNormalMap(nvtt_surface, .False);
+            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .True);
+        }
+    }
+
+    if textures_context.cuda_supported {
+        nvttSurfaceToGPU(nvtt_surface);
+    }
+
+    nvtt_cube_surface : *NvttCubeSurface;
+    defer if nvtt_cube_surface {
+        nvttDestroyCubeSurface(nvtt_cube_surface);
+    }
+
+    source_width  : u16;
+    source_height : u16;
     source_depth  : u16;
 
-    texture_file_header := TextureFile.Header.{
-        width  = min(source_width,  rule.max_texture_width),
-        height = min(source_height, rule.max_texture_height),
-    };
-
+    force_cube : bool; // @Cleanup: #ConversionRules.
     if nvttSurfaceType(nvtt_surface) == {
+        case ._2D;
+            source_width  = cast(u16) nvttSurfaceWidth(nvtt_surface);
+            source_height = cast(u16) nvttSurfaceHeight(nvtt_surface);
+
+            force_cube = String.starts_with(name, "skybox");
+
         case ._Cube;
-            texture_file_header.flags = .CUBE;
+            force_cube = true;
 
         case ._3D;
             source_depth = cast(u16) nvttSurfaceDepth(nvtt_surface);
             texture_file_header.depth = min(source_depth, rule.max_texture_depth);
             assert(!array_size, "Texture arrays cannot contain 3D textures");
     }
+
+    if force_cube {
+        texture_file_header.flags = .CUBE;
+
+        nvtt_cube_surface = nvttCreateCubeSurface();
+        nvttCubeSurfaceFold(nvtt_cube_surface, nvtt_surface, .HorizontalCross);
+
+        source_width  = cast(u16) nvttCubeSurfaceEdgeLength(nvtt_cube_surface);
+        source_height = source_width;
+    }
+
+    texture_file_header.width  = min(source_width,  rule.max_texture_width);
+    texture_file_header.height = min(source_height, rule.max_texture_height);
 
     min_texture_width  := min(source_width,  rule.min_texture_width);
     min_texture_height := min(source_height, rule.min_texture_height);
@@ -328,16 +392,16 @@ convertTextureNVTT :: (
 
     nvtt_compression_options := nvttCreateCompressionOptions();
     defer nvttDestroyCompressionOptions(nvtt_compression_options);
-    if exchange_texutre_flags & .HDR {
+    if exchange_texture_flags & .HDR {
         texture_file_header.format = .BC6H_UFLOAT;
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC6U);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
     } else if has_alpha == .False {
-        texture_file_header.format = ifx exchange_texutre_flags & .NORMAL_MAP then .BC1_UNORM else .BC1_SRGB;
+        texture_file_header.format = ifx exchange_texture_flags & .NORMAL_MAP then .BC1_UNORM else .BC1_SRGB;
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC1);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Highest);
     } else {
-        if exchange_texutre_flags & .NORMAL_MAP {
+        if exchange_texture_flags & .NORMAL_MAP {
             texture_file_header.format = .BC3_UNORM;
             warningMessage("Normal map \"%\" contains alpha channel. Is it intended?", name);
             nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC3);
@@ -350,43 +414,22 @@ convertTextureNVTT :: (
     }
     assert(texture_file_header.format != .UNKNOWN);
 
-    nvtt_surfaces : StaticArray(*NvttSurface, Texture.MAX_MIPS_SUPPORTED);
-    defer for nvtt_surfaces {
-        nvttDestroySurface(it);
-    }
-
-    #if TEST_TEXTURES {
-        if exchange_texutre_flags & .NORMAL_MAP {
-            nvttSetSurfaceNormalMap(nvtt_surface, .True);
-            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
-        } else if exchange_texutre_flags & .HDR {
-            nvttSetSurfaceNormalMap(nvtt_surface, .False);
-            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
+    surface_info_array : SurfaceInfoArray;
+    defer {
+        if texture_file_header.flags & .CUBE {
+            for surface_info_array {
+                if it.mip > 0 then nvttDestroySurface(it.surface);
+            }
         } else {
-            nvttSetSurfaceNormalMap(nvtt_surface, .False);
-            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .True);
+            for surface_info_array {
+                nvttDestroySurface(it.surface);
+            }
         }
     }
 
     //
     // Generate mips and prepare surfaces
     //
-
-    if textures_context.cuda_supported {
-        nvttSurfaceToGPU(nvtt_surface);
-    }
-
-    if exchange_texutre_flags & .SRGB {
-        nvttSurfaceToLinearFromSrgb(nvtt_surface);
-    }
-
-    if exchange_texutre_flags & .NORMAL_MAP {
-        nvttSurfaceExpandNormals(nvtt_surface); // [0; 1] -> [-1; 1]
-        nvttSurfaceNormalizeNormalMap(nvtt_surface);
-        exchange_texutre_flags &= ~.SRGB; // PNG and JPG textures store normals in sRGB...
-    } else if has_alpha == .True {
-        nvttSurfacePremultiplyAlpha(nvtt_surface);
-    }
 
     source_mips_count := maxMipsCount(source_width, source_height, source_depth);
     source_mips_count  = max(source_mips_count - tail_mips_count_to_drop, 1);
@@ -396,44 +439,42 @@ convertTextureNVTT :: (
 
     min_texture_wh := min(min_texture_width, min_texture_height);
 
-    prev_surface := nvtt_surface;
-    for 1 .. head_mips_count_to_drop {
-        nvtt_surface_copy := nvttSurfaceClone(prev_surface);
-        defer {
-            nvttDestroySurface(prev_surface);
-            prev_surface = nvtt_surface_copy;
+    if texture_file_header.flags & .CUBE {
+        for 0 .. 5 {
+            face := nvttCubeSurfaceFace(nvtt_cube_surface, cast(s32) it);
+            if !generateMips(face,
+                                cast(u8) it,
+                                exchange_texture_flags,
+                                has_alpha,
+                                head_mips_count_to_drop,
+                                texture_file_header.mips_count,
+                                min_texture_wh,
+                                *surface_info_array) {
+                return false;
+            }
         }
-
-        nvtt_success = nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, min_texture_wh);
-        if nvtt_success == .False return false;
-
-        if exchange_texutre_flags & .NORMAL_MAP {
-            nvttSurfaceNormalizeNormalMap(nvtt_surface_copy);
-        }
-    }
-
-    pushBack(*nvtt_surfaces, prev_surface);
-    for 1 .. texture_file_header.mips_count - 1 {
-        nvtt_surface_copy := nvttSurfaceClone(nvtt_surfaces[it - 1]);
-        pushBack(*nvtt_surfaces, nvtt_surface_copy);
-
-        nvtt_success = nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, min_texture_wh);
-        if nvtt_success == .False return false;
-
-        if exchange_texutre_flags & .NORMAL_MAP {
-            nvttSurfaceNormalizeNormalMap(nvtt_surface_copy);
+    } else {
+        if !generateMips(nvtt_surface,
+                            0,
+                            exchange_texture_flags,
+                            has_alpha,
+                            head_mips_count_to_drop,
+                            texture_file_header.mips_count,
+                            min_texture_wh,
+                            *surface_info_array) {
+            return false;
         }
     }
 
-    for nvtt_surfaces {
-        if exchange_texutre_flags & .NORMAL_MAP {
-            nvttSurfacePackNormals(it); // [-1; 1] -> [0; 1]
+    for surface_info_array {
+        if exchange_texture_flags & .NORMAL_MAP {
+            nvttSurfacePackNormals(it.surface); // [-1; 1] -> [0; 1]
         } else {
             if has_alpha == .True {
-                nvttSurfaceDemultiplyAlpha(it);
+                nvttSurfaceDemultiplyAlpha(it.surface);
             }
-            if !(exchange_texutre_flags & .HDR) {
-                nvttSurfaceToSrgb(it);
+            if !(exchange_texture_flags & .HDR) {
+                nvttSurfaceToSrgb(it.surface);
             }
         }
     }
@@ -445,8 +486,8 @@ convertTextureNVTT :: (
     batch_list := nvttCreateBatchList();
     defer nvttDestroyBatchList(batch_list);
 
-    for nvtt_surfaces {
-        nvttBatchListAppend(batch_list, it, 0, cast(s32) it_index, textures_context.nvtt_output_options);
+    for surface_info_array {
+        nvttBatchListAppend(batch_list, it.surface, it.face, it.mip, textures_context.nvtt_output_options);
     }
 
     //
@@ -454,11 +495,19 @@ convertTextureNVTT :: (
     //
 
     #if TEST_TEXTURES {
-        nvttContextOutputHeader(textures_context.nvtt_context,
-                                nvtt_surfaces[0],
-                                texture_file_header.mips_count,
-                                nvtt_compression_options,
-                                textures_context.nvtt_output_options);
+        if texture_file_header.flags & .CUBE {
+            nvttContextOutputHeaderCube(textures_context.nvtt_context,
+                                        nvtt_cube_surface,
+                                        texture_file_header.mips_count,
+                                        nvtt_compression_options,
+                                        textures_context.nvtt_output_options);
+        } else {
+            nvttContextOutputHeader(textures_context.nvtt_context,
+                                    surface_info_array[0].surface,
+                                    texture_file_header.mips_count,
+                                    nvtt_compression_options,
+                                    textures_context.nvtt_output_options);
+        }
     } else {
         texture_file := beginTextureFileSerialization(name);
         defer endTextureFileSerialization(*texture_file);
@@ -470,9 +519,77 @@ convertTextureNVTT :: (
     }
 
     nvtt_success = nvttContextCompressBatch(textures_context.nvtt_context, batch_list, nvtt_compression_options);
-    if nvtt_success == .False return false;
+    if nvtt_success == .False {
+        errorMessage("nvttContextCompressBatch has failed");
+        return false;
+    }
 
-    infoMessage("\"%.texture\" has been converted", name);
+    #if TEST_TEXTURES {
+        infoMessage("\"%.dds\" has been converted", name);
+    } else {
+        infoMessage("\"%.texture\" has been converted", name);
+    }
+    return true;
+}
+
+generateMips :: (
+    nvtt_surface            : *NvttSurface,
+    face_index              : u8,
+    exchange_texture_flags  : ExchangeTextureFlags,
+    has_alpha               : NvttBoolean,
+    head_mips_count_to_drop : u8,
+    mips_count_to_generate  : u8,
+    min_texture_wh          : u16,
+    surface_info_array      : *SurfaceInfoArray
+) -> bool {
+    if exchange_texture_flags & .SRGB {
+        nvttSurfaceToLinearFromSrgb(nvtt_surface);
+    }
+
+    if exchange_texture_flags & .NORMAL_MAP {
+        nvttSurfaceExpandNormals(nvtt_surface); // [0; 1] -> [-1; 1]
+        nvttSurfaceNormalizeNormalMap(nvtt_surface);
+    } else if has_alpha == .True {
+        nvttSurfacePremultiplyAlpha(nvtt_surface);
+    }
+
+    for 1 .. head_mips_count_to_drop {
+        nvtt_success := nvttSurfaceBuildNextMipmapDefaults(nvtt_surface, .Kaiser, min_texture_wh);
+        if nvtt_success == .False {
+            errorMessage("nvttSurfaceBuildNextMipmapDefaults has failed");
+            return false;
+        }
+
+        if exchange_texture_flags & .NORMAL_MAP {
+            nvttSurfaceNormalizeNormalMap(nvtt_surface);
+        }
+    }
+
+    {
+        surface_info := pushBack(surface_info_array);
+        surface_info.surface = nvtt_surface;
+        surface_info.face    = face_index;
+    }
+
+    for 1 .. mips_count_to_generate - 1 {
+        nvtt_surface_copy := nvttSurfaceClone(surface_info_array.*[surface_info_array.count - 1].surface);
+
+        surface_info := pushBack(surface_info_array);
+        surface_info.surface = nvtt_surface_copy;
+        surface_info.face    = face_index;
+        surface_info.mip     = it;
+
+        nvtt_success := nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, min_texture_wh);
+        if nvtt_success == .False {
+            errorMessage("nvttSurfaceBuildNextMipmapDefaults has failed");
+            return false;
+        }
+
+        if exchange_texture_flags & .NORMAL_MAP {
+            nvttSurfaceNormalizeNormalMap(nvtt_surface_copy);
+        }
+    }
+
     return true;
 }
 

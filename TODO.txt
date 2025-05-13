@@ -7,7 +7,6 @@
 Converter:
     - Materials.
     - Thread pool.
-    - Cube textures.
     - Texture arrays: NvttSurfaceSet, only DDS.
     - #ConversionRules. Conversion rules for each texutre:
         - max dimensions

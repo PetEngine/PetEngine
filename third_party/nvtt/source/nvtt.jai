@@ -57,6 +57,13 @@ nvttContextCompress :: (
     compressionOptions : *NvttCompressionOptions,
     outputOptions      : *NvttOutputOptions
 ) -> NvttBoolean #foreign nvtt;
+nvttContextOutputHeaderCube :: (
+    context_           : *NvttContext,
+    img                : *NvttCubeSurface,
+    mipmapCount        : s32,
+    compressionOptions : *NvttCompressionOptions,
+    outputOptions      : *NvttOutputOptions
+) -> NvttBoolean #foreign nvtt;
 nvttContextCompressBatch :: (
     context_           : *NvttContext,
     lst                : *NvttBatchList,
@@ -305,3 +312,52 @@ nvttBatchListAppend :: (
     mipmap        : s32,
     outputOptions : *NvttOutputOptions = null
 ) #foreign nvtt;
+
+NvttCubeSurface :: struct {
+    pimpl : *void;
+}
+
+NvttCubeLayout :: enum s32 {
+    /// Unfolds into a 3*edgeLength (width) x 4*edgeLength texture, laid
+    /// out as follows:
+    /// ```text
+    ///  2
+    /// 140
+    ///  3
+    ///  5
+    /// ```
+    /// Face 5 is rotated 180 degrees.
+    VerticalCross;
+    /// Unfolds into a 4*edgeLength (width) x 3*edgeLength texture, laid
+    /// out as follows:
+    /// ```text
+    ///  2
+    /// 1405
+    ///  3
+    /// ```
+    /// Face 5 is rotated 180 degrees.
+    HorizontalCross;
+    /// Writes each face in order into a column layout, like this:
+    /// ```text
+    /// 0
+    /// 1
+    /// 2
+    /// 3
+    /// 4
+    /// 5
+    /// ```
+    Column;
+    /// Writes each face in order into a row layout, like this:
+    /// ```text
+    /// 012345
+    /// ```
+    Row;
+    /// Same as CubeLayout_VerticalCross.
+    LatitudeLongitude;
+}
+
+nvttCreateCubeSurface :: () -> *NvttCubeSurface #foreign nvtt;
+nvttDestroyCubeSurface :: (cubeSurface : *NvttCubeSurface) #foreign nvtt;
+nvttCubeSurfaceEdgeLength :: (cubeSurface : *NvttCubeSurface) -> s32 #foreign nvtt;
+nvttCubeSurfaceFace :: (cubeSurface : *NvttCubeSurface, face : s32) -> *NvttSurface #foreign nvtt;
+nvttCubeSurfaceFold :: (cubeSurface : *NvttCubeSurface, img : *NvttSurface, layout : NvttCubeLayout) #foreign nvtt;
