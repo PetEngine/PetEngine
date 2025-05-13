@@ -262,8 +262,9 @@ petMain :: () {
         resetBindings(.PER_SCENE);
     }
 
-    floor := createFloor(depth_buffer.format);
-    heart := createHeart(depth_buffer.format);
+    floor  := createFloor(depth_buffer.format);
+    heart  := createHeart(depth_buffer.format);
+    skybox := createSkybox(depth_buffer.format);
 
     command_buffer := createCommandBuffer(.GRAPHICS);
 
@@ -273,6 +274,7 @@ petMain :: () {
         Basic.reset_temporary_storage();
 
         updateHeart(*heart, *window.input);
+        updateSkybox(*skybox, window.input);
 
         beginFrame();
         {
@@ -304,11 +306,13 @@ petMain :: () {
 
                 // Create per scene resources here...
                 loadHeart(*heart);
+                loadSkybox(*skybox);
 
                 // Commit
                 commitResourceMemory(.PER_SCENE);
 
                 bindHeart(*heart);
+                bindSkybox(*skybox);
 
                 // @Important: Should be after per scene memory commit
                 processRequestedAssets();
@@ -425,6 +429,7 @@ petMain :: () {
             {
                 drawFloor(*command_buffer, *floor, *per_view_uniform);
                 drawHeart(*command_buffer, *heart, *per_view_uniform);
+                drawSkybox(*command_buffer, skybox, per_view_uniform);
             }
             endRendering(*command_buffer);
         }
@@ -453,6 +458,7 @@ operator >= :: Basic.operator >=;
 #load "shader_compiler/hot_reload.jai";
 #load "floor.jai";
 #load "heart.jai";
+#load "skybox.jai";
 
 Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
 Reflection :: #import "Reflection";
