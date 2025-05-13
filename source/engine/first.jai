@@ -371,8 +371,8 @@ petMain :: () {
                     if window.input.keyboard[Input.Key.Q] & .DOWN then move.y = -speed;
 
                     if window.input.mouse.button_right & .DOWN {
-                        angleXY.x = -window.input.mouse.dx * per_frame_uniform.data.dtime;
-                        angleXY.y = -window.input.mouse.dy * per_frame_uniform.data.dtime;
+                        angleXY.x = 8.0 * -window.input.mouse.dx * per_frame_uniform.data.dtime;
+                        angleXY.y = 8.0 * -window.input.mouse.dy * per_frame_uniform.data.dtime;
                     } else {
                         if window.input.keyboard[Input.Key.LEFT]  & .DOWN then angleXY.x += per_frame_uniform.data.dtime;
                         if window.input.keyboard[Input.Key.RIGHT] & .DOWN then angleXY.x -= per_frame_uniform.data.dtime;
