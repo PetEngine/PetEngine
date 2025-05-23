@@ -49,14 +49,6 @@ nvttContextOutputHeader :: (
     compressionOptions : *NvttCompressionOptions,
     outputOptions      : *NvttOutputOptions
 ) -> NvttBoolean #foreign nvtt;
-nvttContextCompress :: (
-    context_           : *NvttContext,
-    img                : *NvttSurface,
-    face               : s32,
-    mipmap             : s32,
-    compressionOptions : *NvttCompressionOptions,
-    outputOptions      : *NvttOutputOptions
-) -> NvttBoolean #foreign nvtt;
 nvttContextOutputHeaderCube :: (
     context_           : *NvttContext,
     img                : *NvttCubeSurface,

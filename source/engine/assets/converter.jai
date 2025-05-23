@@ -295,8 +295,6 @@ convertTextureNVTT :: (
     name              : string,
     extension         : string
 ) -> bool {
-    infoMessage("Converting \"%.%\"...", name, extension);
-
     file_data, error := readEntireFile(exchange_filename, pushToArena, *context.pet.arenas.per_frame);
     assert(error == .NONE);
 
@@ -525,9 +523,9 @@ convertTextureNVTT :: (
     }
 
     #if TEST_TEXTURES {
-        infoMessage("\"%.dds\" has been converted", name);
+        infoMessage("\"%1.%2\" has been converted to \"%1.dds\"", name, extension);
     } else {
-        infoMessage("\"%.texture\" has been converted", name);
+        infoMessage("\"%1.%2\" has been converted to \"%1.texture\"", name, extension);
     }
     return true;
 }

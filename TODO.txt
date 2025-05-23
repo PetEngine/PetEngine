@@ -7,10 +7,11 @@
 Converter:
     - Materials.
     - Thread pool.
-    - Texture arrays: NvttSurfaceSet, only DDS.
+    - Texture arrays.
     - #ConversionRules. Conversion rules for each texutre:
         - max dimensions
         - min dimensions
+        - generate mips
         ? format
         ? combine some textures into texture array
 
