@@ -350,7 +350,7 @@ pushVulkanSamplerBinding :: (descriptor_set : DescriptorSet, resource : *Sampler
             data.pSampler = *sampler.sampler,
         };
 
-        descriptor_size := device.descriptor_buffer_properties.uniformBufferDescriptorSize;
+        descriptor_size := device.descriptor_buffer_properties.samplerDescriptorSize;
 
         descriptor_memory := bindings.descriptor_buffer.mapped_memory
                            + cast(u64) layout.slot_offsets[DescriptorSetSlot.SAMPLERS]

@@ -121,7 +121,7 @@ VkAccessFlags :: enum_flags VkFlags #specified {
     VK_ACCESS_NONE_KHR                                      :: VK_ACCESS_NONE;
 }
 
-// Provided by VK_VERSION_1_3
+// Provided by VK_VERSION_1_0
 VkMemoryBarrier :: struct {
     sType         : VkStructureType = .VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     pNext         : *void;

@@ -14,7 +14,7 @@ createFloor :: (depth_format : Texture.Format) -> Floor {
     return floor;
 }
 
-drawFloor :: (command_buffer : *CommandBuffer, floor : *Floor, per_view_uniform : *PerViewUniform) {
+drawFloor :: (command_buffer : *CommandBuffer, floor : Floor, per_view_uniform : PerViewUniform) {
     render_resolution := context.pet.render.device.render_resolution;
 
     setViewport(command_buffer, *(Viewport.{

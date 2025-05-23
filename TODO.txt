@@ -2,16 +2,25 @@
 // Assets
 //
 
+- Move assets out of the engine folder
+
 Converter:
     - Materials.
     - Thread pool.
+    - Texture arrays.
+    - #ConversionRules. Conversion rules for each texutre:
+        - max dimensions
+        - min dimensions
+        - generate mips
+        ? format
+        ? combine some textures into texture array
 
 Manager:
     - Possible owners for resource
     - Transfer command buffer
     - Pipeline barriers before and after copies
     - @Cleanup vulkan stuff
-    - Move copies to upload buffer from processRequestedAssets to requestMesh
+    - #SinglePointWait. Make a single point where we wait for all requested assets.
     - Persistent assets
 
 Mesh file:
@@ -29,6 +38,7 @@ Mesh file:
 //
 
 - Do something "Mysterious stash".
+- #Atomics. Implement atomics
 
 Debug:
     - Find out how Visual Studio handles inline procedures.
@@ -84,6 +94,7 @@ Window:
 - #PerFrameResources. Should we be able to upload data to per frame resources? Maybe we want to restrict it?
   Also it seems like we have to restrict having any owners other than .GRAPHICS for per frame resources
   since we do not want to release memory which is in use by async queues.
+- Implement Event and Fence
 
 Binding Manager:
     - Per view & per material bindings.
@@ -115,14 +126,16 @@ Device:
     - #HDR. Hardware HDR support.
     - #SwapchainBuffers. Swapchain buffer views.
     - Link all Vulkan functions dynamically.
+    ! Update minimal supported Vulkan version to 1.3
 
 Resource Manager:
     ? #SwapchainBuffers. Add swapchain buffers to Resource Manager.
     - Rework resource layout changing mechanism. If we gonna compile our command buffers concurrently,
       current way of tracking current texture layout will not work.
-    - Use reserved resources or something instead of freeing memory on reset. Use sparce bindings maybe?
+    - Do not free memory on every reset.
     - Robust buffer and image access.
     - #MTRendering. Thread safety for memory pools and name arenas.
+    - Add cache for samplers.
 
 Shader Manager:
     ? Split into 2 files: shader_manager.jai and shader.jai.

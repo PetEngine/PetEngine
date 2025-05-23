@@ -108,7 +108,7 @@ composeVulkanSamplerName :: (sampler : *VulkanSampler, memory_pool : *VulkanReso
 samplerFilterToVkFilter :: inline (filter : Sampler.Filter) -> VkFilter {
     if #complete filter == {
         case .POINT;  return .VK_FILTER_NEAREST;
-        case .LIENAR; return .VK_FILTER_LINEAR;
+        case .LINEAR; return .VK_FILTER_LINEAR;
     }
     return .VK_FILTER_NEAREST;
 }
@@ -116,7 +116,7 @@ samplerFilterToVkFilter :: inline (filter : Sampler.Filter) -> VkFilter {
 samplerFilterToVkSamplerMipmapMode :: inline (filter : Sampler.Filter) -> VkSamplerMipmapMode {
     if #complete filter == {
         case .POINT;  return .VK_SAMPLER_MIPMAP_MODE_NEAREST;
-        case .LIENAR; return .VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        case .LINEAR; return .VK_SAMPLER_MIPMAP_MODE_LINEAR;
     }
     return .VK_SAMPLER_MIPMAP_MODE_NEAREST;
 }

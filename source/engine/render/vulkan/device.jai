@@ -1317,6 +1317,8 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
         device.descriptor_buffers_supported &= available_descriptor_buffer_features.descriptorBuffer == VK_TRUE;
         // Device address support
         assert(available_features_1_2.bufferDeviceAddress == VK_TRUE);
+        // 16-bit types in push constants
+        assert(available_features_1_1.storagePushConstant16 == VK_TRUE);
         // gl_BaseInstance etc support
         assert(available_features_1_1.shaderDrawParameters == VK_TRUE);
         // VK_EXT_swapchain_maintenance1
@@ -1341,8 +1343,9 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
         bufferDeviceAddress = VK_TRUE,
     };
     features_1_1_to_enable := VkPhysicalDeviceVulkan11Features.{
-        pNext                = *features_1_2_to_enable,
-        shaderDrawParameters = VK_TRUE,
+        pNext                 = *features_1_2_to_enable,
+        storagePushConstant16 = VK_TRUE,
+        shaderDrawParameters  = VK_TRUE,
     };
     features_to_enable := VkPhysicalDeviceFeatures2.{
         pNext                                   = *features_1_1_to_enable,

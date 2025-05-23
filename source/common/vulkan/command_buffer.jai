@@ -196,6 +196,29 @@ VkCopyBufferInfo2 :: struct {
     pRegions    : *VkBufferCopy2;
 }
 
+// Provided by VK_VERSION_1_3
+VkBufferImageCopy2 :: struct {
+    sType             : VkStructureType = .VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
+    pNext             : *void;
+    bufferOffset      : VkDeviceSize;
+    bufferRowLength   : u32;
+    bufferImageHeight : u32;
+    imageSubresource  : VkImageSubresourceLayers;
+    imageOffset       : VkOffset3D;
+    imageExtent       : VkExtent3D;
+}
+
+// Provided by VK_VERSION_1_3
+VkCopyBufferToImageInfo2 :: struct {
+    sType          : VkStructureType = .VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2;
+    pNext          : *void;
+    srcBuffer      : VkBuffer;
+    dstImage       : VkImage;
+    dstImageLayout : VkImageLayout;
+    regionCount    : u32;
+    pRegions       : *VkBufferImageCopy2;
+}
+
 // Provided by VK_VERSION_1_0
 vkAllocateCommandBuffers :: (
     device          : VkDevice,
@@ -305,4 +328,10 @@ vkCmdPushConstants :: (
 vkCmdCopyBuffer2 :: (
     commandBuffer   : VkCommandBuffer,
     pCopyBufferInfo : *VkCopyBufferInfo2
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_3
+vkCmdCopyBufferToImage2 :: (
+    commandBuffer          : VkCommandBuffer,
+    pCopyBufferToImageInfo : *VkCopyBufferToImageInfo2
 ) #foreign vulkan;

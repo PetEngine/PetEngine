@@ -4,7 +4,7 @@ Sampler :: struct {
 
     Filter :: enum u8 {
         POINT;
-        LIENAR;
+        LINEAR;
     }
 
     AddressMode :: enum u8 {

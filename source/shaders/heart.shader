@@ -6,13 +6,13 @@ layout(push_constant) uniform PushConstants {
     Indices32Ref     indices_ref;
     DefaultVertexRef vertices_ref;
     uint32_t         per_view_uniform_index;
-} g_push_constants;
+} g_vs_push_constants;
 
-out vec3 o_color;
+out vec2 o_uv;
 
 void main() {
-    Indices32Ref     index_ref  = g_push_constants.indices_ref[gl_VertexIndex];
-    DefaultVertexRef vertex_ref = g_push_constants.vertices_ref[gl_BaseInstance + index_ref.index];
+    Indices32Ref     index_ref  = g_vs_push_constants.indices_ref[gl_VertexIndex];
+    DefaultVertexRef vertex_ref = g_vs_push_constants.vertices_ref[gl_BaseInstance + index_ref.index];
 
     f32vec4 position = f32vec4(vertex_ref.position_u.xyz, 1.0);
 
@@ -31,17 +31,24 @@ void main() {
         position.xz = position.xx * f32vec2(c, -s) + position.zz * f32vec2(s, c);
     }
 
-    gl_Position = g_per_view_uniforms[g_push_constants.per_view_uniform_index].view_proj_matrix * position;
-    o_color     = vertex_ref.normal_v.xyz;
+    gl_Position = g_per_view_uniforms[g_vs_push_constants.per_view_uniform_index].view_proj_matrix * position;
+    o_uv        = vec2(vertex_ref.position_u.w, vertex_ref.normal_v.w);
 }
 
 #fragment_shader
 
-in  vec3 i_color;
+layout(push_constant) uniform PushConstants {
+    layout(offset = 20) uint16_t texture_index;
+    uint16_t sampler_index;
+} g_ps_push_constants;
+
+in  vec2 i_uv;
 out vec4 o_color;
 
 void main() {
-    o_color = vec4(i_color, 1.0);
+    o_color = texture(sampler2D(g_per_scene_textures_2d[g_ps_push_constants.texture_index],
+                                g_per_scene_samplers[g_ps_push_constants.sampler_index]),
+                      i_uv);
 }
 
 #pipeline_state

@@ -41,6 +41,10 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
         binding_manager  : *BindingManager;
     };
 
+    converter : struct {
+        texture_file : *TextureFile;
+    }
+
     initGlobals :: (new_context : *#Context) {
         #insert -> string {
             builder := Basic.String_Builder.{ allocator = Basic.temp };
@@ -241,8 +245,6 @@ petMain :: () {
 
     depth_buffer_dsv := createTextureView(depth_buffer, .DEPTH_TARGET, lifetime = .PERSISTENT);
 
-    depth_sampler := createSampler(.{ anisotropy = Sampler.MAX_ANISOTROPY }, .PERSISTENT, "Depth sampler");
-
     // Create persistent buffers and textures here...
 
     commitResourceMemory(.PERSISTENT);
@@ -260,8 +262,9 @@ petMain :: () {
         resetBindings(.PER_SCENE);
     }
 
-    floor := createFloor(depth_buffer.format);
-    heart := createHeart(depth_buffer.format);
+    floor  := createFloor(depth_buffer.format);
+    heart  := createHeart(depth_buffer.format);
+    skybox := createSkybox(depth_buffer.format);
 
     command_buffer := createCommandBuffer(.GRAPHICS);
 
@@ -270,7 +273,8 @@ petMain :: () {
         resetArena(*context.pet.arenas.per_frame);
         Basic.reset_temporary_storage();
 
-        updateHeart(*heart, *window.input);
+        updateHeart(*heart, window.input);
+        updateSkybox(*skybox, window.input);
 
         beginFrame();
         {
@@ -301,10 +305,14 @@ petMain :: () {
                 resetBindings(.PER_SCENE);
 
                 // Create per scene resources here...
-                loadHeartMesh(*heart);
+                loadHeart(*heart);
+                loadSkybox(*skybox);
 
                 // Commit
                 commitResourceMemory(.PER_SCENE);
+
+                bindHeart(*heart);
+                bindSkybox(*skybox);
 
                 // @Important: Should be after per scene memory commit
                 processRequestedAssets();
@@ -363,8 +371,8 @@ petMain :: () {
                     if window.input.keyboard[Input.Key.Q] & .DOWN then move.y = -speed;
 
                     if window.input.mouse.button_right & .DOWN {
-                        angleXY.x = -window.input.mouse.dx * per_frame_uniform.data.dtime;
-                        angleXY.y = -window.input.mouse.dy * per_frame_uniform.data.dtime;
+                        angleXY.x = 8.0 * -window.input.mouse.dx * per_frame_uniform.data.dtime;
+                        angleXY.y = 8.0 * -window.input.mouse.dy * per_frame_uniform.data.dtime;
                     } else {
                         if window.input.keyboard[Input.Key.LEFT]  & .DOWN then angleXY.x += per_frame_uniform.data.dtime;
                         if window.input.keyboard[Input.Key.RIGHT] & .DOWN then angleXY.x -= per_frame_uniform.data.dtime;
@@ -419,8 +427,9 @@ petMain :: () {
                            .[ .{ back_buffer_view, .CLEAR, .STORE } ],
                            *(DepthTargetDesc.{ view = depth_buffer_dsv, depth_load_action = .CLEAR, depth_store_action = .NONE }));
             {
-                drawFloor(*command_buffer, *floor, *per_view_uniform);
-                drawHeart(*command_buffer, *heart, *per_view_uniform);
+                drawHeart(*command_buffer, heart, per_view_uniform);
+                drawFloor(*command_buffer, floor, per_view_uniform);
+                drawSkybox(*command_buffer, skybox, per_view_uniform);
             }
             endRendering(*command_buffer);
         }
@@ -430,9 +439,8 @@ petMain :: () {
     waitDeviceIdle();
 }
 
-operator! :: Basic.operator!;
-operator- :: Basic.operator-;
-operator> :: Basic.operator>;
+operator -  :: Basic.operator -;
+operator >= :: Basic.operator >=;
 
 #import "common"()(DEBUG_BUILD = DEBUG_BUILD, PRINT_VERBOSE_MESSAGES = PRINT_VERBOSE_MESSAGES);
 
@@ -450,6 +458,7 @@ operator> :: Basic.operator>;
 #load "shader_compiler/hot_reload.jai";
 #load "floor.jai";
 #load "heart.jai";
+#load "skybox.jai";
 
 Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
 Reflection :: #import "Reflection";

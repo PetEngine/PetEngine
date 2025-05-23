@@ -821,13 +821,8 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvRe
         }
 
         for push_constant_block : toView(it.push_constant_blocks, it.push_constant_block_count) {
-            push_constant_binding_index := -1;
-            for toView(binding_table.push_constants.data, binding_table.push_constants_count) {
-                if it.offset == push_constant_block.offset {
-                    push_constant_binding_index = it_index;
-                    break;
-                }
-            }
+            push_constant_binding_index, success := findPushConstantBlock(binding_table.*, push_constant_block);
+            if !success return false;
 
             if push_constant_binding_index != -1 {
                 binding_table.push_constants[push_constant_binding_index].stage_flags |= stage_flag;
@@ -839,7 +834,7 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvRe
 
             push_constant_binding.stage_flags = stage_flag;
             push_constant_binding.offset      = push_constant_block.offset;
-            push_constant_binding.bytes       = push_constant_block.padded_size;
+            push_constant_binding.bytes       = push_constant_block.size - push_constant_block.offset;
 
             assert(push_constant_block.name,
                    "A name for push constants instance #%, stage: % is null for some reason. It can be 0 length, but have to be non-null",
@@ -870,6 +865,63 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvRe
     }
 
     return true;
+}
+
+findPushConstantBlock :: (binding_table : BindingTable, block : SpvReflectBlockVariable) -> (index : s64, success : bool) {
+    block_name := to_string(block.name);
+
+    for toView(binding_table.push_constants_names.data, binding_table.push_constants_count) {
+        it_name := string.{ it.length, it.buffer.data };
+        if it_name == block_name {
+            it_block := binding_table.push_constants[it_index];
+            if it_block.offset == block.offset && it_block.bytes == block.size - block.offset {
+                return it_index, true;
+            }
+
+            errorMessage(#string END
+This push constant block has the same name as push constant block #%1, but has different offset and/or size:
+    this block:
+        name:   %2
+        offset: %3
+        size:   %4
+    block #%1:
+        name:   %5
+        offset: %6
+        size:   %7
+END,
+                         it_index,
+                         block_name, block.offset, block.size - block.offset,
+                         it_name, it_block.offset, it_block.bytes);
+
+            return -1, false;
+        }
+    }
+
+    for toView(binding_table.push_constants.data, binding_table.push_constants_count) {
+        if it.offset < block.size && block.offset < it.offset + it.bytes {
+            it_name     := binding_table.push_constants_names[it_index];
+            it_name_str := string.{ it_name.length, it_name.buffer.data };
+
+            errorMessage(#string END
+This push constant block overlaps with push constant block #%1:
+    this block:
+        name:   %2
+        offset: %3
+        size:   %4
+    block #%1:
+        name:   %5
+        offset: %6
+        size:   %7
+END,
+                         it_index,
+                         block_name,  block.offset, block.size - block.offset,
+                         it_name_str, it.offset, it.bytes);
+
+            return -1, false;
+        }
+    }
+
+    return -1, true;
 }
 
 resolveIncludeCallback :: (

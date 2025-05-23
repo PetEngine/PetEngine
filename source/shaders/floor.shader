@@ -2,40 +2,33 @@
 
 #vertex_shader
 
-struct Vertex {
-    vec3 position;
-    vec3 color;
-};
-
 #define DISTANCE 50.0
-
-const Vertex g_vertices[] = {
-    { { -DISTANCE, 0.0,  DISTANCE }, { 1.0, 0.0, 0.0 } },
-    { {  DISTANCE, 0.0,  DISTANCE }, { 0.0, 1.0, 0.0 } },
-    { { -DISTANCE, 0.0, -DISTANCE }, { 1.0, 0.0, 1.0 } },
-    { {  DISTANCE, 0.0, -DISTANCE }, { 0.0, 0.0, 1.0 } },
-};
 
 layout(push_constant) uniform PushConstants {
     uint32_t per_view_uniform_index;
 } g_push_constants;
 
-out vec3 o_color;
+out vec2 o_uv;
 
 void main() {
-    const Vertex vertex = g_vertices[gl_VertexIndex];
+    o_uv = vec2(gl_VertexIndex & 1, gl_VertexIndex >> 1);
 
-    gl_Position = g_per_view_uniforms[g_push_constants.per_view_uniform_index].view_proj_matrix * vec4(vertex.position, 1.0);
-    o_color     = vertex.color;
+    vec4 position;
+    position.x = 2.0 * DISTANCE * o_uv.x - DISTANCE;
+    position.y = 0.0;
+    position.z = DISTANCE - 2.0 * DISTANCE * o_uv.y;
+    position.w = 1.0;
+
+    gl_Position = g_per_view_uniforms[g_push_constants.per_view_uniform_index].view_proj_matrix * position;
 }
 
 #fragment_shader
 
-in  vec3 i_color;
+in  vec2 i_uv;
 out vec4 o_color;
 
 void main() {
-    o_color = vec4(i_color, 1.0);
+    o_color = vec4(i_uv, 0.0, 1.0);
 }
 
 #pipeline_state

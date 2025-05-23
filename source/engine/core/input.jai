@@ -286,6 +286,13 @@ getWindowSurfaceSpaceMousePosition :: inline (window : *Window) -> (x : s16, y :
            window.input.mouse.screen_y - window.surface.y;
 }
 
+isAnyOfModKeysDown :: inline (input : Input) -> bool {
+    combined_state := input.keyboard[Input.Key.LEFT_SHIFT] | input.keyboard[Input.Key.RIGHT_SHIFT]
+                    | input.keyboard[Input.Key.LEFT_CTRL]  | input.keyboard[Input.Key.RIGHT_CTRL]
+                    | input.keyboard[Input.Key.LEFT_ALT]   | input.keyboard[Input.Key.RIGHT_ALT];
+    return cast(bool) (combined_state & .DOWN);
+}
+
 #scope_file
 
 #if OS == .WINDOWS {

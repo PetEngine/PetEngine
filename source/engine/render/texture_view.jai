@@ -1,4 +1,6 @@
 TextureView :: struct {
+    ALL_LAYERS : u16 : 0xFFFF;
+
     texture      : *Texture;
     dimension    : Texture.Dimension;
     flags        : Texture.Flags;
@@ -18,11 +20,11 @@ createTextureView :: inline (
     first_mip    : u8  = 0,
     mips_count   : u8  = Texture.ALL_MIPS,
     first_layer  : u16 = 0,
-    layers_count : u16 = Texture.ALL_LAYERS,
+    layers_count : u16 = TextureView.ALL_LAYERS,
     lifetime     : ResourceManager.Lifetime
 ) -> *TextureView #must {
     flags := texture.flags & ~.SWAPCHAIN;
-    if layers_count == 0 then flags &= ~.ARRAY;
+    if layers_count <= 1 then flags &= ~.ARRAY;
 
     return createTextureView(texture,
                              texture.dimension,
@@ -45,7 +47,7 @@ createTextureView :: (
     first_mip    : u8  = 0,
     mips_count   : u8  = Texture.ALL_MIPS,
     first_layer  : u16 = 0,
-    layers_count : u16 = Texture.ALL_LAYERS,
+    layers_count : u16 = TextureView.ALL_LAYERS,
     lifetime     : ResourceManager.Lifetime
 ) -> *TextureView #must {
     assert(!resourceMemoryCommitted(lifetime), "You cannot create %1 texture view after %1 memory is committed", lifetime);
@@ -75,11 +77,11 @@ createTextureView :: (
     assert(first_mip < texture.mips_count);
     assert(ifx flags & .ARRAY then first_layer < texture.array_size else first_layer == 0);
 
-    if mips_count   == Texture.ALL_MIPS   then mips_count   = texture.mips_count - first_mip;
-    if layers_count == Texture.ALL_LAYERS then layers_count = texture.array_size - first_layer;
+    if mips_count   == Texture.ALL_MIPS       then mips_count   = texture.mips_count - first_mip;
+    if layers_count == TextureView.ALL_LAYERS then layers_count = texture.array_size - first_layer;
 
     assert(first_mip + mips_count <= texture.mips_count);
-    assert(ifx flags & .ARRAY then first_layer + layers_count <= texture.array_size else layers_count == 0);
+    assert(ifx flags & .ARRAY then first_layer + layers_count <= texture.array_size else layers_count <= 1);
 
     manager := context.pet.render.resource_manager;
 

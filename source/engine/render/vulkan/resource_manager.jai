@@ -579,6 +579,10 @@ commitVulkanTextureViewMemoryPool :: (memory_pool : *VulkanResourceManager.Textu
             },
         };
 
+        if it.flags & .CUBE {
+            create_info.subresourceRange.layerCount *= 6;
+        }
+
         if it.flags & .ARRAY {
             if it.dimension == {
                 case ._1D;
