@@ -52,6 +52,7 @@ File:
     ? NO_CACHE for readEntireFile.
     - Atomatically setup shared access.
     - Shorter name for EnumerateFilesCallbackResult.
+    - Rename File.Info.name to File.Info.path
 
 Input:
     - In a multimonitor system, MOUSE.MOVE_ABSOLUTE coordinates map to the primary monitor.
