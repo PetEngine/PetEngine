@@ -613,7 +613,8 @@ initRuntimeAndCallEntryPoint :: () {
     context.print_style.default_format_struct.use_long_form_if_more_than_this_many_members = -1;
     context.print_style.default_format_struct.use_newlines_if_long_form                    = true;
     context.print_style.default_format_absolute_pointer.minimum_digits                     = 16;
-    context.print_style.default_format_absolute_pointer.comma_string                       = "'";
+    context.print_style.default_format_absolute_pointer.digits_per_comma                   = 0;
+    context.print_style.default_format_absolute_pointer.comma_string                       = "";
 
     context.allocator = .{ Allocator.rpmalloc_allocator_proc, null };
 
