@@ -589,7 +589,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
                       VK_API_VERSION_PATCH(VulkanDevice.MINIMAL_SUPPORTED_API_VERSION));
     }
 
-    Basic.auto_release_temp();
+    autoResetPerFrameArenas();
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
@@ -803,6 +803,9 @@ messengerCallback :: (
 
     push_context,defer_pop device.messenger_context;
     assertThreadKind(.DEVICE_MESSENGER);
+
+    // autoResetPerFrameArenas is not suittable here since device.messenger_context has no arenas
+    Basic.auto_release_temp();
 
     message := to_string(pCallbackData.pMessage);
     if message[message.count - 1] == #char "." {
@@ -1102,7 +1105,7 @@ gatherQueuesInfo :: () {
     queue_family_properties.data = pushToArena(*context.pet.arenas.per_frame, VkQueueFamilyProperties2, queue_family_properties.count);
     vkGetPhysicalDeviceQueueFamilyProperties2(device.physical_device, cast(*u32) *queue_family_properties.count, queue_family_properties.data);
 
-    Basic.auto_release_temp();
+    autoResetPerFrameArenas();
 
     // Print info about available queue families
     #if PRINT_VERBOSE_MESSAGES {
@@ -1214,7 +1217,7 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
         }
     }
 
-    Basic.auto_release_temp();
+    autoResetPerFrameArenas();
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 

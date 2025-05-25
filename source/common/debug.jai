@@ -608,6 +608,7 @@ printStackTraceFromJaiContext :: (builder : *Basic.String_Builder) {
             context.stack_trace = *this_frame;
         }
 
+        // autoResetPerFrameArenas is not suittable here since g_exception_handler_context.jai_context has no arenas
         Basic.auto_release_temp();
 
         if ExceptionInfo.ExceptionRecord.ExceptionCode == {
