@@ -78,7 +78,7 @@ BufferToTextureCopyRegion :: struct {
     texture_mip         : u8;
 }
 
-createCommandBuffer :: ($usage : QueueType) -> CommandBuffer(usage) #must {
+createCommandBuffer :: ($usage : QueueType) -> CommandBuffer(usage) {
     command_buffer : CommandBuffer(usage);
     command_buffer.handles.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
 

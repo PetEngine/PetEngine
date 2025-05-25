@@ -22,7 +22,7 @@ createTextureView :: inline (
     first_layer  : u16 = 0,
     layers_count : u16 = TextureView.ALL_LAYERS,
     lifetime     : ResourceManager.Lifetime
-) -> *TextureView #must {
+) -> *TextureView {
     flags := texture.flags & ~.SWAPCHAIN;
     if layers_count <= 1 then flags &= ~.ARRAY;
 
@@ -49,7 +49,7 @@ createTextureView :: (
     first_layer  : u16 = 0,
     layers_count : u16 = TextureView.ALL_LAYERS,
     lifetime     : ResourceManager.Lifetime
-) -> *TextureView #must {
+) -> *TextureView {
     assert(!resourceMemoryCommitted(lifetime), "You cannot create %1 texture view after %1 memory is committed", lifetime);
 
     assert(dimension != ._1D || texture.dimension == ._1D,

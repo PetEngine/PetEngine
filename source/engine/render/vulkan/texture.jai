@@ -5,7 +5,7 @@ VulkanTexture :: struct {
     current_layout : VkImageLayout;
 }
 
-pushVulkanTexture :: (lifetime : ResourceManager.Lifetime) -> *Texture #must {
+pushVulkanTexture :: (lifetime : ResourceManager.Lifetime) -> *Texture {
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     texture : *VulkanTexture;

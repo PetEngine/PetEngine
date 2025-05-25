@@ -1,4 +1,4 @@
-pushVulkanCommandBuffer :: (frame_index : u32, queue_type : QueueType) -> VkCommandBuffer #must {
+pushVulkanCommandBuffer :: (frame_index : u32, queue_type : QueueType) -> VkCommandBuffer {
     device := cast(*VulkanDevice) context.pet.render.device;
 
     frame_data := *device.frame_data[frame_index];

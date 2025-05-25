@@ -1,6 +1,6 @@
 #assert OS == .WINDOWS "This file should not be used anywhere except Windows builds";
 
-openWindowsFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exist := false) -> (File #must, File.Error #must) {
+openWindowsFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exist := false) -> (File, File.Error) {
     utf16_filename := UTF8ToUTF16(filename, pushToArena, *context.pet.arenas.per_frame);
 
     desired_access, shared_access, creation_disposition, flags_and_attributes := flagsToWin32Flags(flags);

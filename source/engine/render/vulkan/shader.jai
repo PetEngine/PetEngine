@@ -75,7 +75,7 @@ resetVulkanShaderManager :: () {
     }
 }
 
-findVulkanShader :: (name : string) -> *Shader #must {
+findVulkanShader :: (name : string) -> *Shader {
     manager := cast(*VulkanShaderManager) context.pet.render.shader_manager;
 
     for * toView(manager.shaders_storage.data, manager.shaders_count) {
@@ -94,7 +94,7 @@ VulkanShader :: struct {
     pipeline        : VkPipeline;
 }
 
-pushVulkanShader :: () -> *Shader #must {
+pushVulkanShader :: () -> *Shader {
     manager := cast(*VulkanShaderManager) context.pet.render.shader_manager;
 
     assert(manager.shaders_count < manager.shaders_storage.count,
@@ -294,7 +294,7 @@ shaderStageFlagsToVulkanStageFlags :: inline (stage : ShaderStageFlags) -> VkSha
 
 #scope_file
 
-createShaderStage :: (spirv : string, stage : ShaderStage, shader_name : string) -> VkShaderModule #must {
+createShaderStage :: (spirv : string, stage : ShaderStage, shader_name : string) -> VkShaderModule {
     device := cast(*VulkanDevice) context.pet.render.device;
 
     create_info := VkShaderModuleCreateInfo.{

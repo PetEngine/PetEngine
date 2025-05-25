@@ -118,7 +118,7 @@ createTexture :: (
     lifetime            : ResourceManager.Lifetime,
     name                : string,
     possible_owners     : ..QueueType = .[ .GRAPHICS ]
-) -> *Texture #must {
+) -> *Texture {
     assert(!resourceMemoryCommitted(lifetime), "You cannot create %1 texture after %1 memory is committed", lifetime);
 
     assert(!(flags & .SWAPCHAIN),

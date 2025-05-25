@@ -18,9 +18,9 @@ BindingManager :: struct {
 
     resetPlatformBindings : (descriptor_set : DescriptorSet);
 
-    pushPlatformBufferBinding  : (descriptor_set : DescriptorSet, resource : *Buffer, offset : u32, size : u32) -> BindingHandle #must;
-    pushPlatformTextureBinding : (descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle #must;
-    pushPlatformSamplerBinding : (descriptor_set : DescriptorSet, resource : *Sampler) -> BindingHandle #must;
+    pushPlatformBufferBinding  : (descriptor_set : DescriptorSet, resource : *Buffer, offset : u32, size : u32) -> BindingHandle;
+    pushPlatformTextureBinding : (descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle;
+    pushPlatformSamplerBinding : (descriptor_set : DescriptorSet, resource : *Sampler) -> BindingHandle;
 }
 
 // @Important: Should be synced with defines in graphics_bindings.shader_header

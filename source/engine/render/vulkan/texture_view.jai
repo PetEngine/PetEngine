@@ -4,7 +4,7 @@ VulkanTextureView :: struct {
     view : VkImageView;
 }
 
-pushVulkanTextureView :: (lifetime : ResourceManager.Lifetime) -> *TextureView #must {
+pushVulkanTextureView :: (lifetime : ResourceManager.Lifetime) -> *TextureView {
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     view : *VulkanTextureView;

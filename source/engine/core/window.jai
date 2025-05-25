@@ -145,7 +145,7 @@ createWindow :: (
     y       : s16        = Window.OS_DEFAULT_POSITION,
     surface : Resolution = .{ Window.OS_DEFAULT_SIZE, Window.OS_DEFAULT_SIZE },
     title   : string     = ENGINE_NAME
-) -> *Window #must {
+) -> *Window {
     assertThreadKind(.MAIN);
 
     manager := context.pet.core.window_manager;

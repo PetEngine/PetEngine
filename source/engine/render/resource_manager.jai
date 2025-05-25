@@ -33,16 +33,16 @@ ResourceManager :: struct {
     commitPlatformResourceMemory   : (lifetime : Lifetime);
     resetPlatformResourceMemory    : (lifetime : Lifetime);
 
-    pushPlatformBuffer   : (lifetime : Lifetime, pool : Pool) -> *Buffer #must;
+    pushPlatformBuffer   : (lifetime : Lifetime, pool : Pool) -> *Buffer;
     createPlatformBuffer : (buffer : *Buffer, pool : Pool, name : string);
 
-    pushPlatformTexture   : (lifetime : Lifetime) -> *Texture #must;
+    pushPlatformTexture   : (lifetime : Lifetime) -> *Texture;
     createPlatformTexture : (texture : *Texture, lifetime : Lifetime, name : string);
 
-    pushPlatformTextureView   : (lifetime : Lifetime) -> *TextureView #must;
+    pushPlatformTextureView   : (lifetime : Lifetime) -> *TextureView;
     createPlatformTextureView : (view : *TextureView, name : string);
 
-    pushPlatformSampler   : (lifetime : Lifetime) -> *Sampler #must;
+    pushPlatformSampler   : (lifetime : Lifetime) -> *Sampler;
     createPlatformSampler : (sampler : *Sampler, state : *SamplerState, name : string);
 }
 

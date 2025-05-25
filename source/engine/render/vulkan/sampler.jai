@@ -4,7 +4,7 @@ VulkanSampler :: struct {
     sampler : VkSampler;
 }
 
-pushVulkanSampler :: (lifetime : ResourceManager.Lifetime) -> *Sampler #must {
+pushVulkanSampler :: (lifetime : ResourceManager.Lifetime) -> *Sampler {
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     sampler : *VulkanSampler;

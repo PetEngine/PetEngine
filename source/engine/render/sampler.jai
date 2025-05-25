@@ -61,7 +61,7 @@ SamplerState :: struct {
 }
 #assert size_of(SamplerState) == 16;
 
-createSampler :: (state : SamplerState = .{}, lifetime : ResourceManager.Lifetime, name : string) -> *Sampler #must {
+createSampler :: (state : SamplerState = .{}, lifetime : ResourceManager.Lifetime, name : string) -> *Sampler {
     assert(!resourceMemoryCommitted(lifetime), "You cannot create %1 sampler after %1 memory is committed", lifetime);
 
     assert(state.min_lod <= state.max_lod);

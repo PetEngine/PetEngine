@@ -179,7 +179,7 @@ destroySubarena :: (subarena : *Arena) {
     memset(subarena, 0, size_of(Arena));
 }
 
-pushToArena :: (arena : *Arena, bytes : s64, alignment := DEFAULT_ALIGNMENT) -> *void #must {
+pushToArena :: (arena : *Arena, bytes : s64, alignment := DEFAULT_ALIGNMENT) -> *void {
     assert(arena.memory && arena.capacity, "Create arena first");
     assert(bytes > 0, "There is no sense in allocating <= 0 bytes");
 
@@ -206,7 +206,7 @@ pushToArena :: (arena : *Arena, bytes : s64, alignment := DEFAULT_ALIGNMENT) -> 
     return aligned_address;
 }
 
-pushToArena :: (arena : *Arena, $type : Type, count := 1, alignment := 0) -> *type #must {
+pushToArena :: (arena : *Arena, $type : Type, count := 1, alignment := 0) -> *type {
     memory : *type = ---;
 
     // @Important: Some WinAPI functions (CreateWindowExW for instance) fail

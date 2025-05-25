@@ -10,11 +10,11 @@ ShaderManager :: struct {
     destroyPlatformShaderManager : ();
     resetPlatformShaderManager   : ();
 
-    pushPlatformShader : () -> *Shader #must;
+    pushPlatformShader : () -> *Shader;
 
     createGraphicsPlatformShader : (shader : *Shader, shader_file_data : string);
 
-    findPlatformShader           : (name : string) -> *Shader #must;
+    findPlatformShader           : (name : string) -> *Shader;
     reloadGraphicsPlatformShader : (shader : *Shader, shader_file_data : string);
 }
 
@@ -58,7 +58,7 @@ PushConstantsHandle :: struct {
     index : u8 = INVALID_INDEX;
 }
 
-createShader :: (name : string, color_target_formats : [] Texture.Format, depth_target_format : Texture.Format = .UNKNOWN) -> *Shader #must {
+createShader :: (name : string, color_target_formats : [] Texture.Format, depth_target_format : Texture.Format = .UNKNOWN) -> *Shader {
     assert(color_target_formats.count <= Shader.color_target_formats.capacity);
 
     shader := context.pet.render.shader_manager.pushPlatformShader();
@@ -83,7 +83,7 @@ createShader :: (name : string, color_target_formats : [] Texture.Format, depth_
     return shader;
 }
 
-findShader :: inline (name : string) -> *Shader #must {
+findShader :: inline (name : string) -> *Shader {
     return context.pet.render.shader_manager.findPlatformShader(name);
 }
 

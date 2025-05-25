@@ -160,7 +160,7 @@ resetVulkanBindings :: (descriptor_set : DescriptorSet) {
     bindings.descriptors_pushed_packed = 0;
 }
 
-pushVulkanBufferBinding  :: (descriptor_set : DescriptorSet, resource : *Buffer, offset : u32, size : u32) -> BindingHandle #must {
+pushVulkanBufferBinding  :: (descriptor_set : DescriptorSet, resource : *Buffer, offset : u32, size : u32) -> BindingHandle {
     device  := cast(*VulkanDevice)         context.pet.render.device;
     manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
     buffer  := cast(*VulkanBuffer)         resource;
@@ -243,7 +243,7 @@ pushVulkanBufferBinding  :: (descriptor_set : DescriptorSet, resource : *Buffer,
     };
 }
 
-pushVulkanTextureBinding :: (descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle #must {
+pushVulkanTextureBinding :: (descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle {
     device       := cast(*VulkanDevice)         context.pet.render.device;
     manager      := cast(*VulkanBindingManager) context.pet.render.binding_manager;
     texture_view := cast(*VulkanTextureView)    resource;
@@ -322,7 +322,7 @@ pushVulkanTextureBinding :: (descriptor_set : DescriptorSet, resource : *Texture
     };
 }
 
-pushVulkanSamplerBinding :: (descriptor_set : DescriptorSet, resource : *Sampler) -> BindingHandle #must {
+pushVulkanSamplerBinding :: (descriptor_set : DescriptorSet, resource : *Sampler) -> BindingHandle {
     device  := cast(*VulkanDevice)         context.pet.render.device;
     manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
     sampler := cast(*VulkanSampler)        resource;

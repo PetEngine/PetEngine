@@ -4,7 +4,7 @@ VulkanBuffer :: struct {
     buffer : VkBuffer;
 }
 
-pushVulkanBuffer :: (lifetime : ResourceManager.Lifetime, pool : ResourceManager.Pool) -> *Buffer #must {
+pushVulkanBuffer :: (lifetime : ResourceManager.Lifetime, pool : ResourceManager.Pool) -> *Buffer {
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     buffer : *VulkanBuffer;
@@ -16,7 +16,7 @@ pushVulkanBuffer :: (lifetime : ResourceManager.Lifetime, pool : ResourceManager
     return buffer;
 }
 
-pushVulkanDescriptorBuffer :: inline () -> *VulkanBuffer #must {
+pushVulkanDescriptorBuffer :: inline () -> *VulkanBuffer {
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     return pushBack(*manager.descriptor_buffers.persistent.resources);

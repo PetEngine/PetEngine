@@ -59,7 +59,7 @@ destroyWin32WindowManager :: () {
     debugCheck(FreeLibrary(manager.app_instance), print_sys_error = true);
 }
 
-allocateWin32Window :: () -> *Win32Window #must {
+allocateWin32Window :: () -> *Win32Window {
     manager := cast(*Win32WindowManager) context.pet.core.window_manager;
 
     window : *Win32Window;

@@ -23,7 +23,7 @@ createBuffer :: (
     usage           : Buffer.Usage,
     name            : string,
     possible_owners : ..QueueType = .[ .GRAPHICS ]
-) -> *Buffer #must {
+) -> *Buffer {
     assert(!resourceMemoryCommitted(lifetime), "You cannot create %1 buffer after %1 memory is committed", lifetime);
 
     assert(name.count <= ResourceManager.MAX_RESOURCE_NAME_LENGTH,

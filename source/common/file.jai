@@ -65,7 +65,7 @@ File :: struct {
 }
 
 // create_path_if_does_not_exist have sense only if you do NOT specify EXISTS flag.
-openFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exist := false) -> (File #must, File.Error #must) {
+openFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exist := false) -> (File, File.Error) {
     assertFileNameLength(filename);
 
     #if OS == .WINDOWS {
@@ -109,7 +109,7 @@ readEntireFile :: (
     filename  : string,
     allocate  : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
     user_data : *T
-) -> (string #must, File.Error #must) {
+) -> (string, File.Error) {
     buffer : string;
 
     file, error := openFile(filename, .READ | .SHARED_READ | .EXISTS | .SEQ);
