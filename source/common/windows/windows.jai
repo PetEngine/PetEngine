@@ -1501,6 +1501,35 @@ TryAcquireSRWLockShared :: (
     SRWLock : *SRWLOCK
 ) -> BOOLEAN #foreign kernel32;
 
+CRITICAL_SECTION :: struct {
+    DebugInfo      : *void;
+    LockCount      : s32;
+    RecursionCount : s32;
+    OwningThread   : HANDLE;
+    LockSemaphore  : HANDLE;
+    SpinCount      : ULONG_PTR;
+}
+
+InitializeCriticalSection :: (
+    lpCriticalSection : *CRITICAL_SECTION
+) #foreign kernel32;
+
+DeleteCriticalSection :: (
+    lpCriticalSection : *CRITICAL_SECTION
+) #foreign kernel32;
+
+EnterCriticalSection :: (
+    lpCriticalSection : *CRITICAL_SECTION
+) #foreign kernel32;
+
+LeaveCriticalSection :: (
+    lpCriticalSection : *CRITICAL_SECTION
+) #foreign kernel32;
+
+TryEnterCriticalSection :: (
+    lpCriticalSection : *CRITICAL_SECTION
+) #foreign kernel32;
+
 VK :: enum u8 #specified {
     BACK             :: 0x08;
     TAB              :: 0x09;

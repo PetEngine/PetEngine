@@ -37,3 +37,54 @@ scopedLock :: (mutex : *Mutex, $shared := false) #expand #no_context {
     lock(mutex, shared);
     `defer unlock(mutex, shared);
 }
+
+RecursiveMutex :: struct {
+    #if OS == .WINDOWS {
+        critical_section : CRITICAL_SECTION;
+    }
+}
+
+createRecursiveMutex :: (mutex : *RecursiveMutex) #no_context {
+    #if OS == .WINDOWS {
+        InitializeCriticalSection(*mutex.critical_section);
+    } else {
+        notImplemented();
+    }
+}
+
+destroyRecursiveMutex :: (mutex : *RecursiveMutex) #no_context {
+    #if OS == .WINDOWS {
+        DeleteCriticalSection(*mutex.critical_section);
+    } else {
+        notImplemented();
+    }
+}
+
+lock :: (mutex : *RecursiveMutex) #no_context {
+    #if OS == .WINDOWS {
+        EnterCriticalSection(*mutex.critical_section);
+    } else {
+        notImplemented();
+    }
+}
+
+unlock :: (mutex : *RecursiveMutex) #no_context {
+    #if OS == .WINDOWS {
+        LeaveCriticalSection(*mutex.critical_section);
+    } else {
+        notImplemented();
+    }
+}
+
+tryLock :: (mutex : *RecursiveMutex) -> bool #no_context {
+    #if OS == .WINDOWS {
+        return cast(bool) TryEnterCriticalSection(*mutex.critical_section);
+    } else {
+        notImplemented();
+    }
+}
+
+scopedLock :: (mutex : *RecursiveMutex) #expand #no_context {
+    lock(mutex);
+    `defer unlock(mutex);
+}
