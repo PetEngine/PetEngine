@@ -4,15 +4,14 @@
 
 HANDLE :: *void;
 
-HINSTANCE             :: *HINSTANCE__;             HINSTANCE__             :: struct { unused : s32; }
-HICON                 :: *HICON__;                 HICON__                 :: struct { unused : s32; }
-HCURSOR               :: *HCURSOR__;               HCURSOR__               :: struct { unused : s32; }
-HBRUSH                :: *HBRUSH__;                HBRUSH__                :: struct { unused : s32; }
-HWND                  :: *HWND__;                  HWND__                  :: struct { unused : s32; }
-HMENU                 :: *HMENU__;                 HMENU__                 :: struct { unused : s32; }
-DPI_AWARENESS_CONTEXT :: *DPI_AWARENESS_CONTEXT__; DPI_AWARENESS_CONTEXT__ :: struct { unused : s32; }
-HKEY                  :: *HKEY__;                  HKEY__                  :: struct { unused : s32; }
-HRAWINPUT             :: *HRAWINPUT__;             HRAWINPUT__             :: struct { unused : s32; }
+HINSTANCE :: *HINSTANCE__; HINSTANCE__ :: struct { unused : s32; }
+HICON     :: *HICON__;     HICON__     :: struct { unused : s32; }
+HCURSOR   :: *HCURSOR__;   HCURSOR__   :: struct { unused : s32; }
+HBRUSH    :: *HBRUSH__;    HBRUSH__    :: struct { unused : s32; }
+HWND      :: *HWND__;      HWND__      :: struct { unused : s32; }
+HMENU     :: *HMENU__;     HMENU__     :: struct { unused : s32; }
+HKEY      :: *HKEY__;      HKEY__      :: struct { unused : s32; }
+HRAWINPUT :: *HRAWINPUT__; HRAWINPUT__ :: struct { unused : s32; }
 
 HMODULE :: HINSTANCE;
 HLOCAL  :: HANDLE;
@@ -605,10 +604,6 @@ COLOR_GRAYTEXT      : s32 : 17;
 COLOR_BTNTEXT       : s32 : 18;
 COLOR_HOTLIGHT      : s32 : 26;
 
-GetSysColor :: (
-    nIndex : s32
-) -> u32 #foreign user32;
-
 GetLastError :: (
 ) -> u32 #foreign kernel32;
 
@@ -816,17 +811,6 @@ RtlUnicodeToUTF8N :: (
     UnicodeStringByteCount    : u32
 ) -> NTSTATUS #foreign ntdll;
 
-LocalFree :: (
-  hMem : HLOCAL
-) -> HLOCAL #foreign kernel32;
-
-SendMessageW :: (
-    hWnd   : HWND,
-    Msg    : WM,
-    wParam : WPARAM,
-    lParam : LPARAM
-) -> LRESULT #foreign user32;
-
 PostQuitMessage :: (
     nExitCode : s32
 ) #foreign user32;
@@ -877,9 +861,6 @@ MINMAXINFO :: struct {
     ptMinTrackSize : POINT;
     ptMaxTrackSize : POINT;
 }
-
-GetCurrentThreadId :: (
-) -> u32 #foreign kernel32;
 
 GetCurrentProcess :: (
 ) -> HANDLE #foreign kernel32;
@@ -941,34 +922,6 @@ AdjustWindowRectEx :: (
 GetDpiForWindow :: (
     hwnd : HWND
 ) -> u32 #foreign user32;
-
-GetDpiForSystem :: (
-) -> u32 #foreign user32;
-
-DPI_AWARENESS_CONTEXT_UNAWARE              :: cast,no_check(DPI_AWARENESS_CONTEXT) -1;
-DPI_AWARENESS_CONTEXT_SYSTEM_AWARE         :: cast,no_check(DPI_AWARENESS_CONTEXT) -2;
-DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE    :: cast,no_check(DPI_AWARENESS_CONTEXT) -3;
-DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 :: cast,no_check(DPI_AWARENESS_CONTEXT) -4;
-DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED    :: cast,no_check(DPI_AWARENESS_CONTEXT) -5;
-
-SetProcessDpiAwarenessContext :: (
-    value : DPI_AWARENESS_CONTEXT
-) -> BOOL #foreign user32;
-
-SetThreadDpiAwarenessContext :: (
-    dpiContext : DPI_AWARENESS_CONTEXT
-) -> DPI_AWARENESS_CONTEXT #foreign user32;
-
-DPI_AWARENESS :: enum s32 #specified {
-    DPI_AWARENESS_INVALID           :: -1;
-    DPI_AWARENESS_UNAWARE           ::  0;
-    DPI_AWARENESS_SYSTEM_AWARE      ::  1;
-    DPI_AWARENESS_PER_MONITOR_AWARE ::  2;
-}
-
-GetAwarenessFromDpiAwarenessContext :: (
-    value : DPI_AWARENESS_CONTEXT
-) -> DPI_AWARENESS #foreign user32;
 
 POINT :: struct {
     x : s32;
@@ -1208,15 +1161,6 @@ THREAD_START_ROUTINE :: #type (
 CREATE_SUSPENDED                  : u32 : 0x00000004;
 STACK_SIZE_PARAM_IS_A_RESERVATION : u32 : 0x00010000;
 
-CreateThread :: (
-    lpThreadAttributes : *SECURITY_ATTRIBUTES,
-    dwStackSize        : SIZE_T,
-    lpStartAddress     : THREAD_START_ROUTINE,
-    lpParameter        : *void,
-    dwCreationFlags    : u32,
-    lpThreadId         : *u32
-) -> HANDLE #foreign kernel32;
-
 SetThreadDescription :: (
     hThread             : HANDLE,
     lpThreadDescription : PCWSTR
@@ -1351,16 +1295,6 @@ FILE_FLAG_NO_BUFFERING          : u32 : 0x20000000;
 FILE_FLAG_OVERLAPPED            : u32 : 0x40000000;
 FILE_FLAG_WRITE_THROUGH         : u32 : 0x80000000;
 
-CreateFileA :: (
-    lpFileName            : LPCSTR,
-    dwDesiredAccess       : u32,
-    dwShareMode           : u32,
-    lpSecurityAttributes  : *SECURITY_ATTRIBUTES,
-    dwCreationDisposition : u32,
-    dwFlagsAndAttributes  : u32,
-    hTemplateFile         : HANDLE
-) -> HANDLE #foreign kernel32;
-
 CreateFileW :: (
     lpFileName            : LPCWSTR,
     dwDesiredAccess       : u32,
@@ -1425,10 +1359,6 @@ GetOverlappedResult :: (
 HasOverlappedIoCompleted :: inline (lpOverlapped : *OVERLAPPED) -> bool #no_context {
     return cast(u32) lpOverlapped.Internal != STATUS_PENDING;
 }
-
-CancelIo :: (
-    hFile : HANDLE
-) -> BOOL #foreign kernel32;
 
 CancelIoEx :: (
     hFile        : HANDLE,
@@ -1643,6 +1573,10 @@ GetFullPathNameW :: (
     lpFilePart    : *LPWSTR
 ) -> u32 #foreign kernel32;
 
+//
+// Sync API
+//
+
 CREATE_EVENT_MANUAL_RESET : u32 : 0x00000001;
 CREATE_EVENT_INITIAL_SET  : u32 : 0x00000002;
 
@@ -1716,6 +1650,10 @@ LeaveCriticalSection :: (
 TryEnterCriticalSection :: (
     lpCriticalSection : *CRITICAL_SECTION
 ) #foreign kernel32;
+
+//
+// Input
+//
 
 VK :: enum u8 #specified {
     BACK             :: 0x08;
@@ -2200,11 +2138,6 @@ SymGetLineFromAddr64 :: (
     pdwDisplacement : *u32,
     Line64          : *IMAGEHLP_LINE64
 ) -> BOOL #foreign dbghelp;
-
-SymGetModuleBase64 :: (
-    hProcess : HANDLE,
-    qwAddr   : u64
-) -> u64 #foreign dbghelp;
 
 SYM_TYPE :: enum s32 {
     SymNone :: 0;

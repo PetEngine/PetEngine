@@ -191,9 +191,9 @@ exit :: (status: s32) #foreign libc_or_crt;
 
 #if OS == .WINDOWS {
     _beginthreadex :: (
-        security      : *void,
+        security      : *SECURITY_ATTRIBUTES,
         stack_size    : u32,
-        start_address : (arg : *void) -> u32 #c_call,
+        start_address : THREAD_START_ROUTINE,
         arglist       : *void,
         initflag      : u32,
         thrdaddr      : *u32
