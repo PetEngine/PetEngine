@@ -68,7 +68,6 @@ Input:
         - Persistent arena capacity.
         - Per frame arena capacity.
     - Device:
-        - Graphics API.
         - Render resolution.
         - Buffering.
         - Choose device by name, fallback to the [0] one.
@@ -88,6 +87,7 @@ Window:
 // Render
 //
 
+- Remove runtime graphics API switch
 - #FrameBuffering.
   count < device.frame_buffering then allocate new memory
   count > device.frame_buffering then free unusused memory
