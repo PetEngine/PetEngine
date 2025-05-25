@@ -680,12 +680,12 @@ splitToNameAndValue :: (line_ : string) -> (name : string, value : string, succe
 }
 
 handleEnumValue :: inline (enum_value : *$T, value : string) -> bool {
-    #assert (cast(*Type_Info) T).type == .ENUM;
-    info := type_info(T);
+    INFO :: type_info(T);
+    #assert INFO.type == .ENUM;
 
-    for info.names {
+    for INFO.names {
         if it == value {
-            enum_value.* = cast(T) info.values[it_index];
+            enum_value.* = cast(T) INFO.values[it_index];
             return true;
         }
     }
@@ -695,12 +695,10 @@ handleEnumValue :: inline (enum_value : *$T, value : string) -> bool {
 }
 
 handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) -> bool {
-    #assert (cast(*Type_Info)      T).type            == .ENUM
-         && (cast(*Type_Info_Enum) T).enum_type_flags == .FLAGS;
+    INFO :: type_info(T);
+    #assert INFO.type == .ENUM && INFO.enum_type_flags == .FLAGS;
 
     assert(value);
-
-    info := type_info(T);
 
     enum_flags_value.* = 0;
 
@@ -715,9 +713,9 @@ handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) -> bool {
         flag_name = String.trim_right(flag_name);
 
         found : bool;
-        for info.names {
+        for INFO.names {
             if it == flag_name {
-                enum_flags_value.* |= cast(ColorTarget.WriteMask) info.values[it_index];
+                enum_flags_value.* |= cast(ColorTarget.WriteMask) INFO.values[it_index];
 
                 found = true;
                 break;

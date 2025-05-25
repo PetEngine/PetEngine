@@ -120,7 +120,7 @@ toView :: inline (data : *void, count : s64, $type : Type) -> [] type #no_contex
 }
 
 formatHex :: inline (value : $T, minimum_digits := 1) -> Basic.FormatInt {
-    assert(type_info(T).type == .INTEGER);
+    #assert type_info(T).type == .INTEGER;
 
     return .{
         value            = value,
@@ -132,12 +132,12 @@ formatHex :: inline (value : $T, minimum_digits := 1) -> Basic.FormatInt {
 }
 
 formatInline :: inline (value : $T) -> Basic.FormatStruct {
-    ti := type_info(T);
-    assert(ti.type == .STRUCT);
+    INFO :: type_info(T);
+    #assert INFO.type == .STRUCT;
 
     return .{
         value = value,
-        use_long_form_if_more_than_this_many_members = ti.members.count
+        use_long_form_if_more_than_this_many_members = INFO.members.count
     };
 }
 
