@@ -1,14 +1,5 @@
 #scope_export
 
-MessagePriority :: enum u8 {
-    VERBOSE;
-    DEBUG;
-    INFO;
-    WARNING;
-    ERROR;
-    ASSERT;
-}
-
 verboseMessage :: #bake_arguments message(priority = .VERBOSE);
 debugMessage   :: #bake_arguments message(priority = .DEBUG);
 infoMessage    :: #bake_arguments message(priority = .INFO);
@@ -215,7 +206,136 @@ debugBreakIfDebugging :: () #expand #no_debug {
     if debuggerPresent() then debug_break();
 }
 
+createUnhandledExceptionHandler :: () {
+    g_exception_handler_context.jai_context.allocator   = context.allocator;
+    g_exception_handler_context.jai_context.logger      = context.logger;
+    g_exception_handler_context.jai_context.logger_data = context.logger_data;
+    g_exception_handler_context.jai_context.print_style = context.print_style;
+    // We do not need globals for unhandled exception handler
+
+    push_context g_exception_handler_context.jai_context {
+        context.thread_index    = getNextThreadIndex();
+        context.pet.thread.name = "";
+        context.pet.thread.kind = .UNDEFINED;
+
+        context.allocator.proc(.THREAD_START, 0, 0, null, context.allocator.data);
+
+        context.temporary_storage = *g_exception_handler_context.temporary_storage;
+
+        // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
+        g_exception_handler_context.temporary_storage_data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
+        set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, g_exception_handler_context.temporary_storage_data);
+
+        // We do not need arenas for unhandled exception handler
+    }
+
+    createRecursiveMutex(*g_exception_handler_context.mutex);
+
+    #if OS == .WINDOWS {
+        g_exception_handler_context.previous_handler = SetUnhandledExceptionFilter(unhandledExceptionHandler);
+    } else {
+        notImplemented();
+    }
+}
+
+destroyUnhandledExceptionHandler :: () {
+    #if OS == .WINDOWS {
+        previous_handler := SetUnhandledExceptionFilter(g_exception_handler_context.previous_handler);
+        assert(previous_handler == unhandledExceptionHandler);
+    } else {
+        notImplemented();
+    }
+
+    destroyRecursiveMutex(*g_exception_handler_context.mutex);
+
+    push_context g_exception_handler_context.jai_context {
+        Allocator.rpfree(g_exception_handler_context.temporary_storage_data);
+        context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
+    }
+}
+
+getSystemMessage :: (message_buffer : [] u8, system_code : u32) -> string {
+    #if OS == .WINDOWS {
+        message_length : s64 = FormatMessageA(FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
+                                              null,
+                                              system_code,
+                                              MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                              message_buffer.data,
+                                              cast(u32) message_buffer.count,
+                                              null);
+
+        if message_length {
+            message_length -= ".\r\n".count;
+        } else {
+            format_message_error := GetLastError();
+
+            PART_0 :: "<no message available (0x";
+            memcpy(message_buffer.data, PART_0.data, PART_0.count);
+            message_length = PART_0.count;
+
+            {
+                digits_count := 4 << cast(s64) (format_message_error > 0xFFFF);
+
+                start_it := *message_buffer.data[message_length];
+                end_it   := *message_buffer.data[message_length + digits_count - 1];
+
+                digits := format_message_error;
+                while digits {
+                    end_it.*   = "0123456789ABCDEF"[digits & 0xF];
+                    digits   >>= 4;
+                    end_it    -= 1;
+                }
+
+                while end_it >= start_it {
+                    end_it.*  = #char "0";
+                    end_it   -= 1;
+                }
+
+                message_length += digits_count;
+            }
+
+            part_1_offset := message_length;
+            PART_1 :: "): ";
+            memcpy(message_buffer.data + message_length, PART_1.data, PART_1.count);
+            message_length += PART_1.count;
+
+            format_message_offset := message_length;
+            message_length += FormatMessageA(FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
+                                             null,
+                                             format_message_error,
+                                             MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                             message_buffer.data + message_length,
+                                             cast(u32) (message_buffer.count - message_length),
+                                             null);
+
+            if message_length == format_message_offset {
+                message_length = part_1_offset + 1;
+            } else {
+                message_length -= ".\r\n".count;
+            }
+
+            message_buffer[message_length] = #char ">";
+            message_length += 1;
+        }
+    } else {
+        message_length := 0;
+        notImplemented();
+    }
+
+    return .{ message_length, message_buffer.data };
+}
+
 #scope_file
+
+MessagePriority :: enum u8 {
+    VERBOSE;
+    DEBUG;
+    INFO;
+    WARNING;
+    ERROR;
+    ASSERT;
+    UNHANDLED_EXCEPTION;
+}
 
 message :: (
     $priority        : MessagePriority,
@@ -242,22 +362,28 @@ message :: (
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
-    if context.pet.thread.name {
-        Basic.print(*builder, "[%]<%>: ", priority, context.pet.thread.name);
-    } else {
-        Basic.print(*builder, "[%]<kind:% tid:%>: ", priority, context.pet.thread.kind, context.thread_index);
+    Basic.print(*builder, "[%]", priority);
+    #if priority != .UNHANDLED_EXCEPTION {
+        if context.pet.thread.name {
+            Basic.print(*builder, "<%>", context.pet.thread.name);
+        } else {
+            Basic.print(*builder, "<kind:%,tid:%>", context.pet.thread.kind, context.thread_index);
+        }
     }
+    Basic.append(*builder, ": ");
 
-    #if priority == .ASSERT {
-        absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
-        absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
+    #if priority != .UNHANDLED_EXCEPTION {
+        #if priority == .ASSERT {
+            absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
+            absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
 
-        Basic.print(*builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
-    } else if custom_sys_code {
-        absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
-        absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
+            Basic.print(*builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
+        } else if custom_sys_code {
+            absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
+            absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
 
-        Basic.print(*builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
+            Basic.print(*builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
+        }
     }
 
     if args.count > 0 {
@@ -279,23 +405,8 @@ message :: (
                 Basic.print(*builder, ". System error (0x%): ", formatHex(sys_error_code, minimum_digits));
             }
 
-            sys_error_message_buffer : [512] u8 = ---;
-            sys_error_message := string.{ data = sys_error_message_buffer.data };
-
-            #if OS == .WINDOWS {
-                sys_error_message.count = FormatMessageA(FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
-                                                         null,
-                                                         sys_error_code,
-                                                         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                                                         sys_error_message.data,
-                                                         sys_error_message_buffer.count,
-                                                         null);
-                sys_error_message.count -= ".\r\n".count;
-            } else {
-                notImplemented();
-            }
-
-            Basic.assert(sys_error_message.count > 0);
+            sys_error_message_buffer : [1024] u8 = ---;
+            sys_error_message := getSystemMessage(sys_error_message_buffer, sys_error_code);
 
             Basic.append(*builder, sys_error_message);
         }
@@ -310,18 +421,20 @@ message :: (
         }
     }
 
-    #if priority == .ASSERT {
+    #if priority >= .ASSERT {
         Basic.append(*builder, "\nStack trace:\n");
         if #compile_time {
             printStackTraceFromJaiContext(*builder);
+        } else #if priority == .UNHANDLED_EXCEPTION && OS == .WINDOWS {
+            printStackTrace(*builder, 9); // Skip `printStackTrace`, `message`, and some ntdll.dll and kernel32.dll functions
         } else {
-            printStackTrace(*builder);
+            printStackTrace(*builder, 2); // Skip `printStackTrace` and `message`
         }
     }
 
     message := Basic.builder_to_string(*builder,, allocator = Basic.temp);
 
-    lock(*g_mutex);
+    lock(*g_ioMutex);
 
     #if OS == .WINDOWS {
         #if priority != .VERBOSE && priority != .INFO {
@@ -363,7 +476,7 @@ message :: (
         notImplemented();
     }
 
-    unlock(*g_mutex);
+    unlock(*g_ioMutex);
 
     #if priority == .ASSERT {
         debugBreakIfDebugging();
@@ -372,17 +485,16 @@ message :: (
 }
 
 // We don't use context.stack_trace since it does not track external procedures which may be essential in stack trace
-printStackTrace :: (builder : *Basic.String_Builder) {
+printStackTrace :: (builder : *Basic.String_Builder, frames_to_skip : u32) {
     #if OS == .WINDOWS {
-        scopedLock(*g_mutex); // All DbgHelp functions are single threaded, so we have to synchronize their calls
+        scopedLock(*g_dbgHelpMutex);
 
-        FRAMES_TO_SKIP        :: 2; // Skip this function & message (caller)
         MAX_FRAMES_TO_CAPTURE :: 0xFFFF;
 
         // We might not have per frame arena at this moment, so we use temporary storage
         stack_trace : **void = Basic.talloc(MAX_FRAMES_TO_CAPTURE * size_of(*void));
 
-        frames_count := RtlCaptureStackBackTrace(FRAMES_TO_SKIP, MAX_FRAMES_TO_CAPTURE, stack_trace, null);
+        frames_count := RtlCaptureStackBackTrace(frames_to_skip, MAX_FRAMES_TO_CAPTURE, stack_trace, null);
         Basic.assert(frames_count > 0, "RtlCaptureStackBackTrace did not capture any frames which is impossible. Error: %", GetLastError());
 
         pseudo_process_handle := GetCurrentProcess();
@@ -401,13 +513,16 @@ printStackTrace :: (builder : *Basic.String_Builder) {
             Basic.assert(success != FALSE, "SymCleanup has failed with error %", GetLastError());
         }
 
-        line_info          := IMAGEHLP_LINE64.{ SizeOfStruct = size_of(IMAGEHLP_LINE64) };
-        module_info        := IMAGEHLP_MODULE64.{ SizeOfStruct = size_of(IMAGEHLP_MODULE64) };
-        symbol_info_memory : [size_of(SYMBOL_INFO) + MAX_SYM_NAME] u8;
+        line_info   := IMAGEHLP_LINE64.{ SizeOfStruct = size_of(IMAGEHLP_LINE64) };
+        module_info := IMAGEHLP_MODULE64.{ SizeOfStruct = size_of(IMAGEHLP_MODULE64) };
 
-        symbol_info := cast(*SYMBOL_INFO) symbol_info_memory.data;
-        symbol_info.SizeOfStruct = size_of(SYMBOL_INFO);
-        symbol_info.MaxNameLen   = MAX_SYM_NAME;
+        union {
+            symbol_info_memory : [size_of(SYMBOL_INFO) + MAX_SYM_NAME] u8;
+            symbol_info        := SYMBOL_INFO.{
+                SizeOfStruct = size_of(SYMBOL_INFO),
+                MaxNameLen   = MAX_SYM_NAME,
+            };
+        }
 
         for frame : toView(stack_trace, frames_count) {
             Basic.append(builder, "    ");
@@ -416,17 +531,14 @@ printStackTrace :: (builder : *Basic.String_Builder) {
             if SymGetLineFromAddr64(process, cast(u64) frame, *column, *line_info) {
                 Basic.print(builder, "%(%,%): ", to_string(line_info.FileName), line_info.LineNumber, column);
             } else {
-                module_base := SymGetModuleBase64(process, cast(u64) frame);
-                Basic.assert(module_base != 0, "SymGetModuleBase64 has failed with error %", GetLastError());
-
                 success = SymGetModuleInfo64(process, cast(u64) frame, *module_info);
                 Basic.assert(success != FALSE, "SymGetModuleInfo64 has failed with error %", GetLastError());
 
-                Basic.print(builder, "%(%): ", to_string(module_info.LoadedImageName.data), frame);
+                Basic.print(builder, "%(0x%): ", to_string(module_info.LoadedImageName.data), frame);
             }
 
             procedure_name : string = ---;
-            if SymFromAddr(process, cast(u64) frame, null, symbol_info) {
+            if SymFromAddr(process, cast(u64) frame, null, *symbol_info) {
                 procedure_name.count = symbol_info.NameLen;
                 procedure_name.data  = symbol_info.Name.data;
             } else {
@@ -468,6 +580,125 @@ printStackTraceFromJaiContext :: (builder : *Basic.String_Builder) {
     }
 }
 
-g_mutex : Mutex;
+#if OS == .WINDOWS {
+    unhandledExceptionHandler :: (ExceptionInfo : *EXCEPTION_POINTERS) -> s32 #c_call {
+        scopedLock(*g_exception_handler_context.mutex);
+        push_context,defer_pop g_exception_handler_context.jai_context;
+
+        if g_exception_handler_context.inside_exception_handler {
+            return EXCEPTION_EXECUTE_HANDLER;
+        }
+
+        g_exception_handler_context.inside_exception_handler = true;
+        defer g_exception_handler_context.inside_exception_handler = false;
+
+        // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
+        #if _STACK_TRACE {
+            this_frame_info := Stack_Trace_Procedure_Info.{
+                name              = #procedure_name(),
+                location          = #location(#this),
+                procedure_address = cast(*void) #this,
+            };
+
+            this_frame := Stack_Trace_Node.{
+                info        = *this_frame_info,
+                line_number = cast(u32) #location(#this).line_number,
+            };
+
+            context.stack_trace = *this_frame;
+        }
+
+        Basic.auto_release_temp();
+
+        if ExceptionInfo.ExceptionRecord.ExceptionCode == {
+            case .BREAKPOINT;
+                last_error := GetLastError();
+
+                last_error_message_buffer : [1024] u8 = ---;
+                last_error_message := getSystemMessage(last_error_message_buffer, last_error);
+
+                min_digits := 4 << cast(s64) (last_error > 0xFFFF);
+
+                message(.UNHANDLED_EXCEPTION,
+                        "Breakpoint was triggered at address 0x%.\n\nLast system error (0x%): %",
+                        ExceptionInfo.ExceptionRecord.ExceptionAddress,
+                        formatHex(last_error, min_digits),
+                        last_error_message);
+
+            case .ACCESS_VIOLATION;
+                access_type : string;
+                if ExceptionInfo.ExceptionRecord.ExceptionInformation[0] == {
+                    case 0; access_type = "Read access";
+                    case 1; access_type = "Write access";
+                    case 8; access_type = "User-mode data execution prevention (DEP)";
+                    case;   access_type = "Unknown type of access";
+                }
+                data_address := cast(*void) ExceptionInfo.ExceptionRecord.ExceptionInformation[1];
+                message(.UNHANDLED_EXCEPTION, "% violation at address 0x%", access_type, data_address);
+
+            case .IN_PAGE_ERROR;
+                access_type : string;
+                if ExceptionInfo.ExceptionRecord.ExceptionInformation[0] == {
+                    case 0; access_type = "Read access";
+                    case 1; access_type = "Write access";
+                    case 8; access_type = "User-mode data execution prevention (DEP)";
+                    case;   access_type = "Unknown type of access";
+                }
+                data_address := cast(*void)    ExceptionInfo.ExceptionRecord.ExceptionInformation[1];
+                ntstatus     := cast(NTSTATUS) ExceptionInfo.ExceptionRecord.ExceptionInformation[2];
+
+                ntstatus_message_buffer : [1024] u8 = ---;
+                ntstatus_message := getSystemMessage(ntstatus_message_buffer, cast,no_check(u32) ntstatus);
+
+                min_digits := 4 << cast(s64) (ntstatus > 0xFFFF);
+
+                message(.UNHANDLED_EXCEPTION,
+                        "% violation at address 0x%.\n\nThe required data was not placed into memory (0x%): %",
+                        access_type,
+                        data_address,
+                        formatHex(ntstatus, min_digits),
+                        ntstatus_message);
+
+            case;
+                exception_message_buffer : [1024] u8 = ---;
+                exception_message := getSystemMessage(exception_message_buffer, cast(u32) ExceptionInfo.ExceptionRecord.ExceptionCode);
+
+                exception_name := Reflection.enum_value_to_name(ExceptionInfo.ExceptionRecord.ExceptionCode);
+                if exception_name {
+                    message(.UNHANDLED_EXCEPTION,
+                            "% exception was triggered at address 0x%.\n\n%",
+                            exception_name,
+                            ExceptionInfo.ExceptionRecord.ExceptionAddress,
+                            exception_message);
+                } else {
+                    message(.UNHANDLED_EXCEPTION,
+                            "Exception (0x%) was triggered at address 0x%.\n\n%",
+                            formatHex(cast(u32) ExceptionInfo.ExceptionRecord.ExceptionCode, 8),
+                            ExceptionInfo.ExceptionRecord.ExceptionAddress,
+                            exception_message);
+                }
+        }
+
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
+}
+
+g_exception_handler_context : struct {
+    jai_context              : #Context;
+    mutex                    : RecursiveMutex;
+    temporary_storage        : Temporary_Storage;
+    temporary_storage_data   : *void;
+    #if OS == .WINDOWS {
+        previous_handler     : TOP_LEVEL_EXCEPTION_FILTER;
+    }
+    inside_exception_handler : bool;
+};
+
+g_ioMutex : Mutex;
+
+#if OS == .WINDOWS {
+    g_dbgHelpMutex : Mutex; // All DbgHelp functions are single threaded, so we have to synchronize their calls
+}
 
 Program_Print :: #import "Program_Print";
+Reflection    :: #import "Reflection";

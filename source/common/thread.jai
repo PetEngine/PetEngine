@@ -13,7 +13,9 @@ Thread :: struct(Data : Type) {
     jai_context : #Context;
 }
 
-ThreadKind :: enum u8 {
+ThreadKind :: enum s8 {
+    UNDEFINED :: -1;
+
     MAIN;
     SHADERS_HOT_RELOAD;
 

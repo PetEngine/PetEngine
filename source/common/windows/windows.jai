@@ -94,8 +94,31 @@ STATUS_SEVERITY_INFORMATIONAL : u32 : 0x1;
 STATUS_SEVERITY_WARNING       : u32 : 0x2;
 STATUS_SEVERITY_ERROR         : u32 : 0x3;
 
-STATUS_SUCCESS : NTSTATUS : 0x00000000;
-STATUS_PENDING : NTSTATUS : 0x00000103;
+STATUS_SUCCESS                  : NTSTATUS : 0x0000_0000;
+STATUS_PENDING                  : NTSTATUS : 0x0000_0103;
+STATUS_GUARD_PAGE_VIOLATION     : NTSTATUS : 0x8000_0001;
+STATUS_DATATYPE_MISALIGNMENT    : NTSTATUS : 0x8000_0002;
+STATUS_BREAKPOINT               : NTSTATUS : 0x8000_0003;
+STATUS_SINGLE_STEP              : NTSTATUS : 0x8000_0004;
+STATUS_ACCESS_VIOLATION         : NTSTATUS : 0xC000_0005;
+STATUS_IN_PAGE_ERROR            : NTSTATUS : 0xC000_0006;
+STATUS_INVALID_HANDLE           : NTSTATUS : 0xC000_0008;
+STATUS_ILLEGAL_INSTRUCTION      : NTSTATUS : 0xC000_001D;
+STATUS_NONCONTINUABLE_EXCEPTION : NTSTATUS : 0xC000_0025;
+STATUS_INVALID_DISPOSITION      : NTSTATUS : 0xC000_0026;
+STATUS_ARRAY_BOUNDS_EXCEEDED    : NTSTATUS : 0xC000_008C;
+STATUS_FLOAT_DENORMAL_OPERAND   : NTSTATUS : 0xC000_008D;
+STATUS_FLOAT_DIVIDE_BY_ZERO     : NTSTATUS : 0xC000_008E;
+STATUS_FLOAT_INEXACT_RESULT     : NTSTATUS : 0xC000_008F;
+STATUS_FLOAT_INVALID_OPERATION  : NTSTATUS : 0xC000_0090;
+STATUS_FLOAT_OVERFLOW           : NTSTATUS : 0xC000_0091;
+STATUS_FLOAT_STACK_CHECK        : NTSTATUS : 0xC000_0092;
+STATUS_FLOAT_UNDERFLOW          : NTSTATUS : 0xC000_0093;
+STATUS_INTEGER_DIVIDE_BY_ZERO   : NTSTATUS : 0xC000_0094;
+STATUS_INTEGER_OVERFLOW         : NTSTATUS : 0xC000_0095;
+STATUS_PRIVILEGED_INSTRUCTION   : NTSTATUS : 0xC000_0096;
+STATUS_STACK_OVERFLOW           : NTSTATUS : 0xC000_00FD;
+STATUS_POSSIBLE_DEADLOCK        : NTSTATUS : 0xC000_0194;
 
 STATUS_SEVERITY :: inline (status : NTSTATUS) -> u32  { return cast,no_check(u32) status >> 30; }
 
@@ -588,6 +611,170 @@ GetSysColor :: (
 
 GetLastError :: (
 ) -> u32 #foreign kernel32;
+
+EXCEPTION :: enum u32 #specified {
+    GUARD_PAGE               :: 0x8000_0001; // STATUS_GUARD_PAGE_VIOLATION
+    DATATYPE_MISALIGNMENT    :: 0x8000_0002; // STATUS_DATATYPE_MISALIGNMENT
+    BREAKPOINT               :: 0x8000_0003; // STATUS_BREAKPOINT
+    SINGLE_STEP              :: 0x8000_0004; // STATUS_SINGLE_STEP
+    ACCESS_VIOLATION         :: 0xC000_0005; // STATUS_ACCESS_VIOLATION
+    IN_PAGE_ERROR            :: 0xC000_0006; // STATUS_IN_PAGE_ERROR
+    INVALID_HANDLE           :: 0xC000_0008; // STATUS_INVALID_HANDLE
+    ILLEGAL_INSTRUCTION      :: 0xC000_001D; // STATUS_ILLEGAL_INSTRUCTION
+    NONCONTINUABLE_EXCEPTION :: 0xC000_0025; // STATUS_NONCONTINUABLE_EXCEPTION
+    INVALID_DISPOSITION      :: 0xC000_0026; // STATUS_INVALID_DISPOSITION
+    ARRAY_BOUNDS_EXCEEDED    :: 0xC000_008C; // STATUS_ARRAY_BOUNDS_EXCEEDED
+    FLT_DENORMAL_OPERAND     :: 0xC000_008D; // STATUS_FLOAT_DENORMAL_OPERAND
+    FLT_DIVIDE_BY_ZERO       :: 0xC000_008E; // STATUS_FLOAT_DIVIDE_BY_ZERO
+    FLT_INEXACT_RESULT       :: 0xC000_008F; // STATUS_FLOAT_INEXACT_RESULT
+    FLT_INVALID_OPERATION    :: 0xC000_0090; // STATUS_FLOAT_INVALID_OPERATION
+    FLT_OVERFLOW             :: 0xC000_0091; // STATUS_FLOAT_OVERFLOW
+    FLT_STACK_CHECK          :: 0xC000_0092; // STATUS_FLOAT_STACK_CHECK
+    FLT_UNDERFLOW            :: 0xC000_0093; // STATUS_FLOAT_UNDERFLOW
+    INT_DIVIDE_BY_ZERO       :: 0xC000_0094; // STATUS_INTEGER_DIVIDE_BY_ZERO
+    INT_OVERFLOW             :: 0xC000_0095; // STATUS_INTEGER_OVERFLOW
+    PRIV_INSTRUCTION         :: 0xC000_0096; // STATUS_PRIVILEGED_INSTRUCTION
+    STACK_OVERFLOW           :: 0xC000_00FD; // STATUS_STACK_OVERFLOW
+    POSSIBLE_DEADLOCK        :: 0xC000_0194; // STATUS_POSSIBLE_DEADLOCK
+}
+
+EXCEPTION_MAXIMUM_PARAMETERS :: 15;
+
+EXCEPTION_RECORD :: struct {
+    ExceptionCode        : EXCEPTION;
+    ExceptionFlags       : u32;
+    ExceptionRecord      : *EXCEPTION_RECORD;
+    ExceptionAddress     : *void;
+    NumberParameters     : u32;
+    ExceptionInformation : [EXCEPTION_MAXIMUM_PARAMETERS] ULONG_PTR;
+}
+
+M128A :: struct {
+    Low  : u64;
+    High : s64;
+}
+
+XSAVE_FORMAT :: struct {
+    ControlWord    : u16;
+    StatusWord     : u16;
+    TagWord        : u8;
+    Reserved1      : u8;
+    ErrorOpcode    : u16;
+    ErrorOffset    : u32;
+    ErrorSelector  : u16;
+    Reserved2      : u16;
+    DataOffset     : u32;
+    DataSelector   : u16;
+    Reserved3      : u16;
+    MxCsr          : u32;
+    MxCsr_Mask     : u32;
+    FloatRegisters : [8] M128A #align 16;
+    #if CPU == .X64 {
+        XmmRegisters : [16] M128A #align 16;
+        Reserved4    : [96] u8;
+    } else {
+        XmmRegisters : [8]   M128A #align 16;
+        Reserved4    : [224] u8;
+    }
+}
+
+XMM_SAVE_AREA32 :: XSAVE_FORMAT;
+
+NEON128 :: struct {
+    Low  : u64;
+    High : s64;
+}
+
+CONTEXT :: struct {
+    P1Home       : u64;
+    P2Home       : u64;
+    P3Home       : u64;
+    P4Home       : u64;
+    P5Home       : u64;
+    P6Home       : u64;
+    ContextFlags : u32;
+    MxCsr        : u32;
+    SegCs        : u16;
+    SegDs        : u16;
+    SegEs        : u16;
+    SegFs        : u16;
+    SegGs        : u16;
+    SegSs        : u16;
+    EFlags       : u32;
+    Dr0          : u64;
+    Dr1          : u64;
+    Dr2          : u64;
+    Dr3          : u64;
+    Dr6          : u64;
+    Dr7          : u64;
+    Rax          : u64;
+    Rcx          : u64;
+    Rdx          : u64;
+    Rbx          : u64;
+    Rsp          : u64;
+    Rbp          : u64;
+    Rsi          : u64;
+    Rdi          : u64;
+    R8           : u64;
+    R9           : u64;
+    R10          : u64;
+    R11          : u64;
+    R12          : u64;
+    R13          : u64;
+    R14          : u64;
+    R15          : u64;
+    Rip          : u64;
+    union {
+        FltSave : XMM_SAVE_AREA32 #align 16;
+        Q       : [16] NEON128;
+        D       : [32] u64;
+        struct {
+            Header : [2] M128A #align 16;
+            Legacy : [8] M128A #align 16;
+            Xmm0   : M128A     #align 16;
+            Xmm1   : M128A     #align 16;
+            Xmm2   : M128A     #align 16;
+            Xmm3   : M128A     #align 16;
+            Xmm4   : M128A     #align 16;
+            Xmm5   : M128A     #align 16;
+            Xmm6   : M128A     #align 16;
+            Xmm7   : M128A     #align 16;
+            Xmm8   : M128A     #align 16;
+            Xmm9   : M128A     #align 16;
+            Xmm10  : M128A     #align 16;
+            Xmm11  : M128A     #align 16;
+            Xmm12  : M128A     #align 16;
+            Xmm13  : M128A     #align 16;
+            Xmm14  : M128A     #align 16;
+            Xmm15  : M128A     #align 16;
+        }
+        S : [32] u32;
+    }
+    VectorRegister       : [26] M128A #align 16;
+    VectorControl        : u64;
+    DebugControl         : u64;
+    LastBranchToRip      : u64;
+    LastBranchFromRip    : u64;
+    LastExceptionToRip   : u64;
+    LastExceptionFromRip : u64;
+}
+
+EXCEPTION_POINTERS :: struct {
+    ExceptionRecord : *EXCEPTION_RECORD;
+    ContextRecord   : *CONTEXT #align 16;
+}
+
+EXCEPTION_CONTINUE_EXECUTION : s32 : -1;
+EXCEPTION_CONTINUE_SEARCH    : s32 :  0;
+EXCEPTION_EXECUTE_HANDLER    : s32 :  1;
+
+TOP_LEVEL_EXCEPTION_FILTER :: #type (
+    ExceptionInfo : *EXCEPTION_POINTERS
+) -> s32 #c_call;
+
+SetUnhandledExceptionFilter :: (
+    lpTopLevelExceptionFilter : TOP_LEVEL_EXCEPTION_FILTER
+) -> TOP_LEVEL_EXCEPTION_FILTER #foreign kernel32;
 
 FORMAT_MESSAGE_ALLOCATE_BUFFER : u32 : 0x00000100;
 FORMAT_MESSAGE_IGNORE_INSERTS  : u32 : 0x00000200;
