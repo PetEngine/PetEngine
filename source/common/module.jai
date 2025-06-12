@@ -27,13 +27,15 @@ ntStringLength :: inline (nt_string : *$T/ALLOWED_CHAR_TYPES) -> s64 #no_context
 }
 
 ntStringCompare :: (a : [] $T/ALLOWED_CHAR_TYPES, b : [] T) -> s64 {
-    index := 0;
-    count := min(a.count, b.count);
+    if a.count < b.count return -1;
+    if a.count > b.count return  1;
+
+    count := a.count;
     a_it  := a.data;
     b_it  := b.data;
 
-    while index < count && a_it.* && a_it.* == b_it.* {
-        index += 1;
+    while count > 0 && a_it.* == b_it.* {
+        count -= 1;
         a_it  += 1;
         b_it  += 1;
     }
@@ -104,18 +106,12 @@ appendToString :: (dest : *string, dest_capacity : s64, to_append : ..string) {
 }
 
 toView :: inline (data : *$T, count : s64) -> [] T #no_context {
-    result : [] T = ---;
-    result.data  = data;
-    result.count = count;
-
+    result : [] T = .{ count, data };
     return result;
 }
 
 toView :: inline (data : *void, count : s64, $type : Type) -> [] type #no_context {
-    result : [] type = ---;
-    result.data  = data;
-    result.count = count;
-
+    result : [] type = .{ count, data };
     return result;
 }
 
