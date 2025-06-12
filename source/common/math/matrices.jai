@@ -213,9 +213,9 @@ operator * :: inline (a : m3x3, b : m3x3) -> m3x3 #no_context {
 operator * :: inline (a : m3x4, b : m4x3) -> m3x3 #no_context {
     bt := transpose(b);
     return .{
-        dot(a.rows[0], b.rows[0]), dot(a.rows[0], b.rows[1]), dot(a.rows[0], b.rows[2]),
-        dot(a.rows[1], b.rows[0]), dot(a.rows[1], b.rows[1]), dot(a.rows[1], b.rows[2]),
-        dot(a.rows[2], b.rows[0]), dot(a.rows[2], b.rows[1]), dot(a.rows[2], b.rows[2]),
+        dot(a.rows[0], bt.rows[0]), dot(a.rows[0], bt.rows[1]), dot(a.rows[0], bt.rows[2]),
+        dot(a.rows[1], bt.rows[0]), dot(a.rows[1], bt.rows[1]), dot(a.rows[1], bt.rows[2]),
+        dot(a.rows[2], bt.rows[0]), dot(a.rows[2], bt.rows[1]), dot(a.rows[2], bt.rows[2]),
     };
 }
 

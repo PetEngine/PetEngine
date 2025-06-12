@@ -96,10 +96,8 @@ END;
     //
 
     build_options.use_visual_studio_message_format        = true;
-    build_options.dead_code_elimination                   = .ALL;
     build_options.runtime_support_definitions             = .OMIT;
     build_options.backtrace_on_crash                      = .OFF;
-    build_options.prevent_compile_time_calls_from_runtime = true;
     build_options.info_flags                              = .POLYMORPH_DEDUPLICATE; // | .POLYMORPH_MATCH;
     build_options.text_output_flags                       = .OUTPUT_TIMING_INFO;    // | .OUTPUT_LINK_LINE;
     build_options.output_executable_name                  = "engine";
@@ -114,10 +112,14 @@ END;
 
     if build_arguments.optimized {
         set_optimization(*build_options, .VERY_OPTIMIZED, !build_arguments.no_debug_info);
-        build_options.backend = .LLVM;
+        build_options.dead_code_elimination                   = .ALL;
+        build_options.prevent_compile_time_calls_from_runtime = true;
+        build_options.backend                                 = .LLVM;
     } else {
         set_optimization(*build_options, .VERY_DEBUG, !build_arguments.no_debug_info);
-        build_options.arithmetic_overflow_check = .FATAL;
+        build_options.arithmetic_overflow_check               = .FATAL;
+        build_options.dead_code_elimination                   = .NONE;
+        build_options.prevent_compile_time_calls_from_runtime = false; // Fails in modules with dead_code_elimination == .NONE
     }
 
     //

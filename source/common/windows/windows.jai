@@ -1357,7 +1357,7 @@ GetOverlappedResult :: (
 ) -> BOOL #foreign kernel32;
 
 HasOverlappedIoCompleted :: inline (lpOverlapped : *OVERLAPPED) -> bool #no_context {
-    return cast(u32) lpOverlapped.Internal != STATUS_PENDING;
+    return cast(s32) lpOverlapped.Internal != STATUS_PENDING;
 }
 
 CancelIoEx :: (
@@ -1649,7 +1649,7 @@ LeaveCriticalSection :: (
 
 TryEnterCriticalSection :: (
     lpCriticalSection : *CRITICAL_SECTION
-) #foreign kernel32;
+) -> BOOL #foreign kernel32;
 
 //
 // Input

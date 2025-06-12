@@ -240,7 +240,7 @@ getWindowsFileInfo :: (file : File, file_info : *File.Info) -> File.Error {
         }
     }
 
-    file_info.name = UTF16ToUTF8(.{ name_info.FileName.FileNameLength, name_info.FileName.data },
+    file_info.name = UTF16ToUTF8(.{ name_info.FileNameLength, name_info.FileName.data },
                                  pushToArena,
                                  *context.pet.arenas.per_frame);
 

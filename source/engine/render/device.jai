@@ -133,7 +133,7 @@ getSwapchainTextureView :: inline (window : *Window, swapchain_buffer_index : u3
 }
 
 getBackBuffer :: inline (window : *Window) -> *Texture {
-    return getSwapchainTexture(context.pet.render.device.window_data[window.id].back_buffer_index);
+    return getSwapchainTexture(window, context.pet.render.device.window_data[window.id].back_buffer_index);
 }
 
 getBackBufferView :: inline (window : *Window, usage : Texture.Usage) -> *TextureView {
