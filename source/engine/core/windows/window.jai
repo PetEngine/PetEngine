@@ -346,8 +346,8 @@ applyInitialDPIScalingToWindow :: (window_handle : HWND, rect_resolution : Resol
     DEFAULT_DPI :: 96.0;
     dpi_scale   := window_dpi / DEFAULT_DPI;
 
-    scaled_width  := cast(u16) Math.ceil(rect_resolution.width  * dpi_scale);
-    scaled_height := cast(u16) Math.ceil(rect_resolution.height * dpi_scale);
+    scaled_width  := cast(u16) ceil(rect_resolution.width  * dpi_scale);
+    scaled_height := cast(u16) ceil(rect_resolution.height * dpi_scale);
 
     SET_WINDOW_POS_FLAGS :: SWP_NOMOVE
                           | SWP_NOZORDER
@@ -420,5 +420,3 @@ checkWindowThemeChange :: (window_handle : HWND, wparam : WPARAM, lparam : LPARA
         applyWindowTheme(window_handle);
     }
 }
-
-Math :: #import "Math";

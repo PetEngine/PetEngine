@@ -370,7 +370,7 @@ perspectiveProjectionMatrixFromFov :: (aspect_ratio : f32, fov : f32, near : f32
     assert(0 < fov && fov < PI, "FOV should be less than PI and greater than 0. Maybe you passed degrees instead of radians by accident?");
     assert(near < far);
 
-    cot    := cast(f32) Math.cot(0.5 * fov);
+    ct     := cot(0.5 * fov);
     neg_nf := -(near * far);
 
     #if reverse_z {
@@ -382,8 +382,8 @@ perspectiveProjectionMatrixFromFov :: (aspect_ratio : f32, fov : f32, near : f32
     }
 
     return .{
-        e00 = cot / aspect_ratio,
-        e11 = cot,
+        e00 = ct / aspect_ratio,
+        e11 = ct,
         e22 = e22,
         e23 = neg_nf / depth,
         e32 = 1.0
@@ -396,7 +396,7 @@ perspectiveProjectionMatrixFromFovAndItsInverse :: (aspect_ratio : f32, fov : f3
     assert(0 < fov && fov < PI, "FOV should be less than PI and greater than 0. Maybe you passed degrees instead of radians by accident?");
     assert(near < far);
 
-    cot    := cast(f32) Math.cot(0.5 * fov);
+    ct     := cot(0.5 * fov);
     neg_nf := -(near * far);
 
     #if reverse_z {
@@ -410,14 +410,14 @@ perspectiveProjectionMatrixFromFovAndItsInverse :: (aspect_ratio : f32, fov : f3
     }
 
     return .{
-        e00 = cot / aspect_ratio,
-        e11 = cot,
+        e00 = ct / aspect_ratio,
+        e11 = ct,
         e22 = e22,
         e23 = neg_nf / depth,
         e32 = 1.0
     }, .{
-        e00 = aspect_ratio / cot,
-        e11 = 1.0 / cot,
+        e00 = aspect_ratio / ct,
+        e11 = 1.0 / ct,
         e23 = 1.0,
         e32 = depth / neg_nf,
         e33 = ie33
@@ -493,48 +493,48 @@ scaling :: inline (v : v3f) -> m3x3 #no_context {
 }
 
 rotationX :: (angle : f32) -> m3x3 {
-    sin := Math.sin(angle);
-    cos := Math.cos(angle);
+    s := sin(angle);
+    c := cos(angle);
 
     return .{
-        1.0, 0.0,  0.0,
-        0.0, cos, -sin,
-        0.0, sin,  cos,
+        1.0, 0.0, 0.0,
+        0.0,   c,  -s,
+        0.0,   s,   c,
     };
 }
 
 rotationY :: (angle : f32) -> m3x3 {
-    sin := Math.sin(angle);
-    cos := Math.cos(angle);
+    s := sin(angle);
+    c := cos(angle);
 
     return .{
-        cos, 0.0, sin,
+          c, 0.0,   s,
         0.0, 1.0, 0.0,
-       -sin, 0.0, cos,
+         -s, 0.0,   c,
     };
 }
 
 rotationZ :: (angle : f32) -> m3x3 {
-    sin := Math.sin(angle);
-    cos := Math.cos(angle);
+    s := sin(angle);
+    c := cos(angle);
 
     return .{
-        cos, -sin, 0.0,
-        sin,  cos, 0.0,
-        0.0,  0.0, 1.0,
+          c,  -s, 0.0,
+          s,   c, 0.0,
+        0.0, 0.0, 1.0,
     };
 }
 
 rotation :: (around : v3f, angle : f32) -> m3x3 {
     assert(normalized(around));
 
-    sin         := Math.sin(angle);
-    cos         := Math.cos(angle);
-    flipped_cos := 1.0 - cos;
+    s := sin(angle);
+    c := cos(angle);
+    flipped_cos := 1.0 - c;
 
-    col0 := around * around.x * flipped_cos + v3f.{       1.0,  around.z, -around.y } * v3f.{ cos, sin, sin };
-    col1 := around * around.y * flipped_cos + v3f.{ -around.z,       1.0,  around.x } * v3f.{ sin, cos, sin };
-    col2 := around * around.z * flipped_cos + v3f.{  around.y, -around.x,       1.0 } * v3f.{ sin, sin, cos };
+    col0 := around * around.x * flipped_cos + v3f.{       1.0,  around.z, -around.y } * v3f.{ c, s, s };
+    col1 := around * around.y * flipped_cos + v3f.{ -around.z,       1.0,  around.x } * v3f.{ s, c, s };
+    col2 := around * around.z * flipped_cos + v3f.{  around.y, -around.x,       1.0 } * v3f.{ s, s, c };
 
     return .{
         col0.x, col1.x, col2.x,

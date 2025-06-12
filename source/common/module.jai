@@ -198,7 +198,6 @@ Compiler :: #import "Compiler";
 #scope_module
 
 Basic :: #import "Basic";
-Math  :: #import "Math";
 
 #scope_file
 

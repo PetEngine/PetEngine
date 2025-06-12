@@ -84,6 +84,13 @@ Window:
     - Window modes: windowed, fullscreen borderless, exclusive fullscreen.
 
 //
+// Math
+//
+
+- Complete all vector and matrix functions.
+- We cannot trust the compiler, so yeah... we have to rewrite everything with SIMD.
+
+//
 // Render
 //
 

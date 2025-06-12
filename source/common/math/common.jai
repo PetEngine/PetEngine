@@ -2,8 +2,9 @@
 
 PI : f32 : Math.PI;
 
-F32_EPSILON : f32 : 0h34C0_0000;           // 0h3400_0000 is too small and still fails sometimes
-F64_EPSILON : f64 : 0h3CB0_0000_0000_0000;
+// Interval machine epsilons
+DEFAULT_F32_EPSILON : f32 : 0h34C0_0000;           // 0h3400_0000 is too small in practice
+DEFAULT_F64_EPSILON : f64 : 0h3CB0_0000_0000_0000;
 
 Rect :: struct {
     x : s16;
@@ -39,14 +40,41 @@ alignUpWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T {
     return (value + mask) & ~mask;
 }
 
-nextPowerOfTwo :: inline (value : $T/Type.[u8, u16, u32, u64]) -> T #no_context {
+floorToPowerOfTwo :: inline (value : $T/.[u8, u16, u32, u64]) -> T #no_context {
+    #if CPU == .X64 {
+        B :: #ifx T == u8 then u16 else T;
+        result : T = ---;
+        #asm {
+            result === a;
+            index  : gpr === c;
+        }
+        #if size_of(T) == 1 #asm {
+            movzxbw value,  value;
+        } else #asm {
+            xor.q   result, result; // because setnz
+        }
+        #asm {
+            bsr?B   index,  value;
+            cmovz?B index,  value;
+            setnz   result;
+            shl?T   result, index;
+        }
+    } else {
+        notImplemented();
+    }
+    return result;
+}
+
+ceilToPowerOfTwo :: no_inline (value : $T/.[u8, u16, u32, u64]) -> T #no_context {
+    value -= 1;
     value |= value >> 1;
     value |= value >> 2;
     value |= value >> 4;
     #if size_of(T) > 1 then value |= value >> 8;
     #if size_of(T) > 2 then value |= value >> 16;
     #if size_of(T) > 4 then value |= value >> 32;
-    return value + 1;
+    value += 1;
+    return value;
 }
 
 kiloBytes :: inline (value : $T/Type.[s16, u16, s32, u32, s64, u64]) -> T #no_context {
@@ -111,34 +139,40 @@ sign :: inline (value : $T/Type.[u8, u16, u32, u64], $no_zero := false) -> T #no
     return cast(T) #ifx no_zero then 1 else value != 0;
 }
 
-abs :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
-    U :: #ifx T == f32 then u32 else u64;
-    union { _float : T; uint : U; }
-    _float = value;
-    MASK : U : (1 << size_of(T)) - 1;
-    uint &= MASK;
-    return _float;
+abs :: inline (value : f32) -> f32 #no_context {
+    union { f : f32; u : u32; }
+    f  = value;
+    u &= 0x7FFF_FFFF;
+    return f;
+}
+
+abs :: inline (value : f64) -> f64 #no_context {
+    union { f : f64; u : u64; }
+    f  = value;
+    u &= 0x7FFF_FFFF_FFFF_FFFF;
+    return f;
 }
 
 abs :: inline (value : $T/Type.[s8, s16, s32, s64]) -> T #no_context {
-    MASK : T : (1 << size_of(T)) - 1;
-    return value & MASK;
+    return ifx value < 0 then -value else value;
 }
 
-almostEquals :: (a : $T/Type.[f32, f64], b : T) -> bool #no_context {
+almostEquals :: inline (a : $T/Type.[f32, f64], b : T, $epsilon : T = 0.0) -> bool #no_context {
     #if T == f32 {
-        return abs(a - b) <= F32_EPSILON;
+        EPS :: #ifx epsilon > 0.0 then epsilon else DEFAULT_F32_EPSILON;
     } else {
-        return abs(a - b) <= F64_EPSILON;
+        EPS :: #ifx epsilon > 0.0 then epsilon else DEFAULT_F64_EPSILON;
     }
+    return abs(a - b) <= EPS;
 }
 
-almostZero :: (value : $T/Type.[f32, f64]) -> bool #no_context {
+almostZero :: inline (value : $T/Type.[f32, f64], $epsilon : T = 0.0) -> bool #no_context {
     #if T == f32 {
-        return abs(value) <= F32_EPSILON;
+        EPS :: #ifx epsilon > 0.0 then epsilon else DEFAULT_F32_EPSILON;
     } else {
-        return abs(value) <= F64_EPSILON;
+        EPS :: #ifx epsilon > 0.0 then epsilon else DEFAULT_F64_EPSILON;
     }
+    return abs(value) <= EPS;
 }
 
 min :: inline (a : $T, b : T) -> T #no_context #modify { return rejectVectors(T) && rejectMatrices(T); } {
@@ -190,11 +224,11 @@ saturatedRemap :: inline (old_a : T, old_b : T, old_v : $T/Type.[f32, f64], new_
 }
 
 linearToGamma :: inline (value : $T/Type.[f32, f64], gamma : T = 2.2) {
-    return Math.pow(value, 1.0 / gamma);
+    return pow(value, 1.0 / gamma);
 }
 
 gammaToLinear :: inline (value : $T/Type.[f32, f64], gamma : T = 2.2) {
-    return Math.pow(value, gamma);
+    return pow(value, gamma);
 }
 
 degToRad :: inline (deg : f32) -> f32 #no_context {
@@ -205,7 +239,30 @@ radToDeg :: inline (rad : f32) -> f32 #no_context {
     return rad * (180.0 / PI);
 }
 
-sqrt :: Math.sqrt;
+sqrt :: inline (value : $T) -> T {
+    return inline Math.sqrt(value);
+}
+
+pow :: inline (value : $T, power : T) -> T {
+    return inline Math.pow(value, power);
+}
+
+sin :: inline (value : $T) -> T {
+    return inline Math.sin(value);
+}
+
+cos :: inline (value : $T) -> T {
+    return inline Math.cos(value);
+}
+
+cot :: inline (value : $T) -> T {
+    return cast(T) inline Math.cot(value);
+}
+
+ceil :: inline (value : $T) -> T {
+    return inline Math.ceil(value);
+}
+
 
 #scope_file
 
@@ -237,3 +294,5 @@ isAnyOf :: (type : Type, types : ..Type_Info_Tag) -> bool #compile_time {
 
     return false;
 }
+
+Math :: #import "Math";

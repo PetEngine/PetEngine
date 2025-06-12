@@ -114,6 +114,7 @@ createPerViewUniform :: (uniform : *PerViewUniform) {
     buffer_size := uniform.aligned_stride * PerViewUniform.MAX_VERSIONS * Device.MAX_FRAME_BUFFERING;
     uniform.buffer = createBuffer(buffer_size, .PERSISTENT, .UPLOAD, .UNIFORM, "Per view");
 
+    uniform.data.camera_dir  = normalize(uniform.data.camera_dir);
     uniform.data.view_matrix = lookToMatrix(uniform.data.camera_pos, uniform.data.camera_dir);
 }
 
