@@ -487,8 +487,6 @@ message :: (
 // We don't use context.stack_trace since it does not track external procedures which may be essential in stack trace
 printStackTrace :: (builder : *Basic.String_Builder, frames_to_skip : u32) {
     #if OS == .WINDOWS {
-        scopedLock(*g_dbgHelpMutex);
-
         MAX_FRAMES_TO_CAPTURE :: 0xFFFF;
 
         // We might not have per frame arena at this moment, so we use temporary storage
@@ -506,6 +504,8 @@ printStackTrace :: (builder : *Basic.String_Builder, frames_to_skip : u32) {
             Basic.assert(success != FALSE, "CloseHandle has failed with error %", GetLastError());
         }
 
+        scopedLock(*g_dbgHelpMutex);
+
         success = SymInitialize(process, null, TRUE);
         Basic.assert(success != FALSE, "SymInitialize has failed with error %", GetLastError());
         defer {
@@ -517,12 +517,11 @@ printStackTrace :: (builder : *Basic.String_Builder, frames_to_skip : u32) {
         module_info := IMAGEHLP_MODULE64.{ SizeOfStruct = size_of(IMAGEHLP_MODULE64) };
 
         union {
-            symbol_info_memory : [size_of(SYMBOL_INFO) + MAX_SYM_NAME] u8;
-            symbol_info        := SYMBOL_INFO.{
-                SizeOfStruct = size_of(SYMBOL_INFO),
-                MaxNameLen   = MAX_SYM_NAME,
-            };
+            symbol_info_memory : [size_of(SYMBOL_INFO) + MAX_SYM_NAME] u8 #align DEFAULT_CACHE_LINE_SIZE;
+            symbol_info        : SYMBOL_INFO;
         }
+        symbol_info.SizeOfStruct = size_of(SYMBOL_INFO);
+        symbol_info.MaxNameLen   = MAX_SYM_NAME;
 
         for frame : toView(stack_trace, frames_count) {
             Basic.append(builder, "    ");
