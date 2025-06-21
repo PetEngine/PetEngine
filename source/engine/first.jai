@@ -18,6 +18,11 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
 #scope_module
 
 #add_context pet : struct {
+    debug : struct {
+        message_builder          : *Basic.String_Builder;
+        message_recursions_count : u8;
+    };
+
     thread : struct {
         name : string;
         kind : ThreadKind;

@@ -51,7 +51,9 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
             }
 
             STR_EXPRESSION :: #run codeToString(expression);
-            assert(success, STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) result, location);
+            if !success {
+                assertMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) result, location);
+            }
 
             #if !strict {
                 if result != ERROR_SUCCESS {
@@ -73,7 +75,9 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
             }
 
             STR_EXPRESSION :: #run codeToString(expression);
-            assert(success, STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) result, location);
+            if !success {
+                assertMessage(STR_EXPRESSION, print_sys_error = true, cast,no_check(u32) result, location);
+            }
 
             #if !strict {
                 if result != ERROR_SUCCESS {
@@ -114,8 +118,9 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
         }
 
         STR_EXPRESSION :: #run codeToString(expression);
-
-        assert(success, "% has returned %", STR_EXPRESSION, result, location = location);
+        if !success {
+            assertMessage("% has returned %", STR_EXPRESSION, result, location = location);
+        }
 
         #if !strict {
             if result != .VK_SUCCESS {
@@ -129,6 +134,12 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
                                STR_EXPRESSION,
                                result);
             }
+        }
+    }
+
+    assertThreadKind :: (kind : ThreadKind, procedure_name := #procedure_name(), location := #caller_location) #expand #no_debug {
+        if context.pet.thread.kind != kind {
+            assertMessage("% can be called only from % thread", procedure_name, kind, location = location);
         }
     }
 
@@ -184,16 +195,19 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
         #insert expression;
     }
 
+    assertThreadKind :: (
+        #discard kind           : ThreadKind,
+        #discard procedure_name := #procedure_name(),
+        #discard location       := #caller_location
+    ) #expand #no_debug {
+    }
+
     assertNormalized :: (
         #discard expression : Code,
         #discard epsilon    := DEFAULT_F32_EPSILON,
         #discard location   := #caller_location
     ) #expand #no_debug {
     }
-}
-
-assertThreadKind :: (kind : ThreadKind, procedure_name := #procedure_name(), location := #caller_location) #expand #no_debug {
-    assert(context.pet.thread.kind == kind, "% can be called only from % thread", procedure_name, kind, location = location);
 }
 
 notImplemented :: ($assert_in_run_time := false, location := #caller_location) #expand #no_debug {
@@ -213,7 +227,7 @@ codeToString :: (code : Code) -> string #compile_time {
     return Basic.builder_to_string(*builder,, allocator = Basic.temp);
 }
 
-debuggerPresent :: inline () -> bool #no_context {
+debuggerAttached :: inline () -> bool #no_context {
     #if OS == .WINDOWS {
         return IsDebuggerPresent() != FALSE;
     } else {
@@ -223,7 +237,23 @@ debuggerPresent :: inline () -> bool #no_context {
 }
 
 debugBreakIfDebugging :: () #expand #no_debug {
-    if debuggerPresent() then debug_break();
+    if #compile_time {
+        compile_time_debug_break();
+    } else if debuggerAttached() {
+        #if OS == .PS5 {
+            #asm { int 0x41; }
+        } else #if CPU == .X64 {
+            #asm { int 3; }
+        } else #if CPU == .ARM64 {
+            #bytes .[ 0x20, 0x00, 0b001_0_0000, 0b1101_0100 ]; // BRK 0x01: 11 bit instruction, 16 bit immediate, 5 bit unused
+        } else #if OS == .WASM {
+            wasm_debug_break :: () #foreign; // You will need to provide this function as JS code in your WASM environment
+            wasm_debug_break();
+        } else {
+            llvm_trap :: () #intrinsic "llvm.debugtrap";
+            llvm_trap();
+        }
+    }
 }
 
 createUnhandledExceptionHandler :: () {
@@ -261,7 +291,7 @@ createUnhandledExceptionHandler :: () {
 destroyUnhandledExceptionHandler :: () {
     #if OS == .WINDOWS {
         previous_handler := SetUnhandledExceptionFilter(g_exception_handler_context.previous_handler);
-        assert(previous_handler == unhandledExceptionHandler);
+        assert(previous_handler == unhandledExceptionHandler, print_sys_error = true);
     } else {
         notImplemented();
     }
@@ -381,38 +411,81 @@ message :: (
     }
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
+    if !context.pet.debug.message_builder {
+        context.pet.debug.message_builder = *builder;
+    }
+    context.pet.debug.message_recursions_count += 1;
+    defer {
+        context.pet.debug.message_recursions_count -= 1;
+        context.pet.debug.message_builder           = null;
+    }
 
-    Basic.print(*builder, "[%]", priority);
-    #if priority != .UNHANDLED_EXCEPTION {
-        if context.pet.thread.name {
-            Basic.print(*builder, "<%>", context.pet.thread.name);
-        } else {
-            Basic.print(*builder, "<kind:%,tid:%>", context.pet.thread.kind, context.thread_index);
+    if !Atomics.atomic_swap(*g_mutexesInitialized, true) {
+        createRecursiveMutex(*g_ioMutex);
+        #if OS == .WINDOWS {
+            createRecursiveMutex(*g_dbgHelpMutex);
         }
     }
-    Basic.append(*builder, ": ");
+
+    MAX_MESSAGE_RECURSIONS_COUNT : u8 : 3;
+    if context.pet.debug.message_recursions_count >= MAX_MESSAGE_RECURSIONS_COUNT {
+        console_handle := GetStdHandle(STD_ERROR_HANDLE);
+        if console_handle != INVALID_HANDLE_VALUE {
+            scopedLock(*g_ioMutex);
+
+            SetConsoleTextAttribute(console_handle, 0x04);
+
+            FLUSH_MESSAGES_HEADER :: "Too many recursions. Most likely you have triggered assert inside assert. Accumulated string builder content:\n";
+            WriteFile(console_handle, FLUSH_MESSAGES_HEADER.data, FLUSH_MESSAGES_HEADER.count, null, null);
+
+            // We are not using Basic.builder_to_string here since it might be a crash inside an allocator,
+            // so we print every chunk one by one.
+            buffer := Basic.get_base_buffer(context.pet.debug.message_builder);
+            while buffer {
+                WriteFile(console_handle, Basic.get_buffer_data(buffer), cast(u32) buffer.count, null, null);
+                buffer = buffer.next;
+            }
+
+            FlushFileBuffers(console_handle);
+
+            SetConsoleTextAttribute(console_handle, 0x07);
+        }
+
+        debugBreakIfDebugging();
+        exitProcess(ifx sys_error_code then sys_error_code else 1);
+    }
+
+    Basic.print(context.pet.debug.message_builder, "[%]", priority);
+    #if priority != .UNHANDLED_EXCEPTION {
+        if context.pet.thread.name {
+            Basic.print(context.pet.debug.message_builder, "<%>", context.pet.thread.name);
+        } else {
+            Basic.print(context.pet.debug.message_builder, "<kind:%,tid:%>", context.pet.thread.kind, context.thread_index);
+        }
+    }
+    Basic.append(context.pet.debug.message_builder, ": ");
 
     #if priority != .UNHANDLED_EXCEPTION {
         #if priority == .ASSERT {
             absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
             absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
 
-            Basic.print(*builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
+            Basic.print(context.pet.debug.message_builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
         } else if custom_sys_code {
             absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
             absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
 
-            Basic.print(*builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
+            Basic.print(context.pet.debug.message_builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
         }
     }
 
     if args.count > 0 {
         #assert format.count > 0;
-        Basic.print(*builder, format, ..args);
+        Basic.print(context.pet.debug.message_builder, format, ..args);
     } else #if format.count > 0 {
-        Basic.append(*builder, format);
+        Basic.append(context.pet.debug.message_builder, format);
     } else {
-        Basic.append(*builder, "<no message>");
+        Basic.append(context.pet.debug.message_builder, "<no message>");
     }
 
     #if print_sys_error {
@@ -420,39 +493,39 @@ message :: (
             minimum_digits := 4 << cast(s64) (sys_error_code > 0xFFFF);
 
             #if priority < .ERROR {
-                Basic.print(*builder, " has returned 0x%: ", formatHex(sys_error_code, minimum_digits));
+                Basic.print(context.pet.debug.message_builder, " has returned 0x%: ", formatHex(sys_error_code, minimum_digits));
             } else {
-                Basic.print(*builder, ". System error (0x%): ", formatHex(sys_error_code, minimum_digits));
+                Basic.print(context.pet.debug.message_builder, ". System error (0x%): ", formatHex(sys_error_code, minimum_digits));
             }
 
             sys_error_message_buffer : [1024] u8 = ---;
             sys_error_message := getSystemMessage(sys_error_message_buffer, sys_error_code);
 
-            Basic.append(*builder, sys_error_message);
+            Basic.append(context.pet.debug.message_builder, sys_error_message);
         }
     }
 
     // Add new line if there is no any in the end
     {
-        buffer := Basic.get_current_buffer(*builder);
+        buffer := Basic.get_current_buffer(context.pet.debug.message_builder);
         data := Basic.get_buffer_data(buffer);
         if data[buffer.count - 1] != #char "\n" {
-            Basic.append(*builder, "\n");
+            Basic.append(context.pet.debug.message_builder, "\n");
         }
     }
 
     #if priority >= .ASSERT {
-        Basic.append(*builder, "\nStack trace:\n");
+        Basic.append(context.pet.debug.message_builder, "\nStack trace:\n");
         if #compile_time {
-            printStackTraceFromJaiContext(*builder);
+            printStackTraceFromJaiContext(context.pet.debug.message_builder);
         } else #if priority == .UNHANDLED_EXCEPTION && OS == .WINDOWS {
-            printStackTrace(*builder, 9); // Skip `printStackTrace`, `message`, and some ntdll.dll and kernel32.dll functions
+            printStackTrace(context.pet.debug.message_builder, 9); // Skip `printStackTrace`, `message`, and some ntdll.dll and kernel32.dll functions
         } else {
-            printStackTrace(*builder, 2); // Skip `printStackTrace` and `message`
+            printStackTrace(context.pet.debug.message_builder, 2); // Skip `printStackTrace` and `message`
         }
     }
 
-    message := Basic.builder_to_string(*builder,, allocator = Basic.temp);
+    message := Basic.builder_to_string(context.pet.debug.message_builder, do_reset = false,, allocator = Basic.temp);
 
     lock(*g_ioMutex);
 
@@ -468,28 +541,26 @@ message :: (
         if console_handle != INVALID_HANDLE_VALUE {
             console_mode : u32;
             if GetConsoleMode(console_handle, *console_mode) {
-                success : BOOL;
-
                 // We do not change a color for verbose messages
                 #if priority != .VERBOSE {
-                         #if priority == .DEBUG   success = SetConsoleTextAttribute(console_handle, 0x09);
-                    else #if priority == .INFO    success = SetConsoleTextAttribute(console_handle, 0x0A);
-                    else #if priority == .WARNING success = SetConsoleTextAttribute(console_handle, 0x06);
-                    else #if priority >= .ERROR   success = SetConsoleTextAttribute(console_handle, 0x04);
+                         #if priority == .DEBUG   debugCheck(SetConsoleTextAttribute(console_handle, 0x09), print_sys_error = true);
+                    else #if priority == .INFO    debugCheck(SetConsoleTextAttribute(console_handle, 0x0A), print_sys_error = true);
+                    else #if priority == .WARNING debugCheck(SetConsoleTextAttribute(console_handle, 0x06), print_sys_error = true);
+                    else #if priority >= .ERROR   debugCheck(SetConsoleTextAttribute(console_handle, 0x04), print_sys_error = true);
                     else                          #assert false "Unhandled message priority";
-                    Basic.assert(success != FALSE);
                 }
 
-                success = WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
-                Basic.assert(success != FALSE);
+                debugCheck(WriteFile(console_handle, message.data, cast(u32) message.count, null, null), print_sys_error = true);
+
+                Basic.reset(context.pet.debug.message_builder);
 
                 #if priority != .VERBOSE {
-                    success = SetConsoleTextAttribute(console_handle, 0x07);
-                    Basic.assert(success != FALSE);
+                    debugCheck(SetConsoleTextAttribute(console_handle, 0x07), print_sys_error = true);
                 }
             } else {
-                success := WriteFile(console_handle, message.data, cast(u32) message.count, null, null);
-                Basic.assert(success != FALSE);
+                debugCheck(WriteFile(console_handle, message.data, cast(u32) message.count, null, null), print_sys_error = true);
+
+                Basic.reset(context.pet.debug.message_builder);
             }
         }
     } else {
@@ -513,25 +584,18 @@ printStackTrace :: (builder : *Basic.String_Builder, frames_to_skip : u32) {
         stack_trace : **void = Basic.talloc(MAX_FRAMES_TO_CAPTURE * size_of(*void));
 
         frames_count := RtlCaptureStackBackTrace(frames_to_skip, MAX_FRAMES_TO_CAPTURE, stack_trace, null);
-        Basic.assert(frames_count > 0, "RtlCaptureStackBackTrace did not capture any frames which is impossible. Error: %", GetLastError());
+        assert(frames_count > 0, "RtlCaptureStackBackTrace did not capture any frames which is impossible", print_sys_error = true);
 
         pseudo_process_handle := GetCurrentProcess();
         process : HANDLE;
-        success := DuplicateHandle(pseudo_process_handle, pseudo_process_handle, pseudo_process_handle, *process, 0, FALSE, DUPLICATE_SAME_ACCESS);
-        Basic.assert(success != FALSE, "DuplicateHandle has failed with error %", GetLastError());
-        defer {
-            success = CloseHandle(process);
-            Basic.assert(success != FALSE, "CloseHandle has failed with error %", GetLastError());
-        }
+        debugCheck(DuplicateHandle(pseudo_process_handle, pseudo_process_handle, pseudo_process_handle, *process, 0, FALSE, DUPLICATE_SAME_ACCESS),
+                   print_sys_error = true);
+        defer debugCheck(CloseHandle(process), print_sys_error = true);
 
         scopedLock(*g_dbgHelpMutex);
 
-        success = SymInitialize(process, null, TRUE);
-        Basic.assert(success != FALSE, "SymInitialize has failed with error %", GetLastError());
-        defer {
-            success = SymCleanup(process);
-            Basic.assert(success != FALSE, "SymCleanup has failed with error %", GetLastError());
-        }
+        debugCheck(SymInitialize(process, null, TRUE), print_sys_error = true);
+        defer debugCheck(SymCleanup(process), print_sys_error = true);
 
         line_info   := IMAGEHLP_LINE64.{ SizeOfStruct = size_of(IMAGEHLP_LINE64) };
         module_info := IMAGEHLP_MODULE64.{ SizeOfStruct = size_of(IMAGEHLP_MODULE64) };
@@ -550,8 +614,7 @@ printStackTrace :: (builder : *Basic.String_Builder, frames_to_skip : u32) {
             if SymGetLineFromAddr64(process, cast(u64) frame, *column, *line_info) {
                 Basic.print(builder, "%(%,%): ", to_string(line_info.FileName), line_info.LineNumber, column);
             } else {
-                success = SymGetModuleInfo64(process, cast(u64) frame, *module_info);
-                Basic.assert(success != FALSE, "SymGetModuleInfo64 has failed with error %", GetLastError());
+                debugCheck(SymGetModuleInfo64(process, cast(u64) frame, *module_info), print_sys_error = true);
 
                 Basic.print(builder, "%(0x%): ", to_string(module_info.LoadedImageName.data), frame);
             }
@@ -564,7 +627,7 @@ printStackTrace :: (builder : *Basic.String_Builder, frames_to_skip : u32) {
                 procedure_name = "<unknown procedure>";
 
                 last_error := GetLastError();
-                Basic.assert(last_error == ERROR_MOD_NOT_FOUND, "SymFromAddr has failed with error %", last_error);
+                assert(last_error == ERROR_MOD_NOT_FOUND, "SymFromAddr has failed", print_sys_error = true, last_error);
             }
 
             Basic.print(builder, "%\n", procedure_name);
@@ -577,7 +640,7 @@ printStackTrace :: (builder : *Basic.String_Builder, frames_to_skip : u32) {
 printStackTraceFromJaiContext :: (builder : *Basic.String_Builder) {
     // _STACK_TRACE is defined by the compiler based on Build_Options.stack_trace
     #if _STACK_TRACE {
-        Basic.assert(context.stack_trace != null, "Stack trace is empty which is impossible");
+        assert(context.stack_trace != null, "Stack trace is empty which is impossible");
 
         node := context.stack_trace;
         while node {
@@ -714,11 +777,12 @@ g_exception_handler_context : struct {
     inside_exception_handler : bool;
 };
 
-g_ioMutex : Mutex;
-
+g_ioMutex            : RecursiveMutex;
+g_mutexesInitialized : bool;
 #if OS == .WINDOWS {
-    g_dbgHelpMutex : Mutex; // All DbgHelp functions are single threaded, so we have to synchronize their calls
+    g_dbgHelpMutex : RecursiveMutex; // All DbgHelp functions are single threaded, so we have to synchronize their calls
 }
 
 Program_Print :: #import "Program_Print";
 Reflection    :: #import "Reflection";
+Atomics       :: #import "Atomics";

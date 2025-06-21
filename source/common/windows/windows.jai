@@ -1349,6 +1349,10 @@ SetFilePointerEx :: (
     dwMoveMethod     : u32
 ) -> BOOL #foreign kernel32;
 
+FlushFileBuffers :: (
+    hFile : HANDLE
+) -> BOOL #foreign kernel32;
+
 GetOverlappedResult :: (
     hFile                      : HANDLE,
     lpOverlapped               : *OVERLAPPED,
