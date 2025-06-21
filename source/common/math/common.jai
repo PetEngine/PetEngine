@@ -3,8 +3,8 @@
 PI : f32 : Math.PI;
 
 // Interval machine epsilons
-DEFAULT_F32_EPSILON : f32 : 0h34C0_0000;           // 0h3400_0000 is too small in practice
-DEFAULT_F64_EPSILON : f64 : 0h3CB0_0000_0000_0000;
+DEFAULT_F32_EPSILON : f32 : 0.00001;
+DEFAULT_F64_EPSILON : f64 : 0.0000001;
 
 Rect :: struct {
     x : s16;

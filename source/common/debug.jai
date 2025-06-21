@@ -131,6 +131,19 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
             }
         }
     }
+
+    assertNormalized :: (expression : Code, $epsilon := DEFAULT_F32_EPSILON, location := #caller_location) #expand #no_debug {
+        v := #insert expression;
+        if !normalized(v, epsilon) {
+            STR_EXPRESSION :: #run codeToString(expression);
+            assertMessage("%1 should be normalized. %1 = %, dot = %, epsilon = %",
+                          STR_EXPRESSION,
+                          formatInline(v),
+                          dot(v, v),
+                          epsilon,
+                          location = location);
+        }
+    }
 } else {
     assert :: (
         #discard expression      : Code,
@@ -170,10 +183,17 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
     debugCheckVK :: (expression : Code, #discard strict := true, #discard location := #caller_location) #expand #no_debug {
         #insert expression;
     }
+
+    assertNormalized :: (
+        #discard expression : Code,
+        #discard epsilon    := DEFAULT_F32_EPSILON,
+        #discard location   := #caller_location
+    ) #expand #no_debug {
+    }
 }
 
 assertThreadKind :: (kind : ThreadKind, procedure_name := #procedure_name(), location := #caller_location) #expand #no_debug {
-    assert(context.pet.thread.kind == kind, "% can be called only from % thread kind", procedure_name, kind, location = location);
+    assert(context.pet.thread.kind == kind, "% can be called only from % thread", procedure_name, kind, location = location);
 }
 
 notImplemented :: ($assert_in_run_time := false, location := #caller_location) #expand #no_debug {

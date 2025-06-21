@@ -314,13 +314,17 @@ determinant :: inline (m : m4x4) -> f32 #no_context {
 
 // Left handed
 lookToMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> m4x4 {
-    assert(normalized(world_up), "world_up vector should be normal. world_up = %, dot = %", formatInline(world_up), dot(world_up, world_up));
-    assert(normalized(direction), "direction vector should be normal. direction = %, dot = %", formatInline(direction), dot(direction, direction));
+    assertNormalized(world_up);
+    assertNormalized(direction);
 
     axis_z := direction;
-    axis_x := cross(world_up, axis_z);
+    axis_x := normalize(cross(world_up, axis_z));
     axis_y := cross(axis_z, axis_x);
     view_t := -camera;
+
+    assertNormalized(axis_x);
+    assertNormalized(axis_y);
+    // axis_z is already checked
 
     return .{
         axis_x.x, axis_x.y, axis_x.z, dot(axis_x, view_t),
@@ -332,13 +336,17 @@ lookToMatrix :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -
 
 // Left handed
 lookToMatrixAndItsInverse :: (camera : v3f, direction : v3f, world_up : v3f = .{ 0, 1, 0 }) -> (view : m4x4, inv_view : m4x4) {
-    assert(normalized(world_up), "world_up vector should be normal. world_up = %, dot = %", formatInline(world_up), dot(world_up, world_up));
-    assert(normalized(direction), "direction vector should be normal. direction = %, dot = %", formatInline(direction), dot(direction, direction));
+    assertNormalized(world_up);
+    assertNormalized(direction);
 
     axis_z := direction;
-    axis_x := cross(world_up, axis_z);
+    axis_x := normalize(cross(world_up, axis_z));
     axis_y := cross(axis_z, axis_x);
     view_t := -camera;
+
+    assertNormalized(axis_x);
+    assertNormalized(axis_y);
+    // axis_z is already checked
 
     return .{
         axis_x.x, axis_x.y, axis_x.z, dot(axis_x, view_t),
@@ -526,7 +534,7 @@ rotationZ :: (angle : f32) -> m3x3 {
 }
 
 rotation :: (around : v3f, angle : f32) -> m3x3 {
-    assert(normalized(around));
+    assertNormalized(around);
 
     s := sin(angle);
     c := cos(angle);
