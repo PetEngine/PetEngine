@@ -80,22 +80,26 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
     new_group_name : string;
 
     while stream {
-        line, success := getLine(*stream, name);
-        if !success return false;
+        line := getLine(*stream);
 
         // Skip an empty line or a comment
         if !line || line[0] == #char "#" {
             continue;
         }
 
+        if line[line.count - 1] == #char "\\" {
+            errorMessage("\"%.obj\": We do not support joining lines in .obj files", name);
+            return false;
+        }
+
         if String.starts_with(line, "g ") {
             advance(*line, "g ".count);
-            line = Basic.eat_spaces(line);
+            trimLeft(*line);
 
             new_group_name = line;
         } else if String.starts_with(line, "v ") {
             advance(*line, "v ".count);
-            line = Basic.eat_spaces(line);
+            trimLeft(*line);
 
             if !line {
                 errorMessage("\"%.obj\": Line with vertex position does not have any data", name);
@@ -110,7 +114,7 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
             }
         } else if String.starts_with(line, "vt ") {
             advance(*line, "vt ".count);
-            line = Basic.eat_spaces(line);
+            trimLeft(*line);
 
             if !line {
                 errorMessage("\"%.obj\": Line with vertex texture coordinate does not have any data", name);
@@ -125,7 +129,7 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
             }
         } else if String.starts_with(line, "vn ") {
             advance(*line, "vn ".count);
-            line = Basic.eat_spaces(line);
+            trimLeft(*line);
 
             if !line {
                 errorMessage("\"%.obj\": Line with vertex normal does not have any data", name);
@@ -140,7 +144,7 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
             }
         } else if String.starts_with(line, "f ") {
             advance(*line, "f ".count);
-            line = Basic.eat_spaces(line);
+            trimLeft(*line);
 
             if !line {
                 errorMessage("\"%.obj\": Line with face does not have any data", name);
@@ -190,31 +194,6 @@ END;
     return true;
 }
 
-getLine :: (stream : *string, name : string) -> (string, bool) {
-    line := string.{ data = stream.data };
-
-    while stream.* && stream.*[0] != #char "\n" && stream.*[0] != #char "\r" {
-        advance(stream);
-    }
-
-    line.count = cast(s64) (stream.data - line.data);
-
-    if line && line[line.count - 1] == #char "\\" {
-        errorMessage("\"%.obj\": We do not support joining lines in .obj files", name);
-        return "", false;
-    }
-
-    if stream.* {
-        if stream.*[0] == {
-            case #char "\n"; advance(stream, "\n".count);
-            case #char "\r"; advance(stream, "\r\n".count);
-            case;            assert(false);
-        }
-    }
-
-    return line, true;
-}
-
 getVertexAttribute :: (line : *string, group : *ObjMesh.VertexGroup, attribute : ObjMesh.Attribute, name : string) -> bool {
     if !line.* return true;
 
@@ -227,7 +206,7 @@ getVertexAttribute :: (line : *string, group : *ObjMesh.VertexGroup, attribute :
             errorMessage("\"%.obj\": Failed to parse #% component of vertex % attribute", name, it_index, attribute);
             return false;
         }
-        line.* = Basic.eat_spaces(line.*);
+        trimLeft(line);
     }
 
     Basic.array_add(*group.attributes[attribute], attribute_data);
@@ -291,7 +270,7 @@ getTriplets :: (line : *string, group : *ObjMesh.FaceGroup, name : string) -> bo
             }
         }
 
-        line.* = Basic.eat_spaces(line.*);
+        trimLeft(line);
         triplets_count += 1;
     }
 

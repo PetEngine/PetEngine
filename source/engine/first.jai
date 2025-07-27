@@ -453,6 +453,7 @@ operator >= :: Basic.operator >=;
 #load "assets/converter.jai";
 #load "assets/manager.jai";
 #load "core/input.jai";
+#load "core/settings.jai";
 #load "core/window.jai";
 #load "render/binding_manager.jai";
 #load "render/command_buffer.jai";

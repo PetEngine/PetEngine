@@ -209,7 +209,7 @@ compileShader :: (name : string) -> bool {
     // 1. Get common shader part
     //
 
-    common_code := getShaderStageCode(*source, name);
+    common_code := getShaderStageCode(*source);
 
     //
     // 2. Get code for each shader stage and pipeline state
@@ -220,11 +220,9 @@ compileShader :: (name : string) -> bool {
     pipeline_state_code : string;
 
     while source {
-        line := getLine(*source, name);
+        line := getLine(*source);
 
         if line && line[0] == #char "#" {
-            line = String.trim_right(line);
-
             if line == {
                 case "#vertex_shader";
                     if shader_kind != .GRAPHICS && shader_kind != 0xFF {
@@ -232,7 +230,7 @@ compileShader :: (name : string) -> bool {
                         return false;
                     }
                     shader_kind = .GRAPHICS;
-                    stage_codes[ShaderStage.VERTEX] = getShaderStageCode(*source, name);
+                    stage_codes[ShaderStage.VERTEX] = getShaderStageCode(*source);
 
                 case "#fragment_shader";
                     if shader_kind != .GRAPHICS && shader_kind != 0xFF {
@@ -240,10 +238,10 @@ compileShader :: (name : string) -> bool {
                         return false;
                     }
                     shader_kind = .GRAPHICS;
-                    stage_codes[ShaderStage.FRAGMENT] = getShaderStageCode(*source, name);
+                    stage_codes[ShaderStage.FRAGMENT] = getShaderStageCode(*source);
 
                 case "#pipeline_state";
-                    pipeline_state_code = getShaderStageCode(*source, name);
+                    pipeline_state_code = getShaderStageCode(*source);
             }
         }
     }
@@ -254,7 +252,7 @@ compileShader :: (name : string) -> bool {
 
     pipeline_state : PipelineState;
     if shader_kind == .GRAPHICS {
-        if !parseGraphicsPipelineState(*pipeline_state.graphics, pipeline_state_code, name) {
+        if !parseGraphicsPipelineState(*pipeline_state.graphics, pipeline_state_code) {
             // Error message has already been printed in parseGraphicsPipelineState
             return false;
         }
@@ -458,27 +456,8 @@ makeBinaryShaderFilename :: inline (name : string) -> string {
 
 using ShaderCompiler;
 
-getLine :: (stream : *string, name : string) -> string {
-    line := string.{ data = stream.data };
-
-    while stream.* && stream.*[0] != #char "\n" {
-        advance(stream);
-    }
-
-    line.count = cast(s64) (stream.data - line.data);
-
-    assert(!line || line[line.count - 1] != #char "\r", "\"%.shader\": We do not support CRLF line endings in shaders", name);
-
-    if stream.* {
-        assert(stream.*[0] == #char "\n");
-        advance(stream);
-    }
-
-    return line;
-}
-
-getShaderStageCode :: (stream : *string, name : string) -> string {
-    stream.* = String.trim_left(stream.*);
+getShaderStageCode :: (stream : *string) -> string {
+    trimLeft(stream);
 
     stage_code := string.{ data = stream.data };
 
@@ -490,11 +469,9 @@ getShaderStageCode :: (stream : *string, name : string) -> string {
 
     line : string;
     while outer_loop := stream.* {
-        line = getLine(stream, name);
+        line = getLine(stream);
 
         if line && line[0] == #char "#" {
-            line = String.trim_right(line);
-
             // If we met next stage, this is the end.
             for STAGE_KEYWORDS {
                 if line == it {
@@ -509,18 +486,25 @@ getShaderStageCode :: (stream : *string, name : string) -> string {
     } else if line {
         stage_code.count = cast(s64) (line.data - stage_code.data);
 
-        stream.data   = line.data;
-        stream.count += line.count + 1; // + skipped new line
+        // +1: new line
+        stream.count += line.count + 1;
+        stream.data  -= line.count + 1;
+
+        while stream.data > line.data {
+            stream.count += 1;
+            stream.data  -= 1;
+        }
     }
 
-    return String.trim_right(stage_code);
+    trimRight(*stage_code);
+    return stage_code;
 }
 
-parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : string, name : string) -> bool {
+parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : string) -> bool {
     while state_code {
-        line := getLine(*state_code, name);
-        line = Basic.eat_spaces(line);
+        line := getLine(*state_code);
 
+        // Skip an empty line or a comment
         if !line || String.starts_with(line, "//") {
             continue;
         }
@@ -531,20 +515,20 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
         } else if String.starts_with(line, "ColorTarget") {
             advance(*line, "ColorTarget".count);
 
-            color_target_index, line := getColorTargetIndex(line);
+            color_target_index := getColorTargetIndex(*line);
             if color_target_index == INVALID_COLOR_TARGET_INDEX {
                 // Error message has already been printed in getColorTargetIndex
                 return false;
             }
 
-            line = Basic.eat_spaces(line);
+            trimLeft(*line);
             if !line || line[0] != #char "." {
                 errorMessage("Compilation failed: Expected '.', got '%'", ifx line then string.{ 1, line.data } else "<EOL>");
                 return false;
             }
             advance(*line);
 
-            name, value, success := splitToNameAndValue(line);
+            name, value, success := splitToNameAndValue(*line);
             if !success return false;
 
             if name == {
@@ -577,7 +561,7 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
                     return false;
             }
         } else {
-            name, value, success := splitToNameAndValue(line);
+            name, value, success := splitToNameAndValue(*line);
             if !success return false;
 
             if name == {
@@ -630,50 +614,34 @@ parseGraphicsPipelineState :: (state : *GraphicsPipelineState, state_code : stri
     return true;
 }
 
-splitToNameAndValue :: (line_ : string) -> (name : string, value : string, success : bool) {
-    line := Basic.eat_spaces(line_);
+splitToNameAndValue :: (line : *string) -> (name : string, value : string, success : bool) {
+    trimLeft(line);
 
-    name : string = ---;
-    {
-        name_end := line;
-        while name_end && name_end[0] != #char "=" {
-            advance(*name_end);
-        }
+    name_start := advanceWhile(line, (char : u8) -> bool #no_context {
+        return char != #char "=";
+    });
 
-        if !name_end || name_end[0] != #char "=" {
-            errorMessage("Compilation failed: Expected '=', got '%'", ifx name_end then string.{ 1, name_end.data } else "<EOL>");
-            return "", "", false;
-        }
+    name := string.{ line.data - name_start, name_start };
+    trimRight(*name);
 
-        name.data  = line.data;
-        name.count = cast(s64) (name_end.data - line.data);
-
-        name = String.trim_right(name);
-
-        line = name_end;
+    if !line.* || line.*[0] != #char "=" {
+        errorMessage("Compilation failed: Expected '=', got '%'", ifx line.* then string.{ 1, line.data } else "<EOL>");
+        return name, "", false;
     }
 
-    // Skip "="
-    advance(*line);
+    advance(line, "=".count);
+    trimLeft(line);
 
-    line = Basic.eat_spaces(line);
+    value_start := advanceWhile(line, (char : u8) -> bool #no_context {
+        return char != #char ";";
+    });
 
-    value : string = ---;
-    {
-        value_end := line;
-        while value_end && value_end[0] != #char ";" {
-            advance(*value_end);
-        }
+    value := string.{ line.data - value_start, value_start };
+    trimRight(*value);
 
-        if !value_end || value_end[0] != #char ";" {
-            errorMessage("Compilation failed: Expected ';', got '%'", ifx value_end then string.{ 1, value_end.data } else "<EOL>");
-            return "", "", false;
-        }
-
-        value.data  = line.data;
-        value.count = cast(s64) (value_end.data - line.data);
-
-        value = String.trim_right(value);
+    if !line.* || line.*[0] != #char ";" {
+        errorMessage("Compilation failed: Expected ';', got '%'", ifx line.* then string.{ 1, line.data } else "<EOL>");
+        return name, value, false;
     }
 
     return name, value, true;
@@ -704,34 +672,36 @@ handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) -> bool {
 
     flag_names_it := value;
     while flag_names_it {
-        flag_name_end := flag_names_it;
-        while flag_name_end && flag_name_end[0] != #char "|" {
-            advance(*flag_name_end);
-        }
+        flag_name_start := advanceWhile(*flag_names_it, (char : u8) -> bool #no_context {
+            return char != #char "|";
+        });
 
-        flag_name := string.{ cast(s64) (flag_name_end.data - flag_names_it.data), flag_names_it.data };
-        flag_name = String.trim_right(flag_name);
+        flag_name := string.{ flag_names_it.data - flag_name_start, flag_name_start };
+        trimRight(*flag_name);
 
         found : bool;
         for INFO.names {
             if it == flag_name {
-                enum_flags_value.* |= cast(ColorTarget.WriteMask) INFO.values[it_index];
-
+                enum_flags_value.* |= cast(T) INFO.values[it_index];
                 found = true;
                 break;
             }
         }
 
         if !found {
-            errorMessage("Compilation failed: invalid enum_flags name: '%'", value);
+            errorMessage("Compilation failed: invalid enum_flags' flag name: '%'", flag_name);
             return false;
         }
 
-        flag_names_it = flag_name_end;
-        if flag_name_end && flag_names_it[0] == #char "|" {
+        if !flag_names_it {
+            break;
+        }
+
+        if flag_names_it[0] == #char "|" {
             advance(*flag_names_it);
         }
-        flag_names_it = Basic.eat_spaces(flag_names_it);
+
+        trimLeft(*flag_names_it);
     }
 
     return true;
@@ -746,7 +716,7 @@ handleBoolValue :: inline (bool_value : *bool, value : string) -> bool {
             bool_value.* = false;
 
         case;
-            errorMessage("Compilation failed: inavlid bool value: '%'", value);
+            errorMessage("Compilation failed: inavlid bool value: '%'. Allowed: true or false (case sensitive)", value);
             return false;
     }
     return true;
@@ -764,33 +734,35 @@ handleFloatValue :: inline (float_value : *f32, value : string) -> bool {
     return success;
 }
 
-getColorTargetIndex :: (line_ : string) -> (index : u8, line : string) {
-    line := Basic.eat_spaces(line_);
-    if !line || line[0] != #char "[" {
-        errorMessage("Compilation failed: Expected '[', got '%'", ifx line then string.{ 1, line.data } else "<EOL>");
-        return INVALID_COLOR_TARGET_INDEX, line;
-    }
-    advance(*line);
+getColorTargetIndex :: (line : *string) -> u8 {
+    trimLeft(line);
 
-    color_target_index, success, line= := Basic.string_to_int(line, T = u8);
+    if !line.* || line.*[0] != #char "[" {
+        errorMessage("Compilation failed: Expected '[', got '%'", ifx line.* then string.{ 1, line.data } else "<EOL>");
+        return INVALID_COLOR_TARGET_INDEX;
+    }
+    advance(line);
+
+    color_target_index, success, rest_line := Basic.string_to_int(line.*, T = u8);
+    line.* = rest_line;
     if !success {
         errorMessage("Compilation failed: Failed to parse index of a color target");
-        return INVALID_COLOR_TARGET_INDEX, line;
+        return INVALID_COLOR_TARGET_INDEX;
     }
 
     if color_target_index >= MAX_COLOR_TARGETS {
         errorMessage("Compilation failed: Too big color target index: %. Maximum allowed: %", color_target_index, MAX_COLOR_TARGETS - 1);
-        return INVALID_COLOR_TARGET_INDEX, line;
+        return INVALID_COLOR_TARGET_INDEX;
     }
 
-    line = Basic.eat_spaces(line);
-    if !line || line[0] != #char "]" {
-        errorMessage("Compilation failed: Expected ']', got '%'", ifx line then string.{ 1, line.data } else "<EOL>");
-        return INVALID_COLOR_TARGET_INDEX, line;
+    trimLeft(line);
+    if !line.* || line.*[0] != #char "]" {
+        errorMessage("Compilation failed: Expected ']', got '%'", ifx line.* then string.{ 1, line.data } else "<EOL>");
+        return INVALID_COLOR_TARGET_INDEX;
     }
-    advance(*line);
+    advance(line);
 
-    return color_target_index, line;
+    return color_target_index;
 }
 
 shaderStageToShadercShaderKind :: inline (stage : ShaderStage) -> shaderc_shader_kind {

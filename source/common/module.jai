@@ -9,102 +9,6 @@ DEFAULT_CACHE_LINE_SIZE :: 64;
 DEFAULT_PAGE_SIZE       :: 4096;
 DEFAULT_ALIGNMENT       :: size_of(*void);
 
-ntStringLength :: inline (nt_string : [] $T/ALLOWED_CHAR_TYPES) -> s64 #no_context {
-    for nt_string {
-        if it == 0 {
-            return it_index;
-        }
-    }
-    return nt_string.count;
-}
-
-ntStringLength :: inline (nt_string : *$T/ALLOWED_CHAR_TYPES) -> s64 #no_context {
-    start := nt_string;
-    while nt_string.* {
-        nt_string += 1;
-    }
-    return nt_string - start;
-}
-
-ntStringCompare :: (a : [] $T/ALLOWED_CHAR_TYPES, b : [] T) -> s64 {
-    if a.count < b.count return -1;
-    if a.count > b.count return  1;
-
-    count := a.count;
-    a_it  := a.data;
-    b_it  := b.data;
-
-    while count > 0 && a_it.* == b_it.* {
-        count -= 1;
-        a_it  += 1;
-        b_it  += 1;
-    }
-
-    a_s64 : s64 = a_it.*;
-    b_s64 : s64 = b_it.*;
-    return a_s64 - b_s64;
-}
-
-ntStringCompare :: (a : *$T/ALLOWED_CHAR_TYPES, b : *T) -> s64 {
-    while a.* && a.* == b.* {
-        a += 1;
-        b += 1;
-    }
-
-    a_s64 : s64 = a.*;
-    b_s64 : s64 = b.*;
-    return a_s64 - b_s64;
-}
-
-advance :: inline (str : *string, amount := 1) {
-    assert(amount > 0, "amount should be > 0. amount = %", amount);
-    assert(str.count >= amount, "str.count should be >= amount. str.count = %, amount = %", str.count, amount);
-
-    str.data  += amount;
-    str.count -= amount;
-}
-
-substring :: inline (source : string, offset : s64, $$count : s64 = -1) -> string {
-    if offset >= source.count {
-        return "";
-    }
-
-    assert(offset >=  0, "offset should be >= 0, offset = %", offset);
-    assert(count  >= -1, "count should be >= -1, count = %", count);
-
-    substr : string = ---;
-    substr.data = source.data + offset;
-
-    #if is_constant(count) {
-        #if count == -1 {
-            substr.count = source.count - offset;
-        } else {
-            assert(count <= source.count - offset);
-            substr.count = count;
-        }
-    } else {
-        if count == -1 {
-            substr.count = source.count - offset;
-        } else {
-            assert(count <= source.count - offset);
-            substr.count = count;
-        }
-    }
-
-    return substr;
-}
-
-appendToString :: (dest : *string, dest_capacity : s64, to_append : ..string) {
-    for to_append {
-        assert(dest.count + it.count <= dest_capacity,
-               "String overflow: occupied: %, requested to append: %, capacity: %",
-               dest.count, it.count, dest_capacity);
-
-        memcpy(dest.data + dest.count, it.data, it.count);
-        dest.count += it.count;
-    }
-}
-
 toView :: inline (data : *$T, count : s64) -> [] T #no_context {
     result : [] T = .{ count, data };
     return result;
@@ -168,6 +72,7 @@ generatePlatformVtableInitialization :: (
 #load "math/vectors.jai";
 #load "mutex.jai";
 #load "static_array.jai";
+#load "string_utils.jai";
 #load "thread.jai";
 #load "vulkan/vulkan.jai";
 #if OS == .WINDOWS {
@@ -194,9 +99,3 @@ Compiler :: #import "Compiler";
 #scope_module
 
 Basic :: #import "Basic";
-
-#scope_file
-
-ALLOWED_CHAR_TYPES :: Type.[
-    u8, u16, u32,
-];
