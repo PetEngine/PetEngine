@@ -435,7 +435,7 @@ message :: (
 
             SetConsoleTextAttribute(console_handle, 0x04);
 
-            FLUSH_MESSAGES_HEADER :: "Too many recursions. Most likely you have triggered assert inside assert. Accumulated string builder content:\n";
+            FLUSH_MESSAGES_HEADER :: "Too many recursions. Most likely you have triggered assert inside assert. Accumulated string builder content:\n==================================== BEGIN ====================================\n";
             WriteFile(console_handle, FLUSH_MESSAGES_HEADER.data, FLUSH_MESSAGES_HEADER.count, null, null);
 
             // We are not using Basic.builder_to_string here since it might be a crash inside an allocator,
@@ -445,6 +445,9 @@ message :: (
                 WriteFile(console_handle, Basic.get_buffer_data(buffer), cast(u32) buffer.count, null, null);
                 buffer = buffer.next;
             }
+
+            FLUSH_MESSAGES_FOOTER :: "\n====================================  END  ====================================\n\n";
+            WriteFile(console_handle, FLUSH_MESSAGES_FOOTER.data, FLUSH_MESSAGES_FOOTER.count, null, null);
 
             FlushFileBuffers(console_handle);
 
@@ -465,13 +468,13 @@ message :: (
     }
     Basic.append(context.pet.debug.message_builder, ": ");
 
-    #if priority != .UNHANDLED_EXCEPTION {
-        #if priority == .ASSERT {
-            absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
-            absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
+    #if priority == .ASSERT {
+        absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
+        absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
 
-            Basic.print(context.pet.debug.message_builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
-        } else if custom_sys_code {
+        Basic.print(context.pet.debug.message_builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
+    } else #if priority != .UNHANDLED_EXCEPTION {
+        if custom_sys_code {
             absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
             absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
 
