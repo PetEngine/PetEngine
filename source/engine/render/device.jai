@@ -81,10 +81,18 @@ FrameBuffering :: enum u8 #specified {
     TRIPLE :: 3;
 }
 
-createDevice :: (graphics_api : GraphicsAPI, render_resolution : Resolution, frame_buffering : FrameBuffering) {
+ScalingMode :: enum u8 {
+    NONE;
+    ASPECT_RATIO;
+    STRETCH;
+}
+
+createDevice :: (graphics_api : GraphicsAPI) {
     assert(!context.pet.render.device);
 
     infoMessage("Using graphics API: %", graphics_api);
+
+    frame_buffering := readSetting("render.frame_buffering");
 
     if #complete graphics_api == {
         case .VULKAN;
@@ -94,7 +102,7 @@ createDevice :: (graphics_api : GraphicsAPI, render_resolution : Resolution, fra
     device := context.pet.render.device;
 
     device.graphics_api      = graphics_api;
-    device.render_resolution = render_resolution;
+    device.render_resolution = readSetting("render.resolution");
 
     infoMessage("Render resolution: % x %", device.render_resolution.width, device.render_resolution.height);
 }

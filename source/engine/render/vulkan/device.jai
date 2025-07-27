@@ -1523,21 +1523,15 @@ recreateVulkanSwapchain :: (window : *Window) {
         verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
     }
 
-    // @TODO: #Settings.
-    //     Vsync off, allow tearing off: VK_PRESENT_MODE_MAILBOX_KHR
-    //     Vsync off, allow tearing on:  VK_PRESENT_MODE_IMMEDIATE_KHR
-    //     Vsync on,  allow tearing off: VK_PRESENT_MODE_FIFO_KHR
-    //     Vsync on,  allow tearing on:  VK_PRESENT_MODE_FIFO_RELAXED_KHR
-    REQUESTED_PRESENT_MODE :: VkPresentModeKHR.VK_PRESENT_MODE_MAILBOX_KHR;
-
-    present_mode : VkPresentModeKHR = ---;
-    if Basic.array_find(present_modes, REQUESTED_PRESENT_MODE) {
-        present_mode = REQUESTED_PRESENT_MODE;
+    present_mode := getVkPresentMode(readSetting("render.vsync"), readSetting("render.tearing_allowed"));
+    if Basic.array_find(present_modes, present_mode) {
         infoMessage("Using present mode: %", present_mode);
     } else {
         // FIFO is the only one which is guaranteed to be supported acording to Vulkan spec.
-        present_mode = .VK_PRESENT_MODE_FIFO_KHR;
-        warningMessage("Requested present mode (%) is not supported, % will be used", REQUESTED_PRESENT_MODE, present_mode);
+        FALLBACK_PRESENT_MODE :: VkPresentModeKHR.VK_PRESENT_MODE_FIFO_KHR;
+
+        warningMessage("Requested present mode (%) is not supported, % will be used", present_mode, FALLBACK_PRESENT_MODE);
+        present_mode = FALLBACK_PRESENT_MODE;
     }
 
     //
@@ -1587,12 +1581,14 @@ recreateVulkanSwapchain :: (window : *Window) {
     // Swapchain scaling
     //
 
-    // @TODO: #Settings.
-    REQUESTED_SCALING_MODE :: VkPresentScalingFlagsEXT.VK_PRESENT_SCALING_ASPECT_RATIO_STRETCH_BIT_EXT;
-    if !(scaling_capabilities.supportedPresentScaling & REQUESTED_SCALING_MODE) {
-        assertMessage("Requested scaling mode is not supported: %. Supported are: %",
-                      REQUESTED_SCALING_MODE,
-                      scaling_capabilities.supportedPresentScaling);
+    present_scaling := scalingModeToVkPresentScalingFlags(readSetting("render.scaling"));
+    if !(scaling_capabilities.supportedPresentScaling & present_scaling) {
+        FALLBACK_SCALING :: VkPresentScalingFlagsEXT.VK_PRESENT_SCALING_ONE_TO_ONE_BIT_EXT;
+
+        warningMessage("Requested scaling mode (%) is not supported, % will be used", present_scaling, FALLBACK_SCALING);
+        present_scaling = FALLBACK_SCALING;
+
+        infoMessage("Supported scaling modes: %", scaling_capabilities.supportedPresentScaling);
     }
 
     REQUESTED_GRAVITY_MODE :: VkPresentGravityFlagsEXT.VK_PRESENT_GRAVITY_CENTERED_BIT_EXT;
@@ -1693,14 +1689,14 @@ recreateVulkanSwapchain :: (window : *Window) {
         device.queues[QueueType.GRAPHICS].family_index
     ];
 
-    SCALING_BEHAVIOUR :: VkSwapchainPresentScalingCreateInfoEXT.{
-        scalingBehavior = REQUESTED_SCALING_MODE,
+    scaling_behaviour := VkSwapchainPresentScalingCreateInfoEXT.{
+        scalingBehavior = present_scaling,
         presentGravityX = REQUESTED_GRAVITY_MODE,
         presentGravityY = REQUESTED_GRAVITY_MODE,
     };
 
     create_info := VkSwapchainCreateInfoKHR.{
-        pNext                 = *SCALING_BEHAVIOUR,
+        pNext                 = *scaling_behaviour,
         flags                 = 0,
         surface               = vulkan_window_data.surface,
         minImageCount         = requested_swapchain_buffers_count,
@@ -1755,10 +1751,14 @@ recreateVulkanSwapchain :: (window : *Window) {
 
     device.back_buffer_format = vulkanFormatToTextureFormat(allowed_surface_format.format);
 
-    // @TODO: #Settings.
-    clear_color := ifx textureFormatFlags(device.back_buffer_format) & .SRGB
-                   then gammaToLinear(.{ 0.3, 0.3, 0.3, 0.0 })
-                   else v4f.{ 0.3, 0.3, 0.3, 0.0 };
+    #if DEBUG_BUILD {
+        clear_color := v4f.{ 0.3, 0.3, 0.3, 0.0 };
+        if textureFormatFlags(device.back_buffer_format) & .SRGB {
+            clear_color = gammaToLinear(clear_color);
+        }
+    } else {
+        clear_color :: v4f.{};
+    }
 
     window_title := getWindowTitle(window);
 
@@ -2095,4 +2095,26 @@ sortPhysicalDevices :: () -> [] PhysicalDeviceInfo {
     });
 
     return infos;
+}
+
+getVkPresentMode :: inline (vsync_enabled : bool, tearing_allowed : bool) -> VkPresentModeKHR {
+    if vsync_enabled {
+        if tearing_allowed {
+            return .VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+        }
+        return .VK_PRESENT_MODE_FIFO_KHR;
+    }
+    if tearing_allowed {
+        return .VK_PRESENT_MODE_IMMEDIATE_KHR;
+    }
+    return .VK_PRESENT_MODE_MAILBOX_KHR;
+}
+
+scalingModeToVkPresentScalingFlags :: inline (scaling_mode : ScalingMode) -> VkPresentScalingFlagsEXT {
+    if #complete scaling_mode == {
+        case .NONE;         return .VK_PRESENT_SCALING_ONE_TO_ONE_BIT_EXT;
+        case .ASPECT_RATIO; return .VK_PRESENT_SCALING_ASPECT_RATIO_STRETCH_BIT_EXT;
+        case .STRETCH;      return .VK_PRESENT_SCALING_STRETCH_BIT_EXT;
+    }
+    return .VK_PRESENT_SCALING_ONE_TO_ONE_BIT_EXT;
 }

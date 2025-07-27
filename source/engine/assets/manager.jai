@@ -45,11 +45,10 @@ createAssetManager :: () {
 
     manager.command_buffer = createCommandBuffer(AssetManager.command_buffer.usage);
 
-    // @TODO: #Settings.
-    BUFFER_CAPACITY :: #run megaBytes(512);
-    #assert isPowerOfTwo(BUFFER_CAPACITY);
+    buffer_capacity := readSetting("asset_manager.upload_ring_buffer_capacity");
+    assert(isPowerOfTwo(buffer_capacity));
 
-    manager.upload_buffer.buffer = createBuffer(BUFFER_CAPACITY,
+    manager.upload_buffer.buffer = createBuffer(buffer_capacity,
                                                 .PERSISTENT,
                                                 .UPLOAD,
                                                 .NONE,

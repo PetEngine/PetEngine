@@ -148,6 +148,18 @@ writeFile :: inline (file : File, data : *$T) {
     writeFile(file, data, size_of(T));
 }
 
+writeFile :: (file : File, builder : *Basic.String_Builder, $reset := true) {
+    buffer := Basic.get_base_buffer(builder);
+    while buffer {
+        writeFile(file, Basic.get_buffer_data(buffer), buffer.count);
+        buffer = buffer.next;
+    }
+
+    #if reset {
+        Basic.reset(builder);
+    }
+}
+
 getFileSize :: (file : File) -> s64 {
     file_size : s64;
 
