@@ -1,3 +1,5 @@
+#scope_export
+
 ntStringLength :: inline (nt_string : [] $T/ALLOWED_CHAR_TYPES) -> s64 #no_context {
     for nt_string {
         if it == 0 {
