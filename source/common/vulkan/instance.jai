@@ -280,6 +280,8 @@ VkPresentModeKHR :: enum VkEnum #specified {
     VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR     :: 1000111000;
     // Provided by VK_KHR_shared_presentable_image
     VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR :: 1000111001;
+    // Provided by VK_EXT_present_mode_fifo_latest_ready
+    VK_PRESENT_MODE_FIFO_LATEST_READY_EXT         :: 1000361000;
 }
 
 VkColorSpaceKHR :: enum VkEnum #specified {

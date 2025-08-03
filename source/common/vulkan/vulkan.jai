@@ -282,6 +282,9 @@ VkStructureType :: enum VkEnum #specified {
     VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT                          :: 1000316003;
     VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT                              :: 1000316004;
     VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT                   :: 1000316011;
+
+    // Provided by VK_MSFT_layered_driver
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LAYERED_DRIVER_PROPERTIES_MSFT       :: 1000530000;
 }
 
 // Provided by VK_VERSION_1_0

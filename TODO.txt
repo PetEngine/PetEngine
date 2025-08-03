@@ -63,7 +63,6 @@ Input:
 
 Settings:
     - How to apply committed settings at runtime?
-    - If `Settings.gpu` is found use it, otherwise choose the most powerful one with the biggest amount of memory. // @Continue
 
 Window:
     - WS_EX_ACCEPTFILES only in editor builds.

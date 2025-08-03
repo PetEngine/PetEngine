@@ -32,6 +32,7 @@ VkPhysicalDeviceType :: enum VkEnum #specified {
 
 // Provided by VK_VERSION_1_0
 VkVendorId :: enum VkEnum #specified {
+    VK_VENDOR_ID_KHRONOS  :: 0x10000;
     VK_VENDOR_ID_VIV      :: 0x10001;
     VK_VENDOR_ID_VSI      :: 0x10002;
     VK_VENDOR_ID_KAZAN    :: 0x10003;
@@ -78,6 +79,8 @@ VkDriverId :: enum VkEnum #specified {
     VK_DRIVER_ID_MESA_DOZEN                    :: 23;
     VK_DRIVER_ID_MESA_NVK                      :: 24;
     VK_DRIVER_ID_IMAGINATION_OPEN_SOURCE_MESA  :: 25;
+    VK_DRIVER_ID_MESA_HONEYKRISP               :: 26;
+    VK_DRIVER_ID_VULKAN_SC_EMULATION_ON_VULKAN :: 27;
     // Provided by VK_KHR_driver_properties
     VK_DRIVER_ID_AMD_PROPRIETARY_KHR           :: VK_DRIVER_ID_AMD_PROPRIETARY;
     // Provided by VK_KHR_driver_properties
@@ -662,4 +665,19 @@ VkPhysicalDeviceDescriptorBufferPropertiesEXT :: struct {
     samplerDescriptorBufferAddressSpaceSize              : VkDeviceSize;
     resourceDescriptorBufferAddressSpaceSize             : VkDeviceSize;
     descriptorBufferAddressSpaceSize                     : VkDeviceSize;
+}
+
+//
+// Provided by VK_MSFT_layered_driver
+//
+
+VkLayeredDriverUnderlyingApiMSFT :: enum VkEnum #specified {
+    VK_LAYERED_DRIVER_UNDERLYING_API_NONE_MSFT  :: 0;
+    VK_LAYERED_DRIVER_UNDERLYING_API_D3D12_MSFT :: 1;
+}
+
+VkPhysicalDeviceLayeredDriverPropertiesMSFT :: struct {
+    sType         : VkStructureType = .VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LAYERED_DRIVER_PROPERTIES_MSFT;
+    pNext         : *void;
+    underlyingAPI : VkLayeredDriverUnderlyingApiMSFT;
 }
