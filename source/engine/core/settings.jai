@@ -4,11 +4,11 @@ Settings :: struct {
     arenas : struct {
         persistent_capacity : s64 = #run gigaBytes(1);
         per_frame_capacity  : s64 = #run megaBytes(512);
-    };
+    } @read_only;
 
     asset_manager : struct {
         upload_ring_buffer_capacity : u32 = #run megaBytes(512);
-    };
+    } @read_only;
 
     render : struct {
         resolution      : Resolution     = .{ 1920, 1080 };
@@ -87,9 +87,12 @@ readSettings :: () -> Settings {
 }
 
 writeSetting :: ($setting : string, value : $T) #modify {
-    info := getMemberTypeInfo(type_info(Settings), setting);
+    info, read_only := getMemberTypeInfo(type_info(Settings), setting);
     if info {
         T = Compiler.get_type(info);
+        if read_only {
+            return false, String.join("\"Settings.", setting, "\" is read only",, allocator = Basic.temp);
+        }
         return true;
     }
     return false, String.join("\"Settings.", setting, "\" is not found",, allocator = Basic.temp);
@@ -106,25 +109,36 @@ writeSettings :: (value : Settings) {
 
 #scope_file
 
-getMemberTypeInfo :: (info : *Type_Info, setting : string) -> *Type_Info #compile_time {
+getMemberTypeInfo :: (info : *Type_Info, setting : string, read_only := false) -> (info : *Type_Info, read_only : bool) #compile_time {
     assert(info.type == .STRUCT);
     struct_info := cast(*Type_Info_Struct) info;
 
     found, left, right := String.split_from_left(setting, #char ".");
 
-    found_info : *Type_Info;
+    found_info     : *Type_Info;
+    this_read_only := read_only;
     for struct_info.members {
         if it.name == left {
             found_info = it.type;
+
+            if !this_read_only {
+                for it.notes {
+                    if it == "read_only" {
+                        this_read_only = true;
+                        break;
+                    }
+                }
+            }
+
             break;
         }
     }
 
     if found && found_info {
-        return getMemberTypeInfo(found_info, right);
+        found_info, this_read_only = getMemberTypeInfo(found_info, right, this_read_only);
     }
 
-    return found_info;
+    return found_info, this_read_only;
 }
 
 
