@@ -1782,20 +1782,10 @@ recreateVulkanSwapchain :: (window : *Window) {
 
     device.back_buffer_format = vulkanFormatToTextureFormat(allowed_surface_format.format);
 
-    #if DEBUG_BUILD {
-        clear_color := v4f.{ 0.3, 0.3, 0.3, 0.0 };
-        if textureFormatFlags(device.back_buffer_format) & .SRGB {
-            clear_color = gammaToLinear(clear_color);
-        }
-    } else {
-        clear_color :: v4f.{};
-    }
-
     window_title := getWindowTitle(window);
 
-    swapchain_images_it := swapchain_images.data;
-
     // @TODO: #SwapchainBuffers.
+    swapchain_images_it := swapchain_images.data;
     for * texture : toView(vulkan_window_data.swapchain_textures.data, window_data.swapchain_buffers_count) {
         texture.dimension             = ._2D;
         texture.format                = device.back_buffer_format;
@@ -1805,7 +1795,6 @@ recreateVulkanSwapchain :: (window : *Window) {
         texture.depth                 = 0;
         texture.samples_count         = 1;
         texture.mips_count            = 1;
-        texture.clear_value.color_f32 = clear_color;
         texture.current_owner         = .GRAPHICS;
         texture.possible_owners.count = 1;
         texture.possible_owners[0]    = .GRAPHICS;

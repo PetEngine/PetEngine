@@ -15,6 +15,7 @@ HRAWINPUT :: *HRAWINPUT__; HRAWINPUT__ :: struct { unused : s32; }
 
 HMODULE :: HINSTANCE;
 HLOCAL  :: HANDLE;
+HGDIOBJ :: *void;
 
 BOOL      :: s32;
 BOOLEAN   :: u8;
@@ -46,6 +47,8 @@ TRUE  : BOOL : 1;
 FALSE : BOOL : 0;
 
 ATOM :: u16;
+
+COLORREF :: u32;
 
 va_list :: *u8;
 
@@ -604,6 +607,10 @@ COLOR_GRAYTEXT      : s32 : 17;
 COLOR_BTNTEXT       : s32 : 18;
 COLOR_HOTLIGHT      : s32 : 26;
 
+CreateSolidBrush :: (
+    color : COLORREF
+) -> HBRUSH #foreign gdi32;
+
 GetLastError :: (
 ) -> u32 #foreign kernel32;
 
@@ -832,14 +839,12 @@ RECT :: struct {
     bottom : s32;
 }
 
+SWP_NOSIZE         : u32 : 0x0001;
 SWP_NOMOVE         : u32 : 0x0002;
 SWP_NOZORDER       : u32 : 0x0004;
-SWP_NOREDRAW       : u32 : 0x0008;
 SWP_NOACTIVATE     : u32 : 0x0010;
-SWP_NOCOPYBITS     : u32 : 0x0100;
+SWP_SHOWWINDOW     : u32 : 0x0040;
 SWP_NOOWNERZORDER  : u32 : 0x0200;
-SWP_NOSENDCHANGING : u32 : 0x0400;
-SWP_DEFERERASE     : u32 : 0x2000;
 SWP_ASYNCWINDOWPOS : u32 : 0x4000;
 
 HWND_TOP : HWND : null;
@@ -2227,3 +2232,4 @@ hid      :: #library,system "hid";
 ntdll    :: #library,system "ntdll";
 dbghelp  :: #library,system "dbghelp";
 onecore  :: #library,system,no_dll "onecore";
+gdi32    :: #library,system "gdi32";

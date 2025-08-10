@@ -33,14 +33,17 @@ createWin32WindowManager :: () {
     cursor_handle := LoadCursorW(null, IDC_ARROW);
     assert(cursor_handle, print_sys_error = true);
 
+    backgroud_brush := CreateSolidBrush(0);
+    assert(backgroud_brush, print_sys_error = true);
+
     window_class := WNDCLASSEXW.{
         cbSize        = size_of(WNDCLASSEXW),
-        style         = CS_VREDRAW | CS_HREDRAW | CS_DBLCLKS | CS_OWNDC,
+        style         = CS_OWNDC,
         lpfnWndProc   = windowEventsCallback,
         hInstance     = manager.app_instance,
         hIcon         = icon_handle,
         hCursor       = cursor_handle,
-        hbrBackground = cast,no_check(HBRUSH) (COLOR_WINDOW + 1),
+        hbrBackground = backgroud_brush,
         lpszMenuName  = null,
         lpszClassName = utf16_class_name.data,
         hIconSm       = icon_handle,
@@ -313,23 +316,14 @@ windowEventsCallback :: (window_handle : HWND, message : WM, wparam : WPARAM, lp
 
             new_window_rect := cast,no_check(*RECT) lparam;
 
-            SET_WINDOW_POS_FLAGS :: SWP_NOZORDER
-                                  | SWP_NOREDRAW
-                                  | SWP_NOACTIVATE
-                                  | SWP_NOCOPYBITS
-                                  | SWP_NOOWNERZORDER
-                                  | SWP_NOSENDCHANGING
-                                  | SWP_DEFERERASE;
-
-            success := SetWindowPos(window_handle,
+            debugCheck(SetWindowPos(window_handle,
                                     HWND_TOP,
                                     new_window_rect.left,
                                     new_window_rect.top,
                                     new_window_rect.right  - new_window_rect.left,
                                     new_window_rect.bottom - new_window_rect.top,
-                                    SET_WINDOW_POS_FLAGS);
-
-            assert(success, print_sys_error = true);
+                                    SWP_NOZORDER | SWP_NOOWNERZORDER),
+                       print_sys_error = true);
 
         case;
             result = DefWindowProcW(window_handle, message, wparam, lparam);
@@ -349,17 +343,14 @@ applyInitialDPIScalingToWindow :: (window_handle : HWND, rect_resolution : Resol
     scaled_width  := cast(u16) ceil(rect_resolution.width  * dpi_scale);
     scaled_height := cast(u16) ceil(rect_resolution.height * dpi_scale);
 
-    SET_WINDOW_POS_FLAGS :: SWP_NOMOVE
-                          | SWP_NOZORDER
-                          | SWP_NOREDRAW
-                          | SWP_NOACTIVATE
-                          | SWP_NOCOPYBITS
-                          | SWP_NOOWNERZORDER
-                          | SWP_NOSENDCHANGING
-                          | SWP_DEFERERASE
-                          | SWP_ASYNCWINDOWPOS;
-
-    debugCheck(SetWindowPos(window_handle, HWND_TOP, 0, 0, scaled_width, scaled_height, SET_WINDOW_POS_FLAGS), print_sys_error = true);
+    debugCheck(SetWindowPos(window_handle,
+                            HWND_TOP,
+                            0,
+                            0,
+                            scaled_width,
+                            scaled_height,
+                            SWP_NOMOVE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS),
+               print_sys_error = true);
 
     return dpi_scale;
 }
