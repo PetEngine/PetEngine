@@ -117,10 +117,7 @@ Win32Window :: struct {
 createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolution, title : string) {
     manager := cast(*Win32WindowManager) context.pet.core.window_manager;
 
-    WINDOW_STYLES          :: WS_OVERLAPPEDWINDOW;
-    EXTENDED_WINDOW_STYLES :: WS_EX_OVERLAPPEDWINDOW
-                            | WS_EX_ACCEPTFILES
-                            | WS_EX_NOPARENTNOTIFY;
+    style, ex_style := windowFlagsToWin32Styles(0);
 
     window_rect_width  := CW_USEDEFAULT;
     window_rect_height := CW_USEDEFAULT;
@@ -130,7 +127,7 @@ createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolut
         window.surface.height = surface.height;
 
         window_rect := RECT.{ 0, 0, surface.width, surface.height };
-        debugCheck(AdjustWindowRectEx(*window_rect, WINDOW_STYLES, FALSE, EXTENDED_WINDOW_STYLES), print_sys_error = true);
+        debugCheck(AdjustWindowRectEx(*window_rect, style, FALSE, ex_style), print_sys_error = true);
 
         window_rect_width  = window_rect.right  - window_rect.left;
         window_rect_height = window_rect.bottom - window_rect.top;
@@ -144,10 +141,10 @@ createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolut
     window_rect_x : s32 = ifx x == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else x;
     window_rect_y : s32 = ifx y == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else y;
 
-    window.handle = CreateWindowExW(EXTENDED_WINDOW_STYLES,
+    window.handle = CreateWindowExW(ex_style,
                                     class_name,
                                     utf16_title.data,
-                                    WINDOW_STYLES,
+                                    style,
                                     window_rect_x,
                                     window_rect_y,
                                     window_rect_width,
@@ -191,11 +188,27 @@ showWin32Window :: (window : *Win32Window) {
     }
 }
 
+resizeWin32Window :: (window : *Win32Window, surface_resolution : Resolution) {
+    window_rect     := RECT.{ 0, 0, surface_resolution.width, surface_resolution.height };
+    style, ex_style := windowFlagsToWin32Styles(window.flags);
+
+    debugCheck(AdjustWindowRectEx(*window_rect, style, FALSE, ex_style), print_sys_error = true);
+
+    debugCheck(SetWindowPos(window.handle,
+                            HWND_TOP,
+                            0,
+                            0,
+                            window_rect.right  - window_rect.left,
+                            window_rect.bottom - window_rect.top,
+                            SWP_NOMOVE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS),
+               print_sys_error = true);
+}
+
 getWin32WindowTitle :: (window : *Win32Window) -> string {
     title_length := GetWindowTextLengthW(window.handle);
-    assert(title_length > 0 || (title_length == 0 && GetLastError() == ERROR_SUCCESS));
+    assert(title_length > 0 || GetLastError() == ERROR_SUCCESS);
 
-    if !title_length return "";
+    if title_length <= 0 return "";
 
     utf16_title := pushToArena(*context.pet.arenas.per_frame, WCHAR, title_length + 1);
 
@@ -261,10 +274,10 @@ windowEventsCallback :: (window_handle : HWND, message : WM, wparam : WPARAM, lp
         case .WM_GETMINMAXINFO;
             info := cast(*MINMAXINFO) lparam;
 
-            window_style := cast(u32) GetWindowLongW(window_handle, GWL_STYLE);
+            window_style := cast(WS) GetWindowLongW(window_handle, GWL_STYLE);
             assert(window_style, print_sys_error = true);
 
-            window_style_ex := cast(u32) GetWindowLongW(window_handle, GWL_EXSTYLE);
+            window_style_ex := cast(WS_EX) GetWindowLongW(window_handle, GWL_EXSTYLE);
             assert(window_style_ex, print_sys_error = true);
 
             window_rect := RECT.{ 0, 0, Window.MIN_WIDTH, Window.MIN_HEIGHT };
@@ -410,4 +423,21 @@ checkWindowThemeChange :: (window_handle : HWND, wparam : WPARAM, lparam : LPARA
     if was_using_dark_theme != manager.use_dark_theme {
         applyWindowTheme(window_handle);
     }
+}
+
+windowFlagsToWin32Styles :: (flags : Window.Flags) -> (style : WS, ex_style : WS_EX) {
+    style    := WS.OVERLAPPEDWINDOW;
+    EX_STYLE :: WS_EX.OVERLAPPEDWINDOW
+             |  .ACCEPTFILES
+             |  .NOPARENTNOTIFY;
+
+    if flags & .MINIMIZED {
+        style |= .MINIMIZE;
+    }
+
+    if flags & .MAXIMIZED {
+        style |= .MAXIMIZE;
+    }
+
+    return style, EX_STYLE;
 }

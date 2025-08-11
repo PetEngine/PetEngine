@@ -39,7 +39,7 @@ destroyWindowManager :: () {
 
     for * context.pet.core.window_manager.windows {
         warningMessage("Window \"%\" with ID = % has not been destroyed", getWindowTitle(it), it.id);
-        destroyWindow(it);
+        remove;
     }
 
     #if OS == .WINDOWS {
@@ -124,6 +124,7 @@ Window :: struct {
         RESIZED;
         MINIMIZED;
         MAXIMIZED;
+        GAME;
     }
 
     next : *Window;
@@ -141,10 +142,11 @@ Window :: struct {
 }
 
 createWindow :: (
-    x       : s16        = Window.OS_DEFAULT_POSITION,
-    y       : s16        = Window.OS_DEFAULT_POSITION,
-    surface : Resolution = .{ Window.OS_DEFAULT_SIZE, Window.OS_DEFAULT_SIZE },
-    title   : string     = ENGINE_NAME
+    x            : s16        = Window.OS_DEFAULT_POSITION,
+    y            : s16        = Window.OS_DEFAULT_POSITION,
+    surface      : Resolution = .{ Window.OS_DEFAULT_SIZE, Window.OS_DEFAULT_SIZE },
+    title        : string     = ENGINE_NAME,
+    $game_window : bool       = true
 ) -> *Window {
     assertThreadKind(.MAIN);
 
@@ -188,6 +190,10 @@ createWindow :: (
         notImplemented();
     }
 
+    #if game_window {
+        window.flags |= .GAME;
+    }
+
     return window;
 }
 
@@ -204,6 +210,20 @@ destroyWindow :: (window : *Window) {
 showWindow :: (window : *Window) {
     #if OS == .WINDOWS {
         showWin32Window(cast(*Win32Window) window);
+    } else {
+        notImplemented();
+    }
+}
+
+resizeWindow :: (window : *Window, surface_resolution : Resolution) {
+    if window.surface.resolution == surface_resolution {
+        return;
+    }
+
+    assert(surface_resolution.width != Window.OS_DEFAULT_SIZE && surface_resolution.height != Window.OS_DEFAULT_SIZE);
+
+    #if OS == .WINDOWS {
+        resizeWin32Window(cast(*Win32Window) window, surface_resolution);
     } else {
         notImplemented();
     }

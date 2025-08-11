@@ -113,10 +113,17 @@ destroyDevice :: inline () {
 }
 
 initWindowData :: (window : *Window) {
+    assert(window.id != Window.INVALID_ID);
+
     // Reset window data before potential reuse
     context.pet.render.device.window_data[window.id] = .{};
 
     context.pet.render.device.initPlatformWindowData(window);
+}
+
+scheduleSwapChainReset :: (window : *Window) {
+    assert(window.id != Window.INVALID_ID);
+    context.pet.render.device.window_data[window.id].swapchain_is_outdated = true;
 }
 
 beginFrame :: inline () {

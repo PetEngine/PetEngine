@@ -9,12 +9,26 @@ DEFAULT_F64_EPSILON : f64 : 0.0000001;
 Rect :: struct {
     x : s16;
     y : s16;
-    using resolution : Resolution;
+    using,except(raw) resolution : Resolution;
+
+    #place x; raw : u64;
+} #no_padding
+#assert size_of(Rect) == size_of(u64);
+
+operator == :: inline (left : Rect, right : Rect) -> bool {
+    return left.raw == right.raw;
 }
 
 Resolution :: struct {
     width  : u16;
     height : u16;
+
+    #place width; raw : u32;
+} #no_padding
+#assert size_of(Resolution) == size_of(u32);
+
+operator == :: inline (left : Resolution, right : Resolution) -> bool {
+    return left.raw == right.raw;
 }
 
 isPowerOfTwo :: inline (value : $T) -> bool #no_context {

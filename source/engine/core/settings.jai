@@ -47,9 +47,9 @@ destroySettings :: () {
 commitSettings :: () {
     {
         scopedLock(*g_committed_settings_mutex);
+        old_settings := g_committed_settings;
         g_committed_settings = g_settings_to_commit;
-
-        // @Continue: #Settings. Apply settings
+        applySettings(old_settings);
     }
 
     file, error := openFile(Settings.PATH, .WRITE | .TRUNCATE | .SEQ, true);
@@ -141,7 +141,24 @@ getMemberTypeInfo :: (info : *Type_Info, setting : string, read_only := false) -
     return found_info, this_read_only;
 }
 
+// @TODO: #Settings.
+//     - render.resolution
+//     - render.gpu
+//     - render.frame_buffering
+applySettings :: (old_settings : Settings) {
+    recreate_swap_chain := old_settings.render.vsync           != g_committed_settings.render.vsync
+                        || old_settings.render.tearing_allowed != g_committed_settings.render.tearing_allowed
+                        || old_settings.render.scaling         != g_committed_settings.render.scaling;
 
+    for * context.pet.core.window_manager.windows {
+        if !(it.flags & .GAME) continue;
+        resizeWindow(it, g_committed_settings.window.resolution);
+
+        if recreate_swap_chain {
+            scheduleSwapChainReset(it);
+        }
+    }
+}
 
 g_committed_settings       : Settings;
 g_settings_to_commit       : Settings;
