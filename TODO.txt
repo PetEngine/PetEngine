@@ -63,6 +63,8 @@ Input:
 
 Settings:
     - Apply "render.resolution", "render.gpu", "render.frame_buffering".
+        - "render.gpu": application in runtime will require some callback system where all resources can be recreated. The other way is to require restart.
+        - Other settings must be applied on the specific thread in the specific time.
 
 Window:
     - WS_EX_ACCEPTFILES only in editor builds.
