@@ -10,6 +10,9 @@ Thread :: struct(Data : Type) {
     procedure : Procedure;
     data      : *Data;
 
+    persistent_arena_capacity : s64;
+    per_frame_arena_capacity  : s64;
+
     jai_context : #Context;
 }
 
@@ -23,11 +26,22 @@ ThreadKind :: enum s8 {
     DEVICE_MESSENGER;
 }
 
-createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.Data, $name : string, kind : ThreadKind, stack_size := 0) {
+createThread :: (
+    thread                    : *Thread,
+    procedure                 : thread.Procedure,
+    data                      : *thread.Data = null,
+    $name                     : string       = "",
+    kind                      : ThreadKind   = .UNDEFINED,
+    persistent_arena_capacity : s64          = 0,
+    per_frame_arena_capacity  : s64          = 0
+) {
     assert(kind != .MAIN && kind != .DEVICE_MESSENGER);
 
     thread.procedure = procedure;
     thread.data      = data;
+
+    thread.persistent_arena_capacity = persistent_arena_capacity;
+    thread.per_frame_arena_capacity  = per_frame_arena_capacity;
 
     thread.jai_context.allocator       = context.allocator;
     thread.jai_context.logger          = context.logger;
@@ -66,8 +80,8 @@ createThread :: (thread : *Thread, procedure : thread.Procedure, data : *thread.
             return 0;
         }
 
-        // #CRT. thread.handle = CreateThread(null, cast(SIZE_T) stack_size, winThreadProc, thread, CREATE_SUSPENDED, null);
-        thread.handle = cast(HANDLE) _beginthreadex(null, cast(u32) stack_size, winThreadProc, thread, CREATE_SUSPENDED, null);
+        // #CRT. thread.handle = CreateThread(null, 0, winThreadProc, thread, CREATE_SUSPENDED, null);
+        thread.handle = cast(HANDLE) _beginthreadex(null, 0, winThreadProc, thread, CREATE_SUSPENDED, null);
         assert(thread.handle, print_sys_error = true);
 
         #if name {
@@ -174,13 +188,13 @@ threadProc :: no_inline (thread : *Thread) {
 
     set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
 
-    // @TODO: #Settings.
-    createArena(*context.pet.arenas.persistent, gigaBytes(1), "Persistent");
-    defer destroyArena(*context.pet.arenas.persistent);
+    create_persistent_arena := thread.persistent_arena_capacity > 0;
+    if create_persistent_arena then createArena(*context.pet.arenas.persistent, thread.persistent_arena_capacity, "Persistent");
+    defer if create_persistent_arena then destroyArena(*context.pet.arenas.persistent);
 
-    // @TODO: #Settings.
-    createArena(*context.pet.arenas.per_frame, megaBytes(512), "Per frame");
-    defer destroyArena(*context.pet.arenas.per_frame);
+    create_per_frame_arena := thread.per_frame_arena_capacity > 0;
+    if create_per_frame_arena then createArena(*context.pet.arenas.per_frame, thread.per_frame_arena_capacity, "Per frame");
+    defer if create_per_frame_arena then destroyArena(*context.pet.arenas.per_frame);
 
     thread.procedure(thread.data);
 }

@@ -15,6 +15,7 @@ HRAWINPUT :: *HRAWINPUT__; HRAWINPUT__ :: struct { unused : s32; }
 
 HMODULE :: HINSTANCE;
 HLOCAL  :: HANDLE;
+HGDIOBJ :: *void;
 
 BOOL      :: s32;
 BOOLEAN   :: u8;
@@ -46,6 +47,8 @@ TRUE  : BOOL : 1;
 FALSE : BOOL : 0;
 
 ATOM :: u16;
+
+COLORREF :: u32;
 
 va_list :: *u8;
 
@@ -604,6 +607,10 @@ COLOR_GRAYTEXT      : s32 : 17;
 COLOR_BTNTEXT       : s32 : 18;
 COLOR_HOTLIGHT      : s32 : 26;
 
+CreateSolidBrush :: (
+    color : COLORREF
+) -> HBRUSH #foreign gdi32;
+
 GetLastError :: (
 ) -> u32 #foreign kernel32;
 
@@ -832,14 +839,12 @@ RECT :: struct {
     bottom : s32;
 }
 
+SWP_NOSIZE         : u32 : 0x0001;
 SWP_NOMOVE         : u32 : 0x0002;
 SWP_NOZORDER       : u32 : 0x0004;
-SWP_NOREDRAW       : u32 : 0x0008;
 SWP_NOACTIVATE     : u32 : 0x0010;
-SWP_NOCOPYBITS     : u32 : 0x0100;
+SWP_SHOWWINDOW     : u32 : 0x0040;
 SWP_NOOWNERZORDER  : u32 : 0x0200;
-SWP_NOSENDCHANGING : u32 : 0x0400;
-SWP_DEFERERASE     : u32 : 0x2000;
 SWP_ASYNCWINDOWPOS : u32 : 0x4000;
 
 HWND_TOP : HWND : null;
@@ -878,26 +883,42 @@ ShowWindow :: (
 
 CW_USEDEFAULT : s32 : 0x8000_0000;
 
-WS_EX_NOPARENTNOTIFY      : u32 : 0x0000_0004;
-WS_EX_ACCEPTFILES         : u32 : 0x0000_0010;
-WS_EX_WINDOWEDGE          : u32 : 0x0000_0100;
-WS_EX_CLIENTEDGE          : u32 : 0x0000_0200;
-WS_EX_NOREDIRECTIONBITMAP : u32 : 0x0020_0000;
-WS_EX_OVERLAPPEDWINDOW    : u32 : WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE;
+WS_EX :: enum_flags u32 #specified {
+    NOPARENTNOTIFY      :: 0x0000_0004;
+    ACCEPTFILES         :: 0x0000_0010;
+    WINDOWEDGE          :: 0x0000_0100;
+    CLIENTEDGE          :: 0x0000_0200;
+    NOREDIRECTIONBITMAP :: 0x0020_0000;
+    OVERLAPPEDWINDOW    :: WINDOWEDGE | CLIENTEDGE;
+}
 
-WS_OVERLAPPED       : u32 : 0x0000_0000;
-WS_MAXIMIZEBOX      : u32 : 0x0001_0000;
-WS_MINIMIZEBOX      : u32 : 0x0002_0000;
-WS_THICKFRAME       : u32 : 0x0004_0000;
-WS_SYSMENU          : u32 : 0x0008_0000;
-WS_CAPTION          : u32 : 0x00C0_0000;
-WS_OVERLAPPEDWINDOW : u32 : WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+WS :: enum_flags u32 #specified {
+    OVERLAPPED       :: 0x0000_0000;
+    MAXIMIZEBOX      :: 0x0001_0000;
+    MINIMIZEBOX      :: 0x0002_0000;
+    THICKFRAME       :: 0x0004_0000;
+    SYSMENU          :: 0x0008_0000;
+    HSCROLL          :: 0x0010_0000;
+    VSCROLL          :: 0x0020_0000;
+    DLGFRAME         :: 0x0040_0000;
+    BORDER           :: 0x0080_0000;
+    CAPTION          :: DLGFRAME | BORDER;
+    MAXIMIZE         :: 0x0100_0000;
+    CLIPCHILDREN     :: 0x0200_0000;
+    CLIPSIBLINGS     :: 0x0400_0000;
+    DISABLED         :: 0x0800_0000;
+    VISIBLE          :: 0x1000_0000;
+    MINIMIZE         :: 0x2000_0000;
+    CHILD            :: 0x4000_0000;
+    POPUP            :: 0x8000_0000;
+    OVERLAPPEDWINDOW :: OVERLAPPED | CAPTION | SYSMENU | THICKFRAME | MINIMIZEBOX | MAXIMIZEBOX;
+}
 
 CreateWindowExW :: (
-    dwExStyle    : u32,
+    dwExStyle    : WS_EX,
     lpClassName  : LPCWSTR,
     lpWindowName : LPCWSTR,
-    dwStyle      : u32,
+    dwStyle      : WS,
     X            : s32,
     Y            : s32,
     nWidth       : s32,
@@ -914,9 +935,9 @@ DestroyWindow :: (
 
 AdjustWindowRectEx :: (
     lpRect    : *RECT,
-    dwStyle   : u32,
+    dwStyle   : WS,
     bMenu     : BOOL,
-    dwExStyle : u32
+    dwExStyle : WS_EX
 ) -> BOOL #foreign user32;
 
 GetDpiForWindow :: (
@@ -2227,3 +2248,4 @@ hid      :: #library,system "hid";
 ntdll    :: #library,system "ntdll";
 dbghelp  :: #library,system "dbghelp";
 onecore  :: #library,system,no_dll "onecore";
+gdi32    :: #library,system "gdi32";

@@ -61,21 +61,10 @@ Input:
     - Raw Input Buffer retrieves _all_ raw input from the thread's message queue and it does not know about a window. We should not call it for each window.
     - If we poll XInput sate on the frame start, we will probably miss some input. Register raw input gamepad and poll xinput state on WM_INPUT.
 
-#Settings:
-    - Asset Manager:
-        - Upload ring buffer capacity.
-    - Core:
-        - Persistent arena capacity.
-        - Per frame arena capacity.
-    - Device:
-        - Render resolution.
-        - Buffering.
-        - Choose device by name, fallback to the [0] one.
-        - Vsync.
-        - Back buffer scaling mode.
-        - Back buffer clear color.
-    - Window:
-        - Surface dimension.
+Settings:
+    - Apply "render.resolution", "render.gpu", "render.frame_buffering".
+        - "render.gpu": application in runtime will require some callback system where all resources can be recreated. The other way is to require restart.
+        - Other settings must be applied on the specific thread in the specific time.
 
 Window:
     - WS_EX_ACCEPTFILES only in editor builds.

@@ -649,7 +649,7 @@ splitToNameAndValue :: (line : *string) -> (name : string, value : string, succe
 
 handleEnumValue :: inline (enum_value : *$T, value : string) -> bool {
     INFO :: type_info(T);
-    #assert INFO.type == .ENUM;
+    #assert INFO.type == .ENUM && !(INFO.enum_type_flags & .FLAGS);
 
     for INFO.names {
         if it == value {
@@ -664,7 +664,7 @@ handleEnumValue :: inline (enum_value : *$T, value : string) -> bool {
 
 handleEnumFlagsValue :: (enum_flags_value : *$T, value : string) -> bool {
     INFO :: type_info(T);
-    #assert INFO.type == .ENUM && INFO.enum_type_flags == .FLAGS;
+    #assert INFO.type == .ENUM && (INFO.enum_type_flags & .FLAGS);
 
     assert(value);
 

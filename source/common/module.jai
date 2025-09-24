@@ -67,6 +67,7 @@ generatePlatformVtableInitialization :: (
 #load "arena.jai";
 #load "debug.jai";
 #load "file.jai";
+#load "ini.jai";
 #load "math/common.jai";
 #load "math/matrices.jai";
 #load "math/vectors.jai";

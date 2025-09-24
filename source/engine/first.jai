@@ -196,12 +196,15 @@ petMain :: () {
 
     checkCPU();
 
-    // @TODO: #Settings.
-    createArena(*context.pet.arenas.persistent, gigaBytes(1), "Persistent");
+    loadSettings();
+    defer destroySettings();
+
+    arenas_settings := readSetting("arenas");
+
+    createArena(*context.pet.arenas.persistent, arenas_settings.persistent_capacity, "Persistent");
     defer destroyArena(*context.pet.arenas.persistent);
 
-    // @TODO: #Settings.
-    createArena(*context.pet.arenas.per_frame, megaBytes(512), "Per frame");
+    createArena(*context.pet.arenas.per_frame, arenas_settings.per_frame_capacity, "Per frame");
     defer destroyArena(*context.pet.arenas.per_frame);
 
     convertExchangeAssetsToRuntime();
@@ -209,8 +212,7 @@ petMain :: () {
     createWindowManager();
     defer destroyWindowManager();
 
-    // @TODO: #Settings.
-    createDevice(.VULKAN, .{ 1920, 1080 }, .DOUBLE);
+    createDevice(.VULKAN);
     defer destroyDevice();
 
     createResourceManager();
@@ -228,8 +230,7 @@ petMain :: () {
     createShadersHotReload(*shaders_hot_reload);
     defer destroyShadersHotReload(*shaders_hot_reload);
 
-    // @TODO: #Settings.
-    window := createWindow(surface = .{ 960, 540 }, "Это окно \U0001F920");
+    window := createWindow(surface = readSetting("window.resolution"), "Это окно \U0001F920");
     initWindowData(window);
 
     createInput(window);
