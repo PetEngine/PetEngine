@@ -15,7 +15,13 @@ createShadersHotReload :: (hot_reload : *ShadersHotReload) {
         return;
     }
 
-    createThread(*hot_reload.thread, hotReloadProc, hot_reload, "Shaders Hot Reload", .SHADERS_HOT_RELOAD);
+    createThread(*hot_reload.thread,
+                 hotReloadProc,
+                 hot_reload,
+                 "Shaders Hot Reload",
+                 .SHADERS_HOT_RELOAD,
+                 0, // persistent arena is not needed
+                 readSetting("arenas.per_frame_capacity"));
 
     #if OS == .WINDOWS {
         utf16_source_shaders_folder : [ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1] WCHAR = ---;

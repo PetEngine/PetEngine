@@ -199,10 +199,12 @@ petMain :: () {
     loadSettings();
     defer destroySettings();
 
-    createArena(*context.pet.arenas.persistent, readSetting("arenas.persistent_capacity"), "Persistent");
+    arenas_settings := readSetting("arenas");
+
+    createArena(*context.pet.arenas.persistent, arenas_settings.persistent_capacity, "Persistent");
     defer destroyArena(*context.pet.arenas.persistent);
 
-    createArena(*context.pet.arenas.per_frame, readSetting("arenas.per_frame_capacity"), "Per frame");
+    createArena(*context.pet.arenas.per_frame, arenas_settings.per_frame_capacity, "Per frame");
     defer destroyArena(*context.pet.arenas.per_frame);
 
     convertExchangeAssetsToRuntime();

@@ -141,10 +141,6 @@ getMemberTypeInfo :: (info : *Type_Info, setting : string, read_only := false) -
     return found_info, this_read_only;
 }
 
-// @TODO: #Settings.
-//     - render.resolution
-//     - render.gpu
-//     - render.frame_buffering
 applySettings :: (old_settings : Settings) {
     recreate_swap_chain := old_settings.render.vsync           != g_committed_settings.render.vsync
                         || old_settings.render.tearing_allowed != g_committed_settings.render.tearing_allowed

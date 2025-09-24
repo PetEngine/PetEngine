@@ -62,7 +62,7 @@ Input:
     - If we poll XInput sate on the frame start, we will probably miss some input. Register raw input gamepad and poll xinput state on WM_INPUT.
 
 Settings:
-    - How to apply committed settings at runtime?
+    - Apply "render.resolution", "render.gpu", "render.frame_buffering".
 
 Window:
     - WS_EX_ACCEPTFILES only in editor builds.
