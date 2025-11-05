@@ -159,20 +159,20 @@ trim :: (s : *string) -> (old_start : *u8) #no_context {
     return old_start;
 }
 
-isDigit :: inline (char : u8) -> bool {
+isDigit :: inline (char : $T/ALLOWED_CHAR_TYPES) -> bool #no_context {
     return #char "0" <= char && char <= #char "9";
 }
 
-isAlpha :: inline (char : u8) -> bool {
+isAlpha :: inline (char : $T/ALLOWED_CHAR_TYPES) -> bool #no_context {
     return (#char "a" <= char && char <= #char "z")
         || (#char "A" <= char && char <= #char "Z");
 }
 
-isAlNum :: inline (char : u8) -> bool {
+isAlNum :: inline (char : $T/ALLOWED_CHAR_TYPES) -> bool #no_context {
     return isAlpha(char) || isDigit(char);
 }
 
-isSpace :: inline (char : u8) -> bool #no_context {
+isSpace :: inline (char : $T/ALLOWED_CHAR_TYPES) -> bool #no_context {
     return char == #char " "
         || char == #char "\t"
         || char == #char "\n"

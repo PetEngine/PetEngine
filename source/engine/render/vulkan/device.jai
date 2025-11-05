@@ -403,14 +403,14 @@ endVulkanFrame :: () {
     // Present
     //
     {
-        swapchains          : [WindowManager.MAX_WINDOWS] VkSwapchainKHR;
-        back_buffer_indices : [WindowManager.MAX_WINDOWS] u32;
-        index_to_id         : [WindowManager.MAX_WINDOWS] u8;
+        swapchains          : [WindowManager.MAX_WINDOWS] VkSwapchainKHR = ---;
+        back_buffer_indices : [WindowManager.MAX_WINDOWS] u32            = ---;
+        index_to_window_id  : [WindowManager.MAX_WINDOWS] u8             = ---;
         swapchains_count    : u32;
         for * context.pet.core.window_manager.windows {
             swapchains[swapchains_count]          = device.vulkan_window_data[it.id].swapchain;
             back_buffer_indices[swapchains_count] = device.window_data[it.id].back_buffer_index;
-            index_to_id[swapchains_count]         = it.id;
+            index_to_window_id[swapchains_count]  = it.id;
             swapchains_count += 1;
         }
         assert(swapchains_count == context.pet.core.window_manager.windows.count);
@@ -436,7 +436,7 @@ endVulkanFrame :: () {
                     if it == {
                         case .VK_ERROR_OUT_OF_DATE_KHR; #through;
                         case .VK_ERROR_SURFACE_LOST_KHR;
-                            device.window_data[index_to_id[it_index]].swapchain_is_outdated = true;
+                            device.window_data[index_to_window_id[it_index]].swapchain_is_outdated = true;
 
                         case .VK_SUBOPTIMAL_KHR;
                             // Do nothing, it's because of scaling

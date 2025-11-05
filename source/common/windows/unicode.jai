@@ -19,11 +19,7 @@ ASCIIToUTF16 :: (
     }
 
     if !ascii_string {
-        #if null_terminated {
-            return .[ 0 ];
-        } else {
-            return .[];
-        }
+        return #ifx null_terminated then .[ 0 ] else .[];
     }
 
     utf16_string : *WCHAR = allocate(user_data, (ascii_string.count + cast(s64) null_terminated) * size_of(WCHAR), size_of(WCHAR));
@@ -127,22 +123,14 @@ UTF8ToUTF16 :: (
     $null_terminated := true
 ) -> [] WCHAR {
     if !utf8_string {
-        #if null_terminated {
-            return .[ 0 ];
-        } else {
-            return .[];
-        }
+        return #ifx null_terminated then .[ 0 ] else .[];
     }
 
     utf16_string_bytes : u32;
     debugCheckNT(RtlUTF8ToUnicodeN(null, 0, *utf16_string_bytes, utf8_string.data, cast(u32) utf8_string.count));
 
     if !utf16_string_bytes {
-        #if null_terminated {
-            return .[ 0 ];
-        } else {
-            return .[];
-        }
+        return #ifx null_terminated then .[ 0 ] else .[];
     }
 
     utf16_string : PWSTR = allocate(user_data, utf16_string_bytes + cast(s64) null_terminated * size_of(WCHAR), size_of(WCHAR));
