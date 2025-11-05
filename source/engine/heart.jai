@@ -38,16 +38,16 @@ loadHeart :: (heart : *Heart) {
 
     heart.sampler = createSampler(.{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR }, .PER_SCENE, "Trilinear sampler" );
 
-    heart.texture_assets[0] = requestTexture("HumanBase___cavity");
-    heart.texture_assets[1] = requestTexture("HumanBase__color");
-    heart.texture_assets[2] = requestTexture("HumanBase__normals");
-    heart.texture_assets[3] = requestTexture("HumanOpening__cavity");
-    heart.texture_assets[4] = requestTexture("HumanOpening__color");
-    heart.texture_assets[5] = requestTexture("HumanOpening__normals");
-    heart.texture_assets[6] = requestTexture("MitralValve__cavity");
-    heart.texture_assets[7] = requestTexture("MitralValve_normals");
-    heart.texture_assets[8] = requestTexture("TricuspidValve_cavity");
-    heart.texture_assets[9] = requestTexture("TricuspidValve_normals");
+    heart.texture_assets[0] = requestTexture("heart/HumanBase___cavity");
+    heart.texture_assets[1] = requestTexture("heart/HumanBase__color");
+    heart.texture_assets[2] = requestTexture("heart/HumanBase__normals");
+    heart.texture_assets[3] = requestTexture("heart/HumanOpening__cavity");
+    heart.texture_assets[4] = requestTexture("heart/HumanOpening__color");
+    heart.texture_assets[5] = requestTexture("heart/HumanOpening__normals");
+    heart.texture_assets[6] = requestTexture("heart/MitralValve__cavity");
+    heart.texture_assets[7] = requestTexture("heart/MitralValve_normals");
+    heart.texture_assets[8] = requestTexture("heart/TricuspidValve_cavity");
+    heart.texture_assets[9] = requestTexture("heart/TricuspidValve_normals");
 }
 
 bindHeart :: (heart : *Heart) {
