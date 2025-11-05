@@ -10,14 +10,21 @@ AssetConverter :: struct {
 
 convertExchangeAssetsToRuntime :: () {
     meshes_context : MeshesContext;
-    if fileExists(AssetConverter.EXCHANGE_MESHES_FOLDER) {
-        meshes_begin := Basic.current_time_monotonic();
-        enumerateFiles(AssetConverter.EXCHANGE_MESHES_FOLDER, convertMeshesCallback, *meshes_context, recursively = true);
-        meshes_end := Basic.current_time_monotonic();
 
-        meshes_context.duration = Basic.to_float64_seconds(meshes_end - meshes_begin);
-    } else {
-        verboseMessage("Exchange meshes folder is not found: %", AssetConverter.EXCHANGE_MESHES_FOLDER);
+    {
+        meshes_begin := Basic.current_time_monotonic();
+        defer meshes_context.duration = Basic.to_float64_seconds(Basic.current_time_monotonic() - meshes_begin);
+
+        error := enumerateFiles(AssetConverter.EXCHANGE_MESHES_FOLDER, convertMeshesCallback, *meshes_context, recursively = true);
+        if error == {
+            case .FILE_NOT_FOUND; #through;
+            case .PATH_NOT_FOUND;
+                verboseMessage("Exchange meshes folder is not found: %", AssetConverter.EXCHANGE_MESHES_FOLDER);
+            case .NONE;
+                // everything is good
+            case;
+                assertMessage("enumerateFiles(%) has failed", AssetConverter.EXCHANGE_MESHES_FOLDER);
+        }
     }
 
     textures_context : TexturesContext;
@@ -66,7 +73,16 @@ convertExchangeAssetsToRuntime :: () {
         textures_context.nvtt_output_options = nvtt_output_options;
         textures_context.cuda_supported      = cuda_supported;
 
-        enumerateFiles(AssetConverter.EXCHANGE_TEXTURES_FOLDER, convertTexturesCallback, *textures_context, recursively = true);
+        error := enumerateFiles(AssetConverter.EXCHANGE_TEXTURES_FOLDER, convertTexturesCallback, *textures_context, recursively = true);
+        if error == {
+            case .FILE_NOT_FOUND; #through;
+            case .PATH_NOT_FOUND;
+                verboseMessage("Exchange textures folder is not found: %", AssetConverter.EXCHANGE_TEXTURES_FOLDER);
+            case .NONE;
+                // everything is good
+            case;
+                assertMessage("enumerateFiles(%) has failed", AssetConverter.EXCHANGE_TEXTURES_FOLDER);
+        }
     } else {
         verboseMessage("Exchange textures folder is not found: %", AssetConverter.EXCHANGE_TEXTURES_FOLDER);
     }
@@ -161,15 +177,15 @@ TextureConversionRule :: struct {
     min_texture_depth  : u16 = 2;
 }
 
-convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
+convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : File.Info(.RELATIVE)) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
         "obj"
     ];
 
-    extension, found := String.path_extension(exchange_file_info.name);
+    extension, found := String.path_extension(exchange_file_info.path);
     if !found || !Basic.array_find(VALID_EXCHANGE_EXTENSIONS, extension) {
         errorMessage("Mesh \"%\" is not supported by AssetConverter: invalid extension. Valid extensions are: %",
-                     exchange_file_info.name,
+                     exchange_file_info.path,
                      VALID_EXCHANGE_EXTENSIONS);
         return .CONTINUE;
     }
@@ -177,8 +193,8 @@ convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : 
     autoResetPerFrameArenas();
 
     mesh_name := string.{
-        exchange_file_info.name.count - (AssetConverter.EXCHANGE_MESHES_FOLDER.count + "/".count) - (".".count + extension.count),
-        exchange_file_info.name.data  + (AssetConverter.EXCHANGE_MESHES_FOLDER.count + "/".count)
+        exchange_file_info.path.count - (".".count + extension.count),
+        exchange_file_info.path.data
     };
 
     runtime_filename := makeRuntimeMeshFilename(mesh_name);
@@ -201,9 +217,11 @@ convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : 
 
     meshes_context.total += 1;
 
+    exchange_filename := makeExchangeMeshFilename(exchange_file_info.path);
+
     success : bool;
     if extension == {
-        case "obj"; success = convertObjMesh(exchange_file_info.name, mesh_name);
+        case "obj"; success = convertObjMesh(exchange_filename, mesh_name);
         case;       notImplemented(true);
     }
 
@@ -216,7 +234,7 @@ convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : 
     return .CONTINUE;
 }
 
-convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_info : *File.Info) -> EnumerateFilesCallbackResult {
+convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_info : File.Info(.RELATIVE)) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
         "png",
         "dds",
@@ -224,10 +242,10 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
         "jpeg",
     ];
 
-    extension, found := String.path_extension(exchange_file_info.name);
+    extension, found := String.path_extension(exchange_file_info.path);
     if !found || !Basic.array_find(VALID_EXCHANGE_EXTENSIONS, extension) {
         errorMessage("Texture \"%\" is not supported by AssetConverter: invalid extension. Valid extensions are: %",
-                     exchange_file_info.name,
+                     exchange_file_info.path,
                      VALID_EXCHANGE_EXTENSIONS);
         return .CONTINUE;
     }
@@ -235,8 +253,8 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
     autoResetPerFrameArenas();
 
     texture_name := string.{
-        exchange_file_info.name.count - (AssetConverter.EXCHANGE_TEXTURES_FOLDER.count + "/".count) - (".".count + extension.count),
-        exchange_file_info.name.data  + (AssetConverter.EXCHANGE_TEXTURES_FOLDER.count + "/".count)
+        exchange_file_info.path.count - (".".count + extension.count),
+        exchange_file_info.path.data
     };
 
     #if TEST_TEXTURES {
@@ -274,10 +292,12 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
         nvttSetOutputOptionsFileName(textures_context.nvtt_output_options, test_filename.data);
     }
 
+    exchange_filename := makeExchangeTextureFilename(exchange_file_info.path);
+
     // @TODO: #ConversionRules.
     rule : TextureConversionRule;
 
-    if convertTextureNVTT(textures_context.*, rule, exchange_file_info.name, texture_name, extension) {
+    if convertTextureNVTT(textures_context.*, rule, exchange_filename, texture_name, extension) {
         textures_context.converted += 1;
     } else #if TEST_TEXTURES {
         errorMessage("Failed to convert \"%1.%2\" to \"%1.dds\"", texture_name, extension);
@@ -767,6 +787,24 @@ getExchangeTextureFlags :: (file_data : string, name : string, extension : strin
 
         return filename;
     }
+}
+
+makeExchangeMeshFilename :: (relative_filename : string) -> string {
+    capacity := AssetConverter.EXCHANGE_MESHES_FOLDER.count + "/".count + relative_filename.count;
+
+    filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
+    appendToString(*filename, capacity, AssetConverter.EXCHANGE_MESHES_FOLDER, "/", relative_filename);
+
+    return filename;
+}
+
+makeExchangeTextureFilename :: (relative_filename : string) -> string {
+    capacity := AssetConverter.EXCHANGE_TEXTURES_FOLDER.count + "/".count + relative_filename.count;
+
+    filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
+    appendToString(*filename, capacity, AssetConverter.EXCHANGE_TEXTURES_FOLDER, "/", relative_filename);
+
+    return filename;
 }
 
 // @Cleanup: #TextureLoader.

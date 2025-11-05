@@ -166,14 +166,14 @@ reloadShader :: (filename : string) {
 }
 
 recompileOutOfDateShaders :: inline (hot_reload : *ShadersHotReload) {
-    enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, (hot_reload : *ShadersHotReload, source_file_info : *File.Info) -> EnumerateFilesCallbackResult {
-        if String.path_extension(source_file_info.name) != "shader" {
+    recompileCallback :: (hot_reload : *ShadersHotReload, source_file_info : File.Info(.RELATIVE)) -> EnumerateFilesCallbackResult {
+        if String.path_extension(source_file_info.path) != "shader" {
             return .CONTINUE;
         }
 
         shader_name := string.{
-            source_file_info.name.count - (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + "/".count) - ".shader".count,
-            source_file_info.name.data  + (ShaderCompiler.SOURCE_SHADERS_FOLDER.count + "/".count)
+            source_file_info.path.count - ".shader".count,
+            source_file_info.path.data
         };
 
         binary_filename := makeBinaryShaderFilename(shader_name);
@@ -196,5 +196,16 @@ recompileOutOfDateShaders :: inline (hot_reload : *ShadersHotReload) {
         compileShader(shader_name);
 
         return .CONTINUE;
-    }, hot_reload, recursively = true);
+    }
+
+    error := enumerateFiles(ShaderCompiler.SOURCE_SHADERS_FOLDER, recompileCallback, hot_reload, recursively = true);
+    if error == {
+        case .FILE_NOT_FOUND; #through;
+        case .PATH_NOT_FOUND;
+            verboseMessage("Source shaders folder is not found: %", ShaderCompiler.SOURCE_SHADERS_FOLDER);
+        case .NONE;
+            // everything is good
+        case;
+            assertMessage("enumerateFiles(%) has failed", ShaderCompiler.SOURCE_SHADERS_FOLDER);
+    }
 }

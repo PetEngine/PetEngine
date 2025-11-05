@@ -124,8 +124,7 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
 
         #if !strict {
             if result != .VK_SUCCESS {
-                absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
-                absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
+                absolute_path := getAbsolutePath(location.fully_pathed_filename, pushToArena, *g_debugArena);
 
                 warningMessage("%(%,%): % has returned %",
                                absolute_path,
@@ -256,52 +255,25 @@ debugBreakIfDebugging :: () #expand #no_debug {
     }
 }
 
-createUnhandledExceptionHandler :: () {
-    g_exception_handler_context.jai_context.allocator   = context.allocator;
-    g_exception_handler_context.jai_context.logger      = context.logger;
-    g_exception_handler_context.jai_context.logger_data = context.logger_data;
-    g_exception_handler_context.jai_context.print_style = context.print_style;
-    // We do not need globals for unhandled exception handler
-
-    push_context g_exception_handler_context.jai_context {
-        context.thread_index    = getNextThreadIndex();
-        context.pet.thread.name = "";
-        context.pet.thread.kind = .UNDEFINED;
-
-        context.allocator.proc(.THREAD_START, 0, 0, null, context.allocator.data);
-
-        context.temporary_storage = *g_exception_handler_context.temporary_storage;
-
-        // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
-        g_exception_handler_context.temporary_storage_data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
-        set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, g_exception_handler_context.temporary_storage_data);
-
-        // We do not need arenas for unhandled exception handler
-    }
-
-    createRecursiveMutex(*g_exception_handler_context.mutex);
-
+createDebug :: () {
+    g_debugArena.memory   = DEBUG_MEMORY.data;
+    g_debugArena.capacity = DEBUG_MEMORY.count;
+    g_debugArena.name     = "Debug arena";
+    createRecursiveMutex(*g_ioMutex);
     #if OS == .WINDOWS {
-        g_exception_handler_context.previous_handler = SetUnhandledExceptionFilter(unhandledExceptionHandler);
-    } else {
-        notImplemented();
+        createRecursiveMutex(*g_dbgHelpMutex);
     }
+    createUnhandledExceptionHandler();
 }
 
-destroyUnhandledExceptionHandler :: () {
+destroyDebug :: () {
+    destroyUnhandledExceptionHandler();
     #if OS == .WINDOWS {
-        previous_handler := SetUnhandledExceptionFilter(g_exception_handler_context.previous_handler);
-        assert(previous_handler == unhandledExceptionHandler, print_sys_error = true);
-    } else {
-        notImplemented();
+        destroyRecursiveMutex(*g_dbgHelpMutex);
     }
-
-    destroyRecursiveMutex(*g_exception_handler_context.mutex);
-
-    push_context g_exception_handler_context.jai_context {
-        Allocator.rpfree(g_exception_handler_context.temporary_storage_data);
-        context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
-    }
+    destroyRecursiveMutex(*g_ioMutex);
+    g_debugArena.memory   = null;
+    g_debugArena.capacity = 0;
 }
 
 getSystemMessage :: (message_buffer : [] u8, system_code : u32) -> string {
@@ -398,6 +370,9 @@ message :: (
     #if priority == .DEBUG   && !DEBUG_BUILD            return;
     #if priority == .VERBOSE && !PRINT_VERBOSE_MESSAGES return;
 
+    autoResetArena(*g_debugArena);
+    Basic.auto_release_temp();
+
     sys_error_code := custom_sys_code;
 
     #if print_sys_error {
@@ -418,13 +393,6 @@ message :: (
     defer {
         context.pet.debug.message_recursions_count -= 1;
         context.pet.debug.message_builder           = null;
-    }
-
-    if !Atomics.atomic_swap(*g_mutexesInitialized, true) {
-        createRecursiveMutex(*g_ioMutex);
-        #if OS == .WINDOWS {
-            createRecursiveMutex(*g_dbgHelpMutex);
-        }
     }
 
     MAX_MESSAGE_RECURSIONS_COUNT : u8 : 3;
@@ -469,15 +437,11 @@ message :: (
     Basic.append(context.pet.debug.message_builder, ": ");
 
     #if priority == .ASSERT {
-        absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
-        absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
-
+        absolute_path := getAbsolutePath(location.fully_pathed_filename, pushToArena, *g_debugArena);
         Basic.print(context.pet.debug.message_builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
     } else #if priority != .UNHANDLED_EXCEPTION {
         if custom_sys_code {
-            absolute_path_buffer : [File.MAX_FILENAME_LENGTH + 1] u8 = ---;
-            absolute_path := getAbsolutePath(*absolute_path_buffer, location.fully_pathed_filename);
-
+            absolute_path := getAbsolutePath(location.fully_pathed_filename, pushToArena, *g_debugArena);
             Basic.print(context.pet.debug.message_builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
         }
     }
@@ -583,8 +547,7 @@ printStackTrace :: (builder : *Basic.String_Builder, frames_to_skip : u32) {
     #if OS == .WINDOWS {
         MAX_FRAMES_TO_CAPTURE :: 0xFFFF;
 
-        // We might not have per frame arena at this moment, so we use temporary storage
-        stack_trace : **void = Basic.talloc(MAX_FRAMES_TO_CAPTURE * size_of(*void));
+        stack_trace := pushToArena(*g_debugArena, *void, MAX_FRAMES_TO_CAPTURE);
 
         frames_count := RtlCaptureStackBackTrace(frames_to_skip, MAX_FRAMES_TO_CAPTURE, stack_trace, null);
         assert(frames_count > 0, "RtlCaptureStackBackTrace did not capture any frames which is impossible", print_sys_error = true);
@@ -662,6 +625,54 @@ printStackTraceFromJaiContext :: (builder : *Basic.String_Builder) {
         }
     } else {
         Basic.append(builder, "    <empty>\n");
+    }
+}
+
+createUnhandledExceptionHandler :: () {
+    g_exception_handler_context.jai_context.allocator   = context.allocator;
+    g_exception_handler_context.jai_context.logger      = context.logger;
+    g_exception_handler_context.jai_context.logger_data = context.logger_data;
+    g_exception_handler_context.jai_context.print_style = context.print_style;
+    // We do not need globals for unhandled exception handler
+
+    push_context g_exception_handler_context.jai_context {
+        context.thread_index    = getNextThreadIndex();
+        context.pet.thread.name = "";
+        context.pet.thread.kind = .UNDEFINED;
+
+        context.allocator.proc(.THREAD_START, 0, 0, null, context.allocator.data);
+
+        context.temporary_storage = *g_exception_handler_context.temporary_storage;
+
+        // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
+        g_exception_handler_context.temporary_storage_data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
+        set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, g_exception_handler_context.temporary_storage_data);
+
+        // We do not need arenas for unhandled exception handler
+    }
+
+    createRecursiveMutex(*g_exception_handler_context.mutex);
+
+    #if OS == .WINDOWS {
+        g_exception_handler_context.previous_handler = SetUnhandledExceptionFilter(unhandledExceptionHandler);
+    } else {
+        notImplemented();
+    }
+}
+
+destroyUnhandledExceptionHandler :: () {
+    #if OS == .WINDOWS {
+        previous_handler := SetUnhandledExceptionFilter(g_exception_handler_context.previous_handler);
+        assert(previous_handler == unhandledExceptionHandler, print_sys_error = true);
+    } else {
+        notImplemented();
+    }
+
+    destroyRecursiveMutex(*g_exception_handler_context.mutex);
+
+    push_context g_exception_handler_context.jai_context {
+        Allocator.rpfree(g_exception_handler_context.temporary_storage_data);
+        context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
     }
 }
 
@@ -769,6 +780,13 @@ printStackTraceFromJaiContext :: (builder : *Basic.String_Builder) {
     }
 }
 
+DEBUG_MEMORY : [#run megaBytes(1)] u8 #align DEFAULT_PAGE_SIZE;
+
+g_debugArena : Arena;
+g_ioMutex    : RecursiveMutex;
+#if OS == .WINDOWS {
+    g_dbgHelpMutex : RecursiveMutex; // All DbgHelp functions are single threaded, so we have to synchronize their calls
+}
 g_exception_handler_context : struct {
     jai_context              : #Context;
     mutex                    : RecursiveMutex;
@@ -779,12 +797,6 @@ g_exception_handler_context : struct {
     }
     inside_exception_handler : bool;
 };
-
-g_ioMutex            : RecursiveMutex;
-g_mutexesInitialized : bool;
-#if OS == .WINDOWS {
-    g_dbgHelpMutex : RecursiveMutex; // All DbgHelp functions are single threaded, so we have to synchronize their calls
-}
 
 Program_Print :: #import "Program_Print";
 Reflection    :: #import "Reflection";

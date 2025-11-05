@@ -1443,33 +1443,7 @@ ReadDirectoryChangesW :: (
     lpCompletionRoutine : OVERLAPPED_COMPLETION_ROUTINE
 ) -> BOOL #foreign kernel32;
 
-FINDEX_INFO_LEVELS :: enum s32 {
-    FindExInfoStandard;
-    FindExInfoBasic;
-    FindExInfoMaxInfoLevel;
-}
-
-FINDEX_SEARCH_OPS :: enum s32 {
-    FindExSearchNameMatch;
-    FindExSearchLimitToDirectories;
-    FindExSearchLimitToDevices;
-    FindExSearchMaxSearchOp;
-}
-
-FIND_FIRST_EX_CASE_SENSITIVE       : u32 : 1;
-FIND_FIRST_EX_LARGE_FETCH          : u32 : 2;
-FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY : u32 : 4;
-
 IO_REPARSE_TAG_SYMLINK :: 0xA000000C;
-
-FindFirstFileExW :: (
-    lpFileName        : LPCWSTR,
-    fInfoLevelId      : FINDEX_INFO_LEVELS,
-    lpFindFileData    : *void,
-    fSearchOp         : FINDEX_SEARCH_OPS,
-    lpSearchFilter    : *void,
-    dwAdditionalFlags : u32
-) -> HANDLE #foreign kernel32;
 
 MAX_PATH :: 260;
 
@@ -1477,31 +1451,6 @@ FILETIME :: struct {
     dwLowDateTime  : u32;
     dwHighDateTime : u32;
 }
-
-WIN32_FIND_DATAW :: struct {
-    dwFileAttributes   : u32;
-    ftCreationTime     : FILETIME;
-    ftLastAccessTime   : FILETIME;
-    ftLastWriteTime    : FILETIME;
-    nFileSizeHigh      : u32;
-    nFileSizeLow       : u32;
-    dwReserved0        : u32;
-    dwReserved1        : u32;
-    cFileName          : [MAX_PATH] WCHAR;
-    cAlternateFileName : [14] WCHAR;
-    dwFileType         : u32; // Obsolete. Do not use.
-    dwCreatorType      : u32; // Obsolete. Do not use
-    wFinderFlags       : u16; // Obsolete. Do not use
-}
-
-FindNextFileW :: (
-    hFindFile      : HANDLE,
-    lpFindFileData : *WIN32_FIND_DATAW
-) -> BOOL #foreign kernel32;
-
-FindClose :: (
-    hFindFile : HANDLE
-) -> BOOL #foreign kernel32;
 
 GET_FILEEX_INFO_LEVELS :: enum s32 {
     GetFileExInfoStandard;
@@ -1582,6 +1531,27 @@ FILE_NAME_INFO :: struct {
 FILE_ATTRIBUTE_TAG_INFO :: struct {
     FileAttributes : u32;
     ReparseTag     : u32;
+}
+
+FILE_ID_128 :: struct {
+    Identifier : [16] u8;
+}
+
+FILE_ID_EXTD_DIR_INFO :: struct {
+    NextEntryOffset : u32;
+    FileIndex       : u32;
+    CreationTime    : LARGE_INTEGER;
+    LastAccessTime  : LARGE_INTEGER;
+    LastWriteTime   : LARGE_INTEGER;
+    ChangeTime      : LARGE_INTEGER;
+    EndOfFile       : LARGE_INTEGER;
+    AllocationSize  : LARGE_INTEGER;
+    FileAttributes  : u32;
+    FileNameLength  : u32;
+    EaSize          : u32;
+    ReparsePointTag : u32;
+    FileId          : FILE_ID_128;
+    FileName        : [1] WCHAR;
 }
 
 GetFileInformationByHandleEx :: (

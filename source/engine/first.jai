@@ -638,8 +638,8 @@ initRuntimeAndCallEntryPoint :: () {
 
     set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
 
-    createUnhandledExceptionHandler();
-    defer destroyUnhandledExceptionHandler();
+    createDebug();
+    defer destroyDebug();
 
     #if OS == .WINDOWS {
         getWindowsCommandLine();

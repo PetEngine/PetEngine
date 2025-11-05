@@ -1,13 +1,6 @@
 #scope_export
 
 File :: struct {
-    #if OS == .WINDOWS {
-        MAX_FILENAME_LENGTH :: MAX_PATH - 1;
-    } else {
-        MAX_FILENAME_LENGTH :: 4096 - 1; // from linux/limits.h
-        notImplemented();
-    }
-
     Flags :: enum_flags u16 {
         // Access (required)
         READ;
@@ -41,8 +34,8 @@ File :: struct {
         SHARED_ACCESS_VIOLATION;
     }
 
-    Info :: struct {
-        name             : string;
+    Info :: struct(path_kind : PathKind = .ABSOLUTE) {
+        path             : string;
         creation_time    : Basic.Apollo_Time;
         last_access_time : Basic.Apollo_Time;
         last_write_time  : Basic.Apollo_Time;
@@ -64,10 +57,13 @@ File :: struct {
     }
 }
 
+PathKind :: enum u8 {
+    RELATIVE;
+    ABSOLUTE;
+}
+
 // create_path_if_does_not_exist have sense only if you do NOT specify EXISTS flag.
 openFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exist := false) -> (File, File.Error) {
-    assertFileNameLength(filename);
-
     #if OS == .WINDOWS {
         file, error := openWindowsFile(filename, flags, create_path_if_does_not_exist);
     } else {
@@ -212,28 +208,23 @@ EnumerateFilesCallbackResult :: enum u8 {
 }
 
 enumerateFiles :: inline (
-    $$directory       : string,
-    callback          : (user_data : *$T, file_info : *File.Info) -> EnumerateFilesCallbackResult,
-    user_data         : *T,
-    $case_sensitive   := true,
+    directory         : string,
+    callback          : (user_data : *$T, file_info : File.Info(.RELATIVE)) -> EnumerateFilesCallbackResult,
+    user_data         : *T = null,
     $recursively      := false,
     $skip_directories := true,
     $skip_symlinks    := true
-) {
-    assertFileNameLength(directory);
-
+) -> File.Error {
     #if OS == .WINDOWS {
-        enumerateWindowsFiles(directory, callback, user_data, case_sensitive, recursively, skip_directories, skip_symlinks);
+        return enumerateWindowsFiles(directory, callback, user_data, recursively, skip_directories, skip_symlinks);
     } else {
         notImplemented();
     }
 }
 
-getFileInfo :: (filename : string) -> (File.Info, File.Error) {
-    assertFileNameLength(filename);
-
+getFileInfo :: (filename : string) -> (File.Info(.ABSOLUTE), File.Error) {
     file_info : File.Info;
-    file_info.name = filename;
+    file_info.path = filename;
 
     #if OS == .WINDOWS {
         error := getWindowsFileInfo(*file_info);
@@ -244,7 +235,7 @@ getFileInfo :: (filename : string) -> (File.Info, File.Error) {
     return file_info, error;
 }
 
-getFileInfo :: (file : File) -> (File.Info, File.Error) {
+getFileInfo :: (file : File) -> (File.Info(.ABSOLUTE), File.Error) {
     file_info : File.Info;
 
     #if OS == .WINDOWS {
@@ -257,8 +248,6 @@ getFileInfo :: (file : File) -> (File.Info, File.Error) {
 }
 
 fileExists :: (filename : string) -> bool {
-    assertFileNameLength(filename);
-
     exists : bool;
 
     #if OS == .WINDOWS {
@@ -275,31 +264,42 @@ getAbsolutePath :: (
     allocate      : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
     user_data     : *T
 ) -> string {
-    assertFileNameLength(relative_path);
-
-    abosulte_path : string;
-
-    #if OS == .WINDOWS {
-        abosulte_path = getWindowsAbsolutePath(relative_path, allocate, user_data);
-    } else {
-        notImplemented();
+    if !relative_path || isAbsolutePath(relative_path) {
+        return relative_path;
     }
 
-    return abosulte_path;
-}
-
-getAbsolutePath :: (absolute_path_buffer : *[$capacity] u8, relative_path : string) -> string {
-    assertFileNameLength(relative_path);
-
-    absolute_path := string.{ data = absolute_path_buffer.data };
+    absolute_path : string;
 
     #if OS == .WINDOWS {
-        absolute_path.count = getWindowsAbsolutePath(absolute_path_buffer, relative_path);
+        absolute_path = getWindowsAbsolutePath(relative_path, allocate, user_data);
     } else {
         notImplemented();
     }
 
     return absolute_path;
+}
+
+isAbsolutePath :: (path : string) -> bool #no_context #no_abc {
+    #if OS == .WINDOWS {
+        DOS_PREFIX_1 : u16 : #char ":" | (#char "/"  << 8);
+        DOS_PREFIX_2 : u16 : #char ":" | (#char "\\" << 8);
+
+        is_dos := path.count >= 3
+               && (   (cast,no_check(*u16) (path.data + 1)).* == DOS_PREFIX_1
+                   || (cast,no_check(*u16) (path.data + 1)).* == DOS_PREFIX_2)
+               && isAlpha(path[0]);
+
+        UNC_PREFIX_1 : u16 : #char "\\" | (#char "\\" << 8);
+        UNC_PREFIX_2 : u16 : #char "/"  | (#char "/"  << 8);
+
+        is_unc := path.count >= 2
+               && (   (cast,no_check(*u16) path.data).* == UNC_PREFIX_1
+                   || (cast,no_check(*u16) path.data).* == UNC_PREFIX_2);
+
+        return is_dos || is_unc;
+    } else {
+        return path.count >= 1 && path[0] == #char "/";
+    }
 }
 
 createDirectory :: (filename : string) {
@@ -311,24 +311,6 @@ createDirectory :: (filename : string) {
 }
 
 #scope_file
-
-assertFileNameLength :: ($$filename : string, location := #caller_location) #expand #no_debug {
-    #if is_constant(filename) {
-        #run assert(filename.count <= File.MAX_FILENAME_LENGTH,
-                    "Filename \"%\" is too long: %, max allowed: %",
-                    filename,
-                    filename.count,
-                    File.MAX_FILENAME_LENGTH,
-                    location = location);
-    } else {
-        assert(filename.count <= File.MAX_FILENAME_LENGTH,
-               "Filename \"%\" is too long: %, max allowed: %",
-               filename,
-               filename.count,
-               File.MAX_FILENAME_LENGTH,
-               location = location);
-    }
-}
 
 #if OS == .WINDOWS {
     #load "windows/file.jai";

@@ -1,5 +1,5 @@
 Settings :: struct {
-    PATH :: "settings\\engine.ini";
+    PATH :: "settings/engine.ini";
 
     arenas : struct {
         persistent_capacity : s64 = #run gigaBytes(1);

@@ -47,12 +47,9 @@ Debug:
     ? Log messages to files depending on tag.
 
 File:
-    - Remove MAX_PATH limit prepending \\?\ to the filename when filename.count >= MAX_PATH.
-    - Return File.Error.PATH_NOT_FOUND in enumerateFiles when 'directory' does not exist.
     ? NO_CACHE for readEntireFile.
-    - Atomatically setup shared access.
     - Shorter name for EnumerateFilesCallbackResult.
-    - Rename File.Info.name to File.Info.path
+    ? isAbsolutePath: handle URLs.
 
 Input:
     - In a multimonitor system, MOUSE.MOVE_ABSOLUTE coordinates map to the primary monitor.
