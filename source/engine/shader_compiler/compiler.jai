@@ -486,14 +486,11 @@ getShaderStageCode :: (stream : *string) -> string {
     } else if line {
         stage_code.count = cast(s64) (line.data - stage_code.data);
 
-        // +1: new line
-        stream.count += line.count + 1;
-        stream.data  -= line.count + 1;
+        advance(stream, line.count + "\n".count);
 
-        while stream.data > line.data {
-            stream.count += 1;
-            stream.data  -= 1;
-        }
+        to_advance := max(stream.data - line.data, 0);
+        stream.count += to_advance;
+        stream.data  -= to_advance;
     }
 
     trimRight(*stage_code);
@@ -773,7 +770,7 @@ shaderStageToShadercShaderKind :: inline (stage : ShaderStage) -> shaderc_shader
     return .shaderc_glsl_infer_from_source;
 }
 
-debugCheckSpvReflect :: ($code : Code) #expand #no_debug {
+debugCheckSpvReflect :: (code : Code) #expand #no_debug {
     #if DEBUG_BUILD {
         result := #insert code;
         assert(result == .SPV_REFLECT_RESULT_SUCCESS, "% returned %", #run codeToString(code), result);

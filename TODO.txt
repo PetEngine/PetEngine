@@ -37,7 +37,6 @@ Mesh file:
 // Core
 //
 
-- Do something "Mysterious stash".
 - #Atomics. Implement atomics
 
 Debug:
@@ -68,6 +67,7 @@ Window:
     ? System language reading alignment: WS_EX_LAYOUTRTL, WS_EX_RTLREADING.
     - Multi-monitor systems.
     - Window modes: windowed, fullscreen borderless, exclusive fullscreen.
+    - Add flag "focused" or "in focus"
 
 //
 // Math

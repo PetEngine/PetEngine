@@ -1357,7 +1357,7 @@ ReadDirectoryChangesW :: (
 
 IO_REPARSE_TAG_SYMLINK :: 0xA000000C;
 
-MAX_PATH :: 260;
+MAX_PATH :: 260; // including '\0'
 
 FILETIME :: struct {
     dwLowDateTime  : u32;

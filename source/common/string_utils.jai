@@ -52,8 +52,8 @@ ntStringCompare :: (a : *$T/ALLOWED_CHAR_TYPES, b : *T) -> s64 #no_context {
 }
 
 advance :: inline (s : *string, amount := 1) {
-    assert(amount > 0, "amount should be > 0. amount = %", amount);
-    assert(s.count >= amount, "s.count should be >= amount. s.count = %, amount = %", s.count, amount);
+    assert(amount > 0, "amount (%) should be > 0", amount);
+    assert(s.count >= amount, "s.count (%) should be >= amount (%)", s.count, amount);
 
     s.count -= amount;
     s.data  += amount;
