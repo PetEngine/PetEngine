@@ -101,11 +101,7 @@ readFile :: inline (file : File, data : *$T) {
     readFile(file, data, size_of(T));
 }
 
-readEntireFile :: (
-    filename  : string,
-    allocate  : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-    user_data : *T
-) -> (string, File.Error) {
+readEntireFile :: (filename : string) -> (string, File.Error) {
     buffer : string;
 
     file, error := openFile(filename, .READ | .SHARED_READ | .EXISTS | .SEQ);
@@ -114,7 +110,7 @@ readEntireFile :: (
         buffer.count = getFileSize(file);
 
         if buffer.count > 0 {
-            buffer.data = allocate(user_data, buffer.count, DEFAULT_CACHE_LINE_SIZE);
+            buffer.data = pushToArena(*context.pet.arenas.per_frame, buffer.count, DEFAULT_CACHE_LINE_SIZE);
             readFile(file, buffer);
         }
 
@@ -259,11 +255,7 @@ fileExists :: (filename : string) -> bool {
     return exists;
 }
 
-getAbsolutePath :: (
-    relative_path : string,
-    allocate      : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-    user_data     : *T
-) -> string {
+getAbsolutePath :: (relative_path : string) -> string {
     if !relative_path || isAbsolutePath(relative_path) {
         return relative_path;
     }
@@ -271,7 +263,7 @@ getAbsolutePath :: (
     absolute_path : string;
 
     #if OS == .WINDOWS {
-        absolute_path = getWindowsAbsolutePath(relative_path, allocate, user_data);
+        absolute_path = getWindowsAbsolutePath(relative_path);
     } else {
         notImplemented();
     }

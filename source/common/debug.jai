@@ -124,7 +124,10 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
 
         #if !strict {
             if result != .VK_SUCCESS {
-                absolute_path := getAbsolutePath(location.fully_pathed_filename, pushToArena, *g_debugArena);
+                replacePerFrameArenaForScope(g_debugArena);
+                autoResetPerFrameArenas();
+
+                absolute_path := getAbsolutePath(location.fully_pathed_filename);
 
                 warningMessage("%(%,%): % has returned %",
                                absolute_path,
@@ -373,8 +376,8 @@ message :: (
     #if priority == .DEBUG   && !DEBUG_BUILD            return;
     #if priority == .VERBOSE && !PRINT_VERBOSE_MESSAGES return;
 
-    autoResetArena(*g_debugArena);
-    Basic.auto_release_temp();
+    replacePerFrameArenaForScope(g_debugArena);
+    autoResetPerFrameArenas();
 
     sys_error_code := custom_sys_code;
 
@@ -440,11 +443,11 @@ message :: (
     Basic.append(context.pet.debug.message_builder, ": ");
 
     #if priority == .ASSERT {
-        absolute_path := getAbsolutePath(location.fully_pathed_filename, pushToArena, *g_debugArena);
+        absolute_path := getAbsolutePath(location.fully_pathed_filename);
         Basic.print(context.pet.debug.message_builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
     } else #if priority != .UNHANDLED_EXCEPTION {
         if custom_sys_code {
-            absolute_path := getAbsolutePath(location.fully_pathed_filename, pushToArena, *g_debugArena);
+            absolute_path := getAbsolutePath(location.fully_pathed_filename);
             Basic.print(context.pet.debug.message_builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
         }
     }

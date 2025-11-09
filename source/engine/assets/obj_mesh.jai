@@ -1,5 +1,5 @@
 convertObjMesh :: (exchange_filename : string, name : string) -> bool {
-    data, error := readEntireFile(exchange_filename, pushToArena, *context.pet.arenas.per_frame);
+    data, error := readEntireFile(exchange_filename);
     assert(error == .NONE, "The error must be NONE because we know that the file exists");
 
     obj_mesh : ObjMesh;

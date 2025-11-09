@@ -27,11 +27,9 @@ Settings :: struct {
 loadSettings :: () {
     createArena(*g_settings_scratch_arena, megaBytes(1), "Settings scratch");
 
-    temp_context := context;
-    temp_context.pet.arenas.per_frame = g_settings_scratch_arena;
-    push_context,defer_pop temp_context;
+    replacePerFrameArenaForScope(g_settings_scratch_arena);
 
-    file_data, error := readEntireFile(Settings.PATH, pushToArena, *g_settings_scratch_arena);
+    file_data, error := readEntireFile(Settings.PATH);
     if error != .NONE {
         return;
     }

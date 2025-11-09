@@ -315,7 +315,7 @@ convertTextureNVTT :: (
     name              : string,
     extension         : string
 ) -> bool {
-    file_data, error := readEntireFile(exchange_filename, pushToArena, *context.pet.arenas.per_frame);
+    file_data, error := readEntireFile(exchange_filename);
     assert(error == .NONE);
 
     exchange_texture_flags, array_size := getExchangeTextureFlags(file_data, name, extension);

@@ -136,7 +136,7 @@ createWin32Window :: (window : *Win32Window, x : s16, y : s16, surface : Resolut
     class_name := cast,no_check(LPCWSTR) manager.window_class;
     assert((class_name & 0xFFFF) == class_name, "Window class atom should be in the low-order word only");
 
-    utf16_title := UTF8ToUTF16(title, pushToArena, *context.pet.arenas.per_frame);
+    utf16_title := UTF8ToUTF16(title);
 
     window_rect_x : s32 = ifx x == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else x;
     window_rect_y : s32 = ifx y == window.OS_DEFAULT_POSITION then CW_USEDEFAULT else y;
@@ -215,13 +215,13 @@ getWin32WindowTitle :: (window : *Win32Window) -> string {
     result := GetWindowTextW(window.handle, utf16_title, title_length + 1);
     assert(result == title_length, print_sys_error = true);
 
-    title := UTF16ToUTF8(.{ title_length, utf16_title }, pushToArena, *context.pet.arenas.per_frame);
+    title := UTF16ToUTF8(.{ title_length, utf16_title });
     return title;
 }
 
 setWin32WindowTitle :: (window : *Win32Window, title : string) {
     if title {
-        utf16_title := UTF8ToUTF16(title, pushToArena, *context.pet.arenas.per_frame);
+        utf16_title := UTF8ToUTF16(title);
         debugCheck(SetWindowTextW(window.handle, utf16_title.data), print_sys_error = true);
     } else {
         debugCheck(SetWindowTextW(window.handle, null), print_sys_error = true);

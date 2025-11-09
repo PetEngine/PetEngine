@@ -148,6 +148,12 @@ autoResetPerFrameArenas :: ($zero_memory := true, location := #caller_location) 
     }
 }
 
+replacePerFrameArenaForScope :: (arena : Arena) #expand {
+    old_arena := context.pet.arenas.per_frame;
+    context.pet.arenas.per_frame = arena;
+    `defer context.pet.arenas.per_frame = old_arena;
+}
+
 #scope_file
 
 // Seems legit for most ABIs

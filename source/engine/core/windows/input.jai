@@ -210,7 +210,7 @@ getRawInputDeviceNames :: (ri_device : HANDLE) -> (device_name : string, manufac
     assert(utf16_device_name_length < utf16_device_name.count);
     utf16_device_name[utf16_device_name_length] = 0;
 
-    device_name := UTF16ToUTF8(.{ utf16_device_name_length, utf16_device_name.data }, pushToArena, *context.pet.arenas.per_frame);
+    device_name := UTF16ToUTF8(.{ utf16_device_name_length, utf16_device_name.data });
 
     manufacturer : string;
     product_name : string;
@@ -233,9 +233,7 @@ getRawInputDeviceNames :: (ri_device : HANDLE) -> (device_name : string, manufac
             utf16_manufacturer_name_length := ntStringLength(utf16_manufacturer_name);
             assert(utf16_manufacturer_name[utf16_manufacturer_name_length] == 0);
 
-            manufacturer = UTF16ToUTF8(.{ utf16_manufacturer_name_length, utf16_manufacturer_name.data },
-                                       pushToArena,
-                                       *context.pet.arenas.per_frame);
+            manufacturer = UTF16ToUTF8(.{ utf16_manufacturer_name_length, utf16_manufacturer_name.data });
         } else {
             // It seems like when manufacture string does not exist HID returns ERROR_INVALID_USER_BUFFER
             assert(GetLastError() == ERROR_INVALID_USER_BUFFER, print_sys_error = true);
@@ -249,9 +247,7 @@ getRawInputDeviceNames :: (ri_device : HANDLE) -> (device_name : string, manufac
             utf16_product_name_length := ntStringLength(utf16_product_name);
             assert(utf16_product_name[utf16_product_name_length] == 0);
 
-            product_name = UTF16ToUTF8(.{ utf16_product_name_length, utf16_product_name.data },
-                                       pushToArena,
-                                       *context.pet.arenas.per_frame);
+            product_name = UTF16ToUTF8(.{ utf16_product_name_length, utf16_product_name.data });
         } else {
             // It seems like when product string does not exist HID returns ERROR_INVALID_USER_BUFFER
             assert(GetLastError() == ERROR_INVALID_USER_BUFFER, print_sys_error = true);

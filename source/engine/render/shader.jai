@@ -117,7 +117,7 @@ getPushConstantsHandle :: (shader : *Shader, name : string) -> PushConstantsHand
 #scope_file
 
 deserializeShaderFile :: (shader : *Shader) -> string {
-    shader_file_data, file_error := readEntireFile(makeBinaryShaderFilename(shader.name), pushToArena, *context.pet.arenas.per_frame);
+    shader_file_data, file_error := readEntireFile(makeBinaryShaderFilename(shader.name));
     if file_error != .NONE {
         errorMessage("Shader \"%\" was not found", shader.name);
         return "";

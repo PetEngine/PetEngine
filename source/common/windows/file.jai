@@ -1,7 +1,7 @@
 #assert OS == .WINDOWS "This file should not be used anywhere except Windows builds";
 
 openWindowsFile :: (filename : string, flags : File.Flags, $create_path_if_does_not_exist := false) -> (File, File.Error) {
-    utf16_filename := makeUTF16Path(filename, pushToArena, *context.pet.arenas.per_frame);
+    utf16_filename := makeUTF16Path(filename);
 
     desired_access, shared_access, creation_disposition, flags_and_attributes := flagsToWin32Flags(flags);
 
@@ -110,7 +110,7 @@ enumerateWindowsFiles :: (
     $skip_directories : bool,
     $skip_symlinks    : bool
 ) -> File.Error, EnumerateFilesCallbackResult {
-    utf16_directory := makeUTF16Path(directory, pushToArena, *context.pet.arenas.per_frame);
+    utf16_directory := makeUTF16Path(directory);
 
     root_directory_length := utf16_directory.count + "/".count;
 
@@ -133,7 +133,7 @@ enumerateWindowsFiles :: (
 }
 
 getWindowsFileInfo :: (file_info : *File.Info) -> File.Error {
-    utf16_filename := makeUTF16Path(file_info.path, pushToArena, *context.pet.arenas.per_frame);
+    utf16_filename := makeUTF16Path(file_info.path);
 
     attribute_data : WIN32_FILE_ATTRIBUTE_DATA = ---;
     if !GetFileAttributesExW(utf16_filename.data, .GetFileExInfoStandard, *attribute_data) {
@@ -165,7 +165,7 @@ getWindowsFileInfo :: (file : File, file_info : *File.Info) -> File.Error {
         }
     }
 
-    file_info.path = makeUTF8Path(.{ name_info.FileNameLength, name_info.FileName.data }, pushToArena, *context.pet.arenas.per_frame);
+    file_info.path = makeUTF8Path(.{ name_info.FileNameLength, name_info.FileName.data });
 
     by_handle_info : BY_HANDLE_FILE_INFORMATION = ---;
     if !GetFileInformationByHandle(file.handle, *by_handle_info) {
@@ -197,21 +197,17 @@ getWindowsFileInfo :: (file : File, file_info : *File.Info) -> File.Error {
 }
 
 windowsFileExists :: (filename : string) -> bool {
-    utf16_filename := makeUTF16Path(filename, pushToArena, *context.pet.arenas.per_frame);
+    utf16_filename := makeUTF16Path(filename);
 
     // PathFileExists just does "return GetFileAttributes(filename) != INVALID_FILE_ATTRIBUTES;",
     // so we won't use it as it requires one more library to link
     return GetFileAttributesW(utf16_filename.data) != INVALID_FILE_ATTRIBUTES;
 }
 
-getWindowsAbsolutePath :: (
-    relative_path : string,
-    allocate      : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-    user_data     : *T
-) -> string {
+getWindowsAbsolutePath :: (relative_path : string) -> string {
     // We do not need to call `makeUTF16Path` because we know that `relative_path` is not absolute (is validated by the caller),
     // so we do not need all the functionality `makeUTF16Path` provides.
-    utf16_relative_path := UTF8ToUTF16(relative_path, allocate, user_data);
+    utf16_relative_path := UTF8ToUTF16(relative_path);
 
     for * utf16_relative_path {
         if it.* == #char "/" {
@@ -224,13 +220,13 @@ getWindowsAbsolutePath :: (
 
     utf16_absolute_path_capacity := cast(u32) utf16_absolute_path.count;
 
-    utf16_absolute_path.data = allocate(user_data, utf16_absolute_path_capacity * size_of(WCHAR), size_of(WCHAR));
+    utf16_absolute_path.data = pushToArena(*context.pet.arenas.per_frame, WCHAR, utf16_absolute_path_capacity);
 
     utf16_absolute_path.count = GetFullPathNameW(utf16_relative_path.data, utf16_absolute_path_capacity, utf16_absolute_path.data, null);
     assert(utf16_absolute_path.count > 0, print_sys_error = true);
 
     // We do not need to call `makeUTF8Path` since we know it will not be prefixed with "\\?\"
-    utf8_absolute_path := UTF16ToUTF8(utf16_absolute_path, allocate, user_data);
+    utf8_absolute_path := UTF16ToUTF8(utf16_absolute_path);
 
     for * utf8_absolute_path {
         if it.* == #char "\\" {
@@ -242,7 +238,7 @@ getWindowsAbsolutePath :: (
 }
 
 createWindowsDirectory :: (filename : string) {
-    utf16_filename := UTF8ToUTF16(filename, pushToArena, *context.pet.arenas.per_frame);
+    utf16_filename := UTF8ToUTF16(filename);
     createPathToFilename(*utf16_filename, true);
 }
 
@@ -419,11 +415,7 @@ translateFileInfo :: (file_info : *File.Info(.RELATIVE), info : *FILE_ID_EXTD_DI
     }
 }
 
-makeUTF16Path :: (
-    utf8_path : string,
-    allocate  : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-    user_data : *T
-) -> [] WCHAR {
+makeUTF16Path :: (utf8_path : string) -> [] WCHAR {
     utf16_path : [] WCHAR = ---;
 
     UTF16_LONG_PATH_PREFIX       :: WCHAR.[ #char "\\", #char "\\", #char "?", #char "\\" ];
@@ -432,7 +424,7 @@ makeUTF16Path :: (
     if !utf8_path {
         utf16_path = .[ 0 ];
     } else if utf8_path.count < MAX_PATH {
-        utf16_path = UTF8ToUTF16(utf8_path, allocate, user_data);
+        utf16_path = UTF8ToUTF16(utf8_path);
 
         for * utf16_path {
             if it.* == #char "/" {
@@ -440,17 +432,21 @@ makeUTF16Path :: (
             }
         }
     } else if isAbsolutePath(utf8_path) {
-        internal_user_data : struct {
-            allocate     : (user_data : *T, bytes : s64, alignment : s64) -> *void;
-            user_data    : *T;
-        } = .{ allocate, user_data };
+        utf16_path_bytes : u32;
+        debugCheckNT(RtlUTF8ToUnicodeN(null, 0, *utf16_path_bytes, utf8_path.data, cast(u32) utf8_path.count));
 
-        utf16_path = UTF8ToUTF16(utf8_path, (user_data : *type_of(internal_user_data), bytes : s64, alignment : s64) -> *void {
-            return user_data.allocate(user_data.user_data, UTF16_LONG_PATH_PREFIX_BYTES + bytes, alignment) + UTF16_LONG_PATH_PREFIX_BYTES;
-        }, *internal_user_data);
+        utf16_path_length := UTF16_LONG_PATH_PREFIX.count + utf16_path_bytes / size_of(WCHAR);
 
-        utf16_path.count += UTF16_LONG_PATH_PREFIX.count;
-        utf16_path.data  -= UTF16_LONG_PATH_PREFIX.count;
+        utf16_path.data = pushToArena(*context.pet.arenas.per_frame, WCHAR, utf16_path_length + "\0".count);
+        debugCheckNT(RtlUTF8ToUnicodeN(utf16_path.data + UTF16_LONG_PATH_PREFIX.count,
+                                       utf16_path_bytes,
+                                       *utf16_path_bytes,
+                                       utf8_path.data,
+                                       cast(u32) utf8_path.count));
+
+        utf16_path.count = UTF16_LONG_PATH_PREFIX.count + utf16_path_bytes / size_of(WCHAR);
+        assert(utf16_path.count == utf16_path_length);
+
         memcpy(utf16_path.data, UTF16_LONG_PATH_PREFIX.data, UTF16_LONG_PATH_PREFIX_BYTES);
 
         for * utf16_path {
@@ -463,7 +459,7 @@ makeUTF16Path :: (
         // `UTF16_LONG_PATH_PREFIX`.
         //     https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#:~:text=Because%20you%20cannot%20use%20the%20%22%5C%5C%3F%5C%22%20prefix%20with%20a%20relative%20path%2C%20relative%20paths%20are%20always%20limited%20to%20a%20total%20of%20MAX_PATH%20characters.
 
-        utf16_relative_path := UTF8ToUTF16(utf8_path, allocate, user_data);
+        utf16_relative_path := UTF8ToUTF16(utf8_path);
 
         for * utf16_relative_path {
             if it.* == #char "/" {
@@ -476,7 +472,7 @@ makeUTF16Path :: (
 
         utf16_path_capacity := cast(u32) (UTF16_LONG_PATH_PREFIX.count + utf16_path_with_null_length);
 
-        utf16_path.data = allocate(user_data, utf16_path_capacity * size_of(WCHAR), size_of(WCHAR));
+        utf16_path.data = pushToArena(*context.pet.arenas.per_frame, WCHAR, utf16_path_capacity);
         memcpy(utf16_path.data, UTF16_LONG_PATH_PREFIX.data, UTF16_LONG_PATH_PREFIX_BYTES);
 
         utf16_path.count = GetFullPathNameW(utf16_relative_path.data,
@@ -491,11 +487,7 @@ makeUTF16Path :: (
     return utf16_path;
 }
 
-makeUTF8Path :: (
-    utf16_path_ : [] WCHAR,
-    allocate    : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-    user_data   : *T
-) -> string {
+makeUTF8Path :: (utf16_path_ : [] WCHAR) -> string {
     utf16_path := utf16_path_;
 
     UTF16_LONG_PATH_PREFIX       :: WCHAR.[ #char "\\", #char "\\", #char "?", #char "\\" ];
@@ -507,7 +499,7 @@ makeUTF8Path :: (
         utf16_path.data  += UTF16_LONG_PATH_PREFIX.count;
     }
 
-    utf8_path := UTF16ToUTF8(utf16_path, allocate, user_data);
+    utf8_path := UTF16ToUTF8(utf16_path);
 
     for * utf8_path {
         if it.* == #char "\\" {
@@ -597,7 +589,7 @@ enumerateWindowsFilesUTF16 :: (
                         }
 
                         file_info : File.Info(.RELATIVE) = ---;
-                        file_info.path = makeUTF8Path(utf16_full_filename, pushToArena, *context.pet.arenas.per_frame);
+                        file_info.path = makeUTF8Path(utf16_full_filename);
                         advance(*file_info.path, root_directory_length);
                         translateFileInfo(*file_info, infos_it);
 
@@ -610,7 +602,7 @@ enumerateWindowsFilesUTF16 :: (
                     }
 
                     file_info : File.Info(.RELATIVE) = ---;
-                    file_info.path = makeUTF8Path(utf16_full_filename, pushToArena, *context.pet.arenas.per_frame);
+                    file_info.path = makeUTF8Path(utf16_full_filename);
                     advance(*file_info.path, root_directory_length);
                     translateFileInfo(*file_info, infos_it);
 
@@ -639,7 +631,7 @@ enumerateWindowsFilesUTF16 :: (
                 utf16_full_filename := makeFullPathUTF16(utf16_directory, utf16_filename);
 
                 file_info : File.Info(.RELATIVE) = ---;
-                file_info.path = makeUTF8Path(utf16_full_filename, pushToArena, *context.pet.arenas.per_frame);
+                file_info.path = makeUTF8Path(utf16_full_filename);
                 advance(*file_info.path, root_directory_length);
                 translateFileInfo(*file_info, infos_it);
 

@@ -197,7 +197,7 @@ compileShader :: (name : string) -> bool {
     file_error : File.Error = .SHARED_ACCESS_VIOLATION;
 
     while file_error == .SHARED_ACCESS_VIOLATION {
-        source, file_error = readEntireFile(source_filename, pushToArena, *context.pet.arenas.per_frame);
+        source, file_error = readEntireFile(source_filename);
     }
 
     if file_error != .NONE {
@@ -907,10 +907,10 @@ resolveIncludeCallback :: (
 
     include_result := pushToArena(*context.pet.arenas.per_frame, shaderc_include_result);
 
-    content, error := readEntireFile(include_filename, pushToArena, *context.pet.arenas.per_frame);
+    content, error := readEntireFile(include_filename);
     if error == {
         case .NONE;
-            absolute_include_filename := getAbsolutePath(include_filename, pushToArena, *context.pet.arenas.per_frame);
+            absolute_include_filename := getAbsolutePath(include_filename);
 
             include_result.source_name        = absolute_include_filename.data;
             include_result.source_name_length = cast(size_t) absolute_include_filename.count;

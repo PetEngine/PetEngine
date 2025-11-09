@@ -121,9 +121,7 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
                     assert(bytes_transferred, print_sys_error = true);
 
                     while info {
-                        filename := UTF16ToUTF8(.{ info.FileNameLength / size_of(WCHAR), info.FileName.data },
-                                                pushToArena,
-                                                *context.pet.arenas.per_frame);
+                        filename := UTF16ToUTF8(.{ info.FileNameLength / size_of(WCHAR), info.FileName.data });
 
                         reloadShader(filename);
 

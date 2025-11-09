@@ -6,12 +6,7 @@
 // ASCII to UTF16
 //
 
-ASCIIToUTF16 :: (
-    ascii_string     : string,
-    allocate         : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-    user_data        : *T,
-    $null_terminated := true
-) -> [] WCHAR {
+ASCIIToUTF16 :: (ascii_string : string, $null_terminated := true) -> [] WCHAR {
     #if DEBUG_BUILD {
         for cast([] u8) ascii_string {
             assert((it & 0x7F) == it, "The string is not ASCII");
@@ -22,7 +17,7 @@ ASCIIToUTF16 :: (
         return #ifx null_terminated then .[ 0 ] else .[];
     }
 
-    utf16_string : *WCHAR = allocate(user_data, (ascii_string.count + cast(s64) null_terminated) * size_of(WCHAR), size_of(WCHAR));
+    utf16_string := pushToArena(*context.pet.arenas.per_frame, WCHAR, ascii_string.count + cast(s64) null_terminated);
 
     for 0 .. ascii_string.count - 1 {
         utf16_string[it] = ascii_string[it];
@@ -71,11 +66,7 @@ ASCIIToUTF16 :: (utf16_string_buffer : *[$capacity] WCHAR, $$ascii_string : stri
 // UTF16 to ASCII
 //
 
-UTF16ToASCII :: (
-    utf16_string : [] WCHAR,
-    allocate     : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-    user_data    : *T
-) -> string {
+UTF16ToASCII :: (utf16_string : [] WCHAR) -> string {
     if !utf16_string return "";
 
     #if DEBUG_BUILD {
@@ -87,7 +78,7 @@ UTF16ToASCII :: (
     null_terminated := utf16_string[utf16_string.count - 1] == 0;
     length          := utf16_string.count - cast(s64) null_terminated;
 
-    ascii_string : *u8 = allocate(user_data, length, size_of(u8));
+    ascii_string := pushToArena(*context.pet.arenas.per_frame, u8, length);
 
     for 0 .. length - 1 {
         ascii_string[it] = cast(u8) utf16_string[it];
@@ -116,12 +107,7 @@ UTF16ToASCII :: (ascii_string_buffer : *[$capacity] u8, utf16_string : [] WCHAR)
 // UTF8 to UTF16
 //
 
-UTF8ToUTF16 :: (
-    utf8_string      : string,
-    allocate         : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-    user_data        : *T,
-    $null_terminated := true
-) -> [] WCHAR {
+UTF8ToUTF16 :: (utf8_string : string, $null_terminated := true) -> [] WCHAR {
     if !utf8_string {
         return #ifx null_terminated then .[ 0 ] else .[];
     }
@@ -133,14 +119,18 @@ UTF8ToUTF16 :: (
         return #ifx null_terminated then .[ 0 ] else .[];
     }
 
-    utf16_string : PWSTR = allocate(user_data, utf16_string_bytes + cast(s64) null_terminated * size_of(WCHAR), size_of(WCHAR));
+    utf16_string_length := utf16_string_bytes / size_of(WCHAR);
+
+    utf16_string := pushToArena(*context.pet.arenas.per_frame, WCHAR, utf16_string_length + cast(s64) null_terminated);
     debugCheckNT(RtlUTF8ToUnicodeN(utf16_string, utf16_string_bytes, *utf16_string_bytes, utf8_string.data, cast(u32) utf8_string.count));
 
+    assert(utf16_string_bytes / size_of(WCHAR) == utf16_string_length);
+
     #if null_terminated {
-        utf16_string[utf16_string_bytes / size_of(WCHAR)] = 0;
+        utf16_string[utf16_string_length] = 0;
     }
 
-    return .{ utf16_string_bytes / size_of(WCHAR), utf16_string };
+    return .{ utf16_string_length, utf16_string };
 }
 
 UTF8ToUTF16 :: (utf16_string_buffer : *[$capacity] WCHAR, utf8_string : string, $null_terminated := true) -> s64 {
@@ -174,11 +164,7 @@ UTF8ToUTF16 :: (utf16_string_buffer : *[$capacity] WCHAR, utf8_string : string, 
 // UTF16 to UTF8
 //
 
-UTF16ToUTF8 :: (
-    utf16_string : [] WCHAR,
-    allocate     : (user_data : *$T, bytes : s64, alignment : s64) -> *void,
-    user_data    : *T
-) -> string {
+UTF16ToUTF8 :: (utf16_string : [] WCHAR) -> string {
     if !utf16_string return "";
 
     null_terminated    := utf16_string[utf16_string.count - 1] == 0;
@@ -188,7 +174,7 @@ UTF16ToUTF8 :: (
     debugCheckNT(RtlUnicodeToUTF8N(null, 0, *utf8_string_bytes, utf16_string.data, utf16_string_bytes));
     if !utf8_string_bytes return "";
 
-    utf8_string_data : *CHAR = allocate(user_data, utf8_string_bytes, size_of(CHAR));
+    utf8_string_data := pushToArena(*context.pet.arenas.per_frame, CHAR, utf8_string_bytes);
     debugCheckNT(RtlUnicodeToUTF8N(utf8_string_data, utf8_string_bytes, *utf8_string_bytes, utf16_string.data, utf16_string_bytes));
     return .{ utf8_string_bytes, utf8_string_data };
 }

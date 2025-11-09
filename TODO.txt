@@ -39,7 +39,6 @@ Mesh file:
 
 - Do something "Mysterious stash".
 - #Atomics. Implement atomics
-- @Continue: Remove the usage of `allocate` and `user_data` parameters and just `push_context` whenever is needed.
 
 Debug:
     - Find out how Visual Studio handles inline procedures.
