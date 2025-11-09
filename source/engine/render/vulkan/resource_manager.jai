@@ -121,7 +121,7 @@ createVulkanResourceManager :: () {
                             + SAMPLERS_SUBARENA_CAPACITY      * (2 + Device.MAX_FRAME_BUFFERING)
                             + ifx device.descriptor_buffers_supported then DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY else 0;
 
-    createArena(*manager.names_arena, manager_arena_capacity, "VulkanResourceManager names");
+    createArena(*manager.names_arena, manager_arena_capacity, "Vulkan resoucre names");
 
     createVulkanBufferMemoryNamesSubarenas(BUFFERS_SUBARENA_CAPACITY);
     createVulkanTextureMemoryNamesSubarenas(TEXTURES_SUBARENA_CAPACITY);
@@ -250,13 +250,13 @@ destroyVulkanBufferMemory :: () {
     for * manager.buffers.persistent {
         assert(it.device_memory == VK_NULL_HANDLE);
         assert(it.resources.count == 0);
-        destroySubarena(*it.names_subarena);
+        destroyArena(*it.names_subarena);
     }
 
     for * manager.buffers.per_scene  {
         assert(it.device_memory == VK_NULL_HANDLE);
         assert(it.resources.count == 0);
-        destroySubarena(*it.names_subarena);
+        destroyArena(*it.names_subarena);
     }
 
     manager.buffers.per_frame.count = 0;
@@ -264,7 +264,7 @@ destroyVulkanBufferMemory :: () {
         for * it.* {
             assert(it.device_memory == VK_NULL_HANDLE);
             assert(it.resources.count == 0);
-            destroySubarena(*it.names_subarena);
+            destroyArena(*it.names_subarena);
         }
     }
 }
@@ -413,17 +413,17 @@ destroyVulkanTextureMemory :: () {
 
     assert(manager.textures.persistent.device_memory == VK_NULL_HANDLE);
     assert(manager.textures.persistent.resources.count == 0);
-    destroySubarena(*manager.textures.persistent.names_subarena);
+    destroyArena(*manager.textures.persistent.names_subarena);
 
     assert(manager.textures.per_scene.device_memory == VK_NULL_HANDLE);
     assert(manager.textures.per_scene.resources.count == 0);
-    destroySubarena(*manager.textures.per_scene.names_subarena);
+    destroyArena(*manager.textures.per_scene.names_subarena);
 
     manager.textures.per_frame.count = 0;
     for * manager.textures.per_frame.data {
         assert(it.device_memory == VK_NULL_HANDLE);
         assert(it.resources.count == 0);
-        destroySubarena(*it.names_subarena);
+        destroyArena(*it.names_subarena);
     }
 }
 
@@ -525,15 +525,15 @@ destroyVulkanTextureViewMemory :: () {
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     assert(manager.texture_views.persistent.resources.count == 0);
-    destroySubarena(*manager.texture_views.persistent.names_subarena);
+    destroyArena(*manager.texture_views.persistent.names_subarena);
 
     assert(manager.texture_views.per_scene.resources.count == 0);
-    destroySubarena(*manager.texture_views.per_scene.names_subarena);
+    destroyArena(*manager.texture_views.per_scene.names_subarena);
 
     manager.texture_views.per_frame.count = 0;
     for * manager.texture_views.per_frame.data {
         assert(it.resources.count == 0);
-        destroySubarena(*it.names_subarena);
+        destroyArena(*it.names_subarena);
     }
 }
 
@@ -631,15 +631,15 @@ destroyVulkanSamplerMemory :: () {
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
     assert(manager.samplers.persistent.resources.count == 0);
-    destroySubarena(*manager.samplers.persistent.names_subarena);
+    destroyArena(*manager.samplers.persistent.names_subarena);
 
     assert(manager.samplers.per_scene.resources.count == 0);
-    destroySubarena(*manager.samplers.per_scene.names_subarena);
+    destroyArena(*manager.samplers.per_scene.names_subarena);
 
     manager.samplers.per_frame.count = 0;
     for * manager.samplers.per_frame.data {
         assert(it.resources.count == 0);
-        destroySubarena(*it.names_subarena);
+        destroyArena(*it.names_subarena);
     }
 }
 
@@ -675,7 +675,7 @@ destroyVulkanDescriptorBufferMemory :: () {
 
     assert(manager.descriptor_buffers.persistent.device_memory == VK_NULL_HANDLE);
     assert(manager.descriptor_buffers.persistent.resources.count == 0);
-    destroySubarena(*manager.descriptor_buffers.persistent.names_subarena);
+    destroyArena(*manager.descriptor_buffers.persistent.names_subarena);
 }
 
 resetVulkanDescriptorBufferMemoryPool :: (memory_pool : *VulkanResourceManager.MemoryPool) {

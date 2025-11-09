@@ -2,8 +2,8 @@ Settings :: struct {
     PATH :: "settings/engine.ini";
 
     arenas : struct {
-        persistent_capacity : s64 = #run gigaBytes(1);
-        per_frame_capacity  : s64 = #run megaBytes(512);
+        persistent_capacity : s64 = #run megaBytes(4);
+        per_frame_capacity  : s64 = #run megaBytes(64);
     } @read_only;
 
     asset_manager : struct {

@@ -189,11 +189,11 @@ threadProc :: no_inline (thread : *Thread) {
     set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
 
     create_persistent_arena := thread.persistent_arena_capacity > 0;
-    if create_persistent_arena then createArena(*context.pet.arenas.persistent, thread.persistent_arena_capacity, "Persistent");
+    if create_persistent_arena then createArena(*context.pet.arenas.persistent, thread.persistent_arena_capacity, "% thread/Persistent", context.pet.thread.name);
     defer if create_persistent_arena then destroyArena(*context.pet.arenas.persistent);
 
     create_per_frame_arena := thread.per_frame_arena_capacity > 0;
-    if create_per_frame_arena then createArena(*context.pet.arenas.per_frame, thread.per_frame_arena_capacity, "Per frame");
+    if create_per_frame_arena then createArena(*context.pet.arenas.per_frame, thread.per_frame_arena_capacity, "% thread/Per frame", context.pet.thread.name);
     defer if create_per_frame_arena then destroyArena(*context.pet.arenas.per_frame);
 
     thread.procedure(thread.data);
