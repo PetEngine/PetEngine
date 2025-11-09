@@ -102,28 +102,28 @@ getVertexStride :: (format : VertexFormat) -> s64 {
 #scope_file
 
 vertexTypeToVertexFormat :: (vertex_type : Type) -> (VertexFormat, success : bool) #compile_time {
-    info := type_info(VertexTypes);
-    assert(info.type == .STRUCT);
+    INFO :: type_info(VertexTypes);
+    #assert INFO.type == .STRUCT;
 
     if (cast(*Type_Info) vertex_type).type != .STRUCT {
         errorMessage("Vertex type should be struct");
         return .DEFAULT, false;
     }
 
-    for member : info.members {
+    for member : INFO.members {
         if member.type.type != .TYPE continue;
 
         assert(member.offset_into_constant_storage > -1);
         assert(member.type.runtime_size == size_of(*void));
 
-        member_type_info := (cast(**Type_Info) *info.constant_storage[member.offset_into_constant_storage]).*;
+        member_type_info := (cast(**Type_Info) *INFO.constant_storage[member.offset_into_constant_storage]).*;
         member_type      := Compiler.get_type(member_type_info);
 
         if member_type == vertex_type {
-            vertex_format_info := type_info(VertexFormat);
-            assert(vertex_format_info.type == .ENUM);
+            VERTEX_FORMAT_INFO :: type_info(VertexFormat);
+            #assert VERTEX_FORMAT_INFO.type == .ENUM;
 
-            for vertex_format_info.values {
+            for VERTEX_FORMAT_INFO.values {
                 vertex_format := cast(VertexFormat) it;
                 if vertexFormatToVertexType(vertex_format) == vertex_type {
                     return vertex_format, true;

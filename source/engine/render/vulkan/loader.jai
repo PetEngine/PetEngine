@@ -65,13 +65,13 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) #compil
     required_layers : [..] string;
     required_layers.allocator = Basic.temp;
 
-    struct_info := type_info(type_of(VulkanLoader.layers.required));
-    assert(struct_info.type == .STRUCT);
+    REQUIRED_INFO :: type_info(type_of(VulkanLoader.layers.required));
+    #assert REQUIRED_INFO.type == .STRUCT;
 
-    if struct_info.members.count > 0 {
-        Basic.array_reserve(*required_layers, struct_info.members.count);
+    if REQUIRED_INFO.members.count > 0 {
+        Basic.array_reserve(*required_layers, REQUIRED_INFO.members.count);
 
-        for struct_info.members {
+        for REQUIRED_INFO.members {
             layer_name := it.notes[0];
 
             assert(layer_name);
@@ -84,13 +84,13 @@ gatherVulkanLayers :: () -> (required : [] string, optional : [] string) #compil
     optional_layers : [..] string;
     optional_layers.allocator = Basic.temp;
 
-    struct_info = type_info(type_of(VulkanLoader.layers.optional));
-    assert(struct_info.type == .STRUCT);
+    OPTIONAL_INFO :: type_info(type_of(VulkanLoader.layers.optional));
+    #assert OPTIONAL_INFO.type == .STRUCT;
 
-    if struct_info.members.count > 0 {
-        Basic.array_reserve(*optional_layers, struct_info.members.count);
+    if OPTIONAL_INFO.members.count > 0 {
+        Basic.array_reserve(*optional_layers, OPTIONAL_INFO.members.count);
 
-        for struct_info.members {
+        for OPTIONAL_INFO.members {
             layer_name := it.notes[0];
 
             assert(layer_name);
@@ -107,13 +107,13 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
     required_extensions : [..] string;
     required_extensions.allocator = Basic.temp;
 
-    struct_info := type_info(type_of(VulkanLoader.extensions.instance.required));
-    assert(struct_info.type == .STRUCT);
+    REQUIRED_INFO :: type_info(type_of(VulkanLoader.extensions.instance.required));
+    #assert REQUIRED_INFO.type == .STRUCT;
 
-    if struct_info.members.count > 0 {
-        Basic.array_reserve(*required_extensions, struct_info.members.count);
+    if REQUIRED_INFO.members.count > 0 {
+        Basic.array_reserve(*required_extensions, REQUIRED_INFO.members.count);
 
-        for struct_info.members {
+        for REQUIRED_INFO.members {
             extension_name := it.notes[0];
 
             assert(extension_name);
@@ -126,13 +126,13 @@ gatherVulkanInstanceExtensions :: () -> (required : [] string, optional : [] str
     optional_extensions : [..] string;
     optional_extensions.allocator = Basic.temp;
 
-    struct_info = type_info(type_of(VulkanLoader.extensions.instance.optional));
-    assert(struct_info.type == .STRUCT);
+    OPTIONAL_INFO :: type_info(type_of(VulkanLoader.extensions.instance.optional));
+    #assert OPTIONAL_INFO.type == .STRUCT;
 
-    if struct_info.members.count > 0 {
-        Basic.array_reserve(*optional_extensions, struct_info.members.count);
+    if OPTIONAL_INFO.members.count > 0 {
+        Basic.array_reserve(*optional_extensions, OPTIONAL_INFO.members.count);
 
-        for struct_info.members {
+        for OPTIONAL_INFO.members {
             extension_name := it.notes[0];
 
             assert(extension_name);
@@ -149,13 +149,13 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
     required_extensions : [..] string;
     required_extensions.allocator = Basic.temp;
 
-    struct_info := type_info(type_of(VulkanLoader.extensions.device.required));
-    assert(struct_info.type == .STRUCT);
+    REQUIRED_INFO :: type_info(type_of(VulkanLoader.extensions.device.required));
+    #assert REQUIRED_INFO.type == .STRUCT;
 
-    if struct_info.members.count > 0 {
-        Basic.array_reserve(*required_extensions, struct_info.members.count);
+    if REQUIRED_INFO.members.count > 0 {
+        Basic.array_reserve(*required_extensions, REQUIRED_INFO.members.count);
 
-        for struct_info.members {
+        for REQUIRED_INFO.members {
             extension_name := it.notes[0];
 
             assert(extension_name);
@@ -168,13 +168,13 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
     optional_extensions : [..] string;
     optional_extensions.allocator = Basic.temp;
 
-    struct_info = type_info(type_of(VulkanLoader.extensions.device.optional));
-    assert(struct_info.type == .STRUCT);
+    OPTIONAL_INFO :: type_info(type_of(VulkanLoader.extensions.device.optional));
+    #assert OPTIONAL_INFO.type == .STRUCT;
 
-    if struct_info.members.count > 0 {
-        Basic.array_reserve(*optional_extensions, struct_info.members.count);
+    if OPTIONAL_INFO.members.count > 0 {
+        Basic.array_reserve(*optional_extensions, OPTIONAL_INFO.members.count);
 
-        for struct_info.members {
+        for OPTIONAL_INFO.members {
             extension_name := it.notes[0];
 
             assert(extension_name);
@@ -190,10 +190,10 @@ gatherVulkanDeviceExtensions :: () -> (required : [] string, optional : [] strin
 loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkInstance, enabled_instance_extensions : *[..] string) {
     base_address := cast(*void) *loader.extensions.instance.required;
 
-    struct_info := type_info(type_of(loader.extensions.instance.required));
-    assert(struct_info.type == .STRUCT);
+    REQUIRED_INFO :: type_info(type_of(loader.extensions.instance.required));
+    #assert REQUIRED_INFO.type == .STRUCT;
 
-    for struct_info.members {
+    for REQUIRED_INFO.members {
         if it.type.type == .VOID continue;
 
         function := vkGetInstanceProcAddr(instance, it.name.data);
@@ -207,10 +207,10 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
 
     base_address = cast(*void) *loader.extensions.instance.optional;
 
-    struct_info = type_info(type_of(loader.extensions.instance.optional));
-    assert(struct_info.type == .STRUCT);
+    OPTIONAL_INFO :: type_info(type_of(loader.extensions.instance.optional));
+    #assert OPTIONAL_INFO.type == .STRUCT;
 
-    for struct_info.members {
+    for OPTIONAL_INFO.members {
         if it.type.type == .VOID continue;
 
         member_extension_name := it.notes[0];
@@ -231,10 +231,10 @@ loadVulkanInstanceExtensionsFunctions :: (loader : *VulkanLoader, instance : VkI
 loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevice, enabled_device_extensions : *[..] string) {
     base_address := cast(*void) *loader.extensions.device.required;
 
-    struct_info := type_info(type_of(loader.extensions.device.required));
-    assert(struct_info.type == .STRUCT);
+    REQUIRED_INFO :: type_info(type_of(loader.extensions.device.required));
+    #assert REQUIRED_INFO.type == .STRUCT;
 
-    for struct_info.members {
+    for REQUIRED_INFO.members {
         if it.type.type == .VOID continue;
 
         function := vkGetDeviceProcAddr(device, it.name.data);
@@ -248,10 +248,10 @@ loadVulkanDeviceExtensionsFunctions :: (loader : *VulkanLoader, device : VkDevic
 
     base_address = cast(*void) *loader.extensions.device.optional;
 
-    struct_info = type_info(type_of(loader.extensions.device.optional));
-    assert(struct_info.type == .STRUCT);
+    OPTIONAL_INFO :: type_info(type_of(loader.extensions.device.optional));
+    #assert OPTIONAL_INFO.type == .STRUCT;
 
-    for struct_info.members {
+    for OPTIONAL_INFO.members {
         if it.type.type == .VOID continue;
 
         member_extension_name := it.notes[0];

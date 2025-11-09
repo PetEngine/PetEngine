@@ -219,12 +219,12 @@ END;
 gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     arguments : BuildArguments;
 
-    info := type_info(BuildArguments);
-    assert(info.type == .STRUCT);
+    INFO :: type_info(BuildArguments);
+    #assert INFO.type == .STRUCT;
 
     for command_line_argument : build_options.compile_time_command_line {
         member : *Type_Info_Struct_Member;
-        for * info.members {
+        for * INFO.members {
             if it.name == command_line_argument {
                 member = it;
                 break;

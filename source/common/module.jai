@@ -49,12 +49,12 @@ generatePlatformVtableInitialization :: (
     assert(vtable_storage_instance_name);
     assert(platform_name);
 
-    ti := type_info(vtable_storage_type);
-    assert(ti.type == .STRUCT);
+    INFO :: type_info(vtable_storage_type);
+    #assert INFO.type == .STRUCT;
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
 
-    for ti.members {
+    for INFO.members {
         if it.type.type == .PROCEDURE {
             vulkan_procedure_name := String.replace(it.name, "Platform", platform_name,, allocator = Basic.temp);
             Basic.print(*builder, "%.% = %;\n", vtable_storage_instance_name, it.name, vulkan_procedure_name);

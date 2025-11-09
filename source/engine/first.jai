@@ -54,20 +54,20 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
         #insert -> string {
             builder := Basic.String_Builder.{ allocator = Basic.temp };
 
-            info := type_info(type_of(#Context.pet.core));
-            assert(info.type == .STRUCT);
+            INFO_CORE :: type_info(type_of(#Context.pet.core));
+            #assert INFO_CORE.type == .STRUCT;
 
-            for info.members {
+            for INFO_CORE.members {
                 if it.type.type == .POINTER {
                     Basic.print(*builder, "assert(context.pet.core.%1, \"%1 should be created\");\n", it.name);
                 }
                 Basic.print(*builder, "new_context.pet.core.%1 = context.pet.core.%1;\n", it.name);
             }
 
-            info = type_info(type_of(#Context.pet.render));
-            assert(info.type == .STRUCT);
+            INFO_RENDER :: type_info(type_of(#Context.pet.render));
+            #assert INFO_RENDER.type == .STRUCT;
 
-            for info.members {
+            for INFO_RENDER.members {
                 Basic.print(*builder, "assert(context.pet.render.%1, \"%1 should be created\");\n", it.name);
                 Basic.print(*builder, "new_context.pet.render.%1 = context.pet.render.%1;\n", it.name);
             }

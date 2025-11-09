@@ -1503,8 +1503,6 @@ recreateVulkanSwapchain :: (window : *Window) {
         spaces : [FORMAT_NAME_WIDTH] u8 = ---;
         for * spaces { it.* = #char " "; }
 
-        info := type_info(VkFormat);
-
         Basic.print(*builder, "Available surface formats (%):\n", surface_formats.count);
         for surface_formats {
             Basic.print(*builder, "    [%]: Format: %\n         Space:  %\n", it_index, it.format, it.colorSpace);
@@ -1990,11 +1988,11 @@ createSystemCommandBuffers :: () {
 }
 
 vendorIdToString :: (vendor_id : u32) -> string #no_context {
-    info := type_info(PCIVendorID);
+    INFO :: type_info(PCIVendorID);
 
-    for info.values {
+    for INFO.values {
         if it == vendor_id {
-            return info.names[it_index];
+            return INFO.names[it_index];
         }
     }
 

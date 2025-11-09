@@ -95,14 +95,12 @@ pushToArena :: (arena : *Arena, bytes : s64, alignment := DEFAULT_ALIGNMENT) -> 
 }
 
 pushToArena :: (arena : *Arena, $type : Type, count := 1, alignment := 0) -> *type {
-    memory : *type = ---;
-
     // @Important: Some WinAPI functions (CreateWindowExW for instance) fail
     //             if an address of a UTF-16 string is not aligned to size_of(WCHAR),
     //             so we have to take into account the alignment of the type
     //
     // This is the only way I figured out to get a type info of 'type'...
-    ALIGNMENT_OF_TYPE :: #run alignmentOf(type_info(type_of(*memory)));
+    ALIGNMENT_OF_TYPE :: #run alignmentOf(type_info(type));
 
     if !alignment {
         alignment = ALIGNMENT_OF_TYPE;
@@ -113,7 +111,7 @@ pushToArena :: (arena : *Arena, $type : Type, count := 1, alignment := 0) -> *ty
                alignment);
     }
 
-    memory = pushToArena(arena, size_of(type) * count, alignment);
+    memory : *type = pushToArena(arena, size_of(type) * count, alignment);
 
     init :: initializer_of(type);
     #if init {
