@@ -255,6 +255,7 @@ debugBreakIfDebugging :: () #expand #no_debug {
     }
 }
 
+#run createDebug();
 createDebug :: () {
     g_debugArena.memory   = DEBUG_MEMORY.data;
     g_debugArena.capacity = DEBUG_MEMORY.count;
@@ -263,7 +264,9 @@ createDebug :: () {
     #if OS == .WINDOWS {
         createRecursiveMutex(*g_dbgHelpMutex);
     }
-    createUnhandledExceptionHandler();
+    if !#compile_time {
+        createUnhandledExceptionHandler();
+    }
 }
 
 destroyDebug :: () {

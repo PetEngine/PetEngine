@@ -195,14 +195,14 @@ alignmentOf :: (info : *Type_Info) -> s64 #compile_time {
             return alignmentOf(type_info(Any_Struct));
 
         case .VOID;
-            assertMessage("void has no size and no alignment");
-            return 1; // Or 0?
+            return 1;
 
         case .STRUCT;
             max_primitive_alignment := 1;
 
             info_struct := cast(*Type_Info_Struct) info;
             for info_struct.members {
+                if it.flags & (.CONSTANT | .IMPORTED) continue;
                 max_primitive_alignment = max(max_primitive_alignment, alignmentOf(it.type));
             }
 
