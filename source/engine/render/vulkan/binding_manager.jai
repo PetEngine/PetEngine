@@ -11,9 +11,7 @@ VulkanBindingManager :: struct {
                 usage        : VkBufferUsageFlags;
                 slot_offsets : [MAX_DESCRIPTOR_SET_SLOTS] VkDeviceSize;
             }
-            struct {
-                descriptor_pool_sizes : StaticArray(VkDescriptorPoolSize, MAX_DESCRIPTOR_SET_SLOTS);
-            }
+            descriptor_pool_sizes : StaticArray(VkDescriptorPoolSize, MAX_DESCRIPTOR_SET_SLOTS);
         }
     }
 
@@ -24,10 +22,12 @@ VulkanBindingManager :: struct {
                 descriptor_pool : VkDescriptorPool;
                 descriptor_set  : VkDescriptorSet;
             }
-        };
-        descriptors_pushed : [MAX_DESCRIPTOR_SET_SLOTS] u16;
+        }
+        union {
+            descriptors_pushed        : [MAX_DESCRIPTOR_SET_SLOTS] u16;
+            descriptors_pushed_packed : u64;
+        }
 
-        #place descriptors_pushed; descriptors_pushed_packed : u64;
         #assert size_of(type_of(descriptors_pushed_packed)) == size_of(type_of(descriptors_pushed));
     }
 

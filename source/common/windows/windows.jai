@@ -1254,16 +1254,16 @@ WriteFile :: (
     lpOverlapped           : *OVERLAPPED
 ) -> BOOL #foreign kernel32;
 
-LARGE_INTEGER :: union {
-    struct {
-        LowPart  : u32;
-        HighPart : s32;
-    }
-    u : struct {
+LARGE_INTEGER :: struct {
+    LowPart  : u32;
+    HighPart : s32;
+
+    #overlay(LowPart) u : struct {
         LowPart  : u32;
         HighPart : s32;
     };
-    QuadPart : s64;
+
+    #overlay(LowPart) QuadPart : s64;
 }
 
 GetFileSizeEx :: (

@@ -183,10 +183,18 @@ threadProc :: no_inline (thread : *Thread) {
     context.temporary_storage = *temporary_storage;
 
     // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
-    temporary_storage_data := Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
-    defer Allocator.rpfree(temporary_storage_data);
+    context.temporary_storage.size = TEMPORARY_STORAGE_SIZE;
+    context.temporary_storage.data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
+    defer {
+        Basic.reset_temporary_storage();
+        Allocator.rpfree(context.temporary_storage.data);
+    }
 
-    set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
+    // #TemporaryStorageWorkaround
+    {
+        ts := cast(*Basic.Temporary_Storage_Paged_Alloc, context.temporary_storage);
+        ts.overflow_allocator = context.allocator;
+    }
 
     create_persistent_arena := thread.persistent_arena_capacity > 0;
     if create_persistent_arena then createArena(*context.pet.arenas.persistent, thread.persistent_arena_capacity, "% thread/Persistent", context.pet.thread.name);

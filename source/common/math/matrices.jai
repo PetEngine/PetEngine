@@ -8,9 +8,9 @@ m2x2 :: struct {
     e00, e01 : f32;
     e10, e11 : f32;
 
-    #place e00; rows : [2] v2f;
-    #place e00; e    : [2][2] f32;
-    #place e00; flat : [4] f32;
+    #overlay(e00) rows : [2] v2f;
+    #overlay(e00) e    : [2][2] f32;
+    #overlay(e00) flat : [4] f32;
 }
 
 m3x3 :: struct {
@@ -18,9 +18,9 @@ m3x3 :: struct {
     e10, e11, e12 : f32;
     e20, e21, e22 : f32;
 
-    #place e00; rows : [3] v3f;
-    #place e00; e    : [3][3] f32;
-    #place e00; flat : [9] f32;
+    #overlay(e00) rows : [3] v3f;
+    #overlay(e00) e    : [3][3] f32;
+    #overlay(e00) flat : [9] f32;
 }
 
 m3x4 :: struct {
@@ -28,9 +28,9 @@ m3x4 :: struct {
     e10, e11, e12, e13 : f32;
     e20, e21, e22, e23 : f32;
 
-    #place e00; rows : [3] v4f;
-    #place e00; e    : [3][4] f32;
-    #place e00; flat : [12] f32;
+    #overlay(e00) rows : [3] v4f;
+    #overlay(e00) e    : [3][4] f32;
+    #overlay(e00) flat : [12] f32;
 }
 
 m4x3 :: struct {
@@ -39,10 +39,10 @@ m4x3 :: struct {
     e20, e21, e22 : f32;
     e30, e31, e32 : f32;
 
-    #place e00; rows : [4] v3f;
-    #place e00; _3x3 : m3x3;
-    #place e00; e    : [4][3] f32;
-    #place e00; flat : [12] f32;
+    #overlay(e00) rows : [4] v3f;
+    #overlay(e00) _3x3 : m3x3;
+    #overlay(e00) e    : [4][3] f32;
+    #overlay(e00) flat : [12] f32;
 }
 
 m4x4 :: struct {
@@ -51,10 +51,10 @@ m4x4 :: struct {
     e20, e21, e22, e23 : f32;
     e30, e31, e32, e33 : f32;
 
-    #place e00; rows : [4] v4f;
-    #place e00; _3x4 : m3x4;
-    #place e00; e    : [4][4] f32;
-    #place e00; flat : [16] f32;
+    #overlay(e00) rows : [4] v4f;
+    #overlay(e00) _3x4 : m3x4;
+    #overlay(e00) e    : [4][4] f32;
+    #overlay(e00) flat : [16] f32;
 }
 
 #assert size_of(m2x2) == 16;

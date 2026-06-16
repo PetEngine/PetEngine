@@ -468,7 +468,7 @@ operator >= :: Basic.operator >=;
 #load "heart.jai";
 #load "skybox.jai";
 
-Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_POISON_FREED_MEMORY = DEBUG_BUILD);
+Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_OVERWRITE_MEMORY = DEBUG_BUILD);
 Reflection :: #import "Reflection";
 Atomics    :: #import "Atomics";
 #if CPU == .X64 {
@@ -633,10 +633,18 @@ initRuntimeAndCallEntryPoint :: () {
     context.temporary_storage = *temporary_storage;
 
     // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
-    temporary_storage_data := Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
-    defer Allocator.rpfree(temporary_storage_data);
+    context.temporary_storage.size = TEMPORARY_STORAGE_SIZE;
+    context.temporary_storage.data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
+    defer {
+        Basic.reset_temporary_storage();
+        Allocator.rpfree(context.temporary_storage.data);
+    }
 
-    set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
+    // #TemporaryStorageWorkaround
+    {
+        ts := cast(*Basic.Temporary_Storage_Paged_Alloc, context.temporary_storage);
+        ts.overflow_allocator = context.allocator;
+    }
 
     createDebug();
     defer destroyDebug();

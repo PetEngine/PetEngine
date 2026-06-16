@@ -56,8 +56,7 @@ SamplerState :: struct {
 
     border_color := Sampler.BorderColor.NONE;
 
-    #place min_filter;
-    _alignment : [16] u8;
+    #overlay(min_filter) _alignment : [16] u8;
 }
 #assert size_of(SamplerState) == 16;
 

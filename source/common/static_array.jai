@@ -97,7 +97,7 @@ for_expansion :: (array : *StaticArray, body : Code, flags : For_Flags) #expand 
 
     last_index := array.count - 1;
 
-    for #v2 <=REVERSE `it_index : 0 .. last_index {
+    for <=REVERSE `it_index : 0 .. last_index {
         #if flags & .POINTER {
             `it := *array.data[it_index];
         } else {

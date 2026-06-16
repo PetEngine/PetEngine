@@ -77,11 +77,11 @@ Texture :: struct {
         HDR;
     }
 
-    ClearValue :: union {
+    ClearValue :: struct {
         color_f32 : v4f;
-        color_u32 : v4u;
-        color_s32 : v4s;
-        struct {
+        #overlay(color_f32) color_s32 : v4s;
+        #overlay(color_f32) color_u32 : v4u;
+        #overlay(color_f32) using ds  : struct {
             depth   : f32;
             stencil : u32;
         }

@@ -4,7 +4,7 @@ v2 :: struct(T : Type) {
     x : T;
     y : T;
 
-    #place x; e : [2] T;
+    #overlay(x) e : [2] T;
 }
 
 v3 :: struct(T : Type) {
@@ -12,10 +12,10 @@ v3 :: struct(T : Type) {
     y : T;
     z : T;
 
-    #place x; xy : v2(T);
-    #place y; yz : v2(T);
+    #overlay(x) xy : v2(T);
+    #overlay(y) yz : v2(T);
 
-    #place x; e : [3] T;
+    #overlay(x) e : [3] T;
 }
 
 v4 :: struct(T : Type) {
@@ -24,14 +24,14 @@ v4 :: struct(T : Type) {
     z : T;
     w : T;
 
-    #place x; xyz : v3(T);
-    #place y; yzw : v3(T);
+    #overlay(x) xyz : v3(T);
+    #overlay(y) yzw : v3(T);
 
-    #place x; xy : v2(T);
-    #place y; yz : v2(T);
-    #place z; zw : v2(T);
+    #overlay(x) xy : v2(T);
+    #overlay(y) yz : v2(T);
+    #overlay(z) zw : v2(T);
 
-    #place x; e : [4] T;
+    #overlay(x) e : [4] T;
 }
 
 v2f :: v2(f32);

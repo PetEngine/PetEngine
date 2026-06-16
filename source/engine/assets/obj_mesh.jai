@@ -345,8 +345,6 @@ remapTriplets :: (
     triplet_to_index : Hash_Table.Table(ObjMesh.Triplet, u32, given_compare_function = (a : ObjMesh.Triplet, b : ObjMesh.Triplet) -> bool {
         return !memcmp(a.data, b.data, size_of(ObjMesh.Triplet));
     });
-
-    Hash_Table.init(*triplet_to_index);
     defer Hash_Table.deinit(*triplet_to_index);
 
     for face_group, group_index : obj_mesh.face_groups {

@@ -131,10 +131,10 @@ VkCommandBufferBeginInfo :: struct {
 }
 
 // Provided by VK_VERSION_1_0
-VkClearColorValue :: union {
+VkClearColorValue :: struct {
     float32_ : [4] f32;
-    int32    : [4] s32;
-    uint32   : [4] u32;
+    #overlay(float32_) int32  : [4] s32;
+    #overlay(float32_) uint32 : [4] u32;
 }
 
 // Provided by VK_VERSION_1_0

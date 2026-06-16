@@ -651,8 +651,14 @@ createUnhandledExceptionHandler :: () {
         context.temporary_storage = *g_exception_handler_context.temporary_storage;
 
         // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
-        g_exception_handler_context.temporary_storage_data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
-        set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, g_exception_handler_context.temporary_storage_data);
+        context.temporary_storage.size = TEMPORARY_STORAGE_SIZE;
+        context.temporary_storage.data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
+
+        // #TemporaryStorageWorkaround
+        {
+            ts := cast(*Basic.Temporary_Storage_Paged_Alloc, context.temporary_storage);
+            ts.overflow_allocator = context.allocator;
+        }
 
         // We do not need arenas for unhandled exception handler
     }
@@ -677,7 +683,9 @@ destroyUnhandledExceptionHandler :: () {
     destroyRecursiveMutex(*g_exception_handler_context.mutex);
 
     push_context g_exception_handler_context.jai_context {
-        Allocator.rpfree(g_exception_handler_context.temporary_storage_data);
+        Basic.reset_temporary_storage();
+        Allocator.rpfree(context.temporary_storage.data);
+
         context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
     }
 }
@@ -797,7 +805,6 @@ g_exception_handler_context : struct {
     jai_context              : #Context;
     mutex                    : RecursiveMutex;
     temporary_storage        : Temporary_Storage;
-    temporary_storage_data   : *void;
     #if OS == .WINDOWS {
         previous_handler     : TOP_LEVEL_EXCEPTION_FILTER;
     }

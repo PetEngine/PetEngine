@@ -169,9 +169,9 @@ Input :: struct {
         button_4 : KeyState;
         button_5 : KeyState;
 
-        #place button_1; button_left   : KeyState;
-        #place button_2; button_right  : KeyState;
-        #place button_3; button_middle : KeyState;
+        #overlay(button_1) button_left   : KeyState;
+        #overlay(button_2) button_right  : KeyState;
+        #overlay(button_3) button_middle : KeyState;
     }
 
     Thumb :: struct {

@@ -129,7 +129,9 @@ destroyVulkanDevice :: () {
         push_context device.messenger_context {
             Basic.array_reset(*device.message_hashes);
 
-            Allocator.rpfree(context.temporary_storage.original_data);
+            Basic.reset_temporary_storage();
+            Allocator.rpfree(context.temporary_storage.data);
+
             context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
         }
     }
@@ -929,8 +931,14 @@ initMessengerCallback :: () {
             context.temporary_storage = *device.messenger_context_temporary_storage;
 
             // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
-            temporary_storage_data := Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, TEMPORARY_STORAGE_SIZE);
-            set_initial_data(context.temporary_storage, TEMPORARY_STORAGE_SIZE, temporary_storage_data);
+            context.temporary_storage.size = TEMPORARY_STORAGE_SIZE;
+            context.temporary_storage.data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
+
+            // #TemporaryStorageWorkaround
+            {
+                ts := cast(*Basic.Temporary_Storage_Paged_Alloc, context.temporary_storage);
+                ts.overflow_allocator = context.allocator;
+            }
 
             // We do not need arenas for messenger callback
 
