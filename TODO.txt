@@ -91,6 +91,7 @@ Window:
 - Implement Event and Fence
 
 Binding Manager:
+    ? @Continue: GL_EXT_descriptor_heap
     - Per view & per material bindings.
     ? Separate bindings for compute queue
 

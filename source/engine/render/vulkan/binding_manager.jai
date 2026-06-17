@@ -56,6 +56,24 @@ Bindings limits:
     Max resource and sampler descriptor buffer address space size: %
 END;
 
+DESCRIPTOR_BUFFER_DESCRIPTOR_SIZES :: #string END
+Descriptor sizes:
+    Sampler:                     %
+    Sampled image:               %
+    Storage image:               %
+    Combined image sampler:      %
+    Uniform texel buffer:        %
+    Storage texel buffer:        %
+    Uniform buffer:              %
+    Storage buffer:              %
+    Robust uniform texel buffer: %
+    Robust storage texel buffer: %
+    Robust uniform buffer:       %
+    Robust storage buffer:       %
+    Input attachment:            %
+    Acceleration structure:      %
+END;
+
 DESCRIPTOR_POOL_BINDINGS_LIMITS_FORMAT_STRING :: #string END
 Bindings limits:
     Max bound descriptor sets: %
@@ -91,6 +109,22 @@ END;
                        device.descriptor_buffer_properties.resourceDescriptorBufferAddressSpaceSize,
                        device.descriptor_buffer_properties.samplerDescriptorBufferAddressSpaceSize,
                        device.descriptor_buffer_properties.descriptorBufferAddressSpaceSize);
+
+        verboseMessage(DESCRIPTOR_BUFFER_DESCRIPTOR_SIZES,
+                       device.descriptor_buffer_properties.samplerDescriptorSize,
+                       device.descriptor_buffer_properties.sampledImageDescriptorSize,
+                       device.descriptor_buffer_properties.storageImageDescriptorSize,
+                       device.descriptor_buffer_properties.combinedImageSamplerDescriptorSize,
+                       device.descriptor_buffer_properties.uniformTexelBufferDescriptorSize,
+                       device.descriptor_buffer_properties.storageTexelBufferDescriptorSize,
+                       device.descriptor_buffer_properties.uniformBufferDescriptorSize,
+                       device.descriptor_buffer_properties.storageBufferDescriptorSize,
+                       device.descriptor_buffer_properties.robustUniformTexelBufferDescriptorSize,
+                       device.descriptor_buffer_properties.robustStorageTexelBufferDescriptorSize,
+                       device.descriptor_buffer_properties.robustUniformBufferDescriptorSize,
+                       device.descriptor_buffer_properties.robustStorageBufferDescriptorSize,
+                       device.descriptor_buffer_properties.inputAttachmentDescriptorSize,
+                       device.descriptor_buffer_properties.accelerationStructureDescriptorSize);
     } else {
         warningMessage("Descriptor buffers are not supported");
 
