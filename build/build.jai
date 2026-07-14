@@ -12,7 +12,7 @@ PRINT_VERBOSE_MESSAGES :: %;
 END;
 
 #run {
-    checkCompilerVersion(.{0, 2, 29});
+    checkCompilerVersion(.{0, 2, 30});
 
     build_options := get_build_options();
 
@@ -119,7 +119,7 @@ END;
         set_optimization(*build_options, .VERY_DEBUG, !build_arguments.no_debug_info);
         build_options.arithmetic_overflow_check               = .FATAL;
         build_options.dead_code_elimination                   = .NONE;
-        build_options.prevent_compile_time_calls_from_runtime = false; // Fails in modules with dead_code_elimination == .NONE
+        build_options.prevent_compile_time_calls_from_runtime = true;
         build_options.enable_bytecode_inliner                 = false;
     }
 

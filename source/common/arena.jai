@@ -202,15 +202,8 @@ alignmentOf :: (info : *Type_Info) -> s64 #compile_time {
             return 1;
 
         case .STRUCT;
-            max_primitive_alignment := 1;
-
             info_struct := cast(*Type_Info_Struct) info;
-            for info_struct.members {
-                if it.flags & (.CONSTANT | .IMPORTED) continue;
-                max_primitive_alignment = max(max_primitive_alignment, alignmentOf(it.type));
-            }
-
-            return max_primitive_alignment;
+            return max(info_struct.alignment, 1);
 
         case .ARRAY;
             info_array := cast(*Type_Info_Array) info;
