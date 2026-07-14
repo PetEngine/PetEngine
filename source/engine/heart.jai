@@ -106,7 +106,7 @@ drawHeart :: (command_buffer : *CommandBuffer, heart : Heart, per_view_uniform :
             drawPrimitives(command_buffer, it.indices_count, 1, it.indices_skip, it.vertices_skip);
         }
     } else {
-        submesh := *heart.mesh.submesh_infos[heart.submesh_index];
+        submesh := *heart.mesh.submesh_infos[heart.submesh_index - 1];
         drawPrimitives(command_buffer, submesh.indices_count, 1, submesh.indices_skip, submesh.vertices_skip);
     }
 }
