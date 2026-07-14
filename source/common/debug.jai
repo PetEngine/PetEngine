@@ -404,7 +404,7 @@ message :: (
     MAX_MESSAGE_RECURSIONS_COUNT : u8 : 3;
     if context.pet.debug.message_recursions_count >= MAX_MESSAGE_RECURSIONS_COUNT {
         console_handle := GetStdHandle(STD_ERROR_HANDLE);
-        if console_handle != INVALID_HANDLE_VALUE {
+        if console_handle && console_handle != INVALID_HANDLE_VALUE {
             scopedLock(*g_ioMutex);
 
             SetConsoleTextAttribute(console_handle, 0x04);
@@ -511,7 +511,7 @@ message :: (
         #if priority >= .ERROR console_handle = GetStdHandle(STD_ERROR_HANDLE);
         else                   console_handle = GetStdHandle(STD_OUTPUT_HANDLE);
 
-        if console_handle != INVALID_HANDLE_VALUE {
+        if console_handle && console_handle != INVALID_HANDLE_VALUE {
             console_mode : u32;
             if GetConsoleMode(console_handle, *console_mode) {
                 // We do not change a color for verbose messages

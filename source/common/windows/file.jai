@@ -255,7 +255,7 @@ flagsToWin32Flags :: (flags : File.Flags) -> (
     desired_access       : u32;
     shared_access        : u32;
     creation_disposition : u32;
-    flags_and_attributes : u32 = FILE_ATTRIBUTE_NORMAL;
+    flags_and_attributes : u32;
 
     // @Important: Until we do not use remote files we are good, but when we will, we should use GENERIC_READ | GENERIC_WRITE
     //             instead of just GENERIC_WRITE:
@@ -304,11 +304,6 @@ flagsToWin32Flags :: (flags : File.Flags) -> (
 
     if flags & .FLUSH {
         flags_and_attributes |= FILE_FLAG_WRITE_THROUGH;
-    }
-
-    // FILE_ATTRIBUTE_NORMAL is valid only when used alone
-    if flags_and_attributes & ~FILE_ATTRIBUTE_NORMAL {
-        flags_and_attributes &= ~FILE_ATTRIBUTE_NORMAL;
     }
 
     return desired_access, shared_access, creation_disposition, flags_and_attributes;

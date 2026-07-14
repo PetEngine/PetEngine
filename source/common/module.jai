@@ -83,19 +83,12 @@ generatePlatformVtableInitialization :: (
     notImplemented();
 }
 
-#if DEBUG_BUILD {
-    Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
-                                    ENABLE_ASSERTS       = DEBUG_BUILD,
-                                    ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
-                                    LINUX_FREE_ADVICE    = .DONTNEED);
-} else {
-    Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
-                                    ENABLE_ASSERTS       = DEBUG_BUILD,
-                                    ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
-                                    LINUX_FREE_ADVICE    = .FREE);
-}
-String   :: #import "String";
-Compiler :: #import "Compiler";
+Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
+                                ENABLE_ASSERTS       = DEBUG_BUILD,
+                                ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
+                                LINUX_FREE_ADVICE    = .FREE);
+String    :: #import "String";
+Compiler  :: #import "Compiler";
 
 #scope_module
 

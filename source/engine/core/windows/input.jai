@@ -215,14 +215,7 @@ getRawInputDeviceNames :: (ri_device : HANDLE) -> (device_name : string, manufac
     manufacturer : string;
     product_name : string;
 
-    hid_device := CreateFileW(utf16_device_name.data,
-                              FILE_GENERIC_READ & ~FILE_READ_DATA,
-                              FILE_SHARE_READ | FILE_SHARE_WRITE,
-                              null,
-                              OPEN_EXISTING,
-                              FILE_ATTRIBUTE_DEVICE,
-                              null);
-
+    hid_device := CreateFileW(utf16_device_name.data, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, 0, null);
     if hid_device != INVALID_HANDLE_VALUE {
         defer debugCheck(CloseHandle(hid_device), print_sys_error = true);
 
