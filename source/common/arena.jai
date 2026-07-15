@@ -45,7 +45,11 @@ destroyArena :: (arena : *Arena) {
     }
 
     #if DEBUG_BUILD {
-        debugMessage("%: max occupied bytes: % / %", arena.name, arena.max_occupied, arena.capacity);
+        // Make a copy so the print is not affected by g_debugArena.
+        copy_arena := arena.*;
+        copy_arena.name.data = copy_arena.name_memory.data;
+
+        debugMessage("%: max occupied bytes: % / %", copy_arena.name, copy_arena.max_occupied, copy_arena.capacity);
     }
 
     memset(arena, 0, size_of(Arena));

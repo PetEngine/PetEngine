@@ -129,6 +129,10 @@ NT_INFORMATION :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(st
 NT_WARNING     :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(status) == STATUS_SEVERITY_WARNING; }
 NT_ERROR       :: inline (status : NTSTATUS) -> bool { return STATUS_SEVERITY(status) == STATUS_SEVERITY_ERROR; }
 
+RtlNtStatusToDosError :: (
+    Status : NTSTATUS
+) -> u32 #foreign ntdll;
+
 GUID :: struct {
     Data1 : u32;
     Data2 : u16;
