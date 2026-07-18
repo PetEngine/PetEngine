@@ -167,5 +167,4 @@ Compiler:
 
 Hot reload:
     - Thread pool.
-    - Remove event names (because of names events become system wide).
     - Replace `stop_thread_event` with MsgWaitForMultipleObjects.

@@ -120,6 +120,7 @@ STATUS_INTEGER_DIVIDE_BY_ZERO   : NTSTATUS : 0xC000_0094;
 STATUS_INTEGER_OVERFLOW         : NTSTATUS : 0xC000_0095;
 STATUS_PRIVILEGED_INSTRUCTION   : NTSTATUS : 0xC000_0096;
 STATUS_STACK_OVERFLOW           : NTSTATUS : 0xC000_00FD;
+STATUS_CANCELLED                : NTSTATUS : 0xC000_0120;
 STATUS_POSSIBLE_DEADLOCK        : NTSTATUS : 0xC000_0194;
 
 STATUS_SEVERITY :: inline (status : NTSTATUS) -> u32  { return cast,no_check(u32) status >> 30; }
@@ -977,6 +978,14 @@ DispatchMessageW :: (
     lpMsg : *MSG
 ) -> LRESULT #foreign user32;
 
+IO_STATUS_BLOCK :: struct {
+    union {
+        Status  : NTSTATUS;
+        Pointer : *void;
+    }
+    Information : ULONG_PTR;
+}
+
 OVERLAPPED :: struct {
     Internal     : ULONG_PTR;
     InternalHigh : ULONG_PTR;
@@ -987,7 +996,7 @@ OVERLAPPED :: struct {
         }
         Pointer : *void;
     }
-    hEvent : HANDLE;
+    hEvent : HANDLE = INVALID_HANDLE_VALUE;
 }
 
 DWMWINDOWATTRIBUTE :: enum s32 {
@@ -1117,10 +1126,11 @@ SuspendThread :: (
 
 INFINITE : u32 : 0xFFFFFFFF;
 
-WAIT_OBJECT_0  : u32 : 0x00000000;
-WAIT_ABANDONED : u32 : 0x00000080;
-WAIT_TIMEOUT   : u32 : 0x00000102;
-WAIT_FAILED    : u32 : 0xFFFFFFFF;
+WAIT_OBJECT_0      : u32 : 0x00000000;
+WAIT_ABANDONED_0   : u32 : 0x00000080;
+WAIT_IO_COMPLETION : u32 : 0x000000C0;
+WAIT_TIMEOUT       : u32 : 0x00000102;
+WAIT_FAILED        : u32 : 0xFFFFFFFF;
 
 WaitForSingleObjectEx :: (
     hHandle        : HANDLE,
@@ -1259,15 +1269,12 @@ WriteFile :: (
 ) -> BOOL #foreign kernel32;
 
 LARGE_INTEGER :: struct {
-    LowPart  : u32;
-    HighPart : s32;
+    QuadPart : s64;
 
-    #overlay(LowPart) u : struct {
+    #overlay(QuadPart) using u : struct {
         LowPart  : u32;
         HighPart : s32;
     };
-
-    #overlay(LowPart) QuadPart : s64;
 }
 
 GetFileSizeEx :: (
@@ -1290,56 +1297,80 @@ FlushFileBuffers :: (
     hFile : HANDLE
 ) -> BOOL #foreign kernel32;
 
-GetOverlappedResult :: (
-    hFile                      : HANDLE,
-    lpOverlapped               : *OVERLAPPED,
-    lpNumberOfBytesTransferred : *u32,
-    bWait                      : BOOL
-) -> BOOL #foreign kernel32;
-
-HasOverlappedIoCompleted :: inline (lpOverlapped : *OVERLAPPED) -> bool #no_context {
-    return cast(s32) lpOverlapped.Internal != STATUS_PENDING;
-}
-
 CancelIoEx :: (
     hFile        : HANDLE,
     lpOverlapped : *OVERLAPPED
 ) -> BOOL #foreign kernel32;
 
-FILE_NOTIFY_CHANGE_FILE_NAME   : u32 : 0x00000001;
-FILE_NOTIFY_CHANGE_DIR_NAME    : u32 : 0x00000002;
-FILE_NOTIFY_CHANGE_ATTRIBUTES  : u32 : 0x00000004;
-FILE_NOTIFY_CHANGE_SIZE        : u32 : 0x00000008;
-FILE_NOTIFY_CHANGE_LAST_WRITE  : u32 : 0x00000010;
-FILE_NOTIFY_CHANGE_LAST_ACCESS : u32 : 0x00000020;
-FILE_NOTIFY_CHANGE_CREATION    : u32 : 0x00000040;
-FILE_NOTIFY_CHANGE_SECURITY    : u32 : 0x00000100;
+FILE_NOTIFY_CHANGE :: enum_flags u32 #specified {
+    FILE_NAME   :: 0x00000001;
+    DIR_NAME    :: 0x00000002;
+    ATTRIBUTES  :: 0x00000004;
+    SIZE        :: 0x00000008;
+    LAST_WRITE  :: 0x00000010;
+    LAST_ACCESS :: 0x00000020;
+    CREATION    :: 0x00000040;
+    SECURITY    :: 0x00000100;
+}
 
-FindFirstChangeNotificationW :: (
-    lpPathName     : LPCWSTR,
-    bWatchSubtree  : BOOL,
-    dwNotifyFilter : u32
-) -> HANDLE #foreign kernel32;
-
-FindNextChangeNotification :: (
-    hChangeHandle : HANDLE
-) -> BOOL #foreign kernel32;
-
-FindCloseChangeNotification :: (
-    hChangeHandle : HANDLE
-) -> BOOL #foreign kernel32;
-
-FILE_ACTION_ADDED            : u32 : 0x00000001;
-FILE_ACTION_REMOVED          : u32 : 0x00000002;
-FILE_ACTION_MODIFIED         : u32 : 0x00000003;
-FILE_ACTION_RENAMED_OLD_NAME : u32 : 0x00000004;
-FILE_ACTION_RENAMED_NEW_NAME : u32 : 0x00000005;
+FILE_ACTION :: enum u32 #specified {
+    ADDED            :: 0x00000001;
+    REMOVED          :: 0x00000002;
+    MODIFIED         :: 0x00000003;
+    RENAMED_OLD_NAME :: 0x00000004;
+    RENAMED_NEW_NAME :: 0x00000005;
+}
 
 FILE_NOTIFY_INFORMATION :: struct {
     NextEntryOffset : u32;
-    Action          : u32;
+    Action          : FILE_ACTION;
     FileNameLength  : u32;
     FileName        : [1] WCHAR;
+}
+
+FILE_NOTIFY_EXTENDED_INFORMATION :: struct {
+    NextEntryOffset      : u32;
+    Action               : FILE_ACTION;
+    CreationTime         : LARGE_INTEGER;
+    LastModificationTime : LARGE_INTEGER;
+    LastChangeTime       : LARGE_INTEGER;
+    LastAccessTime       : LARGE_INTEGER;
+    AllocatedLength      : LARGE_INTEGER;
+    FileSize             : LARGE_INTEGER;
+    FileAttributes       : u32;
+    union {
+        ReparsePointTag : u32;
+        EaSize          : u32;
+    }
+    FileId         : LARGE_INTEGER;
+    ParentFileId   : LARGE_INTEGER;
+    FileNameLength : u32;
+    FileName       : [1] WCHAR;
+}
+
+FILE_NAME_NTFS : u8 : 0x01;
+FILE_NAME_DOS  : u8 : 0x02;
+
+FILE_NOTIFY_FULL_INFORMATION :: struct {
+    NextEntryOffset      : u32;
+    Action               : u32;
+    CreationTime         : LARGE_INTEGER;
+    LastModificationTime : LARGE_INTEGER;
+    LastChangeTime       : LARGE_INTEGER;
+    LastAccessTime       : LARGE_INTEGER;
+    AllocatedLength      : LARGE_INTEGER;
+    FileSize             : LARGE_INTEGER;
+    FileAttributes       : u32;
+    union {
+        ReparsePointTag : u32;
+        EaSize          : u32;
+    }
+    FileId         : LARGE_INTEGER;
+    ParentFileId   : LARGE_INTEGER;
+    FileNameLength : u16;
+    FileNameFlags  : u8;
+    Reserved       : u8;
+    FileName       : [1] WCHAR;
 }
 
 OVERLAPPED_COMPLETION_ROUTINE :: #type (
@@ -1348,15 +1379,23 @@ OVERLAPPED_COMPLETION_ROUTINE :: #type (
     lpOverlapped              : *OVERLAPPED
 ) #c_call;
 
-ReadDirectoryChangesW :: (
-    hDirectory          : HANDLE,
-    lpBuffer            : *void,
-    nBufferLength       : u32,
-    bWatchSubtree       : BOOL,
-    dwNotifyFilter      : u32,
-    lpBytesReturned     : *u32,
-    lpOverlapped        : *OVERLAPPED,
-    lpCompletionRoutine : OVERLAPPED_COMPLETION_ROUTINE
+READ_DIRECTORY_NOTIFY_INFORMATION_CLASS :: enum s32 {
+    ReadDirectoryNotifyInformation :: 1;
+    ReadDirectoryNotifyExtendedInformation;
+    ReadDirectoryNotifyFullInformation;
+    ReadDirectoryNotifyMaximumInformation;
+}
+
+ReadDirectoryChangesExW :: (
+    hDirectory                          : HANDLE,
+    lpBuffer                            : *void,
+    nBufferLength                       : u32,
+    bWatchSubtree                       : BOOL,
+    dwNotifyFilter                      : FILE_NOTIFY_CHANGE,
+    lpBytesReturned                     : *u32,
+    lpOverlapped                        : *OVERLAPPED,
+    lpCompletionRoutine                 : OVERLAPPED_COMPLETION_ROUTINE,
+    ReadDirectoryNotifyInformationClass : READ_DIRECTORY_NOTIFY_INFORMATION_CLASS
 ) -> BOOL #foreign kernel32;
 
 IO_REPARSE_TAG_SYMLINK :: 0xA000000C;

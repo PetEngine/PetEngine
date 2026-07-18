@@ -2,10 +2,8 @@ ShadersHotReload :: struct {
     thread : Thread(ShadersHotReload);
 
     #if OS == .WINDOWS {
-        notification      : HANDLE;
-        directory         : HANDLE;
-        overlapped        : OVERLAPPED;
-        stop_thread_event : HANDLE;
+        directory  : HANDLE = INVALID_HANDLE_VALUE;
+        overlapped : OVERLAPPED;
     }
 }
 
@@ -27,11 +25,8 @@ createShadersHotReload :: (hot_reload : *ShadersHotReload) {
         utf16_source_shaders_folder : [ShaderCompiler.SOURCE_SHADERS_FOLDER.count + 1] WCHAR = ---;
         ASCIIToUTF16(*utf16_source_shaders_folder, ShaderCompiler.SOURCE_SHADERS_FOLDER);
 
-        hot_reload.notification = FindFirstChangeNotificationW(utf16_source_shaders_folder.data, TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE);
-        assert(hot_reload.notification != INVALID_HANDLE_VALUE, print_sys_error = true);
-
         hot_reload.directory = CreateFileW(utf16_source_shaders_folder.data,
-                                           GENERIC_READ,
+                                           FILE_LIST_DIRECTORY,
                                            FILE_SHARE_READ | FILE_SHARE_WRITE,
                                            null,
                                            OPEN_EXISTING,
@@ -39,19 +34,8 @@ createShadersHotReload :: (hot_reload : *ShadersHotReload) {
                                            null);
         assert(hot_reload.directory != INVALID_HANDLE_VALUE, print_sys_error = true);
 
-        OVERLAPPED_IO_EVENT_NAME :: "Shaders Hot Reload Overlapped IO Event";
-        utf16_overlapped_io_event_name : [OVERLAPPED_IO_EVENT_NAME.count + 1] WCHAR = ---;
-        ASCIIToUTF16(*utf16_overlapped_io_event_name, OVERLAPPED_IO_EVENT_NAME);
-
-        hot_reload.overlapped.hEvent = CreateEventExW(null, utf16_overlapped_io_event_name.data, 0, EVENT_ALL_ACCESS);
+        hot_reload.overlapped.hEvent = CreateEventExW(null, null, 0, EVENT_ALL_ACCESS);
         assert(hot_reload.overlapped.hEvent, print_sys_error = true);
-
-        STOP_THREAD_EVENT_NAME :: "Shaders Hot Reload Stop Thread Event";
-        utf16_stop_thread_event_name : [STOP_THREAD_EVENT_NAME.count + 1] WCHAR = ---;
-        ASCIIToUTF16(*utf16_stop_thread_event_name, STOP_THREAD_EVENT_NAME);
-
-        hot_reload.stop_thread_event = CreateEventExW(null, utf16_stop_thread_event_name.data, CREATE_EVENT_MANUAL_RESET, EVENT_ALL_ACCESS);
-        assert(hot_reload.stop_thread_event, print_sys_error = true);
     } else {
         notImplemented();
     }
@@ -66,8 +50,6 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
     }
 
     #if OS == .WINDOWS {
-        debugCheck(SetEvent(hot_reload.stop_thread_event), print_sys_error = true);
-
         result := CancelIoEx(hot_reload.directory, *hot_reload.overlapped);
         assert(result || GetLastError() == ERROR_NOT_FOUND, print_sys_error = true);
     } else {
@@ -77,10 +59,8 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
     waitThread(*hot_reload.thread);
 
     #if OS == .WINDOWS {
-        debugCheck(CloseHandle(hot_reload.stop_thread_event), print_sys_error = true);
         debugCheck(CloseHandle(hot_reload.overlapped.hEvent), print_sys_error = true);
         debugCheck(CloseHandle(hot_reload.directory), print_sys_error = true);
-        debugCheck(FindCloseChangeNotification(hot_reload.notification), print_sys_error = true);
     } else {
         notImplemented();
     }
@@ -94,48 +74,53 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
     hotReloadProc :: (hot_reload : *ShadersHotReload) {
         notification_information_buffer : [DEFAULT_PAGE_SIZE] u8 #align 4;
 
-        handles_to_wait := HANDLE.[
-            hot_reload.notification,
-            hot_reload.stop_thread_event
-        ];
-
         while true {
             resetArena(*context.pet.arenas.per_frame);
             Basic.reset_temporary_storage();
 
-            wait_result := WaitForMultipleObjectsEx(handles_to_wait.count, handles_to_wait.data, FALSE, INFINITE, FALSE);
-            if wait_result == WAIT_OBJECT_0 {
-                info := cast(*FILE_NOTIFY_INFORMATION) notification_information_buffer.data;
-                debugCheck(ReadDirectoryChangesW(hot_reload.directory,
-                                                 info,
-                                                 notification_information_buffer.count,
-                                                 TRUE,
-                                                 FILE_NOTIFY_CHANGE_LAST_WRITE,
-                                                 null,
-                                                 *hot_reload.overlapped,
-                                                 null),
-                           print_sys_error = true);
+            info := cast(*FILE_NOTIFY_EXTENDED_INFORMATION) notification_information_buffer.data;
+            debugCheck(ReadDirectoryChangesExW(hot_reload.directory,
+                                               info,
+                                               notification_information_buffer.count,
+                                               TRUE,
+                                               .LAST_WRITE,
+                                               null,
+                                               *hot_reload.overlapped,
+                                               null,
+                                               .ReadDirectoryNotifyExtendedInformation),
+                       print_sys_error = true);
 
-                bytes_transferred : u32;
-                if GetOverlappedResult(hot_reload.directory, *hot_reload.overlapped, *bytes_transferred, TRUE) {
-                    assert(bytes_transferred, print_sys_error = true);
+            wait_result := WaitForSingleObjectEx(hot_reload.overlapped.hEvent, INFINITE, FALSE);
+            assert(wait_result == WAIT_OBJECT_0, print_sys_error = true);
 
-                    while info {
+            status_block := cast(*IO_STATUS_BLOCK) *hot_reload.overlapped;
+            if status_block.Status == STATUS_SUCCESS {
+                assert(status_block.Information > 0, print_sys_error = true, RtlNtStatusToDosError(status_block.Status));
+
+                while true {
+                    // Windows emmits 2 events on every file write:
+                    //     1st - from the application's write call
+                    //     2nd - from file system cache write call.
+                    // ReadDirectoryChangesExW operates on file system level, so it doesn't know about process who caused that access.
+                    //     https://stackoverflow.com/questions/14036449/c-winapi-readdirectorychangesw-receiving-double-notifications
+                    //
+                    // The only way to know this is to create a security audit and track event log.
+                    //     https://stackoverflow.com/a/7607255
+                    //
+                    // In my opinion, it's too much, so I've made this empirically found workaround: the first notification
+                    // (from application) has FileSize and AllocatedLength equal 0, the second one (from system cache) has them filled.
+                    // So if it's one of those notification we can safely ignore it, if it's really an empty file we are also not
+                    // interested in it.
+                    if info.FileSize.QuadPart {
                         filename := UTF16ToUTF8(.{ info.FileNameLength / size_of(WCHAR), info.FileName.data });
-
                         reloadShader(filename);
-
-                        info = ifx  info.NextEntryOffset
-                               then cast(*void) info + info.NextEntryOffset
-                               else null;
                     }
-                } else {
-                    assert(GetLastError() == ERROR_OPERATION_ABORTED, print_sys_error = true);
-                }
 
-                debugCheck(FindNextChangeNotification(hot_reload.notification), print_sys_error = true);
+                    if !info.NextEntryOffset break;
+                    info = cast(*void, info) + info.NextEntryOffset;
+                }
             } else {
-                assert(wait_result == WAIT_OBJECT_0 + 1, print_sys_error = true);
+                assert(status_block.Status == STATUS_CANCELLED, print_sys_error = true, RtlNtStatusToDosError(status_block.Status));
                 break;
             }
         }
