@@ -67,7 +67,7 @@ createVulkanDevice :: (frame_buffering : FrameBuffering) {
     createFrameSemaphores();
     createCommandPools();
     createCommandBuffers();
-    createSystemCommandBuffers();
+    createInternalCommandBuffers();
 }
 
 destroyVulkanDevice :: () {
@@ -323,7 +323,7 @@ endVulkanFrame :: () {
     // Post frame job
     //
     {
-        post_frame_command_buffer := frame_data.system_command_buffers[SystemCommandBufferKind.POST_FRAME];
+        post_frame_command_buffer := frame_data.internal_command_buffers[InternalCommandBufferKind.POST_FRAME];
 
         begin_info := VkCommandBufferBeginInfo.{
             flags = .VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
@@ -542,7 +542,7 @@ FrameData :: struct {
     command_buffers      : [VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS] VkCommandBuffer;
     command_buffers_used : [VulkanDevice.queues.count]                              s32;
 
-    system_command_buffers : [#run Basic.enum_highest_value(SystemCommandBufferKind) + 1] VkCommandBuffer;
+    internal_command_buffers : [#run Basic.enum_highest_value(InternalCommandBufferKind) + 1] VkCommandBuffer;
 }
 
 Queue :: struct {
@@ -551,7 +551,7 @@ Queue :: struct {
     index_in_family : u32;
 }
 
-SystemCommandBufferKind :: enum u8 {
+InternalCommandBufferKind :: enum u8 {
     POST_FRAME;
 }
 
@@ -1974,23 +1974,23 @@ createCommandBuffers :: () {
     }
 }
 
-createSystemCommandBuffers :: () {
+createInternalCommandBuffers :: () {
     device := cast(*VulkanDevice) context.pet.render.device;
 
     allocation_info := VkCommandBufferAllocateInfo.{
         commandPool        = null, // Will be set in a loop
         level              = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        commandBufferCount = FrameData.system_command_buffers.count
+        commandBufferCount = FrameData.internal_command_buffers.count
     };
 
     for * frame_data, frame_index : toView(device.frame_data.data, cast(s64) device.frame_buffering) {
         allocation_info.commandPool = frame_data.command_pools[QueueType.GRAPHICS];
 
-        debugCheckVK(vkAllocateCommandBuffers(device.device, *allocation_info, frame_data.system_command_buffers.data));
+        debugCheckVK(vkAllocateCommandBuffers(device.device, *allocation_info, frame_data.internal_command_buffers.data));
 
         #if DEBUG_BUILD {
-            for frame_data.system_command_buffers {
-                setVulkanObjectName(it, "Frame #%/% system command buffer", frame_index, cast(SystemCommandBufferKind) it_index);
+            for frame_data.internal_command_buffers {
+                setVulkanObjectName(it, "Frame #%/% internal command buffer", frame_index, cast(InternalCommandBufferKind) it_index);
             }
         }
     }
