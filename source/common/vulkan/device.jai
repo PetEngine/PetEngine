@@ -183,6 +183,13 @@ VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT :: struct {
     swapchainMaintenance1 : VkBool32;
 }
 
+VkSwapchainPresentFenceInfoKHR :: struct {
+    sType          : VkStructureType = .VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_KHR;
+    pNext          : *void;
+    swapchainCount : u32;
+    pFences        : *VkFence;
+}
+
 VkSwapchainPresentScalingCreateInfoEXT :: struct {
     sType           : VkStructureType = .VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_SCALING_CREATE_INFO_EXT;
     pNext           : *void;

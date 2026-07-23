@@ -63,7 +63,7 @@ createVulkanDevice :: (frame_buffering : FrameBuffering) {
     createVirtualDevice(*enabled_device_extensions);
     loadVulkanDeviceExtensionsFunctions(*device.loader, device.device, *enabled_device_extensions);
     getQueues();
-    createFences();
+    createFrameFences();
     createFrameSemaphores();
     createCommandPools();
     createCommandBuffers();
@@ -81,15 +81,22 @@ destroyVulkanDevice :: () {
             vkDestroyCommandPool(device.device, it, null);
         }
 
-        vkDestroySemaphore(device.device, it.post_frame_semaphore, null);
-        vkDestroySemaphore(device.device, it.graphics_semaphore, null);
         for it.acquire_semaphores {
             if it != VK_NULL_HANDLE {
                 vkDestroySemaphore(device.device, it, null);
             }
         }
 
-        for it.fences {
+        for it.present_fences {
+            if it != VK_NULL_HANDLE {
+                vkDestroyFence(device.device, it, null);
+            }
+        }
+
+        vkDestroySemaphore(device.device, it.present_semaphore, null);
+        vkDestroySemaphore(device.device, it.graphics_semaphore, null);
+
+        for it.queue_fences {
             vkDestroyFence(device.device, it, null);
         }
     }
@@ -146,6 +153,7 @@ initVulkanWindowData :: (window : *Window) {
     // Reset vulkan window data before potential reuse
     device.vulkan_window_data[window.id] = .{};
 
+    createWindowFences(window);
     createWindowSemaphores(window);
     createSurface(window);
     recreateVulkanSwapchain(window);
@@ -164,7 +172,7 @@ beginVulkanFrame :: () {
     //
     // Wait for current frame memory
     //
-    debugCheckVK(vkWaitForFences(device.device, frame_data.fences.count, frame_data.fences.data, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF));
+    debugCheckVK(vkWaitForFences(device.device, frame_data.queue_fences.count, frame_data.queue_fences.data, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF));
 
     //
     // Reset command pools
@@ -258,15 +266,15 @@ endVulkanFrame :: () {
     }
 
     //
-    // Collect acquire semaphores from all windows
+    // Collect acquire semaphores and present fences from all windows
     //
-    acquire_semaphores       : [WindowManager.MAX_WINDOWS] VkSemaphore;
-    acquire_semaphores_count : u32;
+    acquire_semaphores : [WindowManager.MAX_WINDOWS] VkSemaphore;
+    present_fences     : [WindowManager.MAX_WINDOWS] VkFence;
     for * context.pet.core.window_manager.windows {
-        acquire_semaphores[acquire_semaphores_count] = frame_data.acquire_semaphores[it.id];
-        acquire_semaphores_count += 1;
+        acquire_semaphores[it_index] = frame_data.acquire_semaphores[it.id];
+        present_fences[it_index]     = frame_data.present_fences[it.id];
     }
-    assert(acquire_semaphores_count == context.pet.core.window_manager.windows.count);
+    per_window_objects_count := context.pet.core.window_manager.windows.count;
 
     //
     // Submit frame job
@@ -289,8 +297,8 @@ endVulkanFrame :: () {
             if command_buffers_used_it.* > 0 {
                 fence_to_signal : VkFence = ---;
 
-                if it_index == cast,no_check(s64) QueueType.GRAPHICS {
-                    submit_info.waitSemaphoreCount   = acquire_semaphores_count;
+                if it_index == cast(s64) QueueType.GRAPHICS {
+                    submit_info.waitSemaphoreCount   = per_window_objects_count;
                     submit_info.pWaitSemaphores      = acquire_semaphores.data;
                     submit_info.pWaitDstStageMask    = WHICH_STAGE_WILL_WAIT_FOR_THE_SEMAPHORE.data;
                     submit_info.signalSemaphoreCount = 1;
@@ -303,8 +311,7 @@ endVulkanFrame :: () {
                     submit_info.signalSemaphoreCount = 0;
                     submit_info.pSignalSemaphores    = null;
 
-                    fence_to_signal = frame_data.fences[it_index];
-
+                    fence_to_signal = frame_data.queue_fences[it_index];
                     debugCheckVK(vkResetFences(device.device, 1, *fence_to_signal));
                 }
 
@@ -377,27 +384,29 @@ endVulkanFrame :: () {
 
         debugCheckVK(vkEndCommandBuffer(post_frame_command_buffer));
 
-        fence_to_signal := frame_data.fences[QueueType.GRAPHICS];
-        debugCheckVK(vkResetFences(device.device, 1, *fence_to_signal));
-
         which_stages_will_wait_for_the_semaphore := VkPipelineStageFlags.VK_PIPELINE_STAGE_VERTEX_SHADER_BIT
                                                   | .VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT
                                                   | .VK_PIPELINE_STAGE_TRANSFER_BIT;
+
         submit_info := VkSubmitInfo.{
             pWaitDstStageMask    = *which_stages_will_wait_for_the_semaphore,
             commandBufferCount   = 1,
             pCommandBuffers      = *post_frame_command_buffer,
             signalSemaphoreCount = 1,
-            pSignalSemaphores    = *frame_data.post_frame_semaphore
+            pSignalSemaphores    = *frame_data.present_semaphore
         };
-
         if frame_data.command_buffers_used[QueueType.GRAPHICS] > 0 {
             submit_info.waitSemaphoreCount = 1;
             submit_info.pWaitSemaphores    = *frame_data.graphics_semaphore;
         } else {
-            submit_info.waitSemaphoreCount = acquire_semaphores_count;
+            submit_info.waitSemaphoreCount = per_window_objects_count;
             submit_info.pWaitSemaphores    = acquire_semaphores.data;
         }
+
+        fence_to_signal := frame_data.queue_fences[QueueType.GRAPHICS];
+        debugCheckVK(vkResetFences(device.device, 1, *fence_to_signal));
+
+        debugCheckVK(vkWaitForFences(device.device, per_window_objects_count, present_fences.data, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF));
 
         debugCheckVK(vkQueueSubmit(device.queues[QueueType.GRAPHICS].handle, 1, *submit_info, fence_to_signal));
     }
@@ -409,26 +418,31 @@ endVulkanFrame :: () {
         swapchains          : [WindowManager.MAX_WINDOWS] VkSwapchainKHR = ---;
         back_buffer_indices : [WindowManager.MAX_WINDOWS] u32            = ---;
         index_to_window_id  : [WindowManager.MAX_WINDOWS] u8             = ---;
-        swapchains_count    : u32;
         for * context.pet.core.window_manager.windows {
-            swapchains[swapchains_count]          = device.vulkan_window_data[it.id].swapchain;
-            back_buffer_indices[swapchains_count] = device.window_data[it.id].back_buffer_index;
-            index_to_window_id[swapchains_count]  = it.id;
-            swapchains_count += 1;
+            swapchains[it_index]          = device.vulkan_window_data[it.id].swapchain;
+            back_buffer_indices[it_index] = device.window_data[it.id].back_buffer_index;
+            index_to_window_id[it_index]  = it.id;
         }
-        assert(swapchains_count == context.pet.core.window_manager.windows.count);
 
         results : [WindowManager.MAX_WINDOWS] VkResult;
-        results_view := toView(results.data, swapchains_count);
+        results_view := toView(results.data, per_window_objects_count);
+
+        swapchain_present_fence_info := VkSwapchainPresentFenceInfoKHR.{
+            swapchainCount = per_window_objects_count,
+            pFences        = present_fences.data
+        };
 
         present_info := VkPresentInfoKHR.{
+            pNext              = *swapchain_present_fence_info,
             waitSemaphoreCount = 1,
-            pWaitSemaphores    = *frame_data.post_frame_semaphore,
-            swapchainCount     = swapchains_count,
+            pWaitSemaphores    = *frame_data.present_semaphore,
+            swapchainCount     = per_window_objects_count,
             pSwapchains        = swapchains.data,
             pImageIndices      = back_buffer_indices.data,
             pResults           = results.data
         };
+
+        debugCheckVK(vkResetFences(device.device, per_window_objects_count, present_fences.data));
 
         result := device.loader.extensions.device.required.vkQueuePresentKHR(device.queues[QueueType.GRAPHICS].handle, *present_info);
         if result == {
@@ -484,8 +498,8 @@ getVulkanSwapchainTextureView :: (window : *Window, swapchain_buffer_index : u32
     return *device.vulkan_window_data[window.id].swapchain_texture_views[swapchain_buffer_index][index];
 }
 
-setVulkanObjectName :: (object : $T, name : string) {
-    #if DEBUG_BUILD {
+#if DEBUG_BUILD {
+    setVulkanObjectName :: (object : $T, name : string) {
         device := cast(*VulkanDevice) context.pet.render.device;
 
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
@@ -501,10 +515,8 @@ setVulkanObjectName :: (object : $T, name : string) {
             debugCheckVK(device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info));
         }
     }
-}
 
-setVulkanObjectName :: (object : $T, $format : string, args : ..Any) {
-    #if DEBUG_BUILD {
+    setVulkanObjectName :: (object : $T, $format : string, args : ..Any) {
         device := cast(*VulkanDevice) context.pet.render.device;
 
         if device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT {
@@ -524,6 +536,9 @@ setVulkanObjectName :: (object : $T, $format : string, args : ..Any) {
             debugCheckVK(device.loader.extensions.instance.optional.vkSetDebugUtilsObjectNameEXT(device.device, *name_info));
         }
     }
+} else {
+    setVulkanObjectName :: (#discard object : $T, #discard name : string) #expand {}
+    setVulkanObjectName :: (#discard object : $T, #discard format : string, #discard args : ..Any) #expand {}
 }
 
 #scope_file
@@ -532,11 +547,12 @@ Hash      :: #import "Hash";
 IntroSort :: #import "IntroSort";
 
 FrameData :: struct {
-    fences : [VulkanDevice.queues.count] VkFence;
+    queue_fences   : [Device.QUEUE_TYPES_COUNT] VkFence;
+    present_fences : [WindowManager.MAX_WINDOWS] VkFence;
 
-    acquire_semaphores   : [WindowManager.MAX_WINDOWS] VkSemaphore;
-    graphics_semaphore   : VkSemaphore;
-    post_frame_semaphore : VkSemaphore;
+    acquire_semaphores : [WindowManager.MAX_WINDOWS] VkSemaphore;
+    graphics_semaphore : VkSemaphore;
+    present_semaphore  : VkSemaphore;
 
     command_pools        : [VulkanDevice.queues.count]                              VkCommandPool;
     command_buffers      : [VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS] VkCommandBuffer;
@@ -556,8 +572,9 @@ InternalCommandBufferKind :: enum u8 {
 }
 
 VulkanWindowData :: struct {
-    surface                 : VkSurfaceKHR;
-    swapchain               : VkSwapchainKHR;
+    surface   : VkSurfaceKHR;
+    swapchain : VkSwapchainKHR;
+
     swapchain_textures      : [Device.MAX_SWAPCHAIN_BUFFERS] VulkanTexture;
     swapchain_texture_views : [Device.MAX_SWAPCHAIN_BUFFERS] [2] VulkanTextureView;
 }
@@ -1453,11 +1470,13 @@ createSurface :: (window : *Window) {
                                                                                         *create_info,
                                                                                         null,
                                                                                         *vulkan_window_data.surface));
+
+        setVulkanObjectName(vulkan_window_data.surface, "Window \"%\"/surface", getWindowTitle(window));
     } else {
         notImplemented();
     }
 
-    // Query is graphics queue supports presentation to created sufrace
+    // Query if graphics queue supports presentation to created sufrace
     {
         graphics_queue := *device.queues[QueueType.GRAPHICS];
 
@@ -1756,6 +1775,9 @@ recreateVulkanSwapchain :: (window : *Window) {
     debugCheckVK(device.loader.extensions.device.required.vkCreateSwapchainKHR(device.device, *create_info, null, *vulkan_window_data.swapchain));
     window_data.swapchain_is_outdated = false;
 
+    window_title := getWindowTitle(window);
+    setVulkanObjectName(vulkan_window_data.surface, "Window \"%\"/swapchain", window_title);
+
     if create_info.oldSwapchain != VK_NULL_HANDLE {
         device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, create_info.oldSwapchain, null);
     }
@@ -1788,8 +1810,6 @@ recreateVulkanSwapchain :: (window : *Window) {
     assert(swapchain_buffers_count == window_data.swapchain_buffers_count);
 
     device.back_buffer_format = vulkanFormatToTextureFormat(allowed_surface_format.format);
-
-    window_title := getWindowTitle(window);
 
     // @TODO: #SwapchainBuffers.
     swapchain_images_it := swapchain_images.data;
@@ -1876,7 +1896,7 @@ recreateVulkanSwapchain :: (window : *Window) {
     }
 }
 
-createFences :: () {
+createFrameFences :: () {
     device := cast(*VulkanDevice) context.pet.render.device;
 
     create_info := VkFenceCreateInfo.{
@@ -1884,9 +1904,9 @@ createFences :: () {
     };
 
     for * frame_data, frame_index : toView(device.frame_data.data, cast(s64) device.frame_buffering) {
-        for * frame_data.fences {
+        for * frame_data.queue_fences {
             debugCheckVK(vkCreateFence(device.device, *create_info, null, it));
-            setVulkanObjectName(it.*, "Frame #%/% Fence", frame_index, cast(QueueType) it_index);
+            setVulkanObjectName(it.*, "Frame #%/% fence", frame_index, cast(QueueType) it_index);
         }
     }
 }
@@ -1900,8 +1920,27 @@ createFrameSemaphores :: () {
         debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, *it.graphics_semaphore));
         setVulkanObjectName(it.graphics_semaphore, "Frame #%/Graphics semaphore", it_index);
 
-        debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, *it.post_frame_semaphore));
-        setVulkanObjectName(it.post_frame_semaphore, "Frame #%/Post frame semaphore", it_index);
+        debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, *it.present_semaphore));
+        setVulkanObjectName(it.present_semaphore, "Frame #%/Present semaphore", it_index);
+    }
+}
+
+createWindowFences :: (window : *Window) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
+    create_info := VkFenceCreateInfo.{
+        flags = .VK_FENCE_CREATE_SIGNALED_BIT,
+    };
+
+    #if DEBUG_BUILD {
+        window_title := getWindowTitle(window);
+    } else {
+        window_title : string = ---;
+    }
+
+    for * toView(device.frame_data.data, cast(s64) device.frame_buffering) {
+        debugCheckVK(vkCreateFence(device.device, *create_info, null, *it.present_fences[window.id]));
+        setVulkanObjectName(it.present_fences[window.id], "Frame #%/Window \"%\"/Present fence", it_index, window_title);
     }
 }
 
@@ -1910,9 +1949,15 @@ createWindowSemaphores :: (window : *Window) {
 
     create_info : VkSemaphoreCreateInfo;
 
+    #if DEBUG_BUILD {
+        window_title := getWindowTitle(window);
+    } else {
+        window_title : string = ---;
+    }
+
     for * toView(device.frame_data.data, cast(s64) device.frame_buffering) {
         debugCheckVK(vkCreateSemaphore(device.device, *create_info, null, *it.acquire_semaphores[window.id]));
-        setVulkanObjectName(it.acquire_semaphores[window.id], "Frame #%/Graphics semaphore", it_index);
+        setVulkanObjectName(it.acquire_semaphores[window.id], "Frame #%/Window \"%\"/Acquire semaphore", it_index, window_title);
     }
 }
 

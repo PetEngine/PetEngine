@@ -271,6 +271,7 @@ VkStructureType :: enum VkEnum #specified {
 
     // Provided by VK_EXT_swapchain_maintenance1
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT :: 1000275000;
+    VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_KHR                     :: 1000275001;
     VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_SCALING_CREATE_INFO_EXT            :: 1000275004;
 
     // Provided by VK_EXT_validation_features
