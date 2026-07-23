@@ -1,7 +1,7 @@
 VulkanDevice :: struct {
     #as using public_data : Device;
 
-    MINIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_2;
+    MINIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_3;
     USE_VALIDATION                :: DEBUG_BUILD;
 
     api_version : u32;
@@ -587,8 +587,8 @@ PhysicalDeviceInfo :: struct {
     //
 
     memory_size : VkDeviceSize;
-    // bit 4       - device type priority
-    // bits [3, 2] - API version priority
+    // bit 3       - device type priority
+    // bit 2       - API version priority
     // bits [1, 0] - vendor ID priority
     priority    : u8;
 
@@ -2141,7 +2141,7 @@ sortPhysicalDevices :: () -> [] PhysicalDeviceInfo {
 
         if infos_it.properties2.properties.deviceType == {
             case .VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
-                infos_it.priority |= 1 << 4;
+                infos_it.priority |= 1 << 3;
 
                 for heap : memory_heaps {
                     if heap.flags & .VK_MEMORY_HEAP_DEVICE_LOCAL_BIT {
@@ -2150,7 +2150,7 @@ sortPhysicalDevices :: () -> [] PhysicalDeviceInfo {
                 }
 
             case .VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
-                // infos_it.priority |= 0 << 4;
+                // infos_it.priority |= 0 << 3;
 
                 for heap : memory_heaps {
                     infos_it.memory_size += heap.size;
@@ -2158,11 +2158,9 @@ sortPhysicalDevices :: () -> [] PhysicalDeviceInfo {
         }
 
         if infos_it.properties2.properties.apiVersion >= VK_API_VERSION_1_4 {
-            infos_it.priority |= 2 << 2;
-        } else if infos_it.properties2.properties.apiVersion >= VK_API_VERSION_1_3 {
             infos_it.priority |= 1 << 2;
         } else {
-            #assert VulkanDevice.MINIMAL_SUPPORTED_API_VERSION == VK_API_VERSION_1_2;
+            #assert VulkanDevice.MINIMAL_SUPPORTED_API_VERSION == VK_API_VERSION_1_3;
             // infos_it.priority |= 0 << 2;
         }
 
