@@ -38,6 +38,7 @@ Mesh file:
 //
 
 - #Atomics. Implement atomics
+- Write our own version of Basic.builder_to_string that uses Arena
 
 Debug:
     - Find out how Visual Studio handles inline procedures.

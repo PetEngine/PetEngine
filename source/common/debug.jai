@@ -446,7 +446,7 @@ message :: (
         absolute_path := getAbsolutePath(location.fully_pathed_filename);
         Basic.print(context.pet.debug.message_builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
     } else #if priority != .UNHANDLED_EXCEPTION {
-        if custom_sys_code {
+        if sys_error_code {
             absolute_path := getAbsolutePath(location.fully_pathed_filename);
             Basic.print(context.pet.debug.message_builder, "%(%,%): ", absolute_path, location.line_number, location.character_number);
         }

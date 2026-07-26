@@ -1193,6 +1193,11 @@ FILE_GENERIC_READ         : u32 : STANDARD_RIGHTS_READ | FILE_READ_DATA | FILE_R
 FILE_GENERIC_WRITE        : u32 : STANDARD_RIGHTS_WRITE | FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | FILE_APPEND_DATA | SYNCHRONIZE;
 FILE_GENERIC_EXECUTE      : u32 : STANDARD_RIGHTS_EXECUTE | FILE_READ_ATTRIBUTES | FILE_EXECUTE | SYNCHRONIZE;
 
+FILE_ANY_ACCESS     : u32 : 0;
+FILE_SPECIAL_ACCESS : u32 : FILE_ANY_ACCESS;
+FILE_READ_ACCESS    : u32 : FILE_READ_DATA;
+FILE_WRITE_ACCESS   : u32 : FILE_WRITE_DATA;
+
 FILE_SHARE_READ   : u32 : 0x00000001;
 FILE_SHARE_WRITE  : u32 : 0x00000002;
 FILE_SHARE_DELETE : u32 : 0x00000004;
@@ -1522,6 +1527,38 @@ GetFullPathNameW :: (
     lpBuffer      : LPWSTR,
     lpFilePart    : *LPWSTR
 ) -> u32 #foreign kernel32;
+
+FILE_DEVICE_KEYBOARD :: 0x0000000B;
+
+METHOD_BUFFERED   :: 0;
+METHOD_IN_DIRECT  :: 1;
+METHOD_OUT_DIRECT :: 2;
+METHOD_NEITHER    :: 3;
+
+CTL_CODE :: inline (DeviceType : u32, Function : u32, Method : u32, Access : u32) -> u32 {
+    return ((DeviceType        ) << 16)
+         | ((Access     & 0x003) << 14)
+         | ((Function   & 0xFFF) <<  2)
+         | ((Method     & 0x003)      );
+}
+
+HID_CTL_CODE         :: inline (id : u32) -> u32 { return CTL_CODE(FILE_DEVICE_KEYBOARD, id, METHOD_NEITHER, FILE_ANY_ACCESS); }
+HID_BUFFER_CTL_CODE  :: inline (id : u32) -> u32 { return CTL_CODE(FILE_DEVICE_KEYBOARD, id, METHOD_BUFFERED, FILE_ANY_ACCESS); }
+HID_IN_CTL_CODE      :: inline (id : u32) -> u32 { return CTL_CODE(FILE_DEVICE_KEYBOARD, id, METHOD_IN_DIRECT, FILE_ANY_ACCESS); }
+HID_OUT_CTL_CODE     :: inline (id : u32) -> u32 { return CTL_CODE(FILE_DEVICE_KEYBOARD, id, METHOD_OUT_DIRECT, FILE_ANY_ACCESS); }
+
+IOCTL_HID_GET_INDEXED_STRING :: #run HID_OUT_CTL_CODE(120);
+
+DeviceIoControl :: (
+    hDevice         : HANDLE,
+    dwIoControlCode : u32,
+    lpInBuffer      : *void,
+    nInBufferSize   : u32,
+    lpOutBuffer     : *void,
+    nOutBufferSize  : u32,
+    lpBytesReturned : *u32,
+    lpOverlapped    : *OVERLAPPED
+) -> BOOL #foreign kernel32;
 
 //
 // Sync API
@@ -1995,22 +2032,6 @@ GetRawInputData :: (
 ) -> u32 #foreign user32;
 
 //
-// HID
-//
-
-HidD_GetProductString :: (
-    HidDeviceObject : HANDLE,
-    Buffer          : *void,
-    BufferLength    : u32
-) -> BOOLEAN #foreign hid;
-
-HidD_GetManufacturerString :: (
-    HidDeviceObject : HANDLE,
-    Buffer          : *void,
-    BufferLength    : u32
-) -> BOOLEAN #foreign hid;
-
-//
 // XInput
 //
 
@@ -2169,7 +2190,6 @@ kernel32 :: #library,system "kernel32";
 user32   :: #library,system "user32";
 dwmapi   :: #library,system "dwmapi";
 advapi32 :: #library,system "advapi32";
-hid      :: #library,system "hid";
 ntdll    :: #library,system "ntdll";
 dbghelp  :: #library,system "dbghelp";
 onecore  :: #library,system,no_dll "onecore";
