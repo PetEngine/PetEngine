@@ -2,37 +2,26 @@ ShaderManager :: struct {
     MAX_SHADERS :: 1024;
 
     shaders_count : s64;
-
-    //
-    // VTable
-    //
-
-    destroyPlatformShaderManager : ();
-    resetPlatformShaderManager   : ();
-
-    pushPlatformShader : () -> *Shader;
-
-    createGraphicsPlatformShader : (shader : *Shader, shader_file_data : string);
-
-    findPlatformShader           : (name : string) -> *Shader;
-    reloadGraphicsPlatformShader : (shader : *Shader, shader_file_data : string);
 }
 
 createShaderManager :: inline () {
     assert(!context.pet.render.shader_manager);
 
-    if #complete context.pet.render.device.graphics_api == {
-        case .VULKAN;
-           createVulkanShaderManager();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; createVulkanShaderManager();
     }
 }
 
 destroyShaderManager :: inline () {
-    context.pet.render.shader_manager.destroyPlatformShaderManager();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; destroyVulkanShaderManager();
+    }
 }
 
 resetShaderManager :: inline () {
-    context.pet.render.shader_manager.resetPlatformShaderManager();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; resetVulkanShaderManager();
+    }
 }
 
 Shader :: struct {
@@ -61,7 +50,10 @@ PushConstantsHandle :: struct {
 createShader :: (name : string, color_target_formats : [] Texture.Format, depth_target_format : Texture.Format = .UNKNOWN) -> *Shader {
     assert(color_target_formats.count <= Shader.color_target_formats.capacity);
 
-    shader := context.pet.render.shader_manager.pushPlatformShader();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; shader := pushVulkanShader();
+    }
+
     shader.name = name;
 
     shader_file_data := deserializeShaderFile(shader);
@@ -72,7 +64,9 @@ createShader :: (name : string, color_target_formats : [] Texture.Format, depth_
             pushBack(*shader.color_target_formats, color_target_formats);
             shader.depth_target_format = depth_target_format;
 
-            context.pet.render.shader_manager.createGraphicsPlatformShader(shader, shader_file_data);
+            #if #complete GRAPHICS_API == {
+                case .VULKAN; createGraphicsVulkanShader(shader, shader_file_data);
+            }
 
         case .MESH;        #through;
         case .COMPUTE;     #through;
@@ -84,7 +78,9 @@ createShader :: (name : string, color_target_formats : [] Texture.Format, depth_
 }
 
 findShader :: inline (name : string) -> *Shader {
-    return context.pet.render.shader_manager.findPlatformShader(name);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; return findVulkanShader(name);
+    }
 }
 
 reloadShader :: (shader : *Shader) {
@@ -93,7 +89,9 @@ reloadShader :: (shader : *Shader) {
 
     if #complete shader.kind == {
         case .GRAPHICS;
-            context.pet.render.shader_manager.reloadGraphicsPlatformShader(shader, shader_file_data);
+            #if #complete GRAPHICS_API == {
+                case .VULKAN; reloadGraphicsVulkanShader(shader, shader_file_data);
+            }
 
         case .MESH;        #through;
         case .COMPUTE;     #through;

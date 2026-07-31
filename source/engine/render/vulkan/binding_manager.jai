@@ -42,8 +42,6 @@ createVulkanBindingManager :: () {
     manager := pushToArena(*context.pet.arenas.persistent, VulkanBindingManager);
     context.pet.render.binding_manager = manager;
 
-    #insert -> string { return generatePlatformVtableInitialization(BindingManager, "manager", "Vulkan"); }
-
 DESCRIPTOR_BUFFER_BINDINGS_LIMITS_FORMAT_STRING :: #string END
 Bindings limits:
     Max bound descriptor buffers:                                  %
@@ -151,8 +149,6 @@ END;
     createVulkanDescriptorSetBindings(*manager.per_scene_bindings, .PER_SCENE, "Per Scene");
     createVulkanDescriptorSetBindings(*manager.persistent_bindings, .PERSISTENT, "Persistent");
 }
-
-#scope_file
 
 destroyVulkanBindingManager :: () {
     device  := cast(*VulkanDevice)         context.pet.render.device;
@@ -414,6 +410,8 @@ pushVulkanSamplerBinding :: (descriptor_set : DescriptorSet, resource : *Sampler
         descriptor = descriptor_index,
     };
 }
+
+#scope_file
 
 createVulkanDescriptorSetBindings :: (
     bindings            : *VulkanBindingManager.DescriptorSetBindings,

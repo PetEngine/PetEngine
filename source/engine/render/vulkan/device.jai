@@ -35,8 +35,6 @@ createVulkanDevice :: (frame_buffering : FrameBuffering) {
     device := pushToArena(*context.pet.arenas.persistent, VulkanDevice);
     context.pet.render.device = device;
 
-    #insert -> string { return generatePlatformVtableInitialization(Device, "device", "Vulkan"); }
-
     device.frame_buffering = frame_buffering;
 
     // @TODO: #PerFrameArena

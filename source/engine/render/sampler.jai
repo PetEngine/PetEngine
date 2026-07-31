@@ -70,12 +70,15 @@ createSampler :: (state : SamplerState = .{}, lifetime : ResourceManager.Lifetim
         || state.anisotropy == 16
         || state.anisotropy == Sampler.MAX_ANISOTROPY);
 
-    manager := context.pet.render.resource_manager;
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; sampler := pushVulkanSampler(lifetime);
+    }
 
-    sampler := manager.pushPlatformSampler(lifetime);
     sampler.lifetime = lifetime;
 
-    manager.createPlatformSampler(sampler, *state, name);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; createVulkanSampler(sampler, *state, name);
+    }
 
     return sampler;
 }

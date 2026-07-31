@@ -25,8 +25,6 @@ createVulkanShaderManager :: () {
 
     manager.per_frame_reset_data.count = cast,no_check(s64) device.frame_buffering;
 
-    #insert -> string { return generatePlatformVtableInitialization(ShaderManager, "manager", "Vulkan"); }
-
     create_info : VkPipelineCacheCreateInfo;
     debugCheckVK(vkCreatePipelineCache(device.device, *create_info, null, *manager.pipeline_cache));
 }

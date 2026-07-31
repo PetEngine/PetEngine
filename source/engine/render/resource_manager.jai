@@ -24,48 +24,35 @@ ResourceManager :: struct {
 
     memory_committed : u8;
     #assert size_of(type_of(memory_committed)) * 8 > Basic.enum_highest_value(Lifetime);
-
-    //
-    // VTable
-    //
-
-    destroyPlatformResourceManager : ();
-    commitPlatformResourceMemory   : (lifetime : Lifetime);
-    resetPlatformResourceMemory    : (lifetime : Lifetime);
-
-    pushPlatformBuffer   : (lifetime : Lifetime, pool : Pool) -> *Buffer;
-    createPlatformBuffer : (buffer : *Buffer, pool : Pool, name : string);
-
-    pushPlatformTexture   : (lifetime : Lifetime) -> *Texture;
-    createPlatformTexture : (texture : *Texture, lifetime : Lifetime, name : string);
-
-    pushPlatformTextureView   : (lifetime : Lifetime) -> *TextureView;
-    createPlatformTextureView : (view : *TextureView, name : string);
-
-    pushPlatformSampler   : (lifetime : Lifetime) -> *Sampler;
-    createPlatformSampler : (sampler : *Sampler, state : *SamplerState, name : string);
 }
 
 createResourceManager :: inline () {
     assert(!context.pet.render.resource_manager);
 
-    if #complete context.pet.render.device.graphics_api == {
-        case .VULKAN;
-            createVulkanResourceManager();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; createVulkanResourceManager();
     }
 }
 
 destroyResourceManager :: inline () {
-    context.pet.render.resource_manager.destroyPlatformResourceManager();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; destroyVulkanResourceManager();
+    }
 }
 
 commitResourceMemory :: inline (lifetime : ResourceManager.Lifetime) {
-    context.pet.render.resource_manager.commitPlatformResourceMemory(lifetime);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; commitVulkanResourceMemory(lifetime);
+    }
+
     context.pet.render.resource_manager.memory_committed |= cast(u8) 1 << lifetime;
 }
 
 resetResourceMemory :: inline (lifetime : ResourceManager.Lifetime) {
-    context.pet.render.resource_manager.resetPlatformResourceMemory(lifetime);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; resetVulkanResourceMemory(lifetime);
+    }
+
     context.pet.render.resource_manager.memory_committed &= ~(cast(u8) 1 << lifetime);
 }
 

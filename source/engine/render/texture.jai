@@ -164,9 +164,9 @@ createTexture :: (
            "Max texture name length (%) > ResourceManager.MAX_RESOURCE_NAME_LENGTH (%)",
            name.count, ResourceManager.MAX_RESOURCE_NAME_LENGTH);
 
-    manager := context.pet.render.resource_manager;
-
-    texture := manager.pushPlatformTexture(lifetime);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; texture := pushVulkanTexture(lifetime);
+    }
 
     texture.dimension             = dimension;
     texture.format                = format;
@@ -182,7 +182,9 @@ createTexture :: (
     texture.possible_owners.count = cast(u32) possible_owners.count;
     memcpy(texture.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
 
-    manager.createPlatformTexture(texture, lifetime, name);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; createVulkanTexture(texture, lifetime, name);
+    }
 
     return texture;
 }

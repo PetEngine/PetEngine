@@ -64,7 +64,7 @@ resetAssetManager :: () {
 resetAssetManagerAssets :: () {
     assertThreadKind(.MAIN);
 
-    if #complete context.pet.render.device.graphics_api == {
+    #if #complete GRAPHICS_API == {
         case .VULKAN;
             vulkan_device := cast(*VulkanDevice) context.pet.render.device;
 
@@ -100,7 +100,7 @@ processRequestedAssets :: () {
         copyBufferRegions(*manager.command_buffer, it.vertex_buffer, manager.upload_buffer.buffer, vertex_buffer_regions_view);
         copyBufferRegions(*manager.command_buffer, it.index_buffer,  manager.upload_buffer.buffer, index_buffer_regions_view);
 
-        if #complete device.graphics_api == {
+        #if #complete GRAPHICS_API == {
             case .VULKAN;
                 vk_command_buffer := manager.command_buffer.handles[device.frame_index];
                 vkCmdSetEvent(vk_command_buffer, cast(VkEvent) it.ready_event, .VK_PIPELINE_STAGE_TRANSFER_BIT);
@@ -110,7 +110,7 @@ processRequestedAssets :: () {
     for manager.texture_assets {
         copyBufferToTexture(*manager.command_buffer, it.texture, manager.upload_buffer.buffer, toView(it.regions));
 
-        if #complete device.graphics_api == {
+        #if #complete GRAPHICS_API == {
             case .VULKAN;
                 vk_command_buffer := manager.command_buffer.handles[device.frame_index];
                 vkCmdSetEvent(vk_command_buffer, cast(VkEvent) it.ready_event, .VK_PIPELINE_STAGE_TRANSFER_BIT);
@@ -235,7 +235,7 @@ requestMesh :: (name : string) -> *Mesh {
     // Create event
     //
 
-    if #complete context.pet.render.device.graphics_api == {
+    #if #complete GRAPHICS_API == {
         case .VULKAN;
             vulkan_device := cast(*VulkanDevice) context.pet.render.device;
 
@@ -253,7 +253,7 @@ isMeshReady :: (mesh : *Mesh) -> bool {
     mesh_asset := cast(*MeshAsset) mesh;
     if mesh_asset.is_ready return true;
 
-    if #complete context.pet.render.device.graphics_api == {
+    #if #complete GRAPHICS_API == {
         case .VULKAN;
             vulkan_device := cast(*VulkanDevice) context.pet.render.device;
 
@@ -411,7 +411,7 @@ requestTexture :: (name : string) -> *TextureAsset {
     // Create event
     //
 
-    if #complete context.pet.render.device.graphics_api == {
+    #if #complete GRAPHICS_API == {
         case .VULKAN;
             vulkan_device := cast(*VulkanDevice) context.pet.render.device;
 
@@ -427,7 +427,7 @@ isTextureReady :: (asset : *TextureAsset) -> bool {
     if !asset         return false;
     if asset.is_ready return true;
 
-    if #complete context.pet.render.device.graphics_api == {
+    #if #complete GRAPHICS_API == {
         case .VULKAN;
             vulkan_device := cast(*VulkanDevice) context.pet.render.device;
 

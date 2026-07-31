@@ -1,15 +1,15 @@
 #scope_file
 
+GraphicsAPI :: enum u8 {
+    VULKAN;
+}
+
 BuildArguments :: struct {
     optimized     : bool;
     no_debug_info : bool;
     verbose       : bool;
+    graphics_api  : GraphicsAPI = .VULKAN;
 }
-
-CONFIG_STRING :: #string END
-DEBUG_BUILD            :: %;
-PRINT_VERBOSE_MESSAGES :: %;
-END;
 
 #run {
     checkCompilerVersion(.{0, 2, 30});
@@ -174,8 +174,11 @@ END;
     compilation_failed : bool;
     compiler_begin_intercept(workspace);
     {
-        add_build_string(tprint(CONFIG_STRING, !build_arguments.optimized, build_arguments.verbose), workspace);
-        add_build_string(features_to_check_string, workspace);
+        addDeclarations(workspace);
+        addConfigDefines(build_arguments, workspace);
+        #if CPU == .X64 {
+            add_build_string(features_to_check_string, workspace);
+        }
         add_build_file(build_filename, workspace);
 
         while true {
@@ -224,19 +227,67 @@ gatherBuildArguments :: (build_options : *Build_Options) -> BuildArguments {
     #assert INFO.type == .STRUCT;
 
     for command_line_argument : build_options.compile_time_command_line {
-        member : *Type_Info_Struct_Member;
-        for * INFO.members {
-            if it.name == command_line_argument {
-                member = it;
-                break;
+        for * member : INFO.members {
+            if member.flags & (.CONSTANT | .OVERLAY) continue;
+
+            if member.type.type == {
+                case .BOOL;
+                    if member.name == command_line_argument {
+                        (cast(*bool, *arguments) + member.offset_in_bytes).* = true;
+                        continue command_line_argument;
+                    }
+
+                case .ENUM;
+                    enum_info := cast(*Type_Info_Enum, member.type);
+                    if enum_info.enum_type_flags & .FLAGS {
+                        compiler_report(tprint("enum_flags are not supported in command line arguments: %", enum_info.name));
+                    }
+
+                    for enum_info.names {
+                        if !equal_nocase(it, command_line_argument) continue;
+
+                        memory := cast(*void, *arguments) + member.offset_in_bytes;
+                        value  := enum_info.values[it_index];
+
+                        if enum_info.runtime_size == {
+                            case 1;
+                                if enum_info.internal_type.signed {
+                                    cast(*s8, memory).* = cast(s8, value);
+                                } else {
+                                    cast(*u8, memory).* = cast(u8, value);
+                                }
+
+                            case 2;
+                                if enum_info.internal_type.signed {
+                                    cast(*s16, memory).* = cast(s16, value);
+                                } else {
+                                    cast(*u16, memory).* = cast(u16, value);
+                                }
+
+                            case 4;
+                                if enum_info.internal_type.signed {
+                                    cast(*s32, memory).* = cast(s32, value);
+                                } else {
+                                    cast(*u32, memory).* = cast(u32, value);
+                                }
+
+                            case 8;
+                                if enum_info.internal_type.signed {
+                                    cast(*s64, memory).* = cast(s64, value);
+                                } else {
+                                    cast(*u64, memory).* = cast(u64, value);
+                                }
+
+                            case;
+                                compiler_report(tprint("Unexpected size of an enum %: % bytes", enum_info.name, enum_info.runtime_size));
+                        }
+
+                        continue command_line_argument;
+                    }
             }
         }
 
-        if member {
-            (cast(*bool) *arguments + member.offset_in_bytes).* = true;
-        } else {
-            compiler_report(join("Unknown command line argument: ", command_line_argument,, allocator = temp));
-        }
+        compiler_report(join("Unknown command line argument: ", command_line_argument,, allocator = temp));
     }
 
     return arguments;
@@ -311,7 +362,7 @@ checkCompilerVersion :: (minimal_supported_version : Version_Info) {
         check(EndUpdateResourceW(handle, FALSE));
     }
 
-MANIFEST_FORMAT_STRING :: #string XML
+    MANIFEST_FORMAT_STRING :: #string XML
 <?xml version="1.0" encoding="UTF-8"?>
 <asm:assembly xmlns:asm="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
     <asm:assemblyIdentity type="win32" name="%" processorArchitecture="amd64" version="1.0.0.0" />
@@ -414,6 +465,35 @@ check :: (expression : Code, format := "", args: ..Any, $print_sys_error := true
     } else {
         assert(false, message, loc = location);
     }
+}
+
+addDeclarations :: (workspace : Workspace) {
+    builder := String_Builder.{ allocator = temp };
+
+    root := compiler_get_nodes(GraphicsAPI);
+    assert(root.kind == .IDENT);
+
+    root_decl := cast(*Code_Ident, root).resolved_declaration;
+    print_expression(*builder, root_decl);
+
+    add_build_string(builder_to_string(*builder,, temp), workspace);
+}
+
+addConfigDefines :: (build_arguments : BuildArguments, workspace : Workspace) {
+    builder := String_Builder.{ allocator = temp };
+
+    CONFIG_STRING :: #string END
+DEBUG_BUILD            :: %;
+PRINT_VERBOSE_MESSAGES :: %;
+GRAPHICS_API           :: %.%;
+END;
+
+    add_build_string(tprint(CONFIG_STRING,
+                            !build_arguments.optimized,
+                            build_arguments.verbose,
+                            type_of(build_arguments.graphics_api),
+                            build_arguments.graphics_api),
+                     workspace);
 }
 
 #if OS == .WINDOWS {

@@ -19,9 +19,8 @@ Device :: struct {
 
     QUEUE_TYPES_COUNT :: #run Basic.enum_highest_value(QueueType) + 1;
 
-    vendor_id    : PCIVendorID;
-    type         : Type;
-    graphics_api : GraphicsAPI;
+    vendor_id : PCIVendorID;
+    type      : Type;
 
     window_data : [WindowManager.MAX_WINDOWS] WindowData;
 
@@ -30,26 +29,6 @@ Device :: struct {
 
     frame_buffering : FrameBuffering;
     frame_index     : u8;
-
-    //
-    // VTable
-    //
-
-    destroyPlatformDevice : ();
-
-    initPlatformWindowData : (window : *Window);
-
-    beginPlatformFrame : ();
-    endPlatformFrame   : ();
-
-    waitPlatformDeviceIdle : ();
-
-    getPlatformSwapchainTexture     : (window : *Window, swapchain_buffer_index : u32) -> *Texture;
-    getPlatformSwapchainTextureView : (window : *Window, swapchain_buffer_index : u32, usage : Texture.Usage) -> *TextureView;
-}
-
-GraphicsAPI :: enum u8 {
-    VULKAN;
 }
 
 QueueType :: enum u8 {
@@ -88,28 +67,27 @@ ScalingMode :: enum u8 {
     STRETCH;
 }
 
-createDevice :: (graphics_api : GraphicsAPI) {
+createDevice :: () {
     assert(!context.pet.render.device);
 
-    infoMessage("Using graphics API: %", graphics_api);
+    infoMessage("Using graphics API: %", GRAPHICS_API);
 
     frame_buffering := readSetting("render.frame_buffering");
 
-    if #complete graphics_api == {
-        case .VULKAN;
-            createVulkanDevice(frame_buffering);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; createVulkanDevice(frame_buffering);
     }
 
     device := context.pet.render.device;
-
-    device.graphics_api      = graphics_api;
     device.render_resolution = readSetting("render.resolution");
 
     infoMessage("Render resolution: % x %", device.render_resolution.width, device.render_resolution.height);
 }
 
 destroyDevice :: inline () {
-    context.pet.render.device.destroyPlatformDevice();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; destroyVulkanDevice();
+    }
 }
 
 initWindowData :: (window : *Window) {
@@ -118,7 +96,9 @@ initWindowData :: (window : *Window) {
     // Reset window data before potential reuse
     context.pet.render.device.window_data[window.id] = .{};
 
-    context.pet.render.device.initPlatformWindowData(window);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; initVulkanWindowData(window);
+    }
 }
 
 scheduleSwapChainReset :: (window : *Window) {
@@ -127,25 +107,37 @@ scheduleSwapChainReset :: (window : *Window) {
 }
 
 beginFrame :: inline () {
-    context.pet.render.device.beginPlatformFrame();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; beginVulkanFrame();
+    }
 }
 
 endFrame :: inline () {
-    context.pet.render.device.endPlatformFrame();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; endVulkanFrame();
+    }
 }
 
 waitDeviceIdle :: inline () {
-    context.pet.render.device.waitPlatformDeviceIdle();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; waitVulkanDeviceIdle();
+    }
 }
 
 getSwapchainTexture :: inline (window : *Window, swapchain_buffer_index : u32) -> *Texture {
     assert(swapchain_buffer_index < context.pet.render.device.window_data[window.id].swapchain_buffers_count);
-    return context.pet.render.device.getPlatformSwapchainTexture(window, swapchain_buffer_index);
+
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; return getVulkanSwapchainTexture(window, swapchain_buffer_index);
+    }
 }
 
 getSwapchainTextureView :: inline (window : *Window, swapchain_buffer_index : u32, usage : Texture.Usage) -> *TextureView {
     assert(swapchain_buffer_index < context.pet.render.device.window_data[window.id].swapchain_buffers_count);
-    return context.pet.render.device.getPlatformSwapchainTextureView(window, swapchain_buffer_index, usage);
+
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; return getVulkanSwapchainTextureView(window, swapchain_buffer_index, usage);
+    }
 }
 
 getBackBuffer :: inline (window : *Window) -> *Texture {

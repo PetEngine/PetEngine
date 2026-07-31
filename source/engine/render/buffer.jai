@@ -34,14 +34,14 @@ createBuffer :: (
     assert(pool != .READ_BACK || usage == .NONE, "Only NONE usage is allowed on READ_BACK pool");
     assert(usage != .UNIFORM || pool == .UPLOAD, "Uniform buffers could be created only on UPLOAD pool");
 
-    manager := context.pet.render.resource_manager;
-
     // We can bind only uniform buffers, so we don't really care about storage buffer offset alignemt
     if usage == .UNIFORM && size > context.pet.render.binding_manager.uniform_buffer_offset_alignment {
         size = alignUpWithPowerOfTwo(size, context.pet.render.binding_manager.uniform_buffer_offset_alignment);
     }
 
-    buffer := manager.pushPlatformBuffer(lifetime, pool);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; buffer := pushVulkanBuffer(lifetime, pool);
+    }
 
     buffer.size                  = size;
     buffer.usage                 = usage;
@@ -50,7 +50,10 @@ createBuffer :: (
     buffer.possible_owners.count = possible_owners.count;
     memcpy(buffer.possible_owners.data.data, possible_owners.data, possible_owners.count * size_of(QueueType));
 
-    manager.createPlatformBuffer(buffer, pool, name);
+
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; createVulkanBuffer(buffer, pool, name);
+    }
 
     return buffer;
 }

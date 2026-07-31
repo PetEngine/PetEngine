@@ -82,11 +82,10 @@ createCommandBuffer :: ($usage : QueueType) -> CommandBuffer(usage) {
     command_buffer : CommandBuffer(usage);
     command_buffer.handles.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
 
-    if #complete context.pet.render.device.graphics_api == {
-        case .VULKAN;
-            for * command_buffer.handles {
-                it.* = pushVulkanCommandBuffer(cast(u32) it_index, usage);
-            }
+    for * command_buffer.handles {
+        #if #complete GRAPHICS_API == {
+            case .VULKAN; it.* = pushVulkanCommandBuffer(cast(u32) it_index, usage);
+        }
     }
 
     return command_buffer;
@@ -108,9 +107,8 @@ resetCommandBuffer :: (command_buffer : *CommandBuffer) {
         command_buffer.scissor_rect     = .{};
         command_buffer.inside_rendering = false;
 
-        if #complete context.pet.render.device.graphics_api == {
-            case .VULKAN;
-                rebindVulkanDescriptorBuffers(command_buffer.handles[context.pet.render.device.frame_index]);
+        #if #complete GRAPHICS_API == {
+            case .VULKAN; rebindVulkanDescriptorBuffers(command_buffer.handles[context.pet.render.device.frame_index]);
         }
     }
 }
@@ -124,9 +122,8 @@ clearTexture :: (command_buffer : *CommandBuffer, texture : *Texture) {
            command_buffer.usage,
            texture.current_owner);
 
-    if #complete context.pet.render.device.graphics_api == {
-        case .VULKAN;
-            clearVulkanTexture(command_buffer.handles[context.pet.render.device.frame_index], cast(*VulkanTexture) texture);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; clearVulkanTexture(command_buffer.handles[context.pet.render.device.frame_index], cast(*VulkanTexture) texture);
     }
 }
 
@@ -137,9 +134,8 @@ setViewport :: (command_buffer : *CommandBuffer, viewport : *Viewport, render_ta
         return;
     }
 
-    if #complete context.pet.render.device.graphics_api == {
-        case .VULKAN;
-            setVulkanViewport(command_buffer.handles[context.pet.render.device.frame_index], viewport, render_target_height);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; setVulkanViewport(command_buffer.handles[context.pet.render.device.frame_index], viewport, render_target_height);
     }
 
     command_buffer.viewport = viewport.*;
@@ -152,9 +148,8 @@ setScissorRect :: (command_buffer : *CommandBuffer, scissor_rect : *ScissorRect)
         return;
     }
 
-    if #complete context.pet.render.device.graphics_api == {
-        case .VULKAN;
-            setVulkanScissorRect(command_buffer.handles[context.pet.render.device.frame_index], scissor_rect);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; setVulkanScissorRect(command_buffer.handles[context.pet.render.device.frame_index], scissor_rect);
     }
 
     command_buffer.scissor_rect = scissor_rect.*;
@@ -172,9 +167,8 @@ setShader :: (command_buffer : *CommandBuffer, shader : *Shader) {
 
     command_buffer.shaders[bind_point] = shader;
 
-    if #complete context.pet.render.device.graphics_api == {
-        case .VULKAN;
-            setVulkanShader(command_buffer, bind_point);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; setVulkanShader(command_buffer, bind_point);
     }
 }
 
@@ -222,9 +216,8 @@ beginRendering :: (command_buffer : *CommandBuffer, color_targets : [] ColorTarg
         }
     }
 
-    if #complete context.pet.render.device.graphics_api == {
-        case .VULKAN;
-            beginVulkanRendering(command_buffer.handles[context.pet.render.device.frame_index], color_targets, depth_target);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; beginVulkanRendering(command_buffer.handles[context.pet.render.device.frame_index], color_targets, depth_target);
     }
 
     command_buffer.inside_rendering = true;
@@ -235,9 +228,8 @@ endRendering :: (command_buffer : *CommandBuffer) {
 
     assert(command_buffer.inside_rendering);
 
-    if #complete context.pet.render.device.graphics_api == {
-        case .VULKAN;
-            endVulkanRendering(command_buffer.handles[context.pet.render.device.frame_index]);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; endVulkanRendering(command_buffer.handles[context.pet.render.device.frame_index]);
     }
 
     command_buffer.inside_rendering = false;
@@ -257,7 +249,7 @@ drawPrimitives :: (
     shader := command_buffer.shaders[ShaderBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set graphics or mesh shader before calling %", #procedure_name());
 
-    if #complete context.pet.render.device.graphics_api == {
+    #if #complete GRAPHICS_API == {
         case .VULKAN;
             drawVulkanPrimitives(command_buffer.handles[context.pet.render.device.frame_index],
                                  cast(*VulkanShader) shader,
@@ -274,9 +266,12 @@ setPushConstants :: inline (command_buffer : *CommandBuffer, handle : PushConsta
     shader := command_buffer.shaders[ShaderBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set shader before setting its push constants");
 
-    if #complete context.pet.render.device.graphics_api == {
+    #if #complete GRAPHICS_API == {
         case .VULKAN;
-            setVulkanPushConstants(command_buffer.handles[context.pet.render.device.frame_index], cast(*VulkanShader) shader, handle, data);
+            setVulkanPushConstants(command_buffer.handles[context.pet.render.device.frame_index],
+                                   cast(*VulkanShader) shader,
+                                   handle,
+                                   data);
     }
 }
 
@@ -309,7 +304,7 @@ copyBuffer :: (
     }
     assert(dest_offset + bytes <= dest_buffer.size);
 
-    if #complete context.pet.render.device.graphics_api == {
+    #if #complete GRAPHICS_API == {
         case .VULKAN;
             copyVulkanBuffer(command_buffer.handles[context.pet.render.device.frame_index],
                              cast(*VulkanBuffer) dest_buffer,
@@ -352,7 +347,7 @@ copyBufferRegions :: (
         assert(it.dest_offset + it.bytes <= dest_buffer.size);
     }
 
-    if #complete context.pet.render.device.graphics_api == {
+    #if #complete GRAPHICS_API == {
         case .VULKAN;
             copyVulkanBufferRegions(command_buffer.handles[context.pet.render.device.frame_index],
                                     cast(*VulkanBuffer) dest_buffer,
@@ -396,7 +391,7 @@ copyBufferToTexture :: (
         assert(it.texture_mip < texture.mips_count);
     }
 
-    if #complete context.pet.render.device.graphics_api == {
+    #if #complete GRAPHICS_API == {
         case .VULKAN;
             copyVulkanBufferToTexture(command_buffer.handles[context.pet.render.device.frame_index],
                                       cast(*VulkanTexture) texture,

@@ -9,18 +9,6 @@ BindingManager :: struct {
     MAX_IMAGES            :: 512;
 
     uniform_buffer_offset_alignment : u32;
-
-    //
-    // VTable
-    //
-
-    destroyPlatformBindingManager : ();
-
-    resetPlatformBindings : (descriptor_set : DescriptorSet);
-
-    pushPlatformBufferBinding  : (descriptor_set : DescriptorSet, resource : *Buffer, offset : u32, size : u32) -> BindingHandle;
-    pushPlatformTextureBinding : (descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle;
-    pushPlatformSamplerBinding : (descriptor_set : DescriptorSet, resource : *Sampler) -> BindingHandle;
 }
 
 // @Important: Should be synced with defines in graphics_bindings.shader_header
@@ -52,18 +40,21 @@ BindingHandle :: struct {
 createBindingManager :: inline () {
     assert(!context.pet.render.binding_manager);
 
-    if #complete context.pet.render.device.graphics_api == {
-        case .VULKAN;
-            createVulkanBindingManager();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; createVulkanBindingManager();
     }
 }
 
 destroyBindingManager :: () {
-    context.pet.render.binding_manager.destroyPlatformBindingManager();
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; destroyVulkanBindingManager();
+    }
 }
 
 resetBindings :: (descriptor_set : DescriptorSet) {
-    context.pet.render.binding_manager.resetPlatformBindings(descriptor_set);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; resetVulkanBindings(descriptor_set);
+    }
 }
 
 pushBinding :: ($descriptor_set : DescriptorSet, buffer : *Buffer, offset : u32 = 0, size : u32 = CopyRegion.REMAINING_BYTES) -> BindingHandle {
@@ -86,7 +77,9 @@ pushBinding :: ($descriptor_set : DescriptorSet, buffer : *Buffer, offset : u32 
         assert(size <= buffer.size - offset);
     }
 
-    return context.pet.render.binding_manager.pushPlatformBufferBinding(descriptor_set, buffer, offset, size);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; return pushVulkanBufferBinding(descriptor_set, buffer, offset, size);
+    }
 }
 
 pushBinding :: ($descriptor_set : DescriptorSet, resource : *$Resource/Type.[TextureView, Sampler]) -> BindingHandle {
@@ -97,10 +90,14 @@ pushBinding :: ($descriptor_set : DescriptorSet, resource : *$Resource/Type.[Tex
 
     #if Resource == {
         case TextureView;
-            return context.pet.render.binding_manager.pushPlatformTextureBinding(descriptor_set, resource);
+            #if #complete GRAPHICS_API == {
+                case .VULKAN; return pushVulkanTextureBinding(descriptor_set, resource);
+            }
 
         case Sampler;
-            return context.pet.render.binding_manager.pushPlatformSamplerBinding(descriptor_set, resource);
+            #if #complete GRAPHICS_API == {
+                case .VULKAN; return pushVulkanSamplerBinding(descriptor_set, resource);
+            }
     }
 }
 

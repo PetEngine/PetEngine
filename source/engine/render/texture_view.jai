@@ -83,9 +83,9 @@ createTextureView :: (
     assert(first_mip + mips_count <= texture.mips_count);
     assert(ifx flags & .ARRAY then first_layer + layers_count <= texture.array_size else layers_count <= 1);
 
-    manager := context.pet.render.resource_manager;
-
-    view := manager.pushPlatformTextureView(lifetime);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; view := pushVulkanTextureView(lifetime);
+    }
 
     view.texture      = texture;
     view.dimension    = dimension;
@@ -103,7 +103,9 @@ createTextureView :: (
 
     name := substring(texture.name, last_slash_index + 1);
 
-    manager.createPlatformTextureView(view, name);
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; createVulkanTextureView(view, name);
+    }
 
     return view;
 }

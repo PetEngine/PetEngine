@@ -68,8 +68,6 @@ createVulkanResourceManager :: () {
     manager := pushToArena(*context.pet.arenas.persistent, VulkanResourceManager);
     context.pet.render.resource_manager = manager;
 
-    #insert -> string { return generatePlatformVtableInitialization(ResourceManager, "manager", "Vulkan"); }
-
     device := cast(*VulkanDevice) context.pet.render.device;
 
     builder := Basic.String_Builder.{ allocator = Basic.temp };
@@ -131,8 +129,6 @@ createVulkanResourceManager :: () {
         createVulkanDescriptorBufferMemoryNamesSubarenas(DESCRIPTOR_BUFFERS_SUBARENA_CAPACITY);
     }
 }
-
-#scope_file
 
 destroyVulkanResourceManager :: () {
     device  := cast(*VulkanDevice)          context.pet.render.device;
@@ -220,6 +216,8 @@ resetVulkanResourceMemory :: (lifetime : ResourceManager.Lifetime) {
             resetVulkanSamplerMemoryPool(*manager.samplers.per_frame[device.frame_index]);
     }
 }
+
+#scope_file
 
 //
 // Buffers

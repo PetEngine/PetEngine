@@ -212,7 +212,7 @@ petMain :: () {
     createWindowManager();
     defer destroyWindowManager();
 
-    createDevice(.VULKAN);
+    createDevice();
     defer destroyDevice();
 
     createResourceManager();

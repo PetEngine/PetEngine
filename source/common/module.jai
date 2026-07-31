@@ -41,29 +41,6 @@ formatInline :: inline (value : $T) -> Basic.FormatStruct {
     };
 }
 
-generatePlatformVtableInitialization :: (
-    $vtable_storage_type         : Type,
-    vtable_storage_instance_name : string,
-    platform_name                : string
-) -> string #compile_time {
-    assert(vtable_storage_instance_name);
-    assert(platform_name);
-
-    INFO :: type_info(vtable_storage_type);
-    #assert INFO.type == .STRUCT;
-
-    builder := Basic.String_Builder.{ allocator = Basic.temp };
-
-    for INFO.members {
-        if it.type.type == .PROCEDURE {
-            vulkan_procedure_name := String.replace(it.name, "Platform", platform_name,, allocator = Basic.temp);
-            Basic.print(*builder, "%.% = %;\n", vtable_storage_instance_name, it.name, vulkan_procedure_name);
-        }
-    }
-
-    return Basic.builder_to_string(*builder,, allocator = Basic.temp);
-}
-
 #load "arena.jai";
 #load "debug.jai";
 #load "file.jai";
