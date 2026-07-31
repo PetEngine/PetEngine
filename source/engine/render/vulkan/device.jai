@@ -2,7 +2,6 @@ VulkanDevice :: struct {
     #as using public_data : Device;
 
     MINIMAL_SUPPORTED_API_VERSION :: VK_API_VERSION_1_3;
-    USE_VALIDATION                :: DEBUG_BUILD;
 
     api_version : u32;
 
@@ -703,7 +702,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
             verboseMessage("%", Basic.builder_to_string(*builder,, allocator = Basic.temp));
         }
 
-        #if VulkanDevice.USE_VALIDATION {
+        #if Device.USE_VALIDATION {
             validation_extensions : [] VkExtensionProperties;
             debugCheckVK(vkEnumerateInstanceExtensionProperties("VK_LAYER_KHRONOS_validation".data, cast(*u32) *validation_extensions.count, null));
 
@@ -757,7 +756,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
             }
         }
 
-        #if VulkanDevice.USE_VALIDATION {
+        #if Device.USE_VALIDATION {
             extension_found : bool;
 
             for validation_extensions {
@@ -799,7 +798,7 @@ createInstance :: (enabled_instance_extensions : *[..] string) -> u32 {
         ppEnabledExtensionNames = extensions_to_apply.data
     };
 
-    #if VulkanDevice.USE_VALIDATION {
+    #if Device.USE_VALIDATION {
         ENABLED_VALIDATION_FEATURES :: VkValidationFeatureEnableEXT.[
             // @Important: GPU-AV breaks descriptor buffers. Hopefully will be fixed one day.
             //

@@ -1,7 +1,7 @@
 VulkanLoader :: struct {
     layers : struct {
         required : struct {
-            #if VulkanDevice.USE_VALIDATION {
+            #if Device.USE_VALIDATION {
                 validation : void; @VK_LAYER_KHRONOS_validation
             }
         };

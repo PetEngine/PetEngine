@@ -1,4 +1,6 @@
 Device :: struct {
+    USE_VALIDATION :: DEBUG_BUILD;
+
     Type :: enum u8 {
         UNKNOWN;
         DISCRETE;

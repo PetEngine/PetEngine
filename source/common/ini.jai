@@ -402,7 +402,7 @@ Filter :: enum u8 {
     REJECT_NON_STRUCTS;
 }
 filterOutMember :: (info : Type_Info_Struct_Member, $filter : Filter = 0) -> bool {
-    if info.flags & .CONSTANT return true;
+    if info.flags & (.CONSTANT | .OVERLAY) return true;
 
     #if filter == {
         case .REJECT_STRUCTS;
