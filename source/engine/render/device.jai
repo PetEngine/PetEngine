@@ -15,9 +15,9 @@ Device :: struct {
         swapchain_is_outdated   : bool;
     }
 
-    MAX_SWAPCHAIN_BUFFERS : u8  : 8;
-    MAX_COMMAND_BUFFERS   : s32 : 16;
-    MAX_FRAME_BUFFERING   : u8  : #run Basic.enum_highest_value(FrameBuffering);
+    MAX_SWAPCHAIN_BUFFERS : u8 : 8;
+    MAX_COMMAND_BUFFERS   : u8 : 16;
+    MAX_FRAME_BUFFERING   : u8 : #run Basic.enum_highest_value(FrameBuffering);
 
     QUEUE_TYPES_COUNT :: #run Basic.enum_highest_value(QueueType) + 1;
 

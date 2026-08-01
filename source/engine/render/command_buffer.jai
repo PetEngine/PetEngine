@@ -1,5 +1,6 @@
 CommandBuffer :: struct(usage : QueueType) {
-    handles : StaticArray(*void, Device.MAX_FRAME_BUFFERING);
+    handles        : StaticArray(*void, Device.MAX_FRAME_BUFFERING);
+    commands_count : [Device.MAX_FRAME_BUFFERING] u64;
 
     #if usage == .GRAPHICS || usage == .ASYNC_COMPUTE {
         shaders : [#run Basic.enum_highest_value(ShaderBindPoint) + 1] *Shader;
@@ -21,11 +22,25 @@ Viewport :: struct {
     max_depth : f32 = 1.0;
 }
 
+operator == :: inline (left : Viewport, right : Viewport) -> bool #no_context {
+    return almostEquals(left.x, right.x)
+        && almostEquals(left.y, right.y)
+        && almostEquals(left.width, right.width)
+        && almostEquals(left.height, right.height)
+        && almostEquals(left.min_depth, right.min_depth)
+        && almostEquals(left.max_depth, right.max_depth);
+}
+
 ScissorRect :: struct {
     x      : s32;
     y      : s32;
     width  : u32;
     height : u32;
+}
+
+operator == :: inline (left : ScissorRect, right : ScissorRect) -> bool #no_context {
+    // ScissorRect consists of ints and must have no paddings, so it's safe to use memcmp
+    return !memcmp(*left, *right, size_of(ScissorRect));
 }
 
 TargetLoadAction :: enum u8 {
@@ -92,9 +107,16 @@ createCommandBuffer :: ($usage : QueueType) -> CommandBuffer(usage) {
 }
 
 resetCommandBuffer :: (command_buffer : *CommandBuffer) {
+    device := context.pet.render.device;
+
     // @TODO: #FrameBuffering.
-    assert(command_buffer.handles.count == cast,no_check(s64) context.pet.render.device.frame_buffering, "It's illegal to change frame buffering for now");
-    command_buffer.handles.count = cast,no_check(s64) context.pet.render.device.frame_buffering;
+    assert(command_buffer.handles.count == cast,no_check(s64) device.frame_buffering, "It's illegal to change frame buffering for now");
+    command_buffer.handles.count = cast,no_check(s64) device.frame_buffering;
+
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; resetVulkanCommandBuffer(command_buffer.handles[device.frame_index]);
+    }
+    command_buffer.commands_count[device.frame_index] = 0;
 
     #if command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE {
         for * command_buffer.shaders {
@@ -108,8 +130,14 @@ resetCommandBuffer :: (command_buffer : *CommandBuffer) {
         command_buffer.inside_rendering = false;
 
         #if #complete GRAPHICS_API == {
-            case .VULKAN; rebindVulkanDescriptorBuffers(command_buffer.handles[context.pet.render.device.frame_index]);
+            case .VULKAN; rebindVulkanDescriptorBuffers(command_buffer.handles[device.frame_index]);
         }
+    }
+}
+
+submitCommandBuffer :: (command_buffer : CommandBuffer) {
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; submitVulkanCommandBuffer(command_buffer);
     }
 }
 
@@ -125,34 +153,38 @@ clearTexture :: (command_buffer : *CommandBuffer, texture : *Texture) {
     #if #complete GRAPHICS_API == {
         case .VULKAN; clearVulkanTexture(command_buffer.handles[context.pet.render.device.frame_index], cast(*VulkanTexture) texture);
     }
+
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
-setViewport :: (command_buffer : *CommandBuffer, viewport : *Viewport, render_target_height : u16) {
+setViewport :: (command_buffer : *CommandBuffer, viewport : Viewport, render_target_height : u16) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can set viewport";
 
-    if !memcmp(*command_buffer.viewport, viewport, size_of(Viewport)) {
+    if command_buffer.viewport == viewport {
         return;
     }
+    command_buffer.viewport = viewport;
 
     #if #complete GRAPHICS_API == {
-        case .VULKAN; setVulkanViewport(command_buffer.handles[context.pet.render.device.frame_index], viewport, render_target_height);
+        case .VULKAN; setVulkanViewport(command_buffer, render_target_height);
     }
 
-    command_buffer.viewport = viewport.*;
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
-setScissorRect :: (command_buffer : *CommandBuffer, scissor_rect : *ScissorRect) {
+setScissorRect :: (command_buffer : *CommandBuffer, scissor_rect : ScissorRect) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can set scissor rect";
 
-    if !memcmp(*command_buffer.scissor_rect, scissor_rect, size_of(ScissorRect)) {
+    if command_buffer.scissor_rect == scissor_rect {
         return;
     }
+    command_buffer.scissor_rect = scissor_rect;
 
     #if #complete GRAPHICS_API == {
-        case .VULKAN; setVulkanScissorRect(command_buffer.handles[context.pet.render.device.frame_index], scissor_rect);
+        case .VULKAN; setVulkanScissorRect(command_buffer);
     }
 
-    command_buffer.scissor_rect = scissor_rect.*;
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
 setShader :: (command_buffer : *CommandBuffer, shader : *Shader) {
@@ -170,6 +202,8 @@ setShader :: (command_buffer : *CommandBuffer, shader : *Shader) {
     #if #complete GRAPHICS_API == {
         case .VULKAN; setVulkanShader(command_buffer, bind_point);
     }
+
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
 beginRendering :: (command_buffer : *CommandBuffer, color_targets : [] ColorTargetDesc, depth_target : *DepthTargetDesc = null) {
@@ -221,6 +255,7 @@ beginRendering :: (command_buffer : *CommandBuffer, color_targets : [] ColorTarg
     }
 
     command_buffer.inside_rendering = true;
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
 endRendering :: (command_buffer : *CommandBuffer) {
@@ -233,6 +268,7 @@ endRendering :: (command_buffer : *CommandBuffer) {
     }
 
     command_buffer.inside_rendering = false;
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
 drawPrimitives :: (
@@ -258,6 +294,8 @@ drawPrimitives :: (
                                  first_vertex,
                                  first_instance);
     }
+
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
 setPushConstants :: inline (command_buffer : *CommandBuffer, handle : PushConstantsHandle, data : *$T) {
@@ -273,6 +311,8 @@ setPushConstants :: inline (command_buffer : *CommandBuffer, handle : PushConsta
                                    handle,
                                    data);
     }
+
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
 copyBuffer :: (
@@ -313,6 +353,8 @@ copyBuffer :: (
                              source_offset,
                              bytes);
     }
+
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
 copyBufferRegions :: (
@@ -354,6 +396,8 @@ copyBufferRegions :: (
                                     cast(*VulkanBuffer) source_buffer,
                                     regions);
     }
+
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
 copyBufferToTexture :: (
@@ -398,6 +442,8 @@ copyBufferToTexture :: (
                                       cast(*VulkanBuffer) buffer,
                                       regions);
     }
+
+    command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
 #scope_file

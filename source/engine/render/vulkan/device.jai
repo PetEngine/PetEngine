@@ -167,7 +167,7 @@ beginVulkanFrame :: () {
     frame_data := *device.frame_data[device.frame_index];
 
     //
-    // Wait for current frame memory
+    // Wait for the current frame memory
     //
     debugCheckVK(vkWaitForFences(device.device, frame_data.queue_fences.count, frame_data.queue_fences.data, VK_TRUE, 0xFFFF_FFFF_FFFF_FFFF));
 
@@ -177,6 +177,7 @@ beginVulkanFrame :: () {
     for frame_data.command_pools {
         debugCheckVK(vkResetCommandPool(device.device, it, 0));
     }
+    reset(*frame_data.command_buffers_to_submit_count);
 
     //
     // Maybe recreate swapchains
@@ -184,31 +185,6 @@ beginVulkanFrame :: () {
     for * context.pet.core.window_manager.windows {
         if device.window_data[it.id].swapchain_is_outdated {
             recreateVulkanSwapchain(it);
-        }
-    }
-
-    //
-    // Begin used command buffers
-    //
-    {
-        begin_info := VkCommandBufferBeginInfo.{
-            flags = .VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-        };
-
-        command_buffers_used_it := frame_data.command_buffers_used.data;
-        command_buffers_it      := frame_data.command_buffers.data;
-
-        for 0 .. VulkanDevice.queues.count - 1 {
-            command_buffers_local_it := command_buffers_it;
-
-            for 0 .. command_buffers_used_it.* - 1 {
-                debugCheckVK(vkBeginCommandBuffer(command_buffers_local_it.*, *begin_info));
-
-                command_buffers_local_it += 1;
-            }
-
-            command_buffers_used_it += 1;
-            command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
         }
     }
 
@@ -242,27 +218,6 @@ endVulkanFrame :: () {
     frame_data := *device.frame_data[device.frame_index];
 
     //
-    // End used command buffers
-    //
-    {
-        command_buffers_used_it := frame_data.command_buffers_used.data;
-        command_buffers_it      := frame_data.command_buffers.data;
-
-        for 0 .. VulkanDevice.queues.count - 1 {
-            command_buffers_local_it := command_buffers_it;
-
-            for 0 .. command_buffers_used_it.* - 1 {
-                debugCheckVK(vkEndCommandBuffer(command_buffers_local_it.*));
-
-                command_buffers_local_it += 1;
-            }
-
-            command_buffers_used_it += 1;
-            command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
-        }
-    }
-
-    //
     // Collect acquire semaphores and present fences from all windows
     //
     acquire_semaphores : [WindowManager.MAX_WINDOWS] VkSemaphore;
@@ -287,39 +242,34 @@ endVulkanFrame :: () {
 
         submit_info : VkSubmitInfo;
 
-        command_buffers_used_it := frame_data.command_buffers_used.data;
-        command_buffers_it      := frame_data.command_buffers.data;
-
         for device.queues {
-            if command_buffers_used_it.* > 0 {
-                fence_to_signal : VkFence = ---;
+            command_buffers_to_submit_count := frame_data.command_buffers_to_submit_count[it_index];
+            if !command_buffers_to_submit_count continue;
 
-                if it_index == cast(s64) QueueType.GRAPHICS {
-                    submit_info.waitSemaphoreCount   = per_window_objects_count;
-                    submit_info.pWaitSemaphores      = acquire_semaphores.data;
-                    submit_info.pWaitDstStageMask    = WHICH_STAGE_WILL_WAIT_FOR_THE_SEMAPHORE.data;
-                    submit_info.signalSemaphoreCount = 1;
-                    submit_info.pSignalSemaphores    = *frame_data.graphics_semaphore;
+            fence_to_signal : VkFence = ---;
 
-                    fence_to_signal = VK_NULL_HANDLE;
-                } else {
-                    submit_info.waitSemaphoreCount   = 0;
-                    submit_info.pWaitSemaphores      = null;
-                    submit_info.signalSemaphoreCount = 0;
-                    submit_info.pSignalSemaphores    = null;
+            if it_index == cast(s64) QueueType.GRAPHICS {
+                submit_info.waitSemaphoreCount   = per_window_objects_count;
+                submit_info.pWaitSemaphores      = acquire_semaphores.data;
+                submit_info.pWaitDstStageMask    = WHICH_STAGE_WILL_WAIT_FOR_THE_SEMAPHORE.data;
+                submit_info.signalSemaphoreCount = 1;
+                submit_info.pSignalSemaphores    = *frame_data.graphics_semaphore;
 
-                    fence_to_signal = frame_data.queue_fences[it_index];
-                    debugCheckVK(vkResetFences(device.device, 1, *fence_to_signal));
-                }
+                fence_to_signal = VK_NULL_HANDLE;
+            } else {
+                submit_info.waitSemaphoreCount   = 0;
+                submit_info.pWaitSemaphores      = null;
+                submit_info.signalSemaphoreCount = 0;
+                submit_info.pSignalSemaphores    = null;
 
-                submit_info.commandBufferCount = cast(u32) command_buffers_used_it.*;
-                submit_info.pCommandBuffers    = command_buffers_it;
-
-                debugCheckVK(vkQueueSubmit(it.handle, 1, *submit_info, fence_to_signal));
+                fence_to_signal = frame_data.queue_fences[it_index];
+                debugCheckVK(vkResetFences(device.device, 1, *fence_to_signal));
             }
 
-            command_buffers_used_it += 1;
-            command_buffers_it      += Device.MAX_COMMAND_BUFFERS;
+            submit_info.commandBufferCount = command_buffers_to_submit_count;
+            submit_info.pCommandBuffers    = frame_data.command_buffers_to_submit[it_index].data;
+
+            debugCheckVK(vkQueueSubmit(it.handle, 1, *submit_info, fence_to_signal));
         }
     }
 
@@ -551,12 +501,18 @@ FrameData :: struct {
     graphics_semaphore : VkSemaphore;
     present_semaphore  : VkSemaphore;
 
-    command_pools        : [VulkanDevice.queues.count]                              VkCommandPool;
-    command_buffers      : [VulkanDevice.queues.count * Device.MAX_COMMAND_BUFFERS] VkCommandBuffer;
-    command_buffers_used : [VulkanDevice.queues.count]                              s32;
+    command_pools        : [VulkanDevice.queues.count]                             VkCommandPool;
+    command_buffers      : [VulkanDevice.queues.count][Device.MAX_COMMAND_BUFFERS] VkCommandBuffer;
+    command_buffers_used : [VulkanDevice.queues.count]                             u8;
+
+    command_buffers_to_submit_count : [VulkanDevice.queues.count] u8;
+    command_buffers_to_submit       : [VulkanDevice.queues.count][Device.MAX_COMMAND_BUFFERS] VkCommandBuffer;
 
     internal_command_buffers : [#run Basic.enum_highest_value(InternalCommandBufferKind) + 1] VkCommandBuffer;
 }
+
+#assert maxOf(type_of(FrameData.command_buffers_used[0]))            >= Device.MAX_COMMAND_BUFFERS;
+#assert maxOf(type_of(FrameData.command_buffers_to_submit_count[0])) >= Device.MAX_COMMAND_BUFFERS;
 
 Queue :: struct {
     handle          : VkQueue;
@@ -1776,6 +1732,7 @@ recreateVulkanSwapchain :: (window : *Window) {
     setVulkanObjectName(vulkan_window_data.surface, "Window \"%\"/swapchain", window_title);
 
     if create_info.oldSwapchain != VK_NULL_HANDLE {
+        debugCheckVK(vkDeviceWaitIdle(device.device)); // @Speed
         device.loader.extensions.device.required.vkDestroySwapchainKHR(device.device, create_info.oldSwapchain, null);
     }
 
@@ -1986,32 +1943,27 @@ createCommandBuffers :: () {
     allocation_info := VkCommandBufferAllocateInfo.{
         commandPool        = null, // Will be set in a loop
         level              = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        commandBufferCount = cast(u32) Device.MAX_COMMAND_BUFFERS
+        commandBufferCount = Device.MAX_COMMAND_BUFFERS
     };
 
     for * frame_data, frame_index : toView(device.frame_data.data, cast(s64) device.frame_buffering) {
-        command_buffers_it := frame_data.command_buffers.data;
-
         for command_pool, command_pool_index : frame_data.command_pools {
             allocation_info.commandPool = command_pool;
 
-            debugCheckVK(vkAllocateCommandBuffers(device.device, *allocation_info, command_buffers_it));
+            queue_command_buffers_ptr := frame_data.command_buffers[command_pool_index].data;
+            debugCheckVK(vkAllocateCommandBuffers(device.device, *allocation_info, queue_command_buffers_ptr));
 
             #if DEBUG_BUILD {
-                local_command_buffers_it := command_buffers_it;
-
                 for 0 .. Device.MAX_COMMAND_BUFFERS - 1 {
-                    setVulkanObjectName(local_command_buffers_it.*,
+                    setVulkanObjectName(queue_command_buffers_ptr.*,
                                         "Frame #%/% command buffer #%",
                                         frame_index,
                                         cast(QueueType) command_pool_index,
                                         it);
 
-                    local_command_buffers_it += 1;
+                    queue_command_buffers_ptr += 1;
                 }
             }
-
-            command_buffers_it += Device.MAX_COMMAND_BUFFERS;
         }
     }
 }

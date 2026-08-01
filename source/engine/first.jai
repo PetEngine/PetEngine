@@ -298,7 +298,7 @@ petMain :: () {
 
             // Create per frame resources here...
 
-            // Commit
+            // Commit memory
             {
                 // @TODO: #PerFrameResources.
                 commitResourceMemory(.PER_FRAME);
@@ -439,6 +439,12 @@ petMain :: () {
                 drawSkybox(*command_buffer, skybox, per_view_uniform);
             }
             endRendering(*command_buffer);
+
+            // Submit
+            {
+                submitAssetManager();
+                submitCommandBuffer(command_buffer);
+            }
         }
         endFrame();
     }

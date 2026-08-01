@@ -121,6 +121,10 @@ Device:
     - #HDR. Hardware HDR support.
     - Link all Vulkan functions dynamically.
     - Fix memory leak during reuse of VulkanWindowData
+    ? endVulkanFrame: separate submit and present
+    - Renderdoc labels
+    - Wait for all window's presents before destroying old swapchain
+    - VkSurfacePresentModeCompatibility (required by VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
 
 Resource Manager:
     ? #SwapchainBuffers. Add swapchain buffers to Resource Manager.
@@ -166,4 +170,3 @@ Compiler:
 
 Hot reload:
     - Thread pool.
-    - Replace `stop_thread_event` with MsgWaitForMultipleObjects.

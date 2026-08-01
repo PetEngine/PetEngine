@@ -11,10 +11,10 @@ Resolution :: struct {
     height : u16;
 
     #overlay(width) raw : u32;
-} #no_padding
+}
 #assert size_of(Resolution) == size_of(u32);
 
-operator == :: inline (left : Resolution, right : Resolution) -> bool {
+operator == :: inline (left : Resolution, right : Resolution) -> bool #no_context {
     return left.raw == right.raw;
 }
 
@@ -24,11 +24,45 @@ Rect :: struct {
     using,except(raw) resolution : Resolution;
 
     #overlay(x) raw : u64;
-} #no_padding
+}
 #assert size_of(Rect) == size_of(u64);
 
-operator == :: inline (left : Rect, right : Rect) -> bool {
+operator == :: inline (left : Rect, right : Rect) -> bool #no_context {
     return left.raw == right.raw;
+}
+
+minOf :: inline ($type : Type) -> type #no_context {
+    #if type == {
+        case bool; return false;
+        case u8;   return 0;
+        case s8;   return 0x80;
+        case u16;  return 0;
+        case s16;  return 0x8000;
+        case u32;  return 0;
+        case s32;  return 0x8000_0000;
+        case u64;  return 0;
+        case s64;  return 0x8000_0000_0000_0000;
+        case f32;  return 0hFF7FFFFF;
+        case f64;  return 0hFFEFFFFF_FFFFFFFF;
+        case;      #assert false "Unsupported type";
+    }
+}
+
+maxOf :: inline ($type : Type) -> type #no_context {
+    #if type == {
+        case bool; return true;
+        case u8;   return 0xFF;
+        case s8;   return 0x7F;
+        case u16;  return 0xFFFF;
+        case s16;  return 0x7FFF;
+        case u32;  return 0xFFFF_FFFF;
+        case s32;  return 0x7FFF_FFFF;
+        case u64;  return 0xFFFF_FFFF_FFFF_FFFF;
+        case s64;  return 0x7FFF_FFFF_FFFF_FFFF;
+        case f32;  return 0h7F7FFFFF;
+        case f64;  return 0h7FEFFFFF_FFFFFFFF;
+        case;      #assert false "Unsupported type";
+    }
 }
 
 isPowerOfTwo :: inline (value : $T) -> bool #no_context {

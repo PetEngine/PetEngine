@@ -6,11 +6,35 @@ pushVulkanCommandBuffer :: (frame_index : u32, queue_type : QueueType) -> VkComm
     command_buffers_used := *frame_data.command_buffers_used[queue_type];
     assert(command_buffers_used.* < Device.MAX_COMMAND_BUFFERS, "Command buffers overflow");
 
-    command_buffer := frame_data.command_buffers[cast(s32) queue_type * Device.MAX_COMMAND_BUFFERS + command_buffers_used.*];
-
+    command_buffer         := frame_data.command_buffers[queue_type][command_buffers_used.*];
     command_buffers_used.* += 1;
 
     return command_buffer;
+}
+
+resetVulkanCommandBuffer :: (command_buffer : VkCommandBuffer) {
+    begin_info := VkCommandBufferBeginInfo.{
+        flags = .VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
+    debugCheckVK(vkBeginCommandBuffer(command_buffer, *begin_info));
+}
+
+submitVulkanCommandBuffer :: (command_buffer : CommandBuffer) {
+    device := cast(*VulkanDevice) context.pet.render.device;
+
+    vk_command_buffer := command_buffer.handles[device.frame_index];
+    debugCheckVK(vkEndCommandBuffer(vk_command_buffer));
+
+    if command_buffer.commands_count[device.frame_index] {
+        frame_data := *device.frame_data[device.frame_index];
+
+        command_buffers_to_submit_count := *frame_data.command_buffers_to_submit_count[command_buffer.usage];
+        assert(command_buffers_to_submit_count.* < Device.MAX_COMMAND_BUFFERS, "Command buffers to submit overflow");
+
+        frame_data.command_buffers_to_submit[command_buffer.usage][command_buffers_to_submit_count.*] = vk_command_buffer;
+        command_buffers_to_submit_count.* += 1;
+    }
 }
 
 rebindVulkanDescriptorBuffers :: (command_buffer : VkCommandBuffer) {
@@ -65,21 +89,25 @@ clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTextur
     }
 }
 
-setVulkanViewport :: inline (command_buffer : VkCommandBuffer, viewport : *Viewport, render_target_height : u16) #no_context {
-    vkCmdSetViewport(command_buffer, 0, 1, *(VkViewport.{
-        x        = viewport.x,
-        y        = cast(f32) render_target_height - viewport.y,
-        width    = viewport.width,
-        height   = -viewport.height,
-        minDepth = viewport.min_depth,
-        maxDepth = viewport.max_depth,
+setVulkanViewport :: inline (command_buffer : CommandBuffer, render_target_height : u16) {
+    vk_command_buffer := command_buffer.handles[context.pet.render.device.frame_index];
+
+    vkCmdSetViewport(vk_command_buffer, 0, 1, *(VkViewport.{
+        x        = command_buffer.viewport.x,
+        y        = cast(f32) render_target_height - command_buffer.viewport.y,
+        width    = command_buffer.viewport.width,
+        height   = -command_buffer.viewport.height,
+        minDepth = command_buffer.viewport.min_depth,
+        maxDepth = command_buffer.viewport.max_depth,
     }));
 }
 
-setVulkanScissorRect :: inline (command_buffer : VkCommandBuffer, scissor_rect : *ScissorRect) #no_context {
-    vkCmdSetScissor(command_buffer, 0, 1, *(VkRect2D.{
-        offset = .{ scissor_rect.x,     scissor_rect.y      },
-        extent = .{ scissor_rect.width, scissor_rect.height },
+setVulkanScissorRect :: inline (command_buffer : CommandBuffer) {
+    vk_command_buffer := command_buffer.handles[context.pet.render.device.frame_index];
+
+    vkCmdSetScissor(vk_command_buffer, 0, 1, *(VkRect2D.{
+        offset = .{ command_buffer.scissor_rect.x,     command_buffer.scissor_rect.y      },
+        extent = .{ command_buffer.scissor_rect.width, command_buffer.scissor_rect.height },
     }));
 }
 

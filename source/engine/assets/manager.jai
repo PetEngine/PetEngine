@@ -61,6 +61,11 @@ resetAssetManager :: () {
     resetCommandBuffer(*context.pet.render.asset_manager.command_buffer);
 }
 
+submitAssetManager :: () {
+    assertThreadKind(.MAIN);
+    submitCommandBuffer(context.pet.render.asset_manager.command_buffer);
+}
+
 resetAssetManagerAssets :: () {
     assertThreadKind(.MAIN);
 

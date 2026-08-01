@@ -41,6 +41,17 @@ formatInline :: inline (value : $T) -> Basic.FormatStruct {
     };
 }
 
+reset :: inline (array : *[] $T, $zero_memory := true) #no_context {
+    #if zero_memory {
+        memset(array.data, 0, array.count * size_of(T));
+    }
+    array.count = 0;
+}
+
+reset :: inline (array : *[$capacity] $T) #no_context {
+    memset(array.data, 0, array.count * size_of(T));
+}
+
 #load "arena.jai";
 #load "debug.jai";
 #load "file.jai";

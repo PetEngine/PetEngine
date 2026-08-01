@@ -78,15 +78,15 @@ drawHeart :: (command_buffer : *CommandBuffer, heart : Heart, per_view_uniform :
 
     render_resolution := context.pet.render.device.render_resolution;
 
-    setViewport(command_buffer, *(Viewport.{
+    setViewport(command_buffer, .{
         width  = cast(f32) render_resolution.width,
         height = cast(f32) render_resolution.height,
-    }), render_resolution.height);
+    }, render_resolution.height);
 
-    setScissorRect(command_buffer, *(ScissorRect.{
+    setScissorRect(command_buffer, .{
         width  = render_resolution.width,
         height = render_resolution.height,
-    }));
+    });
 
     setShader(command_buffer, heart.shader);
 
