@@ -132,4 +132,6 @@ deserializeShaderFile :: (shader : *Shader) -> string {
     return shader_file_data;
 }
 
-#load "vulkan/shader.jai";
+#if #complete GRAPHICS_API == {
+    case .VULKAN; #load "vulkan/shader.jai";
+}

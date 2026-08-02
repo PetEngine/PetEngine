@@ -1,4 +1,8 @@
-#module_parameters(VK_ENABLE_BETA_EXTENSIONS := false)(DEBUG_BUILD : bool, PRINT_VERBOSE_MESSAGES : bool);
+#module_parameters(VK_ENABLE_BETA_EXTENSIONS := false)(DEBUG_BUILD : bool, PRINT_VERBOSE_MESSAGES : bool, GRAPHICS_API : GraphicsAPI) {
+    GraphicsAPI :: enum u8 { // Not the best solution since we have this enum from add_build_string, but meh
+        VULKAN;
+    }
+};
 
 #scope_export
 
@@ -63,7 +67,9 @@ reset :: inline (array : *[$capacity] $T) #no_context {
 #load "static_array.jai";
 #load "string_utils.jai";
 #load "thread.jai";
-#load "vulkan/vulkan.jai";
+#if #complete GRAPHICS_API == {
+    case .VULKAN; #load "vulkan/vulkan.jai";
+}
 #if OS == .WINDOWS {
     #load "windows/windows.jai";
     #load "windows/unicode.jai";

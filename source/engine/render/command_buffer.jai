@@ -462,4 +462,6 @@ shaderKindToShaderBindPoint :: inline (kind : Shader.Kind) -> ShaderBindPoint #n
     }
 }
 
-#load "vulkan/command_buffer.jai";
+#if #complete GRAPHICS_API == {
+    case .VULKAN; #load "vulkan/command_buffer.jai";
+}

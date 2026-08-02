@@ -152,5 +152,8 @@ getBackBufferView :: inline (window : *Window, usage : Texture.Usage) -> *Textur
 
 #scope_file
 
-#load "vulkan/loader.jai";
-#load "vulkan/device.jai";
+#if #complete GRAPHICS_API == {
+    case .VULKAN;
+        #load "vulkan/loader.jai";
+        #load "vulkan/device.jai";
+}

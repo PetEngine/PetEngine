@@ -67,4 +67,6 @@ resourceMemoryCommitted :: inline (lifetime : ResourceManager.Lifetime) -> bool 
 
 #scope_file
 
-#load "vulkan/resource_manager.jai";
+#if #complete GRAPHICS_API == {
+    case .VULKAN; #load "vulkan/resource_manager.jai";
+}

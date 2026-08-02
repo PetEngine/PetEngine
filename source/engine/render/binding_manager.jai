@@ -103,4 +103,6 @@ pushBinding :: ($descriptor_set : DescriptorSet, resource : *$Resource/Type.[Tex
 
 #scope_file
 
-#load "vulkan/binding_manager.jai";
+#if #complete GRAPHICS_API == {
+    case .VULKAN; #load "vulkan/binding_manager.jai";
+}
