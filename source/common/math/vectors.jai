@@ -58,7 +58,7 @@ v4u :: v4(u32);
 #assert size_of(v4s) == 16;
 #assert size_of(v4u) == 16;
 
-operator [] :: inline (v : $V/.[v2, v3, v4], index : int) -> V.T #no_context {
+operator [] :: inline (v : *$V/.[v2, v3, v4], index : int) -> V.T #no_context {
     return v.e[index];
 }
 

@@ -63,7 +63,13 @@ m4x4 :: struct {
 #assert size_of(m4x3) == 48;
 #assert size_of(m4x4) == 64;
 
-operator [] :: inline (m : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], index : int) -> type_of(T.rows[0]) #no_context {
+IDENTITY_2X2 :: m2x2.{ e00 = 1, e11 = 1 };
+IDENTITY_3X3 :: m3x3.{ e00 = 1, e11 = 1, e22 = 1 };
+IDENTITY_3X4 :: m3x4.{ e00 = 1, e11 = 1, e22 = 1 };
+IDENTITY_4X3 :: m4x3.{ e00 = 1, e11 = 1, e22 = 1 };
+IDENTITY_4X4 :: m4x4.{ e00 = 1, e11 = 1, e22 = 1, e33 = 1 };
+
+operator [] :: inline (m : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], index : int) -> type_of(T.rows[0]) #no_context {
     return m.rows[index];
 }
 
@@ -73,17 +79,6 @@ operator *[] :: inline (m : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], index : int
 
 operator []= :: inline (m : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], index : int, value : type_of(T.rows[0])) #no_context {
     m.rows[index] = value;
-}
-
-identity :: inline ($T : Type) -> T #no_context {
-    #if T == {
-        case m2x2; return .{ e00 = 1, e11 = 1 };
-        case m3x3; return .{ e00 = 1, e11 = 1, e22 = 1 };
-        case m3x4; return .{ e00 = 1, e11 = 1, e22 = 1 };
-        case m4x3; return .{ e00 = 1, e11 = 1, e22 = 1 };
-        case m4x4; return .{ e00 = 1, e11 = 1, e22 = 1, e33 = 1 };
-        case;      #assert false "Unhandled type";
-    }
 }
 
 extend :: inline (from : m2x2, $To : Type, $identity := true) -> To {
@@ -154,7 +149,11 @@ isNonZero :: inline (m : $T/Type.[m4x3, m4x4]) -> bool { return isNonZero(m.rows
 
 isZero :: inline (m : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4]) -> bool { return !isNonZero(m); }
 
-isIdentity :: inline (m : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4]) -> bool { return m == identity(T); }
+isIdentity :: inline (m : m2x2) -> bool #no_context { return m == IDENTITY_2X2; }
+isIdentity :: inline (m : m3x3) -> bool #no_context { return m == IDENTITY_3X3; }
+isIdentity :: inline (m : m3x4) -> bool #no_context { return m == IDENTITY_3X4; }
+isIdentity :: inline (m : m4x3) -> bool #no_context { return m == IDENTITY_4X3; }
+isIdentity :: inline (m : m4x4) -> bool #no_context { return m == IDENTITY_4X4; }
 
 operator + :: inline (a : m2x2, b : m2x2) -> m2x2 #no_context { return .{ rows[0] = a.rows[0] + b.rows[0], rows[1] = a.rows[1] + b.rows[1] }; }
 operator + :: inline (a : m3x3, b : m3x3) -> m3x3 #no_context { return .{ rows[0] = a.rows[0] + b.rows[0], rows[1] = a.rows[1] + b.rows[1], rows[2] = a.rows[2] + b.rows[2] }; }
