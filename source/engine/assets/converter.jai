@@ -69,7 +69,6 @@ convertExchangeAssetsToRuntime :: () {
         defer nvttDestroyOutputOptions(nvtt_output_options);
 
         #if TEST_TEXTURES {
-            createDirectory(TEST_TEXTURES_FOLDER);
             nvttSetOutputOptionsOutputHeader(nvtt_output_options, .True);
         } else {
             nvttSetOutputOptionsOutputHandler(nvtt_output_options, null, outputHandler, null);
@@ -386,6 +385,10 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
 
         if test_file_info.last_write_time >= exchange_file_info.last_write_time {
             return .CONTINUE;
+        }
+
+        if error == .PATH_NOT_FOUND {
+            createDirectoryFor(test_filename);
         }
     } else {
         runtime_filename := makeRuntimeTextureFilename(texture_name);

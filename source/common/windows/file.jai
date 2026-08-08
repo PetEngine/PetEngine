@@ -237,8 +237,8 @@ getWindowsAbsolutePath :: (relative_path : string) -> string {
     return utf8_absolute_path;
 }
 
-createWindowsDirectory :: (filename : string) {
-    utf16_filename := UTF8ToUTF16(filename);
+createWindowsDirectoryFor :: (filename : string) {
+    utf16_filename := makeUTF16Path(filename);
     createPathToFilename(*utf16_filename, true);
 }
 

@@ -294,9 +294,10 @@ isAbsolutePath :: (path : string) -> bool #no_context #no_abc {
     }
 }
 
-createDirectory :: (filename : string) {
+// If you want to create a directory wich path == `filename` just append "/" in the end
+createDirectoryFor :: (filename : string) {
     #if OS == .WINDOWS {
-        createWindowsDirectory(filename);
+        createWindowsDirectoryFor(filename);
     } else {
         notImplemented();
     }
