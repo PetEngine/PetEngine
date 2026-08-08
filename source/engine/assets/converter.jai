@@ -4,6 +4,9 @@ AssetConverter :: struct {
     EXCHANGE_MESHES_FOLDER :: "../../../source/assets/meshes/exchange";
     RUNTIME_MESHES_FOLDER  :: "../../../source/assets/meshes/runtime";
 
+    EXCHANGE_MODELS_FOLDER :: "../../../source/assets/models/exchange";
+    RUNTIME_MODELS_FOLDER  :: "../../../source/assets/models/runtime";
+
     EXCHANGE_TEXTURES_FOLDER :: "../../../source/assets/textures/exchange";
     RUNTIME_TEXTURES_FOLDER  :: "../../../source/assets/textures/runtime";
 }
@@ -24,6 +27,23 @@ convertExchangeAssetsToRuntime :: () {
                 // everything is good
             case;
                 assertMessage("enumerateFiles(%) has failed", AssetConverter.EXCHANGE_MESHES_FOLDER);
+        }
+    }
+
+    models_context : ModelsContext;
+    {
+        models_begin := Basic.current_time_monotonic();
+        defer models_context.duration = Basic.to_float64_seconds(Basic.current_time_monotonic() - models_begin);
+
+        error := enumerateFiles(AssetConverter.EXCHANGE_MODELS_FOLDER, convertModelsCallback, *models_context, recursively = true);
+        if error == {
+            case .FILE_NOT_FOUND; #through;
+            case .PATH_NOT_FOUND;
+                verboseMessage("Exchange models folder is not found: %", AssetConverter.EXCHANGE_MODELS_FOLDER);
+            case .NONE;
+                // everything is good
+            case;
+                assertMessage("enumerateFiles(%) has failed", AssetConverter.EXCHANGE_MODELS_FOLDER);
         }
     }
 
@@ -93,6 +113,7 @@ convertExchangeAssetsToRuntime :: () {
     infoMessage(#string END
 AssetConverter statistics:
     Meshes:   total: %, converted: %, failed: %, skipped: %, duration: % seconds
+    Models:   total: %, converted: %, failed: %, skipped: %, duration: % seconds
     Textures: total: %, converted: %, failed: %, skipped: %, duration: % seconds
 END,
                 formatStatisticsInt(meshes_context.total + meshes_context.skipped),
@@ -100,11 +121,19 @@ END,
                 formatStatisticsInt(meshes_context.total - meshes_context.converted),
                 formatStatisticsInt(meshes_context.skipped),
                 formatStatisticsFloat(meshes_context.duration),
+
+                formatStatisticsInt(models_context.total + models_context.skipped),
+                formatStatisticsInt(models_context.converted),
+                formatStatisticsInt(models_context.total - models_context.converted),
+                formatStatisticsInt(models_context.skipped),
+                formatStatisticsFloat(models_context.duration),
+
                 formatStatisticsInt(textures_context.total + textures_context.skipped),
                 formatStatisticsInt(textures_context.converted),
                 formatStatisticsInt(textures_context.total - textures_context.converted),
                 formatStatisticsInt(textures_context.skipped),
-                formatStatisticsFloat(textures_context.duration));
+                formatStatisticsFloat(textures_context.duration)
+    );
 }
 
 makeRuntimeMeshFilename :: (name : string) -> string {
@@ -112,6 +141,15 @@ makeRuntimeMeshFilename :: (name : string) -> string {
 
     filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
     appendToString(*filename, capacity, AssetConverter.RUNTIME_MESHES_FOLDER, "/", name, ".mesh");
+
+    return filename;
+}
+
+makeRuntimeModelFilename :: (name : string) -> string {
+    capacity := AssetConverter.RUNTIME_MODELS_FOLDER.count + "/".count + name.count + ".model".count;
+
+    filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
+    appendToString(*filename, capacity, AssetConverter.RUNTIME_MODELS_FOLDER, "/", name, ".model");
 
     return filename;
 }
@@ -127,6 +165,7 @@ makeRuntimeTextureFilename :: (name : string) -> string {
 
 
 #load "mesh_file.jai";
+#load "model_file.jai";
 #load "texture_file.jai";
 
 #scope_file
@@ -146,6 +185,13 @@ TexturesContext :: struct {
     nvtt_output_options : *NvttOutputOptions;
     cuda_supported      : NvttBoolean;
 
+    converted : s64;
+    skipped   : s64;
+    duration  : f64;
+    total     : s64;
+}
+
+ModelsContext :: struct {
     converted : s64;
     skipped   : s64;
     duration  : f64;
@@ -176,6 +222,10 @@ TextureConversionRule :: struct {
     min_texture_height : u16 = 4;
     min_texture_depth  : u16 = 2;
 }
+
+//
+// Meshes
+//
 
 convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : File.Info(.RELATIVE)) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
@@ -233,6 +283,77 @@ convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : 
 
     return .CONTINUE;
 }
+
+//
+// Models
+//
+
+convertModelsCallback :: (models_context : *ModelsContext, exchange_file_info : File.Info(.RELATIVE)) -> EnumerateFilesCallbackResult {
+    VALID_EXCHANGE_EXTENSIONS :: string.[
+        "gltf"
+    ];
+
+    SILENTLY_IGNORE_EXTENSIONS :: string.[
+        "bin"
+    ];
+
+    extension, found := String.path_extension(exchange_file_info.path);
+    if !found || !Basic.array_find(VALID_EXCHANGE_EXTENSIONS, extension) {
+        if !Basic.array_find(SILENTLY_IGNORE_EXTENSIONS, extension) {
+            errorMessage("Model \"%\" is not supported by AssetConverter: invalid extension. Valid extensions are: %",
+                         exchange_file_info.path,
+                         VALID_EXCHANGE_EXTENSIONS);
+        }
+        return .CONTINUE;
+    }
+
+    autoResetPerFrameArenas();
+
+    model_name := string.{
+        exchange_file_info.path.count - (".".count + extension.count),
+        exchange_file_info.path.data
+    };
+
+    runtime_filename := makeRuntimeModelFilename(model_name);
+
+    runtime_file_info, error := getFileInfo(runtime_filename);
+    assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
+
+    if runtime_file_info.last_write_time >= exchange_file_info.last_write_time {
+        runtime_file:, error = openFile(runtime_filename, .READ | .SHARED_READ | .EXISTS);
+        assert(error == .NONE);
+        defer closeFile(*runtime_file);
+
+        header : ModelFile.Header = ---;
+        readFile(runtime_file, *header);
+        if header.version == ModelFile.VERSION {
+            models_context.skipped += 1;
+            return .CONTINUE;
+        }
+    }
+
+    models_context.total += 1;
+
+    exchange_filename := makeExchangeModelFilename(exchange_file_info.path);
+
+    success : bool;
+    if extension == {
+        case "gltf"; success = convertGLTFModel(exchange_filename, model_name);
+        case;        notImplemented(true);
+    }
+
+    if success {
+        models_context.converted += 1;
+    } else {
+        errorMessage("Failed to convert \"%1.%2\" to \"%1.mesh\"", model_name, extension);
+    }
+
+    return .CONTINUE;
+}
+
+//
+// Textures
+//
 
 convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_info : File.Info(.RELATIVE)) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
@@ -776,6 +897,10 @@ getExchangeTextureFlags :: (file_data : string, name : string, extension : strin
     return flags, array_size;
 }
 
+//
+// Paths
+//
+
 #if TEST_TEXTURES {
     TEST_TEXTURES_FOLDER :: "../../../source/assets/textures/test/";
 
@@ -798,6 +923,15 @@ makeExchangeMeshFilename :: (relative_filename : string) -> string {
     return filename;
 }
 
+makeExchangeModelFilename :: (relative_filename : string) -> string {
+    capacity := AssetConverter.EXCHANGE_MODELS_FOLDER.count + "/".count + relative_filename.count;
+
+    filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
+    appendToString(*filename, capacity, AssetConverter.EXCHANGE_MODELS_FOLDER, "/", relative_filename);
+
+    return filename;
+}
+
 makeExchangeTextureFilename :: (relative_filename : string) -> string {
     capacity := AssetConverter.EXCHANGE_TEXTURES_FOLDER.count + "/".count + relative_filename.count;
 
@@ -811,5 +945,6 @@ makeExchangeTextureFilename :: (relative_filename : string) -> string {
 g_contextForOutputHandler : *#Context;
 
 #load "obj_mesh.jai";
+#load "gltf_model.jai";
 
 #import "nvtt";
