@@ -106,8 +106,27 @@ convertExchangeAssetsToRuntime :: () {
         verboseMessage("Exchange textures folder is not found: %", AssetConverter.EXCHANGE_TEXTURES_FOLDER);
     }
 
-    formatStatisticsInt   :: inline (value : $T) -> Basic.FormatInt   { return .{ value = value, minimum_digits = 4, padding = #char " " }; }
-    formatStatisticsFloat :: inline (value : $T) -> Basic.FormatFloat { return .{ value = value, width = 11, trailing_width = 6 }; }
+    formatStatisticsInt :: inline (value : Any) -> Basic.FormatInt {
+        assert(value.type.type == .INTEGER);
+        assert(!cast(*Type_Info_Integer, value.type).signed);
+        format := context.print_style.default_format_int;
+        format.value          = value;
+        format.minimum_digits = 4;
+        format.padding        = #char " ";
+        if cast(*u64, value.value_pointer).* < 1000 {
+            format.comma_string = "";
+        }
+        return format;
+    }
+
+    formatStatisticsFloat :: inline (value : Any) -> Basic.FormatFloat {
+        assert(value.type.type == .FLOAT);
+        format := context.print_style.default_format_float;
+        format.value          = value;
+        format.width          = 11;
+        format.trailing_width = 6;
+        return format;
+    }
 
     infoMessage(#string END
 AssetConverter statistics:
@@ -179,10 +198,10 @@ ModelsContext :: struct {
 }
 
 Statistics :: struct {
-    converted : s64;
-    skipped   : s64;
+    converted : u64;
+    skipped   : u64;
     duration  : f64;
-    total     : s64;
+    total     : u64;
 }
 
 ExchangeTextureFlags :: enum_flags u8 {

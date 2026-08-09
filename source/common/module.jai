@@ -23,26 +23,22 @@ toView :: inline (data : *void, count : s64, $type : Type) -> [] type #no_contex
     return result;
 }
 
-formatHex :: inline (value : $T, minimum_digits := 1) -> Basic.FormatInt {
-    #assert type_info(T).type == .INTEGER;
-
-    return .{
-        value            = value,
-        base             = 16,
-        minimum_digits   = minimum_digits,
-        digits_per_comma = 4,
-        comma_string     = "'",
-    };
+formatHex :: inline (value : Any, minimum_digits := 1) -> Basic.FormatInt {
+    assert(value.type.type == .INTEGER);
+    format := context.print_style.default_format_int;
+    format.value            = value;
+    format.base             = 16;
+    format.minimum_digits   = minimum_digits;
+    format.digits_per_comma = 4;
+    return format;
 }
 
-formatInline :: inline (value : $T) -> Basic.FormatStruct {
-    INFO :: type_info(T);
-    #assert INFO.type == .STRUCT;
-
-    return .{
-        value = value,
-        use_long_form_if_more_than_this_many_members = INFO.members.count
-    };
+formatInline :: inline (value : Any) -> Basic.FormatStruct {
+    assert(value.type.type == .STRUCT);
+    format := context.print_style.default_format_struct;
+    format.value                                        = value;
+    format.use_long_form_if_more_than_this_many_members = maxOf(type_of(Basic.FormatStruct.use_long_form_if_more_than_this_many_members));
+    return format;
 }
 
 reset :: inline (array : *[] $T, $zero_memory := true) #no_context {
