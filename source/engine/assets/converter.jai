@@ -130,8 +130,8 @@ convertExchangeAssetsToRuntime :: () {
 
     infoMessage(#string END
 AssetConverter statistics:
-    Models:   total: %, converted: %, failed: %, skipped: %, duration: % seconds
-    Textures: total: %, converted: %, failed: %, skipped: %, duration: % seconds
+    | Models   | total: % | converted: % | failed: % | skipped: % | duration (s): % |
+    | Textures | total: % | converted: % | failed: % | skipped: % | duration (s): % |
 END,
                 formatStatisticsInt(models_context.total + models_context.skipped),
                 formatStatisticsInt(models_context.converted),
@@ -285,15 +285,22 @@ convertModelsCallback :: (models_context : *ModelsContext, exchange_file_info : 
 
     exchange_filename := makeExchangeModelFilename(exchange_file_info.path);
 
+    time_begin := Basic.current_time_monotonic();
     success : bool;
     if extension == {
         case "gltf"; success = convertGLTFModel(exchange_filename, model_name, *models_context.texture_conversion_rules);
         case "obj";  success = convertObjMesh(exchange_filename, model_name);
         case;        notImplemented(true);
     }
+    duration := Basic.to_float64_seconds(Basic.current_time_monotonic() - time_begin);
 
     if success {
         models_context.converted += 1;
+        if extension == "obj" { // @Cleanup: #GLTF.
+            infoMessage("\"%1.%2\" has been converted to \"%1.mesh\" for %3 seconds", model_name, extension, duration);
+        } else {
+            infoMessage("\"%1.%2\" has been converted to \"%1.model\" for %3 seconds", model_name, extension, duration);
+        }
     } else {
         if extension == "obj" { // @Cleanup: #GLTF.
             errorMessage("Failed to convert \"%1.%2\" to \"%1.mesh\"", model_name, extension);
@@ -377,8 +384,17 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
     rule := Hash_Table.table_find_pointer(textures_context.conversion_rules, texture_name);
     if !rule then rule = *DEFAULT_RULE;
 
-    if convertTextureNVTT(textures_context.*, rule, exchange_filename, texture_name, extension) {
+    time_begin := Basic.current_time_monotonic();
+    success := convertTextureNVTT(textures_context.*, rule, exchange_filename, texture_name, extension);
+    duration := Basic.to_float64_seconds(Basic.current_time_monotonic() - time_begin);
+
+    if success {
         textures_context.converted += 1;
+        #if TEST_TEXTURES {
+            infoMessage("\"%1.%2\" has been converted to \"%1.dds\" for %3 seconds", texture_name, extension, duration);
+        } else {
+            infoMessage("\"%1.%2\" has been converted to \"%1.texture\" for %3 seconds", texture_name, extension, duration);
+        }
     } else #if TEST_TEXTURES {
         errorMessage("Failed to convert \"%1.%2\" to \"%1.dds\"", texture_name, extension);
     } else {
@@ -619,11 +635,6 @@ convertTextureNVTT :: (
         return false;
     }
 
-    #if TEST_TEXTURES {
-        infoMessage("\"%1.%2\" has been converted to \"%1.dds\"", name, extension);
-    } else {
-        infoMessage("\"%1.%2\" has been converted to \"%1.texture\"", name, extension);
-    }
     return true;
 }
 

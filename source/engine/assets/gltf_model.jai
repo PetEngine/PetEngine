@@ -15,12 +15,15 @@ convertGLTFModel :: (
     gltf:, success = getAs(parsed_data, *JSON_Object);
     gltfCheck(success, FAILURE_CODE);
 
-    gltf_asset, status := getChild(gltf, "asset", *JSON_Object);
-    if status != .SUCCESS return false;
+    // Check GLTF version
+    {
+        gltf_asset, status := getChild(gltf, "asset", *JSON_Object);
+        if status != .SUCCESS return false;
 
-    version:, status = getChild(gltf_asset, "version", string);
-    if status != .SUCCESS return false;
-    gltfCheck(version == "2.0", FAILURE_CODE, "Model \"%\" is a GLTF v% model, we support only GLTF v2.0", version);
+        version:, status = getChild(gltf_asset, "version", string);
+        if status != .SUCCESS return false;
+        gltfCheck(version == "2.0", FAILURE_CODE, "Model \"%\" is a GLTF v% model, we support only GLTF v2.0", version);
+    }
 
     textures:, success = parseTextures(gltf, name);
     defer if textures.data then Basic.array_reset(*textures);
@@ -30,12 +33,13 @@ convertGLTFModel :: (
     defer if materials.data then Basic.array_reset(*materials);
     if !success return false;
 
+    // Make texture convertion rules
     for materials {
-        if it.texture_normal_index == -1 {
+        if it.texture_index_normal == ModelFile.INVALID_INDEX {
             continue;
         }
 
-        filename := textures[it.texture_normal_index];
+        filename := textures[it.texture_index_normal];
 
         if Hash_Table.table_contains(texture_conversion_rules, filename) {
             continue;
@@ -48,35 +52,35 @@ convertGLTFModel :: (
     buffers:, success = parseBuffers(gltf, exchange_filename);
     if !success return false;
 
-    meshes:, success = parseMeshes(gltf);
-    defer if meshes.data then Basic.array_reset(*meshes);
+    gltf_meshes:, success = parseMeshes(gltf);
+    defer if gltf_meshes.data then Basic.array_reset(*gltf_meshes);
     if !success return false;
+
+    vertices:, indices:, meshes:, success = uniteBuffersAndRemapMeshes(buffers, gltf_meshes);
+    defer {
+        if vertices.data then Basic.array_reset(*vertices);
+        if indices.data  then Basic.array_reset(*indices);
+    }
+    if !success return false;
+
+    if !serializeModel(name, textures, materials, meshes, vertices, indices) {
+        return false;
+    }
 
     return true;
 }
 
-GLTF_Material :: struct {
-    texture_albedo_index             : s64 = -1;
-    texture_normal_index             : s64 = -1;
-    texture_metallic_roughness_index : s64 = -1;
-    texture_emissive_index           : s64 = -1;
-    texture_occlusion_index          : s64 = -1;
-
-    factor_emissive  : v3f;
-    factor_albedo    : v4f = .{ 1.0, 1.0, 1.0, 1.0 };
-    factor_metallic  : f32 = 1.0;
-    factor_roughness : f32 = 1.0;
-}
+#scope_file
 
 GLTF_Buffer  :: [] u8;
 GLTF_Buffers :: StaticArray(GLTF_Buffer, 255);
 
 GLTF_Mesh :: struct {
     Stream :: enum u8 {
-        INDEX;
-        POSITION;
-        NORMAL;
-        TEXCOORD;
+        INDEX;    // optional
+        POSITION; // required
+        NORMAL;   // optional
+        TEXCOORD; // optional
     }
     MAX_STREAMS :: #run Basic.enum_highest_value(Stream) + 1;
 
@@ -86,7 +90,7 @@ GLTF_Mesh :: struct {
     buffer_index_by_stream    : [MAX_STREAMS] u8;
     read_stride_by_stream     : [MAX_STREAMS] u8;
 
-    material_index : s64 = -1;
+    material_index : u16 = ModelFile.INVALID_INDEX;
 
     mesh_to_model : m3x4 = IDENTITY_3X4;
     model_to_mesh : m3x4 = IDENTITY_3X4;
@@ -94,8 +98,6 @@ GLTF_Mesh :: struct {
     primitive_topology : ShaderCompiler.GraphicsPipelineState.PrimitiveTopology = .TRIANGLE_LIST;
 }
 #assert GLTF_Buffers.capacity <= maxOf(type_of(GLTF_Mesh.buffer_index_by_stream[0]));
-
-#scope_file
 
 gltfCheck :: (
     $expression            : Code,
@@ -105,10 +107,22 @@ gltfCheck :: (
     location               := #caller_location
 ) #expand #no_debug {
     if !(#insert expression) {
-        FORMAT_OR_EXPRESSION :: #ifx format.count > 0 then format else #run codeToString(expression);
-
         absolute_path := getAbsolutePath(location.fully_pathed_filename);
-        errorMessage("%(%,%): % has failed\n", absolute_path, location.line_number, location.character_number, FORMAT_OR_EXPRESSION);
+
+        #if format.count > 0 {
+            if args.count > 0 {
+                builder := Basic.String_Builder.{ allocator = Basic.temp };
+                Basic.print(*builder, format, ..args);
+
+                message := Basic.builder_to_string(*builder,, allocator = Basic.temp);
+                errorMessage("%(%,%): %", absolute_path, location.line_number, location.character_number, message);
+            } else {
+                errorMessage("%(%,%): %", absolute_path, location.line_number, location.character_number, format);
+            }
+        } else {
+            EXPRESSION :: #run codeToString(expression);
+            errorMessage("%(%,%): % has failed", absolute_path, location.line_number, location.character_number, EXPRESSION);
+        }
 
         #insert what_to_do_on_failure;
     }
@@ -421,8 +435,8 @@ parseTextures :: (gltf : *JSON_Object, model_name : string) -> [..] string, bool
 
 // @TODO: #GLTF. Support alpha stuff
 // @TODO: #GLTF. Support "texCoord" property in "*Texture" descriptors
-parseMaterials :: (gltf : *JSON_Object) -> [..] GLTF_Material, bool {
-    materials    : [..] GLTF_Material;
+parseMaterials :: (gltf : *JSON_Object) -> [..] ModelFile.Material, bool {
+    materials    : [..] ModelFile.Material;
     FAILURE_CODE :: #code { `return materials, false; };
 
     gltf_materials, status := getChild(gltf, "materials", [] JSON_Value, true);
@@ -437,7 +451,7 @@ parseMaterials :: (gltf : *JSON_Object) -> [..] GLTF_Material, bool {
 
         gltf_texture_normal:, status = getChild(it.object, "normalTexture", *JSON_Object, true);
         if status == .SUCCESS {
-            material.texture_normal_index, status = getChild(gltf_texture_normal, "index", s64);
+            material.texture_index_normal, status = getChild(gltf_texture_normal, "index", u16);
             if status != .SUCCESS return materials, false;
 
             _, status = getChild(gltf_texture_normal, "texCoord", s64, true);
@@ -448,7 +462,7 @@ parseMaterials :: (gltf : *JSON_Object) -> [..] GLTF_Material, bool {
 
         gltf_texture_occlusion:, status = getChild(it.object, "occlusionTexture", *JSON_Object, true);
         if status == .SUCCESS {
-            material.texture_occlusion_index, status = getChild(gltf_texture_occlusion, "index", s64);
+            material.texture_index_occlusion, status = getChild(gltf_texture_occlusion, "index", u16);
             if status != .SUCCESS return materials, false;
 
             _, status = getChild(gltf_texture_occlusion, "texCoord", s64, true);
@@ -459,7 +473,7 @@ parseMaterials :: (gltf : *JSON_Object) -> [..] GLTF_Material, bool {
 
         gltf_texture_emissive:, status = getChild(it.object, "emissiveTexture", *JSON_Object, true);
         if status == .SUCCESS {
-            material.texture_emissive_index, status = getChild(gltf_texture_emissive, "index", s64);
+            material.texture_index_emissive, status = getChild(gltf_texture_emissive, "index", u16);
             if status != .SUCCESS return materials, false;
 
             _, status = getChild(gltf_texture_emissive, "texCoord", s64, true);
@@ -511,7 +525,7 @@ parseMaterials :: (gltf : *JSON_Object) -> [..] GLTF_Material, bool {
 
             gltf_texture_albedo:, status = getChild(gltf_pbr, "baseColorTexture", *JSON_Object, true);
             if status == .SUCCESS {
-                material.texture_albedo_index, status = getChild(gltf_texture_albedo, "index", s64);
+                material.texture_index_albedo, status = getChild(gltf_texture_albedo, "index", u16);
                 if status != .SUCCESS return materials, false;
 
                 _, status = getChild(gltf_texture_albedo, "texCoord", s64, true);
@@ -538,7 +552,7 @@ parseMaterials :: (gltf : *JSON_Object) -> [..] GLTF_Material, bool {
 
             gltf_texture_metallic_roughness:, status = getChild(gltf_pbr, "metallicRoughnessTexture", *JSON_Object, true);
             if status == .SUCCESS {
-                material.texture_metallic_roughness_index, status = getChild(gltf_texture_metallic_roughness, "index", s64);
+                material.texture_index_metallic_roughness, status = getChild(gltf_texture_metallic_roughness, "index", u16);
                 if status != .SUCCESS return materials, false;
 
                 _, status = getChild(gltf_texture_metallic_roughness, "texCoord", s64, true);
@@ -679,7 +693,7 @@ parseMeshes :: (gltf : *JSON_Object) -> [..] GLTF_Mesh, bool {
                 gltfCheck(status == .CHILD_NOT_FOUND, FAILURE_CODE);
             }
 
-            material_index:, status = getChild(it.object, "material", s64, true);
+            material_index:, status = getChild(it.object, "material", u16, true);
             if status == .SUCCESS {
                 mesh.material_index = material_index;
             } else {
@@ -823,6 +837,23 @@ parseAccessor :: (
 
     mesh.count_by_stream[stream], status = getChild(gltf_accessor.object, "count", s64);
     if status != .SUCCESS return false;
+    gltfCheck(mesh.count_by_stream[stream] >= 0, FAILURE_CODE);
+
+    #if stream == .POSITION {
+        gltfCheck(mesh.count_by_stream[stream],
+                  FAILURE_CODE,
+                  "% stream is required. It exists, but number of entires is %",
+                  stream,
+                  mesh.count_by_stream[stream]);
+    } else #if stream != .INDEX {
+        gltfCheck(mesh.count_by_stream[stream] == mesh.count_by_stream[GLTF_Mesh.Stream.POSITION],
+                  FAILURE_CODE,
+                  "% count (%) != % count (%)",
+                  stream,
+                  mesh.count_by_stream[stream],
+                  GLTF_Mesh.Stream.POSITION,
+                  mesh.count_by_stream[GLTF_Mesh.Stream.POSITION]);
+    }
 
     buffer_view_index:, status = getChild(gltf_accessor.object, "bufferView", s64);
     if status != .SUCCESS return false;
@@ -842,8 +873,13 @@ parseAccessor :: (
         mesh.offset_in_bytes_by_stream[stream] += temp;
     }
 
-    mesh.read_stride_by_stream[stream], status = getChild(gltf_buffer_view.object, "byteStride", u8, true);
-    if status == .FAIL return false;
+    byte_stride:, status = getChild(gltf_buffer_view.object, "byteStride", u8, true);
+    if status == .SUCCESS {
+        mesh.read_stride_by_stream[stream] = byte_stride;
+    } else {
+        gltfCheck(status == .CHILD_NOT_FOUND, FAILURE_CODE);
+        mesh.read_stride_by_stream[stream] = cast(u8) cast(*Type_Info, type).runtime_size;
+    }
 
     return true;
 }
@@ -917,6 +953,157 @@ accessorTypeAndComponentTypeToType :: (accessor_type : string, component_type : 
     }
 
     return void;
+}
+
+uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_Mesh) -> (
+    vertices : [..] VertexTypes.Default,
+    indices  : [..] u32,
+    meshes   : [] ModelFile.Mesh,
+    success  : bool
+) {
+    vertices     : [..] VertexTypes.Default;
+    indices      : [..] u32;
+    meshes       : [] ModelFile.Mesh;
+    FAILURE_CODE :: #code { `return vertices, indices, meshes, false; };
+
+    Basic.array_reserve(*vertices, 1_000_000);
+    Basic.array_reserve(*indices,  1_000_000);
+    meshes.count = gltf_meshes.count;
+    meshes.data  = pushToArena(*context.pet.arenas.per_frame, ModelFile.Mesh, meshes.count);
+
+    for gltf_mesh : gltf_meshes {
+        mesh := *meshes[it_index];
+        mesh.mesh_to_model       = gltf_mesh.mesh_to_model;
+        mesh.model_to_mesh       = gltf_mesh.model_to_mesh;
+        mesh.material_index      = gltf_mesh.material_index;
+        mesh.primitive_topology  = gltf_mesh.primitive_topology;
+        mesh.indices_start       = cast(u32) indices.count;
+        defer mesh.indices_count = cast(u32, indices.count) - mesh.indices_start;
+
+        this_mesh_vertices_offset := cast(u32) vertices.count;
+
+        gltf_indices_count := gltf_mesh.count_by_stream[GLTF_Mesh.Stream.INDEX];
+        if gltf_indices_count > 0 {
+            buffer      := buffers[gltf_mesh.buffer_index_by_stream[GLTF_Mesh.Stream.INDEX]];
+            offset      := gltf_mesh.offset_in_bytes_by_stream[GLTF_Mesh.Stream.INDEX];
+            read_stride := gltf_mesh.read_stride_by_stream[GLTF_Mesh.Stream.INDEX];
+            type        := gltf_mesh.type_by_stream[GLTF_Mesh.Stream.INDEX];
+
+            for 0 .. gltf_indices_count - 1 {
+                raw_data : *u8 = *buffer[offset + it * read_stride];
+
+                index := this_mesh_vertices_offset;
+                if type == {
+                    case u8;  index += cast(*u8,  raw_data).*;
+                    case u16; index += cast(*u16, raw_data).*;
+                    case u32; index += cast(*u32, raw_data).*;
+                }
+
+                Basic.array_add(*indices, index);
+            }
+        }
+
+        vertices_count := gltf_mesh.count_by_stream[GLTF_Mesh.Stream.POSITION];
+        for 0 .. vertices_count - 1 {
+            vertex, success := makeDefaultVertex(buffers, gltf_mesh, it);
+            if !success return vertices, indices, meshes, false;
+
+            Basic.array_add(*vertices, vertex);
+
+            if gltf_indices_count <= 0 {
+                index := this_mesh_vertices_offset + cast(u32) it;
+                Basic.array_add(*indices, index);
+            }
+        }
+    }
+
+    return vertices, indices, meshes, true;
+}
+
+makeDefaultVertex :: (buffers : GLTF_Buffers, mesh : GLTF_Mesh, vertex_index : s64) -> VertexTypes.Default, bool {
+    vertex       : VertexTypes.Default;
+    FAILURE_CODE :: #code { `return vertex, false; };
+
+    count := mesh.count_by_stream[GLTF_Mesh.Stream.POSITION];
+    {
+        gltfCheck(vertex_index < count, FAILURE_CODE);
+
+        STREAM :: GLTF_Mesh.Stream.POSITION;
+
+        buffer      := buffers[mesh.buffer_index_by_stream[STREAM]];
+        offset      := mesh.offset_in_bytes_by_stream[STREAM];
+        read_stride := mesh.read_stride_by_stream[STREAM];
+        type        := mesh.type_by_stream[STREAM];
+
+        floats := cast(*f32) *buffer[offset + vertex_index * read_stride];
+
+        position : v3f = ---;
+        position.x =  floats[0];
+        position.y =  floats[1];
+        position.z = -floats[2]; // #RHtoLH.
+
+        if type == v4f {
+            w := floats[3];
+            gltfCheck(almostZero(w) || almostEquals(w, 1.0), FAILURE_CODE);
+        }
+
+        vertex.position_u.xyz = position;
+    }
+
+    count = mesh.count_by_stream[GLTF_Mesh.Stream.NORMAL];
+    if count > 0 {
+        gltfCheck(vertex_index < count, FAILURE_CODE);
+
+        STREAM :: GLTF_Mesh.Stream.NORMAL;
+
+        buffer      := buffers[mesh.buffer_index_by_stream[STREAM]];
+        offset      := mesh.offset_in_bytes_by_stream[STREAM];
+        read_stride := mesh.read_stride_by_stream[STREAM];
+        type        := mesh.type_by_stream[STREAM];
+
+        floats := cast(*f32) *buffer[offset + vertex_index * read_stride];
+
+        normal : v3f = ---;
+        normal.x =  floats[0];
+        normal.y =  floats[1];
+        normal.z = -floats[2]; // #RHtoLH.
+
+        if type == v4f {
+            w := floats[3];
+            gltfCheck(almostZero(w) || almostEquals(w, 1.0), FAILURE_CODE);
+        }
+
+        assertNormalized(normal);
+        vertex.normal_v.xyz = normal;
+    }
+
+    count = mesh.count_by_stream[GLTF_Mesh.Stream.TEXCOORD];
+    if count > 0 {
+        gltfCheck(vertex_index < count, FAILURE_CODE);
+
+        STREAM :: GLTF_Mesh.Stream.TEXCOORD;
+
+        buffer      := buffers[mesh.buffer_index_by_stream[STREAM]];
+        offset      := mesh.offset_in_bytes_by_stream[STREAM];
+        read_stride := mesh.read_stride_by_stream[STREAM];
+        type        := mesh.type_by_stream[STREAM];
+
+        floats := cast(*f32) *buffer[offset + vertex_index * read_stride];
+
+        if type == {
+            case f32;
+                vertex.position_u.w = floats[0];
+
+            case v2f;
+                vertex.position_u.w = floats[0];
+                vertex.normal_v.w   = floats[1];
+
+            case v3f;
+                gltfCheck(false, FAILURE_CODE, "3-dimensional texture coordinates are not fully supported yet");
+        }
+    }
+
+    return vertex, true;
 }
 
 #import "jaison";

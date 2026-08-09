@@ -1,6 +1,6 @@
 convertObjMesh :: (exchange_filename : string, name : string) -> bool {
     data, error := readEntireFile(exchange_filename);
-    assert(error == .NONE, "The error must be NONE because we know that the file exists");
+    assert(error == .NONE);
 
     obj_mesh : ObjMesh;
     if !parseObjFile(data, *obj_mesh, name) {
@@ -26,7 +26,6 @@ convertObjMesh :: (exchange_filename : string, name : string) -> bool {
         return false;
     }
 
-    infoMessage("\"%1.obj\" has been converted to \"%1.mesh\"", name);
     return true;
 }
 
