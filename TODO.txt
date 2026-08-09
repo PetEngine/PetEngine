@@ -39,6 +39,7 @@ Mesh file:
 
 - #Atomics. Implement atomics
 - Write our own version of Basic.builder_to_string that uses Arena
+- Make context.print_style.struct_printer for our types
 
 Debug:
     - Find out how Visual Studio handles inline procedures.

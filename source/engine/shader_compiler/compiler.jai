@@ -25,7 +25,7 @@ ShaderCompiler :: struct {
     } #no_padding
 
     GraphicsPipelineState :: struct {
-        PrimitiveTopology :: enum u8{
+        PrimitiveTopology :: enum u8 {
             POINT_LIST;
             LINE_LIST;
             LINE_STRIP;

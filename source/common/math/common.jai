@@ -3,8 +3,8 @@
 PI : f32 : Math.PI;
 
 // Interval machine epsilons
-DEFAULT_F32_EPSILON : f32 : 0.00001;
-DEFAULT_F64_EPSILON : f64 : 0.0000001;
+DEFAULT_F32_EPSILON : f32 : 1.e-5; // 0.00001
+DEFAULT_F64_EPSILON : f64 : 1.e-7; // 0.0000001
 
 Resolution :: struct {
     width  : u16;
