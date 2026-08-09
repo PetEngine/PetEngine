@@ -452,8 +452,9 @@ petMain :: () {
     waitDeviceIdle();
 }
 
-operator -  :: Basic.operator -;
-operator >= :: Basic.operator >=;
+operator -    :: Basic.operator -;
+operator >=   :: Basic.operator >=;
+for_expansion :: Hash_Table.for_expansion;
 
 #import "common"()(DEBUG_BUILD, PRINT_VERBOSE_MESSAGES, xx GRAPHICS_API);
 
@@ -477,6 +478,7 @@ operator >= :: Basic.operator >=;
 Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_OVERWRITE_MEMORY = DEBUG_BUILD);
 Reflection :: #import "Reflection";
 Atomics    :: #import "Atomics";
+Hash_Table :: #import "Hash_Table";
 #if CPU == .X64 {
     Machine_X64 :: #import "Machine_X64";
 }

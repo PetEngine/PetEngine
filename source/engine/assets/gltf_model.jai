@@ -1,4 +1,8 @@
-convertGLTFModel :: (exchange_filename : string, name : string) -> bool {
+convertGLTFModel :: (
+    exchange_filename        : string,
+    name                     : string,
+    texture_conversion_rules : *Hash_Table.Table(string, TextureConversionRule)
+) -> bool {
     FAILURE_CODE :: #code { `return false; };
 
     file_data, error := readEntireFile(exchange_filename);
@@ -25,6 +29,21 @@ convertGLTFModel :: (exchange_filename : string, name : string) -> bool {
     materials:, success = parseMaterials(gltf);
     defer if materials.data then Basic.array_reset(*materials);
     if !success return false;
+
+    for materials {
+        if it.texture_normal_index == -1 {
+            continue;
+        }
+
+        filename := textures[it.texture_normal_index];
+
+        if Hash_Table.table_contains(texture_conversion_rules, filename) {
+            continue;
+        }
+
+        rule := TextureConversionRule.{ normal_map = true };
+        Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
+    }
 
     buffers:, success = parseBuffers(gltf, exchange_filename);
     if !success return false;
@@ -901,4 +920,3 @@ accessorTypeAndComponentTypeToType :: (accessor_type : string, component_type : 
 }
 
 #import "jaison";
-Hash_Table :: #import "Hash_Table";

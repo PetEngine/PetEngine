@@ -11,6 +11,19 @@ AssetConverter :: struct {
     RUNTIME_TEXTURES_FOLDER  :: "../../../source/assets/textures/runtime";
 }
 
+// @TODO: #ConversionRules.
+TextureConversionRule :: struct {
+    max_texture_width  : u16 = 4096;
+    max_texture_height : u16 = 4096;
+    max_texture_depth  : u16 = 2048;
+
+    min_texture_width  : u16 = 4;
+    min_texture_height : u16 = 4;
+    min_texture_depth  : u16 = 2;
+
+    normal_map : bool;
+}
+
 convertExchangeAssetsToRuntime :: () {
     meshes_context : MeshesContext;
 
@@ -31,6 +44,12 @@ convertExchangeAssetsToRuntime :: () {
     }
 
     models_context : ModelsContext;
+    defer if models_context.texture_conversion_rules.entries.data {
+        for models_context.texture_conversion_rules {
+            Basic.free(it_index);
+        }
+        Hash_Table.deinit(*models_context.texture_conversion_rules);
+    }
     {
         models_begin := Basic.current_time_monotonic();
         defer models_context.duration = Basic.to_float64_seconds(Basic.current_time_monotonic() - models_begin);
@@ -47,7 +66,9 @@ convertExchangeAssetsToRuntime :: () {
         }
     }
 
-    textures_context : TexturesContext;
+    textures_context := TexturesContext.{
+        conversion_rules = *models_context.texture_conversion_rules
+    };
     if fileExists(AssetConverter.EXCHANGE_TEXTURES_FOLDER) {
         textures_begin := Basic.current_time_monotonic();
         defer textures_context.duration = Basic.to_float64_seconds(Basic.current_time_monotonic() - textures_begin);
@@ -162,7 +183,6 @@ makeRuntimeTextureFilename :: (name : string) -> string {
     return filename;
 }
 
-
 #load "mesh_file.jai";
 #load "model_file.jai";
 #load "texture_file.jai";
@@ -172,11 +192,7 @@ makeRuntimeTextureFilename :: (name : string) -> string {
 TEST_TEXTURES :: false;
 
 MeshesContext :: struct {
-    converted : s64;
-    skipped   : s64;
-    duration  : f64;
-
-    total : s64; // #Temp.
+    using statistics : Statistics;
 }
 
 TexturesContext :: struct {
@@ -184,13 +200,17 @@ TexturesContext :: struct {
     nvtt_output_options : *NvttOutputOptions;
     cuda_supported      : NvttBoolean;
 
-    converted : s64;
-    skipped   : s64;
-    duration  : f64;
-    total     : s64;
+    conversion_rules : *Hash_Table.Table(string, TextureConversionRule);
+
+    using statistics : Statistics;
 }
 
 ModelsContext :: struct {
+    texture_conversion_rules : Hash_Table.Table(string, TextureConversionRule);
+    using statistics : Statistics;
+}
+
+Statistics :: struct {
     converted : s64;
     skipped   : s64;
     duration  : f64;
@@ -210,17 +230,6 @@ SurfaceInfo :: struct {
     mip         : u8;
 }
 SurfaceInfoArray :: StaticArray(SurfaceInfo, 6 * Texture.MAX_MIPS_SUPPORTED);
-
-// @TODO: #ConversionRules.
-TextureConversionRule :: struct {
-    max_texture_width  : u16 = 4096;
-    max_texture_height : u16 = 4096;
-    max_texture_depth  : u16 = 2048;
-
-    min_texture_width  : u16 = 4;
-    min_texture_height : u16 = 4;
-    min_texture_depth  : u16 = 2;
-}
 
 //
 // Meshes
@@ -337,7 +346,7 @@ convertModelsCallback :: (models_context : *ModelsContext, exchange_file_info : 
 
     success : bool;
     if extension == {
-        case "gltf"; success = convertGLTFModel(exchange_filename, model_name);
+        case "gltf"; success = convertGLTFModel(exchange_filename, model_name, *models_context.texture_conversion_rules);
         case;        notImplemented(true);
     }
 
@@ -418,8 +427,9 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
 
     exchange_filename := makeExchangeTextureFilename(exchange_file_info.path);
 
-    // @TODO: #ConversionRules.
-    rule : TextureConversionRule;
+    DEFAULT_RULE : TextureConversionRule : .{};
+    rule := Hash_Table.table_find_pointer(textures_context.conversion_rules, texture_name);
+    if !rule then rule = *DEFAULT_RULE;
 
     if convertTextureNVTT(textures_context.*, rule, exchange_filename, texture_name, extension) {
         textures_context.converted += 1;
@@ -442,7 +452,7 @@ convertTextureNVTT :: (
     file_data, error := readEntireFile(exchange_filename);
     assert(error == .NONE);
 
-    exchange_texture_flags, array_size := getExchangeTextureFlags(file_data, name, extension);
+    exchange_texture_flags, array_size := getExchangeTextureFlags(file_data, name, extension, rule.normal_map);
     if array_size {
         errorMessage("NVTT 3.0 has no support for texture arrays, so they are not supported yet");
         return false;
@@ -461,24 +471,10 @@ convertTextureNVTT :: (
     nvtt_success := nvttSurfaceLoadFromMemory(nvtt_surface,
                                               file_data.data,
                                               cast(u64) file_data.count,
-                                              *has_alpha,
-                                              cast(NvttBoolean) (exchange_texture_flags & .NORMAL_MAP));
+                                              *has_alpha);
     if nvtt_success == .False {
         errorMessage("nvttSurfaceLoadFromMemory has failed");
         return false;
-    }
-
-    #if TEST_TEXTURES {
-        if exchange_texture_flags & .NORMAL_MAP {
-            nvttSetSurfaceNormalMap(nvtt_surface, .True);
-            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
-        } else if exchange_texture_flags & .HDR {
-            nvttSetSurfaceNormalMap(nvtt_surface, .False);
-            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
-        } else {
-            nvttSetSurfaceNormalMap(nvtt_surface, .False);
-            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .True);
-        }
     }
 
     if textures_context.cuda_supported {
@@ -637,6 +633,17 @@ convertTextureNVTT :: (
     //
 
     #if TEST_TEXTURES {
+        if exchange_texture_flags & .NORMAL_MAP {
+            nvttSetSurfaceNormalMap(nvtt_surface, .True);
+            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
+        } else if exchange_texture_flags & .HDR {
+            nvttSetSurfaceNormalMap(nvtt_surface, .False);
+            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .False);
+        } else {
+            nvttSetSurfaceNormalMap(nvtt_surface, .False);
+            nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, .True);
+        }
+
         if texture_file_header.flags & .CUBE {
             nvttContextOutputHeaderCube(textures_context.nvtt_context,
                                         nvtt_cube_surface,
@@ -819,7 +826,7 @@ NVTT_FOURCC  : u32 : #char "N" | (#char "V" << 8) | (#char "T" << 16) | (#char "
 DDPF_SRGB    : u32 : 0x4000_0000;
 DDPF_NORMAL  : u32 : 0x8000_0000;
 
-getExchangeTextureFlags :: (file_data : string, name : string, extension : string) -> (flags : ExchangeTextureFlags, array_size : u16) {
+getExchangeTextureFlags :: (file_data : string, name : string, extension : string, normal_map : bool) -> (flags : ExchangeTextureFlags, array_size : u16) {
     flags      : ExchangeTextureFlags;
     array_size : u16;
 
@@ -884,7 +891,9 @@ getExchangeTextureFlags :: (file_data : string, name : string, extension : strin
             assertMessage("Unhandled extension: \"%\"", extension);
     }
 
-    if !(flags & .NORMAL_MAP) {
+    if normal_map {
+        flags |= .NORMAL_MAP;
+    } else if !(flags & .NORMAL_MAP) {
         // heuristics
         if String.ends_with(name, "_n")
         || String.ends_with(name, "_norm")

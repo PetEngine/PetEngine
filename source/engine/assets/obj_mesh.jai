@@ -437,5 +437,3 @@ convertVertices :: (obj_mesh : *ObjMesh, vertices : *[Mesh.MAX_SUBMESHES][..] Ve
 
     return cast(u8) obj_mesh.vertex_groups.count;
 }
-
-Hash_Table :: #import "Hash_Table";
