@@ -419,8 +419,8 @@ parseTextures :: (gltf : *JSON_Object, model_name : string) -> [..] string, bool
     return textures, true;
 }
 
-// @TODO: Support alpha stuff
-// @TODO: Support "texCoord" property in "*Texture" descriptors
+// @TODO: #GLTF. Support alpha stuff
+// @TODO: #GLTF. Support "texCoord" property in "*Texture" descriptors
 parseMaterials :: (gltf : *JSON_Object) -> [..] GLTF_Material, bool {
     materials    : [..] GLTF_Material;
     FAILURE_CODE :: #code { `return materials, false; };
@@ -595,9 +595,9 @@ parseBuffers :: (gltf : *JSON_Object, exchange_filename : string) -> GLTF_Buffer
     return buffers, true;
 }
 
-// @TODO: Support cameras
-// @TODO: Support node graph
-// @TODO: Support animations
+// @TODO: #GLTF. Support cameras
+// @TODO: #GLTF. Support node graph
+// @TODO: #GLTF. Support animations
 parseMeshes :: (gltf : *JSON_Object) -> [..] GLTF_Mesh, bool {
     meshes    : [..] GLTF_Mesh;
     FAILURE_CODE :: #code { `return meshes, false; };
@@ -724,7 +724,7 @@ parseMeshes :: (gltf : *JSON_Object) -> [..] GLTF_Mesh, bool {
     return meshes, true;
 }
 
-// @TODO: Support "matrix" property
+// @TODO: #GLTF. Support "matrix" property
 parseMatrix :: (gltf_node : *JSON_Object) -> (matrix : m3x4, inv_matrix : m3x4, status : ParseStatus) {
     FAILURE_CODE :: #code { `return IDENTITY_3X4, IDENTITY_3X4, .FAIL; };
 

@@ -1,14 +1,11 @@
 AssetConverter :: struct {
     VERSION :: 1;
 
-    EXCHANGE_MESHES_FOLDER :: "../../../source/assets/meshes/exchange";
-    RUNTIME_MESHES_FOLDER  :: "../../../source/assets/meshes/runtime";
+    EXCHANGE_MODELS_FOLDER :: "../../../source/assets/exchange/models";
+    RUNTIME_MODELS_FOLDER  :: "../../../source/assets/runtime/models";
 
-    EXCHANGE_MODELS_FOLDER :: "../../../source/assets/models/exchange";
-    RUNTIME_MODELS_FOLDER  :: "../../../source/assets/models/runtime";
-
-    EXCHANGE_TEXTURES_FOLDER :: "../../../source/assets/textures/exchange";
-    RUNTIME_TEXTURES_FOLDER  :: "../../../source/assets/textures/runtime";
+    EXCHANGE_TEXTURES_FOLDER :: "../../../source/assets/exchange/textures";
+    RUNTIME_TEXTURES_FOLDER  :: "../../../source/assets/runtime/textures";
 }
 
 // @TODO: #ConversionRules.
@@ -25,24 +22,6 @@ TextureConversionRule :: struct {
 }
 
 convertExchangeAssetsToRuntime :: () {
-    meshes_context : MeshesContext;
-
-    {
-        meshes_begin := Basic.current_time_monotonic();
-        defer meshes_context.duration = Basic.to_float64_seconds(Basic.current_time_monotonic() - meshes_begin);
-
-        error := enumerateFiles(AssetConverter.EXCHANGE_MESHES_FOLDER, convertMeshesCallback, *meshes_context, recursively = true);
-        if error == {
-            case .FILE_NOT_FOUND; #through;
-            case .PATH_NOT_FOUND;
-                verboseMessage("Exchange meshes folder is not found: %", AssetConverter.EXCHANGE_MESHES_FOLDER);
-            case .NONE;
-                // everything is good
-            case;
-                assertMessage("enumerateFiles(%) has failed", AssetConverter.EXCHANGE_MESHES_FOLDER);
-        }
-    }
-
     models_context : ModelsContext;
     defer if models_context.texture_conversion_rules.entries.data {
         for models_context.texture_conversion_rules {
@@ -132,16 +111,9 @@ convertExchangeAssetsToRuntime :: () {
 
     infoMessage(#string END
 AssetConverter statistics:
-    Meshes:   total: %, converted: %, failed: %, skipped: %, duration: % seconds
     Models:   total: %, converted: %, failed: %, skipped: %, duration: % seconds
     Textures: total: %, converted: %, failed: %, skipped: %, duration: % seconds
 END,
-                formatStatisticsInt(meshes_context.total + meshes_context.skipped),
-                formatStatisticsInt(meshes_context.converted),
-                formatStatisticsInt(meshes_context.total - meshes_context.converted),
-                formatStatisticsInt(meshes_context.skipped),
-                formatStatisticsFloat(meshes_context.duration),
-
                 formatStatisticsInt(models_context.total + models_context.skipped),
                 formatStatisticsInt(models_context.converted),
                 formatStatisticsInt(models_context.total - models_context.converted),
@@ -156,11 +128,11 @@ END,
     );
 }
 
-makeRuntimeMeshFilename :: (name : string) -> string {
-    capacity := AssetConverter.RUNTIME_MESHES_FOLDER.count + "/".count + name.count + ".mesh".count;
+makeRuntimeMeshFilename :: (name : string) -> string { // @Cleanup: #GLTF. Remove
+    capacity := AssetConverter.RUNTIME_MODELS_FOLDER.count + "/".count + name.count + ".mesh".count;
 
     filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
-    appendToString(*filename, capacity, AssetConverter.RUNTIME_MESHES_FOLDER, "/", name, ".mesh");
+    appendToString(*filename, capacity, AssetConverter.RUNTIME_MODELS_FOLDER, "/", name, ".mesh");
 
     return filename;
 }
@@ -190,10 +162,6 @@ makeRuntimeTextureFilename :: (name : string) -> string {
 #scope_file
 
 TEST_TEXTURES :: false;
-
-MeshesContext :: struct {
-    using statistics : Statistics;
-}
 
 TexturesContext :: struct {
     nvtt_context        : *NvttContext;
@@ -232,73 +200,13 @@ SurfaceInfo :: struct {
 SurfaceInfoArray :: StaticArray(SurfaceInfo, 6 * Texture.MAX_MIPS_SUPPORTED);
 
 //
-// Meshes
-//
-
-convertMeshesCallback :: (meshes_context : *MeshesContext, exchange_file_info : File.Info(.RELATIVE)) -> EnumerateFilesCallbackResult {
-    VALID_EXCHANGE_EXTENSIONS :: string.[
-        "obj"
-    ];
-
-    extension, found := String.path_extension(exchange_file_info.path);
-    if !found || !Basic.array_find(VALID_EXCHANGE_EXTENSIONS, extension) {
-        errorMessage("Mesh \"%\" is not supported by AssetConverter: invalid extension. Valid extensions are: %",
-                     exchange_file_info.path,
-                     VALID_EXCHANGE_EXTENSIONS);
-        return .CONTINUE;
-    }
-
-    autoResetPerFrameArenas();
-
-    mesh_name := string.{
-        exchange_file_info.path.count - (".".count + extension.count),
-        exchange_file_info.path.data
-    };
-
-    runtime_filename := makeRuntimeMeshFilename(mesh_name);
-
-    runtime_file_info, error := getFileInfo(runtime_filename);
-    assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
-
-    if runtime_file_info.last_write_time >= exchange_file_info.last_write_time {
-        runtime_file:, error = openFile(runtime_filename, .READ | .SHARED_READ | .EXISTS);
-        assert(error == .NONE);
-        defer closeFile(*runtime_file);
-
-        header : MeshFile.Header = ---;
-        readFile(runtime_file, *header);
-        if header.version == MeshFile.VERSION {
-            meshes_context.skipped += 1;
-            return .CONTINUE;
-        }
-    }
-
-    meshes_context.total += 1;
-
-    exchange_filename := makeExchangeMeshFilename(exchange_file_info.path);
-
-    success : bool;
-    if extension == {
-        case "obj"; success = convertObjMesh(exchange_filename, mesh_name);
-        case;       notImplemented(true);
-    }
-
-    if success {
-        meshes_context.converted += 1;
-    } else {
-        errorMessage("Failed to convert \"%1.%2\" to \"%1.mesh\"", mesh_name, extension);
-    }
-
-    return .CONTINUE;
-}
-
-//
 // Models
 //
 
 convertModelsCallback :: (models_context : *ModelsContext, exchange_file_info : File.Info(.RELATIVE)) -> EnumerateFilesCallbackResult {
     VALID_EXCHANGE_EXTENSIONS :: string.[
-        "gltf"
+        "gltf",
+        "obj",
     ];
 
     SILENTLY_IGNORE_EXTENSIONS :: string.[
@@ -322,7 +230,12 @@ convertModelsCallback :: (models_context : *ModelsContext, exchange_file_info : 
         exchange_file_info.path.data
     };
 
-    runtime_filename := makeRuntimeModelFilename(model_name);
+    runtime_filename : string = ---;
+    if extension == "obj" { // @Cleanup: #GLTF.
+        runtime_filename = makeRuntimeMeshFilename(model_name);
+    } else {
+        runtime_filename = makeRuntimeModelFilename(model_name);
+    }
 
     runtime_file_info, error := getFileInfo(runtime_filename);
     assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
@@ -332,11 +245,20 @@ convertModelsCallback :: (models_context : *ModelsContext, exchange_file_info : 
         assert(error == .NONE);
         defer closeFile(*runtime_file);
 
-        header : ModelFile.Header = ---;
-        readFile(runtime_file, *header);
-        if header.version == ModelFile.VERSION {
-            models_context.skipped += 1;
-            return .CONTINUE;
+        if extension == "obj" { // @Cleanup: #GLTF.
+            header : MeshFile.Header = ---;
+            readFile(runtime_file, *header);
+            if header.version == MeshFile.VERSION {
+                models_context.skipped += 1;
+                return .CONTINUE;
+            }
+        } else {
+            header : ModelFile.Header = ---;
+            readFile(runtime_file, *header);
+            if header.version == ModelFile.VERSION {
+                models_context.skipped += 1;
+                return .CONTINUE;
+            }
         }
     }
 
@@ -347,13 +269,18 @@ convertModelsCallback :: (models_context : *ModelsContext, exchange_file_info : 
     success : bool;
     if extension == {
         case "gltf"; success = convertGLTFModel(exchange_filename, model_name, *models_context.texture_conversion_rules);
+        case "obj";  success = convertObjMesh(exchange_filename, model_name);
         case;        notImplemented(true);
     }
 
     if success {
         models_context.converted += 1;
     } else {
-        errorMessage("Failed to convert \"%1.%2\" to \"%1.mesh\"", model_name, extension);
+        if extension == "obj" { // @Cleanup: #GLTF.
+            errorMessage("Failed to convert \"%1.%2\" to \"%1.mesh\"", model_name, extension);
+        } else {
+            errorMessage("Failed to convert \"%1.%2\" to \"%1.model\"", model_name, extension);
+        }
     }
 
     return .CONTINUE;
@@ -914,7 +841,7 @@ getExchangeTextureFlags :: (file_data : string, name : string, extension : strin
 //
 
 #if TEST_TEXTURES {
-    TEST_TEXTURES_FOLDER :: "../../../source/assets/textures/test/";
+    TEST_TEXTURES_FOLDER :: "../../../source/assets/test/textures/";
 
     makeTestTextureFilename :: (name : string) -> string {
         capacity := TEST_TEXTURES_FOLDER.count + name.count + ".dds\0".count;
@@ -924,15 +851,6 @@ getExchangeTextureFlags :: (file_data : string, name : string, extension : strin
 
         return filename;
     }
-}
-
-makeExchangeMeshFilename :: (relative_filename : string) -> string {
-    capacity := AssetConverter.EXCHANGE_MESHES_FOLDER.count + "/".count + relative_filename.count;
-
-    filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
-    appendToString(*filename, capacity, AssetConverter.EXCHANGE_MESHES_FOLDER, "/", relative_filename);
-
-    return filename;
 }
 
 makeExchangeModelFilename :: (relative_filename : string) -> string {

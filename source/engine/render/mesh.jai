@@ -1,4 +1,4 @@
-// @Cleanup: Replace with ModelMesh?
+// @Cleanup: #GLTF. Replace with ModelMesh?
 Mesh :: struct {
     MAX_SUBMESHES :: 16;
 
