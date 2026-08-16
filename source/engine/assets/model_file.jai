@@ -37,15 +37,12 @@ ModelFile :: struct {
         texture_index_occlusion          : u16 = INVALID_INDEX;
     } #no_padding
 
-    PrimitiveTopology :: ShaderCompiler.GraphicsPipelineState.PrimitiveTopology;
-
     Mesh :: struct {
-        indices_start      : u32;
-        indices_count      : u32;
-        mesh_to_model      : m3x4              =  IDENTITY_3X4;
-        model_to_mesh      : m3x4              =  IDENTITY_3X4;
-        material_index     : u16               =  INVALID_INDEX;
-        primitive_topology : PrimitiveTopology = .TRIANGLE_LIST;
+        indices_start  : u32;
+        indices_count  : u32;
+        mesh_to_model  : m3x4 =  IDENTITY_3X4;
+        model_to_mesh  : m3x4 =  IDENTITY_3X4;
+        material_index : u16  =  INVALID_INDEX;
     } #no_padding
 
     getHeader :: inline (file_data : string) -> *Header {

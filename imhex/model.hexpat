@@ -46,21 +46,12 @@ struct m3x4 {
     float e20, e21, e22, e23;
 };
 
-enum PrimitiveTopology : u8 {
-    POINT_LIST     = 0,
-    LINE_LIST      = 1,
-    LINE_STRIP     = 2,
-    TRIANGLE_LIST  = 3,
-    TRIANGLE_STRIP = 4,
-};
-
 struct Mesh {
     u32  indices_start;
     u32  indices_count;
     m3x4 mesh_to_model;
     m3x4 model_to_mesh;
     u16 material_index;
-    PrimitiveTopology primitive_topology;
 };
 
 struct v4f {

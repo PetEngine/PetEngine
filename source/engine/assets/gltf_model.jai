@@ -94,8 +94,6 @@ GLTF_Mesh :: struct {
 
     mesh_to_model : m3x4 = IDENTITY_3X4;
     model_to_mesh : m3x4 = IDENTITY_3X4;
-
-    primitive_topology : ShaderCompiler.GraphicsPipelineState.PrimitiveTopology = .TRIANGLE_LIST;
 }
 #assert GLTF_Buffers.capacity <= maxOf(type_of(GLTF_Mesh.buffer_index_by_stream[0]));
 
@@ -675,20 +673,18 @@ parseMeshes :: (gltf : *JSON_Object) -> [..] GLTF_Mesh, bool {
 
             gl_mode:, status = getChild(it.object, "mode", u16, true);
             if status == .SUCCESS {
-                GL_POINTS         : u16 : 0x0000;
-                GL_LINES          : u16 : 0x0001;
-                GL_LINE_STRIP     : u16 : 0x0003;
-                GL_TRIANGLES      : u16 : 0x0004;
-                GL_TRIANGLE_STRIP : u16 : 0x0005;
+                GL_POINTS         :: 0x0000;
+                GL_LINES          :: 0x0001;
+                GL_LINE_LOOP      :: 0x0002;
+                GL_LINE_STRIP     :: 0x0003;
+                GL_TRIANGLES      :: 0x0004;
+                GL_TRIANGLE_STRIP :: 0x0005;
+                GL_TRIANGLE_FAN   :: 0x0006;
+                GL_QUADS          :: 0x0007;
+                GL_QUAD_STRIP     :: 0x0008;
+                GL_POLYGON        :: 0x0009;
 
-                if gl_mode == {
-                    case GL_POINTS;         mesh.primitive_topology = .POINT_LIST;
-                    case GL_LINES;          mesh.primitive_topology = .LINE_LIST;
-                    case GL_LINE_STRIP;     mesh.primitive_topology = .LINE_STRIP;
-                    case GL_TRIANGLES;      mesh.primitive_topology = .TRIANGLE_LIST;
-                    case GL_TRIANGLE_STRIP; mesh.primitive_topology = .TRIANGLE_STRIP;
-                    case;                   gltfCheck(false, FAILURE_CODE, "Unhandled mode value: %", gl_mode);
-                }
+                gltfCheck(gl_mode == GL_TRIANGLES, FAILURE_CODE, "Only GL_TRIANGLES mode is supported");
             } else {
                 gltfCheck(status == .CHILD_NOT_FOUND, FAILURE_CODE);
             }
@@ -976,7 +972,6 @@ uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_M
         mesh.mesh_to_model       = gltf_mesh.mesh_to_model;
         mesh.model_to_mesh       = gltf_mesh.model_to_mesh;
         mesh.material_index      = gltf_mesh.material_index;
-        mesh.primitive_topology  = gltf_mesh.primitive_topology;
         mesh.indices_start       = cast(u32) indices.count;
         defer mesh.indices_count = cast(u32, indices.count) - mesh.indices_start;
 
