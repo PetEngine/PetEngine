@@ -14,7 +14,7 @@ struct Header {
     u32          indices_count;
 };
 
-struct string {
+struct TextureName {
     u16  length;
     char data[length];
 } [[format_read("std::string::impl::format_string")]];
@@ -28,16 +28,16 @@ struct v3f_color {
 } [[color(std::format("{:02X}{:02X}{:02X}", u32(x*255), u32(y*255), u32(z*255)))]];
 
 struct Material {
+    v4f_color factor_albedo;
+    v3f_color factor_emissive;
+    float factor_metallic;
+    float factor_roughness;
+
     u16 texture_index_albedo;
     u16 texture_index_normal;
     u16 texture_index_emissive;
     u16 texture_index_metallic_roughness;
     u16 texture_index_occlusion;
-
-    v4f_color factor_albedo;
-    v3f_color factor_emissive;
-    float factor_metallic;
-    float factor_roughness;
 };
 
 struct m3x4 {
@@ -68,6 +68,6 @@ struct v4f {
 };
 
 Header header @ $;
-string textures[header.textures_count] @ $;
+TextureName textures[header.textures_count] @ $;
 Material materials[header.materials_count] @ $;
 Mesh meshes[header.meshes_count] @ $;

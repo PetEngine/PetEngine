@@ -10,48 +10,54 @@ ModelFile :: struct {
     INVALID_INDEX : u16 : 0xFFFF;
 
     Header :: struct {
-        version         : u8           = VERSION  #align 1;
-        vertex_format   : VertexFormat = .DEFAULT #align 1;
-        textures_count  : u16                     #align 1;
-        materials_count : u16                     #align 1;
-        meshes_count    : u16                     #align 1;
-        vertices_count  : u32                     #align 1;
-        indices_count   : u32                     #align 1;
+        version         : u8           = VERSION;
+        vertex_format   : VertexFormat = .DEFAULT;
+        textures_count  : u16;
+        materials_count : u16;
+        meshes_count    : u16;
+        vertices_count  : u32;
+        indices_count   : u32;
     } #no_padding
 
-    TextureHeader :: struct {
-        name_length : u16 #align 1;
-        // inplace data goes next
+    TextureName :: struct {
+        length : u16;
+        data   : [0] u8;
     } #no_padding
 
     Material :: struct {
-        texture_index_albedo             : u16 = INVALID_INDEX #align 1;
-        texture_index_normal             : u16 = INVALID_INDEX #align 1;
-        texture_index_emissive           : u16 = INVALID_INDEX #align 1;
-        texture_index_metallic_roughness : u16 = INVALID_INDEX #align 1;
-        texture_index_occlusion          : u16 = INVALID_INDEX #align 1;
+        factor_albedo    : v4f = .{ 1.0, 1.0, 1.0, 1.0 };
+        factor_emissive  : v3f;
+        factor_metallic  : f32 = 1.0;
+        factor_roughness : f32 = 1.0;
 
-        factor_albedo    : v4f = .{ 1.0, 1.0, 1.0, 1.0 } #align 1;
-        factor_emissive  : v3f                           #align 1;
-        factor_metallic  : f32 = 1.0                     #align 1;
-        factor_roughness : f32 = 1.0                     #align 1;
+        texture_index_albedo             : u16 = INVALID_INDEX;
+        texture_index_normal             : u16 = INVALID_INDEX;
+        texture_index_emissive           : u16 = INVALID_INDEX;
+        texture_index_metallic_roughness : u16 = INVALID_INDEX;
+        texture_index_occlusion          : u16 = INVALID_INDEX;
     } #no_padding
 
     PrimitiveTopology :: ShaderCompiler.GraphicsPipelineState.PrimitiveTopology;
 
     Mesh :: struct {
-        indices_start      : u32                                #align 1;
-        indices_count      : u32                                #align 1;
-        mesh_to_model      : m3x4              =  IDENTITY_3X4  #align 1;
-        model_to_mesh      : m3x4              =  IDENTITY_3X4  #align 1;
-        material_index     : u16               =  INVALID_INDEX #align 1;
-        primitive_topology : PrimitiveTopology = .TRIANGLE_LIST #align 1;
+        indices_start      : u32;
+        indices_count      : u32;
+        mesh_to_model      : m3x4              =  IDENTITY_3X4;
+        model_to_mesh      : m3x4              =  IDENTITY_3X4;
+        material_index     : u16               =  INVALID_INDEX;
+        primitive_topology : PrimitiveTopology = .TRIANGLE_LIST;
     } #no_padding
 
     getHeader :: inline (file_data : string) -> *Header {
         return cast(*Header) file_data.data;
     }
-} #no_padding
+}
+
+#assert isTitghtlyPacked(ModelFile.Header);
+#assert isTitghtlyPacked(ModelFile.TextureName);
+#assert isTitghtlyPacked(ModelFile.Material);
+
+#assert size_of(ModelFile.TextureName) == size_of(u16);
 
 VertexFormat :: enum u8 {
     DEFAULT;
@@ -59,10 +65,12 @@ VertexFormat :: enum u8 {
 
 VertexTypes :: struct {
     Default :: struct {
-        position_u : v4f #align 1;
-        normal_v   : v4f #align 1;
+        position_u : v4f;
+        normal_v   : v4f;
     } #no_padding
-} #no_padding
+}
+
+#assert isTitghtlyPacked(VertexTypes.Default);
 
 serializeModel :: (
     name      : string,
@@ -94,10 +102,7 @@ serializeModel :: (
 
     writeFile(file, *header);
     for textures {
-        texture_header := ModelFile.TextureHeader.{
-            name_length = cast(u16) it.count
-        };
-        writeFile(file, *texture_header);
+        writeFile(file, *(ModelFile.TextureName.{ length = cast(u16) it.count }));
         writeFile(file, it);
     }
     writeFile(file, materials);

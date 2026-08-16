@@ -52,6 +52,30 @@ reset :: inline (array : *[$capacity] $T) #no_context {
     memset(array.data, 0, array.count * size_of(T));
 }
 
+isTitghtlyPacked :: ($type : Type) -> bool #compile_time {
+    INFO :: type_info(type);
+    #assert INFO.type == .STRUCT;
+
+    expected_offset : s64;
+    for INFO.members {
+        if it.flags & (.CONSTANT | .OVERLAY) continue;
+
+        if expected_offset != it.offset_in_bytes {
+            errorMessage("%.%: expected offset (%) != real offset (%)", type, it.name, expected_offset, it.offset_in_bytes);
+            return false;
+        }
+
+        expected_offset += it.type.runtime_size;
+    }
+
+    if expected_offset != size_of(type) {
+        errorMessage("%: expected size (%) != real size (%)", type, expected_offset, size_of(type));
+        return false;
+    }
+
+    return true;
+}
+
 #load "arena.jai";
 #load "debug.jai";
 #load "file.jai";
