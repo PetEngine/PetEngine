@@ -800,6 +800,9 @@ parseMatrix :: (gltf_node : *JSON_Object) -> (matrix : m3x4, inv_matrix : m3x4, 
     inv_matrix[1] *= inv_scale.y;
     inv_matrix[2] *= inv_scale.z;
 
+    for matrix.flat     { assert(isFinite(it)); }
+    for inv_matrix.flat { assert(isFinite(it)); }
+
     return matrix, inv_matrix, .SUCCESS;
 }
 

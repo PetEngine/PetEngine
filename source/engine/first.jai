@@ -90,10 +90,12 @@ PerViewUniform :: struct {
     CAMERA_FOV  :: #run degToRad(60.0);
 
     Data :: struct {
-        camera_pos : v3f = .{ 2.0, 10.0, -17.0 };
+        // camera_pos : v3f = .{ 2.0, 10.0, -17.0 };
+        camera_pos : v3f = .{ x = -10.0, y = 1.0 };
         __padding0 : f32;
 
-        camera_dir : v3f = .{ -0.1, -0.2, 0.9 };
+        // camera_dir : v3f = .{ -0.1, -0.2, 0.9 };
+        camera_dir : v3f = .{ x = 1.0 };
         __padding1 : f32;
 
         view_matrix     : m4x4;
@@ -272,6 +274,8 @@ petMain :: () {
     floor  := createFloor(depth_buffer.format);
     heart  := createHeart(depth_buffer.format);
     skybox := createSkybox(depth_buffer.format);
+    sponza := createSponza(depth_buffer.format);
+    defer destroySponza(*sponza);
 
     command_buffer := createCommandBuffer(.GRAPHICS);
 
@@ -312,13 +316,14 @@ petMain :: () {
                 resetBindings(.PER_SCENE);
 
                 // Create per scene resources here...
-                loadHeart(*heart);
+                // @Cleanup: #GLTF. loadHeart(*heart);
                 loadSkybox(*skybox);
+                loadSponza(*sponza);
 
                 // Commit
                 commitResourceMemory(.PER_SCENE);
 
-                bindHeart(*heart);
+                // @Cleanup: #GLTF. bindHeart(*heart);
                 bindSkybox(*skybox);
 
                 // @Important: Should be after per scene memory commit
@@ -434,8 +439,12 @@ petMain :: () {
                            .[ .{ back_buffer_view, .CLEAR, .STORE } ],
                            *(DepthTargetDesc.{ view = depth_buffer_dsv, depth_load_action = .CLEAR, depth_store_action = .NONE }));
             {
-                drawHeart(*command_buffer, heart, per_view_uniform);
-                drawFloor(*command_buffer, floor, per_view_uniform);
+                #if false { // @Cleanup: #GLTF
+                    drawHeart(*command_buffer, heart, per_view_uniform);
+                    drawFloor(*command_buffer, floor, per_view_uniform);
+                } else {
+                    drawSponza(*command_buffer, sponza, per_view_uniform);
+                }
                 drawSkybox(*command_buffer, skybox, per_view_uniform);
             }
             endRendering(*command_buffer);
@@ -474,6 +483,7 @@ for_expansion :: Hash_Table.for_expansion;
 #load "floor.jai";
 #load "heart.jai";
 #load "skybox.jai";
+#load "sponza.jai";
 
 Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_OVERWRITE_MEMORY = DEBUG_BUILD);
 Reflection :: #import "Reflection";

@@ -37,6 +37,7 @@ ModelFile :: struct {
         texture_index_occlusion          : u16 = INVALID_INDEX;
     } #no_padding
 
+    // @TODO: #GLTF. Split to GPUMesh and CPUMesh (see struct Model)
     Mesh :: struct {
         indices_start  : u32;
         indices_count  : u32;

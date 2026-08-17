@@ -65,22 +65,63 @@ maxOf :: inline ($type : Type) -> type #no_context {
     }
 }
 
+isNan :: inline (value : f32) -> bool #no_context {
+    uf := cast(*u32, *value).*;
+    unbiased_exponent := (uf >> 23) & 0xFF;
+    if unbiased_exponent == 0xFF {
+        raw_mantissa := uf & 0x7F_FFFF;
+        return raw_mantissa != 0;
+    }
+    return false;
+}
+
+isInf :: inline (value : f32) -> bool #no_context {
+    uf := cast(*u32, *value).*;
+    unbiased_exponent := (uf >> 23) & 0xFF;
+    if unbiased_exponent == 0xFF {
+        raw_mantissa := uf & 0x7F_FFFF;
+        return raw_mantissa == 0;
+    }
+    return false;
+}
+
+isFinite :: (value : f32) -> bool #no_context {
+    uf := cast(*u32, *value).*;
+    unbiased_exponent := (uf >> 23) & 0xFF;
+    return unbiased_exponent != 0xFF;
+}
+
 isPowerOfTwo :: inline (value : $T) -> bool #no_context {
     #assert isAnyOf(T, .INTEGER, .ENUM, .POINTER);
 
     return value && !(value & (value - 1));
 }
 
-alignDownWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T {
-    #assert isAnyOf(T, .INTEGER, .ENUM, .POINTER);
+alignDownWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T #modify { return !isAnyOf(T, .POINTER); } {
+    #assert isAnyOf(T, .INTEGER, .ENUM);
+    #assert isAnyOf(U, .INTEGER, .ENUM);
+    assert(isPowerOfTwo(alignment));
+
+    return value & ~cast(T, alignment - 1);
+}
+
+alignDownWithPowerOfTwo :: inline (value : *$T, alignment : $U) -> *T {
     #assert isAnyOf(U, .INTEGER, .ENUM);
     assert(isPowerOfTwo(alignment));
 
     return value & ~(alignment - 1);
 }
 
-alignUpWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T {
-    #assert isAnyOf(T, .INTEGER, .ENUM, .POINTER);
+alignUpWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T #modify { return !isAnyOf(T, .POINTER); } {
+    #assert isAnyOf(T, .INTEGER, .ENUM);
+    #assert isAnyOf(U, .INTEGER, .ENUM);
+    assert(isPowerOfTwo(alignment));
+
+    mask := cast(T, alignment - 1);
+    return (value + mask) & ~mask;
+}
+
+alignUpWithPowerOfTwo :: inline (value : *$T, alignment : $U) -> *T {
     #assert isAnyOf(U, .INTEGER, .ENUM);
     assert(isPowerOfTwo(alignment));
 

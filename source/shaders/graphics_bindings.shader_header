@@ -28,10 +28,15 @@
 #define MAX_IMAGES            512
 
 //
-// Uniforms
+// Row major
 //
 
 layout(row_major) uniform;
+layout(row_major) buffer;
+
+//
+// Uniforms
+//
 
 layout(set = PER_FRAME_SET, binding = UNIFORM_SLOT) uniform PerFrame {
     uint32_t frame;
@@ -253,7 +258,7 @@ layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DMS
 // Buffers
 //
 
-layout(buffer_reference) readonly buffer DefaultVertexRef {
+layout(buffer_reference, buffer_reference_align = 16) readonly buffer DefaultVertexRef {
     f32vec4 position_u;
     f32vec4 normal_v;
 };
