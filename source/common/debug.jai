@@ -157,6 +157,15 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
                           location = location);
         }
     }
+
+    assertAligned :: (expression : Code, $$alignment : $T) #expand #no_debug {
+        assert(isPowerOfTwo(alignment));
+        aligned := !((#insert expression) & (alignment - 1));
+        if !aligned {
+            STR_EXPRESSION :: #run codeToString(expression);
+            assertMessage("% is not aligned to %", STR_EXPRESSION, alignment);
+        }
+    }
 } else {
     assert :: (
         #discard expression      : Code,
@@ -209,6 +218,9 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
         #discard epsilon    := DEFAULT_F32_EPSILON,
         #discard location   := #caller_location
     ) #expand #no_debug {
+    }
+
+    assertAligned :: (#discard expression : Code, #discard alignment : $T) #expand #no_debug {
     }
 }
 

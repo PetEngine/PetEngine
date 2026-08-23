@@ -11,6 +11,8 @@ CommandBuffer :: struct(usage : QueueType) {
         scissor_rect     : ScissorRect;
         inside_rendering : bool;
     }
+
+    recording_commands : bool;
 }
 
 Viewport :: struct {
@@ -133,9 +135,13 @@ resetCommandBuffer :: (command_buffer : *CommandBuffer) {
             case .VULKAN; rebindVulkanDescriptorBuffers(command_buffer.handles[device.frame_index]);
         }
     }
+
+    command_buffer.recording_commands = true;
 }
 
-submitCommandBuffer :: (command_buffer : CommandBuffer) {
+submitCommandBuffer :: (command_buffer : *CommandBuffer) {
+    command_buffer.recording_commands = false;
+
     #if #complete GRAPHICS_API == {
         case .VULKAN; submitVulkanCommandBuffer(command_buffer);
     }
@@ -143,6 +149,7 @@ submitCommandBuffer :: (command_buffer : CommandBuffer) {
 
 clearTexture :: (command_buffer : *CommandBuffer, texture : *Texture) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can clear textures";
+    assert(command_buffer.recording_commands);
 
     assert(texture.current_owner == command_buffer.usage,
            "You are trying to clear texture \"%\" in % command buffer, but texture's current owner is %. Change texture's owner first to do so.",
@@ -159,6 +166,7 @@ clearTexture :: (command_buffer : *CommandBuffer, texture : *Texture) {
 
 setViewport :: (command_buffer : *CommandBuffer, viewport : Viewport, render_target_height : u16) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can set viewport";
+    assert(command_buffer.recording_commands);
 
     if command_buffer.viewport == viewport {
         return;
@@ -174,6 +182,7 @@ setViewport :: (command_buffer : *CommandBuffer, viewport : Viewport, render_tar
 
 setScissorRect :: (command_buffer : *CommandBuffer, scissor_rect : ScissorRect) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can set scissor rect";
+    assert(command_buffer.recording_commands);
 
     if command_buffer.scissor_rect == scissor_rect {
         return;
@@ -190,6 +199,7 @@ setScissorRect :: (command_buffer : *CommandBuffer, scissor_rect : ScissorRect) 
 setShader :: (command_buffer : *CommandBuffer, shader : *Shader) {
     #assert command_buffer.usage == .GRAPHICS || command_buffer.usage == .ASYNC_COMPUTE
             "Only graphics and compute command buffers can set shaders";
+    assert(command_buffer.recording_commands);
 
     bind_point := shaderKindToShaderBindPoint(shader.kind);
 
@@ -209,6 +219,7 @@ setShader :: (command_buffer : *CommandBuffer, shader : *Shader) {
 beginRendering :: (command_buffer : *CommandBuffer, color_targets : [] ColorTargetDesc, depth_target : *DepthTargetDesc = null) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can begin rendering";
 
+    assert(command_buffer.recording_commands);
     assert(!command_buffer.inside_rendering);
     assert(color_targets.count > 0 || depth_target, "You must specify at least one color target or/and depth target");
 
@@ -261,6 +272,7 @@ beginRendering :: (command_buffer : *CommandBuffer, color_targets : [] ColorTarg
 endRendering :: (command_buffer : *CommandBuffer) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can end rendering";
 
+    assert(command_buffer.recording_commands);
     assert(command_buffer.inside_rendering);
 
     #if #complete GRAPHICS_API == {
@@ -280,6 +292,7 @@ drawPrimitives :: (
 ) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can draw";
 
+    assert(command_buffer.recording_commands);
     assert(command_buffer.inside_rendering);
 
     shader := command_buffer.shaders[ShaderBindPoint.GRAPHICS_OR_MESH];
@@ -300,6 +313,7 @@ drawPrimitives :: (
 
 setPushConstants :: inline (command_buffer : *CommandBuffer, handle : PushConstantsHandle, data : *$T) {
     #assert command_buffer.usage == .GRAPHICS "Only graphics command buffers can use push constants for now";
+    assert(command_buffer.recording_commands);
 
     shader := command_buffer.shaders[ShaderBindPoint.GRAPHICS_OR_MESH];
     assert(shader, "You should set shader before setting its push constants");
@@ -323,6 +337,8 @@ copyBuffer :: (
     source_offset  : u32 = 0,
     bytes          : u32 = CopyRegion.REMAINING_BYTES
 ) {
+    assert(command_buffer.recording_commands);
+
     assert(source_buffer.current_owner == command_buffer.usage,
            "You are trying to copy from buffer \"%\" in % command buffer, but buffer's current owner is %. Change buffers's owner first to do so.",
            source_buffer.name,
@@ -363,6 +379,7 @@ copyBufferRegions :: (
     source_buffer  : *Buffer,
     regions        : [] CopyRegion
 ) {
+    assert(command_buffer.recording_commands);
     if regions.count <= 0 return;
 
     assert(source_buffer.current_owner == command_buffer.usage,
@@ -406,6 +423,7 @@ copyBufferToTexture :: (
     buffer         : *Buffer,
     regions        : [] BufferToTextureCopyRegion
 ) {
+    assert(command_buffer.recording_commands);
     if regions.count <= 0 return;
 
     assert(buffer.current_owner == command_buffer.usage,

@@ -106,6 +106,7 @@ Command Buffers:
     - beginVulkanRendering: VkPhysicalDeviceLimits.maxColorAttachments, VkPhysicalDeviceLimits.maxFramebufferWidth, VkPhysicalDeviceLimits.maxFramebufferHeight.
     - beginVulkanRendering: MSAA: resolveAttachments.
     - VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_NONE_EXT, VkAttachmentLoadOp.VK_ATTACHMENT_STORE_OP_NONE.
+    - Name command buffers upon create
 
 Device:
     - Revisit submits and post frame job.

@@ -171,7 +171,7 @@ kiloBytes :: inline (value : $T/Type.[s16, u16, s32, u32, s64, u64]) -> T #no_co
 }
 
 kiloBytes :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
-    return value * 1024.0;
+    return value * 1024.0; // 2^10
 }
 
 megaBytes :: inline (value : $T/Type.[s32, u32, s64, u64]) -> T #no_context {
@@ -179,7 +179,7 @@ megaBytes :: inline (value : $T/Type.[s32, u32, s64, u64]) -> T #no_context {
 }
 
 megaBytes :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
-    return value * 1_048_576.0;
+    return value * 1_048_576.0; // 2^20
 }
 
 gigaBytes :: inline (value : $T/Type.[s32, u32, s64, u64]) -> T #no_context {
@@ -187,7 +187,7 @@ gigaBytes :: inline (value : $T/Type.[s32, u32, s64, u64]) -> T #no_context {
 }
 
 gigaBytes :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
-    return value * 1_073_741_824.0;
+    return value * 1_073_741_824.0; // 2^30
 }
 
 teraBytes :: inline (value : $T/Type.[s64, u64]) -> T #no_context {
@@ -195,23 +195,23 @@ teraBytes :: inline (value : $T/Type.[s64, u64]) -> T #no_context {
 }
 
 teraBytes :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
-    return value * 1_099_511_627_776.0;
+    return value * 1_099_511_627_776.0; // 2^40
 }
 
 bytesToKiloBytes :: inline (value : $T, $R := f32) -> R #no_context {
-    return cast(R) (value / 1024.0);
+    return cast(R, value * 0h3F50000000000000); // 1 / 2^10
 }
 
 bytesToMegaBytes :: inline (value : $T, $R := f32) -> R #no_context {
-    return cast(R) (value / 1_048_576.0);
+    return cast(R, value * 0h3EB0000000000000); // 1 / 2^20
 }
 
 bytesToGigaBytes :: inline (value : $T, $R := f32) -> R #no_context {
-    return cast(R) (value / 1_073_741_824.0);
+    return cast(R, value * 0h3E10000000000000); // 1 / 2^30
 }
 
 bytesToTeraBytes :: inline (value : $T, $R := f32) -> R #no_context {
-    return cast(R) (value / 1_099_511_627_776.0);
+    return cast(R, value * 0h3D70000000000000); // 1 / 2^40
 }
 
 sign :: inline (value : $T/Type.[s8, s16, s32, s64, f32, f64], $no_zero := false) -> T #no_context {

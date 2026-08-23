@@ -2,8 +2,6 @@
 
 #vertex_shader
 
-#define F32_MIN 1.18e-38
-
 layout(push_constant) uniform PushConstants {
     uint32_t per_view_uniform_index;
 } g_vs_push_constants;
@@ -13,7 +11,7 @@ out vec3 o_view;
 void main() {
     gl_Position.x = 2.0 * (gl_VertexIndex & 1) - 1.0;
     gl_Position.y = 1.0 - 2.0 * (gl_VertexIndex >> 1);
-    gl_Position.z = F32_MIN;
+    gl_Position.z = 0.0;
     gl_Position.w = 1.0;
 
     const mat4x4 inv_view = g_per_view_uniforms[g_vs_push_constants.per_view_uniform_index].inv_view_matrix;
@@ -52,3 +50,4 @@ void main() {
 PrimitiveTopology = TRIANGLE_STRIP;
 DepthTestEnable   = true;
 DepthWriteEnable  = false;
+DepthCompareOp    = GREATER_OR_EQUAL;

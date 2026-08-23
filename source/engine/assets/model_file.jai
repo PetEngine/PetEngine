@@ -41,9 +41,9 @@ ModelFile :: struct {
     Mesh :: struct {
         indices_start  : u32;
         indices_count  : u32;
-        mesh_to_model  : m3x4 =  IDENTITY_3X4;
-        model_to_mesh  : m3x4 =  IDENTITY_3X4;
-        material_index : u16  =  INVALID_INDEX;
+        mesh_to_model  : m3x4 = IDENTITY_3X4;
+        model_to_mesh  : m3x4 = IDENTITY_3X4;
+        material_index : u16  = INVALID_INDEX;
     } #no_padding
 
     getHeader :: inline (file_data : string) -> *Header {
@@ -54,6 +54,7 @@ ModelFile :: struct {
 #assert isTitghtlyPacked(ModelFile.Header);
 #assert isTitghtlyPacked(ModelFile.TextureName);
 #assert isTitghtlyPacked(ModelFile.Material);
+#assert isTitghtlyPacked(ModelFile.Mesh);
 
 #assert size_of(ModelFile.TextureName) == size_of(u16);
 
@@ -69,6 +70,7 @@ VertexTypes :: struct {
 }
 
 #assert isTitghtlyPacked(VertexTypes.Default);
+#assert size_of(VertexTypes.Default) & 15 == 0;
 
 serializeModel :: (
     name      : string,

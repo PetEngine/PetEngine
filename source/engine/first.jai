@@ -402,7 +402,7 @@ petMain :: () {
                 if angleXY.y then postTransform(*camera_rotation, rotationX(angleXY.y));
 
                 camera_dir = camera_rotation[Z_AXIS];
-                assertNormalized(camera_dir);
+                camera_dir = maybeNormalize(camera_dir);
 
                 if isNonZero(move) {
                     x_axis := camera_rotation[X_AXIS];
