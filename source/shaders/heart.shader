@@ -4,15 +4,15 @@
 
 layout(push_constant) uniform PushConstants {
     Indices32Ref     indices_ref;
-    DefaultVertexRef vertices_ref;
+    PNUVRef          vertices_ref;
     uint32_t         per_view_uniform_index;
 } g_vs_push_constants;
 
 out vec2 o_uv;
 
 void main() {
-    Indices32Ref     index_ref  = g_vs_push_constants.indices_ref[gl_VertexIndex];
-    DefaultVertexRef vertex_ref = g_vs_push_constants.vertices_ref[gl_BaseInstance + index_ref.index];
+    Indices32Ref index_ref  = g_vs_push_constants.indices_ref[gl_VertexIndex];
+    PNUVRef      vertex_ref = g_vs_push_constants.vertices_ref[gl_BaseInstance + index_ref.index];
 
     f32vec4 position = f32vec4(vertex_ref.position_u.xyz, 1.0);
 

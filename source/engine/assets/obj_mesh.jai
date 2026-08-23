@@ -8,7 +8,7 @@ convertObjMesh :: (exchange_filename : string, name : string) -> bool {
     }
     defer destroyObjMesh(*obj_mesh);
 
-    vertices : [Mesh.MAX_SUBMESHES][..] VertexTypes.Default;
+    vertices : [Mesh.MAX_SUBMESHES][..] VertexTypes.PNUV;
     indices  : [Mesh.MAX_SUBMESHES][..] u32;
     defer {
         for indices  if it Basic.array_free(it);
@@ -338,7 +338,7 @@ getFaceGroup :: (obj_mesh : *ObjMesh, group_name : string) -> *ObjMesh.FaceGroup
 
 remapTriplets :: (
     obj_mesh : *ObjMesh,
-    vertices : *[Mesh.MAX_SUBMESHES][..] VertexTypes.Default,
+    vertices : *[Mesh.MAX_SUBMESHES][..] VertexTypes.PNUV,
     indices  : *[Mesh.MAX_SUBMESHES][..] u32
 ) -> u8 {
     triplet_to_index : Hash_Table.Table(ObjMesh.Triplet, u32, given_compare_function = (a : ObjMesh.Triplet, b : ObjMesh.Triplet) -> bool {
@@ -407,7 +407,7 @@ remapTriplets :: (
     return cast(u8) obj_mesh.face_groups.count;
 }
 
-convertVertices :: (obj_mesh : *ObjMesh, vertices : *[Mesh.MAX_SUBMESHES][..] VertexTypes.Default) -> u8 {
+convertVertices :: (obj_mesh : *ObjMesh, vertices : *[Mesh.MAX_SUBMESHES][..] VertexTypes.PNUV) -> u8 {
     for obj_mesh.vertex_groups {
         vertex_positions := *it.attributes[ObjMesh.Attribute.POSITION];
         vertex_texcoords := *it.attributes[ObjMesh.Attribute.TEXCOORD];

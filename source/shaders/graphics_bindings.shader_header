@@ -258,9 +258,15 @@ layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DMS
 // Buffers
 //
 
-layout(buffer_reference, buffer_reference_align = 16) readonly buffer DefaultVertexRef {
+layout(buffer_reference, buffer_reference_align = 16) readonly buffer PNUVRef {
     f32vec4 position_u;
     f32vec4 normal_v;
+};
+
+layout(buffer_reference, buffer_reference_align = 16) readonly buffer PNTUVRef {
+    f32vec4 position_u;
+    f32vec4 normal_v;
+    f32vec4 tangent; // xyz - tangent, w - handedness of the tangent basis (-1.0 or 1.0)
 };
 
 layout(buffer_reference, buffer_reference_align = 4) readonly buffer Indices32Ref {

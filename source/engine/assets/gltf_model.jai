@@ -80,6 +80,7 @@ GLTF_Mesh :: struct {
         INDEX;    // optional
         POSITION; // required
         NORMAL;   // optional
+        TANGENT;  // optional
         TEXCOORD; // optional
     }
     MAX_STREAMS :: #run Basic.enum_highest_value(Stream) + 1;
@@ -721,7 +722,15 @@ parseMeshes :: (gltf : *JSON_Object) -> [..] GLTF_Mesh, bool {
                 gltfCheck(status == .CHILD_NOT_FOUND, FAILURE_CODE);
             }
 
-            accessor_index, status = getChild(gltf_attributes, "TEXCOORD", s64, true);
+            accessor_index, status = getChild(gltf_attributes, "TANGENT", s64, true);
+            if status == .SUCCESS {
+                success = parseAccessor(mesh, gltf_accessors, accessor_index, gltf_buffer_views, .TANGENT);
+                if !success return meshes, false;
+            } else {
+                gltfCheck(status == .CHILD_NOT_FOUND, FAILURE_CODE);
+            }
+
+            accessor_index, status = getChild(gltf_attributes, "TEXCOORD_0", s64, true);
             if status == .SUCCESS {
                 success = parseAccessor(mesh, gltf_accessors, accessor_index, gltf_buffer_views, .TEXCOORD);
                 if !success return meshes, false;
@@ -746,8 +755,6 @@ parseMatrix :: (gltf_node : *JSON_Object) -> (matrix : m3x4, inv_matrix : m3x4, 
 
     q:, status = getChild(gltf_node, "rotation", v4f, true);
     if status == .SUCCESS {
-        q.xy *= -1.0; // #RHtoLH.
-
         matrix = .{
             1.0 - 2.0 * (q.y * q.y + q.z * q.z),       2.0 * (q.x * q.y - q.z * q.w),       2.0 * (q.x * q.z + q.y * q.w), 0.0,
                   2.0 * (q.x * q.y + q.z * q.w), 1.0 - 2.0 * (q.x * q.x + q.z * q.z),       2.0 * (q.y * q.z - q.x * q.w), 0.0,
@@ -782,8 +789,6 @@ parseMatrix :: (gltf_node : *JSON_Object) -> (matrix : m3x4, inv_matrix : m3x4, 
 
     translation:, status = getChild(gltf_node, "translation", v3f, true);
     if status == .SUCCESS {
-        translation.z *= -1.0; // #RHtoLH.
-
         // Post translate
         matrix.e03 = translation.x;
         matrix.e13 = translation.y;
@@ -828,8 +833,9 @@ parseAccessor :: (
     if type == void return false;
     #if #complete stream == {
         case .INDEX;    gltfCheck(type == u8 || type == u16 || type == u32, FAILURE_CODE);
-        case .POSITION; gltfCheck(type == v3f || type == v4f, FAILURE_CODE);
-        case .NORMAL;   gltfCheck(type == v3f || type == v4f, FAILURE_CODE);
+        case .POSITION; gltfCheck(type == v3f, FAILURE_CODE);
+        case .NORMAL;   gltfCheck(type == v3f, FAILURE_CODE);
+        case .TANGENT;  gltfCheck(type == v4f, FAILURE_CODE);
         case .TEXCOORD; gltfCheck(type == f32 || type == v2f || type == v3f, FAILURE_CODE);
     }
     mesh.type_by_stream[stream] = type;
@@ -955,12 +961,12 @@ accessorTypeAndComponentTypeToType :: (accessor_type : string, component_type : 
 }
 
 uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_Mesh) -> (
-    vertices : [..] VertexTypes.Default,
+    vertices : [..] VertexTypes.PNTUV,
     indices  : [..] u32,
     meshes   : [] ModelFile.Mesh,
     success  : bool
 ) {
-    vertices     : [..] VertexTypes.Default;
+    vertices     : [..] VertexTypes.PNTUV;
     indices      : [..] u32;
     meshes       : [] ModelFile.Mesh;
     FAILURE_CODE :: #code { `return vertices, indices, meshes, false; };
@@ -977,6 +983,18 @@ uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_M
         mesh.material_index      = gltf_mesh.material_index;
         mesh.indices_start       = cast(u32) indices.count;
         defer mesh.indices_count = cast(u32, indices.count) - mesh.indices_start;
+
+        // #RHtoLH.
+        {
+            mesh.mesh_to_model.e20 *= -1.0;
+            mesh.mesh_to_model.e21 *= -1.0;
+            mesh.mesh_to_model.e22 *= -1.0;
+            mesh.mesh_to_model.e23 *= -1.0;
+
+            mesh.model_to_mesh.e02 *= -1.0;
+            mesh.model_to_mesh.e12 *= -1.0;
+            mesh.model_to_mesh.e22 *= -1.0;
+        }
 
         this_mesh_vertices_offset := cast(u32) vertices.count;
 
@@ -1003,7 +1021,7 @@ uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_M
 
         vertices_count := gltf_mesh.count_by_stream[GLTF_Mesh.Stream.POSITION];
         for 0 .. vertices_count - 1 {
-            vertex, success := makeDefaultVertex(buffers, gltf_mesh, it);
+            vertex, success := makePNTUVVertex(buffers, gltf_mesh, it);
             if !success return vertices, indices, meshes, false;
 
             Basic.array_add(*vertices, vertex);
@@ -1018,8 +1036,8 @@ uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_M
     return vertices, indices, meshes, true;
 }
 
-makeDefaultVertex :: (buffers : GLTF_Buffers, mesh : GLTF_Mesh, vertex_index : s64) -> VertexTypes.Default, bool {
-    vertex       : VertexTypes.Default;
+makePNTUVVertex :: (buffers : GLTF_Buffers, mesh : GLTF_Mesh, vertex_index : s64) -> VertexTypes.PNTUV, bool {
+    vertex       : VertexTypes.PNTUV;
     FAILURE_CODE :: #code { `return vertex, false; };
 
     count := mesh.count_by_stream[GLTF_Mesh.Stream.POSITION];
@@ -1033,19 +1051,7 @@ makeDefaultVertex :: (buffers : GLTF_Buffers, mesh : GLTF_Mesh, vertex_index : s
         read_stride := mesh.read_stride_by_stream[STREAM];
         type        := mesh.type_by_stream[STREAM];
 
-        floats := cast(*f32) *buffer[offset + vertex_index * read_stride];
-
-        position : v3f = ---;
-        position.x =  floats[0];
-        position.y =  floats[1];
-        position.z = -floats[2]; // #RHtoLH.
-
-        if type == v4f {
-            w := floats[3];
-            gltfCheck(almostZero(w) || almostEquals(w, 1.0), FAILURE_CODE);
-        }
-
-        vertex.position_u.xyz = position;
+        vertex.position_u.xyz = cast(*v3f, *buffer[offset + vertex_index * read_stride]).*;
     }
 
     count = mesh.count_by_stream[GLTF_Mesh.Stream.NORMAL];
@@ -1059,20 +1065,28 @@ makeDefaultVertex :: (buffers : GLTF_Buffers, mesh : GLTF_Mesh, vertex_index : s
         read_stride := mesh.read_stride_by_stream[STREAM];
         type        := mesh.type_by_stream[STREAM];
 
-        floats := cast(*f32) *buffer[offset + vertex_index * read_stride];
-
-        normal : v3f = ---;
-        normal.x =  floats[0];
-        normal.y =  floats[1];
-        normal.z = -floats[2]; // #RHtoLH.
-
-        if type == v4f {
-            w := floats[3];
-            gltfCheck(almostZero(w) || almostEquals(w, 1.0), FAILURE_CODE);
-        }
+        normal := cast(*v3f, *buffer[offset + vertex_index * read_stride]).*;
 
         assertNormalized(normal);
         vertex.normal_v.xyz = normal;
+    }
+
+    count = mesh.count_by_stream[GLTF_Mesh.Stream.TANGENT];
+    if count > 0 {
+        gltfCheck(vertex_index < count, FAILURE_CODE);
+
+        STREAM :: GLTF_Mesh.Stream.TANGENT;
+
+        buffer      := buffers[mesh.buffer_index_by_stream[STREAM]];
+        offset      := mesh.offset_in_bytes_by_stream[STREAM];
+        read_stride := mesh.read_stride_by_stream[STREAM];
+        type        := mesh.type_by_stream[STREAM];
+
+        tangent := cast(*v4f, *buffer[offset + vertex_index * read_stride]).*;
+
+        assertNormalized(tangent.xyz);
+        assert(tangent.w == 1.0 || tangent.w == -1.0);
+        vertex.tangent = tangent;
     }
 
     count = mesh.count_by_stream[GLTF_Mesh.Stream.TEXCOORD];

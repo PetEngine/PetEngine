@@ -11,7 +11,7 @@ ModelFile :: struct {
 
     Header :: struct {
         version         : u8           = VERSION;
-        vertex_format   : VertexFormat = .DEFAULT;
+        vertex_format   : VertexFormat = .PNTUV;
         textures_count  : u16;
         materials_count : u16;
         meshes_count    : u16;
@@ -59,18 +59,25 @@ ModelFile :: struct {
 #assert size_of(ModelFile.TextureName) == size_of(u16);
 
 VertexFormat :: enum u8 {
-    DEFAULT;
+    PNUV;
+    PNTUV;
 }
 
 VertexTypes :: struct {
-    Default :: struct {
+    PNUV :: struct {
         position_u : v4f;
         normal_v   : v4f;
-    } #no_padding
+    }
+
+    PNTUV :: struct {
+        position_u : v4f;
+        normal_v   : v4f;
+        tangent    : v4f; // xyz - tangent, w - handedness of the tangent basis (-1.0 or 1.0)
+    }
 }
 
-#assert isTitghtlyPacked(VertexTypes.Default);
-#assert size_of(VertexTypes.Default) & 15 == 0;
+#assert size_of(VertexTypes.PNUV) & 15 == 0;
+#assert size_of(VertexTypes.PNTUV) & 15 == 0;
 
 serializeModel :: (
     name      : string,
@@ -115,7 +122,8 @@ serializeModel :: (
 
 getVertexStride :: (format : VertexFormat) -> s64 {
     if #complete format == {
-        case .DEFAULT; return size_of(VertexTypes.Default);
+        case .PNUV;  return size_of(VertexTypes.PNUV);
+        case .PNTUV; return size_of(VertexTypes.PNTUV);
     }
 }
 
@@ -127,7 +135,7 @@ vertexTypeToVertexFormat :: (vertex_type : Type) -> (VertexFormat, success : boo
 
     if (cast(*Type_Info) vertex_type).type != .STRUCT {
         errorMessage("Vertex type should be struct");
-        return .DEFAULT, false;
+        return .PNUV, false;
     }
 
     for member : INFO.members {
@@ -151,16 +159,17 @@ vertexTypeToVertexFormat :: (vertex_type : Type) -> (VertexFormat, success : boo
             }
 
             errorMessage("Vertex type is found, but there is no VertexFormat associated with it");
-            return .DEFAULT, false;
+            return .PNUV, false;
         }
     }
 
     errorMessage("Vertex type was not found in VertexTypes struct");
-    return .DEFAULT, false;
+    return .PNUV, false;
 }
 
 vertexFormatToVertexType :: (format : VertexFormat) -> Type #compile_time {
     if #complete format == {
-        case .DEFAULT; return VertexTypes.Default;
+        case .PNUV;  return VertexTypes.PNUV;
+        case .PNTUV; return VertexTypes.PNTUV;
     }
 }
