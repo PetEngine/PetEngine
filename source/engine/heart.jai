@@ -12,7 +12,7 @@ Heart :: struct {
 
     shader : *Shader;
 
-    mesh          : *Mesh;
+    mesh          : MeshAsset;
     submesh_index : s8;
 
     vs_push_constants_handle : PushConstantsHandle;
@@ -21,7 +21,8 @@ Heart :: struct {
     sampler                 : *Sampler;
     sampler_binding_handle  : BindingHandle;
 
-    texture_assets          : [10] *TextureAsset;
+    textures                : [10] TextureAsset;
+    texture_views           : [10] *TextureView;
     texture_binding_handles : [10] BindingHandle;
 }
 
@@ -38,28 +39,32 @@ loadHeart :: (heart : *Heart) {
 
     heart.sampler = createSampler(.{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR }, .PER_SCENE, "Trilinear sampler" );
 
-    heart.texture_assets[0] = requestTexture("heart/HumanBase___cavity");
-    heart.texture_assets[1] = requestTexture("heart/HumanBase__color");
-    heart.texture_assets[2] = requestTexture("heart/HumanBase__normals");
-    heart.texture_assets[3] = requestTexture("heart/HumanOpening__cavity");
-    heart.texture_assets[4] = requestTexture("heart/HumanOpening__color");
-    heart.texture_assets[5] = requestTexture("heart/HumanOpening__normals");
-    heart.texture_assets[6] = requestTexture("heart/MitralValve__cavity");
-    heart.texture_assets[7] = requestTexture("heart/MitralValve_normals");
-    heart.texture_assets[8] = requestTexture("heart/TricuspidValve_cavity");
-    heart.texture_assets[9] = requestTexture("heart/TricuspidValve_normals");
+    heart.textures[0] = requestTexture("heart/HumanBase___cavity");
+    heart.textures[1] = requestTexture("heart/HumanBase__color");
+    heart.textures[2] = requestTexture("heart/HumanBase__normals");
+    heart.textures[3] = requestTexture("heart/HumanOpening__cavity");
+    heart.textures[4] = requestTexture("heart/HumanOpening__color");
+    heart.textures[5] = requestTexture("heart/HumanOpening__normals");
+    heart.textures[6] = requestTexture("heart/MitralValve__cavity");
+    heart.textures[7] = requestTexture("heart/MitralValve_normals");
+    heart.textures[8] = requestTexture("heart/TricuspidValve_cavity");
+    heart.textures[9] = requestTexture("heart/TricuspidValve_normals");
+
+    for * heart.texture_views {
+        it.* = createTextureView(heart.textures[it_index], .SHADER_READ, lifetime = .PER_SCENE);
+    }
 }
 
 bindHeart :: (heart : *Heart) {
     heart.sampler_binding_handle = pushBinding(.PER_SCENE, heart.sampler);
 
-    for heart.texture_assets {
-        heart.texture_binding_handles[it_index] = pushBinding(.PER_SCENE, it.texture_view);
+    for * heart.texture_binding_handles {
+        it.* = pushBinding(.PER_SCENE, heart.texture_views[it_index]);
     }
 }
 
 updateHeart :: (heart : *Heart, input : Input) {
-    if !heart.mesh || isAnyOfModKeysDown(input) return;
+    if isAnyOfModKeysDown(input) return;
 
     first_key := Input.Key.KEY_0;
     last_key  := Input.Key.KEY_0 + cast(Input.Key) heart.mesh.submeshes_count; // no need for -1
@@ -73,8 +78,8 @@ updateHeart :: (heart : *Heart, input : Input) {
 }
 
 drawHeart :: (command_buffer : *CommandBuffer, heart : Heart, per_view_uniform : PerViewUniform) {
-    if !isMeshReady(heart.mesh) return;
-    if !isTextureReady(heart.texture_assets[0]) return;
+    if !isAssetReady(*heart.mesh) return;
+    if !isAssetReady(heart.texture_assets[0]) return;
 
     render_resolution := context.pet.render.device.render_resolution;
 

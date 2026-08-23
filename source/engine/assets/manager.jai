@@ -1,176 +1,90 @@
 AssetManager :: struct {
-    UploadRingBuffer :: struct {
-        buffer       : *Buffer;
-        read_offset  : u64;
-        write_offset : u64;
+    BufferCopy :: struct {
+        buffer        : *Buffer;
+        regions_count : u8;
+        regions       : [32] CopyRegion;
     }
 
-    command_buffer : CommandBuffer(.GRAPHICS);
-    upload_buffer  : UploadRingBuffer;
+    // @TODO: #TextureLoader. Add space for array layers
+    TextureCopy :: struct {
+        texture       : *Texture;
+        regions_count : u8;
+        regions       : [Texture.MAX_MIPS_SUPPORTED * 6] BufferToTextureCopyRegion;
+    }
 
-    mesh_assets    : StaticArray(MeshAsset, 1024);
-    model_assets   : StaticArray(ModelAsset, 1024);
-    texture_assets : StaticArray(TextureAsset, 1024);
+    buffer_copies_count  : u16;
+    texture_copies_count : u16;
+
+    buffer_copies  : [1024] BufferCopy;
+    texture_copies : [1024] TextureCopy;
 }
+#assert maxOf(type_of(AssetManager.buffer_copies_count)) >= AssetManager.buffer_copies.count;
+#assert maxOf(type_of(AssetManager.texture_copies_count)) >= AssetManager.texture_copies.count;
 
 MeshAsset :: struct {
     #as using mesh : Mesh;
-
-    ready_event : *void;
-    is_ready    : bool;
-
-    vertex_buffer_regions_count : u32;
-    index_buffer_regions_count  : u32;
-
-    // +1 because only one submesh may cycle (have 2 copy regions), otherwise we overflow upload ring buffer
-    vertex_buffer_regions : [Mesh.MAX_SUBMESHES + 1] CopyRegion;
-    index_buffer_regions  : [Mesh.MAX_SUBMESHES + 1] CopyRegion;
-}
-
-TextureAsset :: struct {
-    texture      : *Texture;
-    texture_view : *TextureView;
-
-    ready_event : *void;
-    is_ready    : bool;
-
-    texture_size : u64;
-
-    // @TODO: #TextureLoader. Add space for array layers
-    regions : StaticArray(BufferToTextureCopyRegion, Texture.MAX_MIPS_SUPPORTED * 6);
+    using _        : Asset;
 }
 
 ModelAsset :: struct {
     #as using model : Model;
+    using _         : Asset;
+}
 
-    vertex_buffer_regions_count   : u8;
-    index_buffer_regions_count    : u8;
-    material_buffer_regions_count : u8;
-    mesh_buffer_regions_count     : u8;
+TextureAsset :: struct {
+    #as using texture : *Texture;
+    using _ : Asset;
+}
 
-    // 2 because only one time we can cycle (have 2 copy regions), otherwise we overflow upload ring buffer
-    vertex_buffer_regions   : [2] CopyRegion;
-    index_buffer_regions    : [2] CopyRegion;
-    material_buffer_regions : [2] CopyRegion;
-    mesh_buffer_regions     : [2] CopyRegion;
-
-    total_bytes : u32;
-
-    ready_event : *void;
-    is_ready    : bool;
+Asset :: struct {
+    ready_event        : GPUEvent;
+    cached_ready_state : bool;
 }
 
 createAssetManager :: () {
     manager := pushToArena(*context.pet.arenas.persistent, AssetManager);
     context.pet.render.asset_manager = manager;
-
-    manager.command_buffer = createCommandBuffer(AssetManager.command_buffer.usage);
-
-    buffer_capacity := readSetting("asset_manager.upload_ring_buffer_capacity");
-    assert(isPowerOfTwo(buffer_capacity));
-
-    manager.upload_buffer.buffer = createBuffer(buffer_capacity,
-                                                .PERSISTENT,
-                                                .UPLOAD,
-                                                .NONE,
-                                                "AssetManager upload ring buffer",
-                                                AssetManager.command_buffer.usage);
 }
 
-resetAssetManager :: () {
-    assertThreadKind(.MAIN);
-    resetCommandBuffer(*context.pet.render.asset_manager.command_buffer);
-}
-
-submitAssetManager :: () {
-    assertThreadKind(.MAIN);
-    submitCommandBuffer(context.pet.render.asset_manager.command_buffer);
-}
-
-resetAssetManagerAssets :: () {
-    assertThreadKind(.MAIN);
-
-    #if #complete GRAPHICS_API == {
-        case .VULKAN;
-            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
-
-            for context.pet.render.asset_manager.mesh_assets {
-                if it.ready_event {
-                    vkDestroyEvent(vulkan_device.device, cast(VkEvent) it.ready_event, null);
-                }
-            }
-
-            for context.pet.render.asset_manager.model_assets {
-                if it.ready_event {
-                    vkDestroyEvent(vulkan_device.device, cast(VkEvent) it.ready_event, null);
-                }
-            }
-
-            for context.pet.render.asset_manager.texture_assets {
-                if it.ready_event {
-                    vkDestroyEvent(vulkan_device.device, cast(VkEvent) it.ready_event, null);
-                }
-            }
-    }
-
-    reset(*context.pet.render.asset_manager.mesh_assets);
-    reset(*context.pet.render.asset_manager.texture_assets);
-}
-
-processRequestedAssets :: () {
+processAssetManagerCopies :: () {
     assertThreadKind(.MAIN);
     assert(resourceMemoryCommitted(.PERSISTENT));
     assert(resourceMemoryCommitted(.PER_SCENE));
 
-    device  := context.pet.render.device;
     manager := context.pet.render.asset_manager;
+    gurb    := context.pet.render.global_upload_ring_buffer;
 
-    for manager.mesh_assets {
-        vertex_buffer_regions_view := toView(it.vertex_buffer_regions.data, it.vertex_buffer_regions_count);
-        index_buffer_regions_view  := toView(it.index_buffer_regions.data, it.index_buffer_regions_count);
-
-        copyBufferRegions(*manager.command_buffer, it.vertex_buffer, manager.upload_buffer.buffer, vertex_buffer_regions_view);
-        copyBufferRegions(*manager.command_buffer, it.index_buffer,  manager.upload_buffer.buffer, index_buffer_regions_view);
-
-        #if #complete GRAPHICS_API == {
-            case .VULKAN;
-                vk_command_buffer := manager.command_buffer.handles[device.frame_index];
-                vkCmdSetEvent(vk_command_buffer, cast(VkEvent) it.ready_event, .VK_PIPELINE_STAGE_TRANSFER_BIT);
-        }
+    for manager.buffer_copies {
+        copyBufferRegions(*gurb.command_buffer, it.buffer, gurb.buffer, .{ it.regions_count, it.regions.data });
     }
 
-    for manager.model_assets {
-        vertex_buffer_regions_view   := toView(it.vertex_buffer_regions.data,   it.vertex_buffer_regions_count);
-        index_buffer_regions_view    := toView(it.index_buffer_regions.data,    it.index_buffer_regions_count);
-        material_buffer_regions_view := toView(it.material_buffer_regions.data, it.material_buffer_regions_count);
-        mesh_buffer_regions_view     := toView(it.mesh_buffer_regions.data,     it.mesh_buffer_regions_count);
-
-        copyBufferRegions(*manager.command_buffer, it.vertex_buffer, manager.upload_buffer.buffer, vertex_buffer_regions_view);
-        copyBufferRegions(*manager.command_buffer, it.index_buffer,  manager.upload_buffer.buffer, index_buffer_regions_view);
-        if material_buffer_regions_view {
-            copyBufferRegions(*manager.command_buffer, it.material_buffer, manager.upload_buffer.buffer, material_buffer_regions_view);
-        }
-        copyBufferRegions(*manager.command_buffer, it.mesh_buffer, manager.upload_buffer.buffer, mesh_buffer_regions_view);
-
-        #if #complete GRAPHICS_API == {
-            case .VULKAN;
-                vk_command_buffer := manager.command_buffer.handles[device.frame_index];
-                vkCmdSetEvent(vk_command_buffer, cast(VkEvent) it.ready_event, .VK_PIPELINE_STAGE_TRANSFER_BIT);
-        }
+    for manager.texture_copies {
+        copyBufferToTexture(*gurb.command_buffer, it.texture, gurb.buffer, .{ it.regions_count, it.regions.data });
     }
 
-    for manager.texture_assets {
-        copyBufferToTexture(*manager.command_buffer, it.texture, manager.upload_buffer.buffer, toView(it.regions));
+    memset(manager.buffer_copies.data, 0, manager.buffer_copies_count * size_of(AssetManager.BufferCopy));
+    memset(manager.texture_copies.data, 0, manager.texture_copies_count * size_of(AssetManager.TextureCopy));
 
-        #if #complete GRAPHICS_API == {
-            case .VULKAN;
-                vk_command_buffer := manager.command_buffer.handles[device.frame_index];
-                vkCmdSetEvent(vk_command_buffer, cast(VkEvent) it.ready_event, .VK_PIPELINE_STAGE_TRANSFER_BIT);
-        }
-    }
+    manager.buffer_copies_count  = 0;
+    manager.texture_copies_count = 0;
 }
 
-requestMesh :: (name : string) -> *Mesh {
+// @TODO: If I never call isAssetReady during `Device.frame_buffering` frames after request the state of `ready_event` will become invalid.
+// Create GPUEvent for each asset inidividually and submit them in `processAssetManagerCopies`
+isAssetReady :: (asset : *$T/interface Asset) -> bool {
+    if  asset.cached_ready_state return true;
+    if !asset.ready_event.handle return false;
+
+    if isGPUEventSet(asset.ready_event) {
+        asset.cached_ready_state = true;
+        asset.ready_event = .{}; // unlink UploadRingBuffer event from asset
+    }
+
+    return asset.cached_ready_state;
+}
+
+requestMesh :: (name : string) -> MeshAsset {
+    assert(resourceMemoryCommitted(.PERSISTENT));
     assert(!resourceMemoryCommitted(.PER_SCENE));
 
     file, file_error := openFile(makeRuntimeMeshFilename(name), .READ | .SHARED_READ | .EXISTS | .SEQ);
@@ -181,23 +95,24 @@ requestMesh :: (name : string) -> *Mesh {
     readFile(file, *header);
     assert(header.version == MeshFile.VERSION);
 
-    manager := context.pet.render.asset_manager;
+    gurb := context.pet.render.global_upload_ring_buffer;
 
-    mesh := pushBack(*manager.mesh_assets);
-    mesh.vertex_format   = header.vertex_format;
-    mesh.submeshes_count = header.submeshes_count;
+    asset : MeshAsset;
+    asset.vertex_format   = header.vertex_format;
+    asset.submeshes_count = header.submeshes_count;
+    asset.ready_event     = gurb.done_events[context.pet.render.device.frame_index];
 
     //
     // Fill submesh infos, calculate total vertices and indices size in bytes
     //
 
-    vertex_stride := cast(u32) getVertexStride(mesh.vertex_format);
+    vertex_stride := cast(u32) getVertexStride(asset.vertex_format);
     INDEX_STRIDE  :: size_of(u32);
 
     total_vertices_count : u32;
     total_indices_count  : u32;
 
-    submesh_infos_it := mesh.submesh_infos.data;
+    submesh_infos_it := asset.submesh_infos.data;
     for toView(header.submesh_infos.data, header.submeshes_count) {
         submesh_infos_it.vertices_skip  = total_vertices_count;
         submesh_infos_it.vertices_count = it.vertices_count;
@@ -212,61 +127,9 @@ requestMesh :: (name : string) -> *Mesh {
 
     total_vertices_bytes := total_vertices_count * vertex_stride;
     total_indices_bytes  := total_indices_count  * INDEX_STRIDE;
-    total_bytes          := total_vertices_bytes + total_indices_bytes;
 
-    //
-    // Read data to upload buffer
-    //
-
-    success, upload_offset := cast(u32) acquireUploadBufferMemory(total_bytes);
-    assert(success, "Upload ring buffer overflow");
-
-    vertex_offset : u32;
-    index_offset  : u32;
-
-    for toView(mesh.submesh_infos.data, mesh.submeshes_count) {
-        assert(getFileCursorPosition(file) == cast(s64) header.submesh_infos[it_index].offset);
-
-        remaining_vertices_bytes := it.vertices_count * vertex_stride;
-        while remaining_vertices_bytes {
-            chunk_bytes := min(remaining_vertices_bytes, manager.upload_buffer.buffer.size - upload_offset);
-
-            destination := manager.upload_buffer.buffer.mapped_memory + upload_offset;
-            readFile(file, destination, chunk_bytes);
-
-            assert(mesh.vertex_buffer_regions_count < MeshAsset.vertex_buffer_regions.count);
-            region := *mesh.vertex_buffer_regions[mesh.vertex_buffer_regions_count];
-            mesh.vertex_buffer_regions_count += 1;
-
-            region.dest_offset   = vertex_offset;
-            region.source_offset = upload_offset;
-            region.bytes         = chunk_bytes;
-
-            upload_offset             = (upload_offset + chunk_bytes) & (manager.upload_buffer.buffer.size - 1);
-            vertex_offset            += chunk_bytes;
-            remaining_vertices_bytes -= chunk_bytes;
-        }
-
-        remaining_indices_bytes := it.indices_count * INDEX_STRIDE;
-        while remaining_indices_bytes {
-            chunk_bytes := min(remaining_indices_bytes, manager.upload_buffer.buffer.size - upload_offset);
-
-            destination := manager.upload_buffer.buffer.mapped_memory + upload_offset;
-            readFile(file, destination, chunk_bytes);
-
-            assert(mesh.index_buffer_regions_count < MeshAsset.index_buffer_regions.count);
-            region := *mesh.index_buffer_regions[mesh.index_buffer_regions_count];
-            mesh.index_buffer_regions_count += 1;
-
-            region.dest_offset   = index_offset;
-            region.source_offset = upload_offset;
-            region.bytes         = chunk_bytes;
-
-            upload_offset            = (upload_offset + chunk_bytes) & (manager.upload_buffer.buffer.size - 1);
-            index_offset            += chunk_bytes;
-            remaining_indices_bytes -= chunk_bytes;
-        }
-    }
+    assertAligned(total_vertices_bytes, 16);
+    assertAligned(total_indices_bytes, 4);
 
     //
     // Create buffers
@@ -275,67 +138,88 @@ requestMesh :: (name : string) -> *Mesh {
     assert(total_vertices_bytes);
     {
         vertex_buffer_name := String.join(name, " vertices",, allocator = Basic.temp);
-        mesh.vertex_buffer = createBuffer(total_vertices_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, vertex_buffer_name);
+        asset.vertex_buffer = createBuffer(total_vertices_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, vertex_buffer_name);
     }
 
     if total_indices_bytes {
         index_buffer_name := String.join(name, " indices",, allocator = Basic.temp);
-        mesh.index_buffer = createBuffer(total_indices_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, index_buffer_name);
+        asset.index_buffer = createBuffer(total_indices_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, index_buffer_name);
     }
 
     //
-    // Create event
+    // Read data to upload buffer
     //
 
-    #if #complete GRAPHICS_API == {
-        case .VULKAN;
-            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
+    total_bytes   := total_vertices_bytes + total_indices_bytes;
+    upload_offset := acquireGlobalUploadRingBufferMemory(total_bytes, 16);
 
-            create_info : VkEventCreateInfo;
-            debugCheckVK(vkCreateEvent(vulkan_device.device, *create_info, null, cast(*VkEvent) *mesh.ready_event));
-            setVulkanObjectName(cast(VkEvent) mesh.ready_event, "% mesh ready event", name);
-    }
+    vertex_offset : u32;
+    index_offset  : u32;
 
-    return mesh;
-}
+    manager := context.pet.render.asset_manager;
 
-isMeshReady :: (mesh : *Mesh) -> bool {
-    if !mesh return false;
+    assert(manager.buffer_copies_count + 2 <= AssetManager.buffer_copies.count);
+    vb_copy := *manager.buffer_copies[manager.buffer_copies_count + 0];
+    ib_copy := *manager.buffer_copies[manager.buffer_copies_count + 1];
+    manager.buffer_copies_count += 2;
 
-    mesh_asset := cast(*MeshAsset) mesh;
-    if mesh_asset.is_ready return true;
+    vb_copy.buffer = asset.vertex_buffer;
+    ib_copy.buffer = asset.index_buffer;
 
-    #if #complete GRAPHICS_API == {
-        case .VULKAN;
-            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
+    for toView(asset.submesh_infos.data, asset.submeshes_count) {
+        assert(getFileCursorPosition(file) == cast(s64) header.submesh_infos[it_index].offset);
 
-            result := vkGetEventStatus(vulkan_device.device, cast(VkEvent) mesh_asset.ready_event);
-            assert(result == .VK_EVENT_SET || result == .VK_EVENT_RESET, "vkGetEventStatus returned %", result);
+        remaining_vertices_bytes := it.vertices_count * vertex_stride;
+        while remaining_vertices_bytes {
+            chunk_bytes := min(remaining_vertices_bytes, gurb.buffer.size - upload_offset);
 
-            mesh_asset.is_ready = result == .VK_EVENT_SET;
-    }
+            destination := gurb.buffer.mapped_memory + upload_offset;
+            readFile(file, destination, chunk_bytes);
 
-    // @TODO: #SinglePointWait. This is incorrect if the order is not guaranteed.
-    if mesh_asset.is_ready {
-        manager := context.pet.render.asset_manager;
+            assert(vb_copy.regions_count < AssetManager.BufferCopy.regions.count);
+            region := *vb_copy.regions[vb_copy.regions_count];
+            vb_copy.regions_count += 1;
 
-        vertex_stride := cast(u64) getVertexStride(mesh.vertex_format);
-        INDEX_STRIDE  :: size_of(u32);
+            region.dest_offset   = vertex_offset;
+            region.source_offset = upload_offset;
+            region.bytes         = chunk_bytes;
 
-        total_bytes : u64;
-        for toView(mesh.submesh_infos.data, mesh.submeshes_count) {
-            total_bytes += it.vertices_count * vertex_stride
-                        +  it.indices_count  * INDEX_STRIDE;
+            upload_offset             = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
+            vertex_offset            += chunk_bytes;
+            remaining_vertices_bytes -= chunk_bytes;
         }
 
-        Atomics.atomic_add(*manager.upload_buffer.read_offset, total_bytes);
+        remaining_indices_bytes := it.indices_count * INDEX_STRIDE;
+        while remaining_indices_bytes {
+            chunk_bytes := min(remaining_indices_bytes, gurb.buffer.size - upload_offset);
+
+            destination := gurb.buffer.mapped_memory + upload_offset;
+            readFile(file, destination, chunk_bytes);
+
+            assert(ib_copy.regions_count < AssetManager.BufferCopy.regions.count);
+            region := *ib_copy.regions[ib_copy.regions_count];
+            ib_copy.regions_count += 1;
+
+            region.dest_offset   = index_offset;
+            region.source_offset = upload_offset;
+            region.bytes         = chunk_bytes;
+
+            upload_offset            = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
+            index_offset            += chunk_bytes;
+            remaining_indices_bytes -= chunk_bytes;
+        }
     }
 
-    return mesh_asset.is_ready;
+    return asset;
 }
 
+//
+// @Continue: #GLTF. Rewrite functions below in a similar manner as `requestMesh`
+//
+
 // @TODO: #GLTF. Load textures
-requestModel :: (name : string) -> *Model {
+requestModel :: (name : string) -> ModelAsset {
+    assert(resourceMemoryCommitted(.PERSISTENT));
     assert(!resourceMemoryCommitted(.PER_SCENE));
 
     file, file_error := openFile(makeRuntimeModelFilename(name), .READ | .SHARED_READ | .EXISTS | .SEQ);
@@ -346,30 +230,38 @@ requestModel :: (name : string) -> *Model {
     readFile(file, *header);
     assert(header.version == ModelFile.VERSION);
 
-    manager := context.pet.render.asset_manager;
+    gurb := context.pet.render.global_upload_ring_buffer;
 
-    asset := pushBack(*manager.model_assets);
+    asset : ModelAsset;
+    asset.ready_event = gurb.done_events[context.pet.render.device.frame_index];
 
-    texture_names : [] string;
     if header.textures_count {
-        texture_names.count = header.textures_count;
-        texture_names.data  = pushToArena(*context.pet.arenas.per_frame, string, header.textures_count);
+        asset.textures.count = header.textures_count;
+        asset.textures.data  = Basic.alloc(size_of(Texture) * header.textures_count);
 
-        for * texture_names {
-            name : ModelFile.TextureName = ---;
-            readFile(file, *name);
+        for * asset.textures {
+            texture_name : ModelFile.TextureName = ---;
+            readFile(file, *texture_name);
 
-            it.count = name.length;
-            it.data  = pushToArena(*context.pet.arenas.per_frame, name.length);
-            readFile(file, it.*);
+            name : string = ---;
+            name.count = texture_name.length;
+            name.data  = pushToArena(*context.pet.arenas.per_frame, texture_name.length);
+            readFile(file, name);
+
+            it.* = loadTexture(name);
         }
     }
 
-    materials : [] ModelFile.Material;
+    gpu_materials : [] Model.GPUMaterial;
     if header.materials_count {
-        materials.count = header.materials_count;
-        materials.data  = pushToArena(*context.pet.arenas.per_frame, ModelFile.Material, materials.count);
-        readFile(file, materials);
+        gpu_materials.count = header.materials_count;
+        gpu_materials.data  = pushToArena(*context.pet.arenas.per_frame, Model.GPUMaterial, header.materials_count);
+
+        for * gpu_materials {
+            material : ModelFile.Material = ---;
+            readFile(file, *material);
+            it.m = material;
+        }
     }
 
     gpu_meshes : [] Model.GPUMesh = ---;
@@ -381,16 +273,16 @@ requestModel :: (name : string) -> *Model {
         asset.meshes.data = Basic.alloc(size_of(Model.CPUMesh) * header.meshes_count);
         gpu_meshes.data   = pushToArena(*context.pet.arenas.per_frame, Model.GPUMesh, header.meshes_count);
 
-        for 0 .. header.meshes_count - 1 {
+        for * gpu_meshes {
             mesh : ModelFile.Mesh = ---;
             readFile(file, *mesh);
 
-            asset.meshes[it].indices_start = mesh.indices_start;
-            asset.meshes[it].indices_count = mesh.indices_count;
+            asset.meshes[it_index].indices_start = mesh.indices_start;
+            asset.meshes[it_index].indices_count = mesh.indices_count;
 
-            gpu_meshes[it].model_to_mesh  = mesh.model_to_mesh;
-            gpu_meshes[it].mesh_to_model  = mesh.mesh_to_model;
-            gpu_meshes[it].material_index = mesh.material_index;
+            it.model_to_mesh  = mesh.model_to_mesh;
+            it.mesh_to_model  = mesh.mesh_to_model;
+            it.material_index = mesh.material_index;
         }
     }
 
@@ -399,121 +291,19 @@ requestModel :: (name : string) -> *Model {
 
     vertices_bytes := cast(u32, header.vertices_count * vertex_stride);
     assert(vertices_bytes);
+    assertAligned(vertices_bytes, 16);
 
     indices_bytes := cast(u32, header.indices_count * INDEX_STRIDE);
     assert(indices_bytes, "Our models always have indices");
+    assertAligned(indices_bytes, 4);
 
-    materials_bytes := cast(u32, header.materials_count * size_of(ModelFile.Material));
+    materials_bytes := cast(u32, gpu_materials.count * size_of(Model.GPUMaterial));
+    assert(materials_bytes); // @TODO: #GLTF. Materials must be optional
+    assertAligned(materials_bytes, 4);
 
-    meshes_bytes := cast(u32, header.meshes_count * size_of(Model.GPUMesh));
+    meshes_bytes := cast(u32, gpu_meshes.count * size_of(Model.GPUMesh));
     assert(meshes_bytes);
-
-    // @TODO: #GLTF. Copy each element of the array according to `buffer_reference_align`
-    asset.total_bytes = alignUpWithPowerOfTwo(vertices_bytes,  16)
-                      + alignUpWithPowerOfTwo(indices_bytes,   4)
-                      + alignUpWithPowerOfTwo(materials_bytes, 4)
-                      + alignUpWithPowerOfTwo(meshes_bytes,    4);
-
-    success, upload_offset := cast(u32) acquireUploadBufferMemory(asset.total_bytes, 16);
-    assert(success, "Upload ring buffer overflow");
-
-    vertex_offset            : u32;
-    remaining_vertices_bytes := vertices_bytes;
-    while remaining_vertices_bytes {
-        chunk_bytes := min(remaining_vertices_bytes, manager.upload_buffer.buffer.size - upload_offset);
-
-        destination := manager.upload_buffer.buffer.mapped_memory + upload_offset;
-        readFile(file, destination, chunk_bytes);
-
-        assert(asset.vertex_buffer_regions_count < ModelAsset.vertex_buffer_regions.count);
-        region := *asset.vertex_buffer_regions[asset.vertex_buffer_regions_count];
-        asset.vertex_buffer_regions_count += 1;
-
-        region.dest_offset   = vertex_offset;
-        region.source_offset = upload_offset;
-        region.bytes         = chunk_bytes;
-
-        upload_offset = (upload_offset + chunk_bytes) & (manager.upload_buffer.buffer.size - 1);
-        upload_offset = alignUpWithPowerOfTwo(upload_offset, 16);
-
-        vertex_offset            += chunk_bytes;
-        remaining_vertices_bytes -= chunk_bytes;
-    }
-
-    upload_offset = alignUpWithPowerOfTwo(upload_offset, 4);
-
-    index_offset            : u32;
-    remaining_indices_bytes := indices_bytes;
-    while remaining_indices_bytes {
-        chunk_bytes := min(remaining_indices_bytes, manager.upload_buffer.buffer.size - upload_offset);
-
-        destination := manager.upload_buffer.buffer.mapped_memory + upload_offset;
-        readFile(file, destination, chunk_bytes);
-
-        assert(asset.index_buffer_regions_count < ModelAsset.index_buffer_regions.count);
-        region := *asset.index_buffer_regions[asset.index_buffer_regions_count];
-        asset.index_buffer_regions_count += 1;
-
-        region.dest_offset   = index_offset;
-        region.source_offset = upload_offset;
-        region.bytes         = chunk_bytes;
-
-        upload_offset = (upload_offset + chunk_bytes) & (manager.upload_buffer.buffer.size - 1);
-        upload_offset = alignUpWithPowerOfTwo(upload_offset, 4);
-
-        index_offset            += chunk_bytes;
-        remaining_indices_bytes -= chunk_bytes;
-    }
-
-    upload_offset = alignUpWithPowerOfTwo(upload_offset, 4);
-
-    material_offset : u32;
-    remaining_materials_bytes := materials_bytes;
-    while remaining_materials_bytes {
-        chunk_bytes := min(remaining_materials_bytes, manager.upload_buffer.buffer.size - upload_offset);
-
-        destination := manager.upload_buffer.buffer.mapped_memory + upload_offset;
-        memcpy(destination, cast(*void, materials.data) + material_offset, chunk_bytes);
-
-        assert(asset.material_buffer_regions_count < ModelAsset.material_buffer_regions.count);
-        region := *asset.material_buffer_regions[asset.material_buffer_regions_count];
-        asset.material_buffer_regions_count += 1;
-
-        region.dest_offset   = material_offset;
-        region.source_offset = upload_offset;
-        region.bytes         = chunk_bytes;
-
-        upload_offset = (upload_offset + chunk_bytes) & (manager.upload_buffer.buffer.size - 1);
-        upload_offset = alignUpWithPowerOfTwo(upload_offset, 4);
-
-        material_offset           += chunk_bytes;
-        remaining_materials_bytes -= chunk_bytes;
-    }
-
-    upload_offset = alignUpWithPowerOfTwo(upload_offset, 4);
-
-    mesh_offset : u32;
-    remaining_meshes_bytes := meshes_bytes;
-    while remaining_meshes_bytes {
-        chunk_bytes := min(remaining_meshes_bytes, manager.upload_buffer.buffer.size - upload_offset);
-
-        destination := manager.upload_buffer.buffer.mapped_memory + upload_offset;
-        memcpy(destination, cast(*void, gpu_meshes.data) + mesh_offset, chunk_bytes);
-
-        assert(asset.mesh_buffer_regions_count < ModelAsset.mesh_buffer_regions.count);
-        region := *asset.mesh_buffer_regions[asset.mesh_buffer_regions_count];
-        asset.mesh_buffer_regions_count += 1;
-
-        region.dest_offset   = mesh_offset;
-        region.source_offset = upload_offset;
-        region.bytes         = chunk_bytes;
-
-        upload_offset = (upload_offset + chunk_bytes) & (manager.upload_buffer.buffer.size - 1);
-        upload_offset = alignUpWithPowerOfTwo(upload_offset, 4);
-
-        mesh_offset            += chunk_bytes;
-        remaining_meshes_bytes -= chunk_bytes;
-    }
+    assertAligned(meshes_bytes, 4);
 
     //
     // Create buffers
@@ -530,46 +320,131 @@ requestModel :: (name : string) -> *Model {
     asset.mesh_buffer     = createBuffer(meshes_bytes,    .PER_SCENE, .DEFAULT, .READ_ONLY, mesh_buffer_name);
 
     //
-    // Create event
+    // Read data to upload buffer
     //
 
-    #if #complete GRAPHICS_API == {
-        case .VULKAN;
-            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
+    total_bytes   := vertices_bytes + indices_bytes + materials_bytes + meshes_bytes;
+    upload_offset := acquireGlobalUploadRingBufferMemory(total_bytes, 16);
 
-            create_info : VkEventCreateInfo;
-            debugCheckVK(vkCreateEvent(vulkan_device.device, *create_info, null, cast(*VkEvent) *asset.ready_event));
-            setVulkanObjectName(cast(VkEvent) asset.ready_event, "% mesh ready event", name);
+    manager := context.pet.render.asset_manager;
+
+    assert(manager.buffer_copies_count + 4 <= AssetManager.buffer_copies.count);
+    vertex_buffer_copy   := *manager.buffer_copies[manager.buffer_copies_count + 0];
+    index_buffer_copy    := *manager.buffer_copies[manager.buffer_copies_count + 1];
+    material_buffer_copy := *manager.buffer_copies[manager.buffer_copies_count + 2];
+    mesh_buffer_copy     := *manager.buffer_copies[manager.buffer_copies_count + 3];
+    manager.buffer_copies_count += 4;
+
+    vertex_buffer_copy.buffer   = asset.vertex_buffer;
+    index_buffer_copy.buffer    = asset.index_buffer;
+    material_buffer_copy.buffer = asset.material_buffer;
+    mesh_buffer_copy.buffer     = asset.mesh_buffer;
+
+    vertex_offset            : u32;
+    remaining_vertices_bytes := vertices_bytes;
+    while remaining_vertices_bytes {
+        chunk_bytes := min(remaining_vertices_bytes, gurb.buffer.size - upload_offset);
+
+        destination := gurb.buffer.mapped_memory + upload_offset;
+        readFile(file, destination, chunk_bytes);
+
+        assert(vertex_buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
+        region := *vertex_buffer_copy.regions[vertex_buffer_copy.regions_count];
+        vertex_buffer_copy.regions_count += 1;
+
+        region.dest_offset   = vertex_offset;
+        region.source_offset = upload_offset;
+        region.bytes         = chunk_bytes;
+
+        upload_offset             = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
+        vertex_offset            += chunk_bytes;
+        remaining_vertices_bytes -= chunk_bytes;
+    }
+
+    assertAligned(upload_offset, 4);
+    index_offset            : u32;
+    remaining_indices_bytes := indices_bytes;
+    while remaining_indices_bytes {
+        chunk_bytes := min(remaining_indices_bytes, gurb.buffer.size - upload_offset);
+
+        destination := gurb.buffer.mapped_memory + upload_offset;
+        readFile(file, destination, chunk_bytes);
+
+        assert(index_buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
+        region := *index_buffer_copy.regions[index_buffer_copy.regions_count];
+        index_buffer_copy.regions_count += 1;
+
+        region.dest_offset   = index_offset;
+        region.source_offset = upload_offset;
+        region.bytes         = chunk_bytes;
+
+        upload_offset            = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
+        index_offset            += chunk_bytes;
+        remaining_indices_bytes -= chunk_bytes;
+    }
+
+    assertAligned(upload_offset, 4);
+    material_offset : u32;
+    remaining_materials_bytes := materials_bytes;
+    while remaining_materials_bytes {
+        chunk_bytes := min(remaining_materials_bytes, gurb.buffer.size - upload_offset);
+
+        destination := gurb.buffer.mapped_memory + upload_offset;
+        memcpy(destination, cast(*void, gpu_materials.data) + material_offset, chunk_bytes);
+
+        assert(material_buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
+        region := *material_buffer_copy.regions[material_buffer_copy.regions_count];
+        material_buffer_copy.regions_count += 1;
+
+        region.dest_offset   = material_offset;
+        region.source_offset = upload_offset;
+        region.bytes         = chunk_bytes;
+
+        upload_offset              = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
+        material_offset           += chunk_bytes;
+        remaining_materials_bytes -= chunk_bytes;
+    }
+
+    assertAligned(upload_offset, 4);
+    mesh_offset : u32;
+    remaining_meshes_bytes := meshes_bytes;
+    while remaining_meshes_bytes {
+        chunk_bytes := min(remaining_meshes_bytes, gurb.buffer.size - upload_offset);
+
+        destination := gurb.buffer.mapped_memory + upload_offset;
+        memcpy(destination, cast(*void, gpu_meshes.data) + mesh_offset, chunk_bytes);
+
+        assert(mesh_buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
+        region := *mesh_buffer_copy.regions[mesh_buffer_copy.regions_count];
+        mesh_buffer_copy.regions_count += 1;
+
+        region.dest_offset   = mesh_offset;
+        region.source_offset = upload_offset;
+        region.bytes         = chunk_bytes;
+
+        upload_offset           = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
+        mesh_offset            += chunk_bytes;
+        remaining_meshes_bytes -= chunk_bytes;
     }
 
     return asset;
 }
 
-isModelReady :: (model : *Model) -> bool {
-    if !model return false;
+requestTexture :: (name : string) -> TextureAsset {
+    assert(resourceMemoryCommitted(.PERSISTENT));
+    assert(!resourceMemoryCommitted(.PER_SCENE));
 
-    asset := cast(*ModelAsset) model;
-    if asset.is_ready return true;
+    asset : TextureAsset;
+    asset.texture     = loadTexture(name);
+    asset.ready_event = context.pet.render.global_upload_ring_buffer.done_events[context.pet.render.device.frame_index];
 
-    #if #complete GRAPHICS_API == {
-        case .VULKAN;
-            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
-
-            result := vkGetEventStatus(vulkan_device.device, cast(VkEvent) asset.ready_event);
-            assert(result == .VK_EVENT_SET || result == .VK_EVENT_RESET, "vkGetEventStatus returned %", result);
-
-            asset.is_ready = result == .VK_EVENT_SET;
-    }
-
-    if asset.is_ready {
-        Atomics.atomic_add(*context.pet.render.asset_manager.upload_buffer.read_offset, asset.total_bytes);
-    }
-
-    return asset.is_ready;
+    return asset;
 }
 
-requestTexture :: (name : string) -> *TextureAsset {
-    assert(!resourceMemoryCommitted(.PER_SCENE));
+#scope_file
+
+loadTexture :: (name : string) -> *Texture {
+    autoResetPerFrameArenas();
 
     file, file_error := openFile(makeRuntimeTextureFilename(name), .READ | .SHARED_READ | .EXISTS | .SEQ);
     assert(file_error == .NONE);
@@ -579,10 +454,6 @@ requestTexture :: (name : string) -> *TextureAsset {
     readFile(file, *header);
     assert(header.version == MeshFile.VERSION);
 
-    manager := context.pet.render.asset_manager;
-
-    asset := pushBack(*manager.texture_assets);
-
     //
     // Read surface offsets
     //
@@ -591,6 +462,7 @@ requestTexture :: (name : string) -> *TextureAsset {
     array_size  := ifx header.flags & .ARRAY then header.array_size else 1;
 
     surfaces_count := header.mips_count * array_size * faces_count;
+    assert(surfaces_count > 0);
 
     surface_offsets : [] u64;
     if surfaces_count > 1 {
@@ -600,187 +472,74 @@ requestTexture :: (name : string) -> *TextureAsset {
     }
 
     //
-    // Read texture into the upload buffer and fill copy regions
+    // Create texture
+    //
+
+    texture := createTexture(header.format,
+                             header.width,
+                             header.height,
+                             header.depth,
+                             mips_count = header.mips_count,
+                             header.flags,
+                             usages = .SHADER_READ,
+                             .PER_SCENE,
+                             name);
+
+    //
+    // Read texture to upload buffer
     //
 
     texture_offset := cast(u64) (size_of(TextureFile.Header) + surface_offsets.count * size_of(u64));
     assert(cast(s64) texture_offset == getFileCursorPosition(file));
 
     file_size := cast(u64) getFileSize(file);
-    asset.texture_size = file_size - texture_offset;
 
     next_surface_offset_index := 0;
 
     this_surface_offset := texture_offset;
     next_surface_offset := ifx surface_offsets.count > 0 then surface_offsets[next_surface_offset_index] else file_size;
 
-    // 16:    BC7 block size. @TODO: #TextureLoader. Align to the actual block size.
-    // false: there is no way to copy a surface which is splitted in half
-    success, upload_offset := acquireUploadBufferMemory(asset.texture_size, 16, false);
-    if success {
-        destination := manager.upload_buffer.buffer.mapped_memory + upload_offset;
-        readFile(file, destination, cast(s64) asset.texture_size);
-
-        for face : 0 .. faces_count - 1 {
-            for layer : 0 .. array_size - 1 {
-                for mip : 0 .. header.mips_count - 1 {
-                    this_surface_size := next_surface_offset - this_surface_offset;
-
-                    region := pushBack(*asset.regions);
-                    region.buffer_offset       = cast(u32) upload_offset;
-                    region.texture_array_layer = layer;
-                    region.texture_face        = face;
-                    region.texture_mip         = mip;
-
-                    upload_offset       += this_surface_size;
-                    this_surface_offset = next_surface_offset;
-
-                    next_surface_offset_index += 1;
-                    if next_surface_offset_index < surface_offsets.count {
-                        next_surface_offset = surface_offsets[next_surface_offset_index];
-                    } else {
-                        next_surface_offset = file_size;
-                    }
-                }
-            }
-        }
-    } else {
-        for face : 0 .. faces_count - 1 {
-            for layer : 0 .. array_size - 1 {
-                for mip : 0 .. header.mips_count - 1 {
-                    this_surface_size := next_surface_offset - this_surface_offset;
-
-                    // 16:    BC7 block size
-                    // false: there is no way to copy a surface which is splitted in half
-                    success, upload_offset = acquireUploadBufferMemory(this_surface_size, 16, false);
-                    assert(success, "Upload ring buffer overflow");
-
-                    destination := manager.upload_buffer.buffer.mapped_memory + upload_offset;
-                    readFile(file, destination, cast(s64) this_surface_size);
-
-                    region := pushBack(*asset.regions);
-                    region.buffer_offset       = cast(u32) upload_offset;
-                    region.texture_array_layer = layer;
-                    region.texture_face        = face;
-                    region.texture_mip         = mip;
-
-                    this_surface_offset = next_surface_offset;
-
-                    next_surface_offset_index += 1;
-                    if next_surface_offset_index < surface_offsets.count {
-                        next_surface_offset = surface_offsets[next_surface_offset_index];
-                    } else {
-                        next_surface_offset = file_size;
-                    }
-                }
-            }
-        }
-    }
-
-    //
-    // Create texture and view
-    //
-
-    asset.texture = createTexture(header.format,
-                                  header.width,
-                                  header.height,
-                                  header.depth,
-                                  mips_count = header.mips_count,
-                                  header.flags,
-                                  usages = .SHADER_READ,
-                                  .PER_SCENE,
-                                  name);
-
-    asset.texture_view = createTextureView(asset.texture, .SHADER_READ, lifetime = .PER_SCENE);
-
-    //
-    // Create event
-    //
-
-    #if #complete GRAPHICS_API == {
-        case .VULKAN;
-            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
-
-            create_info : VkEventCreateInfo;
-            debugCheckVK(vkCreateEvent(vulkan_device.device, *create_info, null, cast(*VkEvent) *asset.ready_event));
-            setVulkanObjectName(cast(VkEvent) asset.ready_event, "% texture ready event", name);
-    }
-
-    return asset;
-}
-
-isTextureReady :: (asset : *TextureAsset) -> bool {
-    if !asset         return false;
-    if asset.is_ready return true;
-
-    #if #complete GRAPHICS_API == {
-        case .VULKAN;
-            vulkan_device := cast(*VulkanDevice) context.pet.render.device;
-
-            result := vkGetEventStatus(vulkan_device.device, cast(VkEvent) asset.ready_event);
-            assert(result == .VK_EVENT_SET || result == .VK_EVENT_RESET, "vkGetEventStatus returned %", result);
-
-            asset.is_ready = result == .VK_EVENT_SET;
-    }
-
-    // @TODO: #SinglePointWait. This is incorrect if the order is not guaranteed.
-    if asset.is_ready {
-        manager := context.pet.render.asset_manager;
-        Atomics.atomic_add(*manager.upload_buffer.read_offset, asset.texture_size);
-    }
-
-    return asset.is_ready;
-}
-
-#scope_file
-
-acquireUploadBufferMemory :: (data_size : u64, alignment : u64 = 1, $may_cycle := true) -> (success : bool, offset : u64) {
     manager := context.pet.render.asset_manager;
+    gurb    := context.pet.render.global_upload_ring_buffer;
 
-    buffer_size_mask   : u64 = manager.upload_buffer.buffer.size - 1;
-    old_offset_aligned : u64 = ---;
+    assert(manager.texture_copies_count + 1 <= AssetManager.texture_copies.count);
+    texture_copy := *manager.texture_copies[manager.texture_copies_count];
+    manager.texture_copies_count += 1;
 
-    #if may_cycle {
-        old_offset := manager.upload_buffer.write_offset;
+    texture_copy.texture = texture;
 
-        while true {
-            if alignment > 1 {
-                old_offset_aligned = alignUpWithPowerOfTwo(old_offset, alignment);
-            } else {
-                old_offset_aligned = old_offset;
+    for face : 0 .. faces_count - 1 {
+        for layer : 0 .. array_size - 1 {
+            for mip : 0 .. header.mips_count - 1 {
+                this_surface_size := next_surface_offset - this_surface_offset;
+
+                // 16:    BC7 block size. @TODO: #TextureLoader. Align to the actual block size.
+                // false: there is no way to copy a surface which is splitted in half
+                upload_offset := acquireGlobalUploadRingBufferMemory(this_surface_size, 16, false);
+
+                destination := gurb.buffer.mapped_memory + upload_offset;
+                readFile(file, destination, cast(s64) this_surface_size);
+
+                assert(texture_copy.regions_count < AssetManager.TextureCopy.regions.count);
+                region := *texture_copy.regions[texture_copy.regions_count];
+                texture_copy.regions_count += 1;
+
+                region.buffer_offset       = upload_offset;
+                region.texture_array_layer = layer;
+                region.texture_face        = face;
+                region.texture_mip         = mip;
+
+                this_surface_offset = next_surface_offset;
+
+                next_surface_offset_index += 1;
+                if next_surface_offset_index < surface_offsets.count {
+                    next_surface_offset = surface_offsets[next_surface_offset_index];
+                } else {
+                    next_surface_offset = file_size;
+                }
             }
-
-            new_offset := old_offset_aligned + data_size;
-            if new_offset - manager.upload_buffer.read_offset > manager.upload_buffer.buffer.size {
-                return false, 0;
-            }
-
-            success:, old_offset = compare_and_swap(*manager.upload_buffer.write_offset, old_offset, new_offset);
-            if success break;
-        }
-    } else {
-        old_offset := manager.upload_buffer.write_offset;
-
-        while true {
-            bytes_until_end := manager.upload_buffer.buffer.size - (old_offset & buffer_size_mask);
-
-            if bytes_until_end < data_size {
-                old_offset_aligned = alignUpWithPowerOfTwo(old_offset, manager.upload_buffer.buffer.size);
-            } else if alignment > 1 {
-                old_offset_aligned = alignUpWithPowerOfTwo(old_offset, alignment);
-            } else {
-                old_offset_aligned = old_offset;
-            }
-
-            new_offset := old_offset_aligned + data_size;
-            if new_offset - manager.upload_buffer.read_offset > manager.upload_buffer.buffer.size {
-                return false, 0;
-            }
-
-            success:, old_offset = compare_and_swap(*manager.upload_buffer.write_offset, old_offset, new_offset);
-            if success break;
         }
     }
 
-    return true, old_offset_aligned & buffer_size_mask;
+    return texture;
 }

@@ -271,7 +271,6 @@ petMain :: () {
     // @TODO: #Scene.
     defer {
         resetResourceMemory(.PER_SCENE);
-        resetAssetManagerAssets();
         resetBindings(.PER_SCENE);
     }
 
@@ -297,7 +296,6 @@ petMain :: () {
             {
                 // @TODO: #PerFrameResources.
                 resetResourceMemory(.PER_FRAME);
-                resetAssetManager();
                 resetGlobalUploadRingBuffer();
                 resetShaderManager();
                 resetBindings(.PER_FRAME);
@@ -317,7 +315,6 @@ petMain :: () {
             if window.input.keyboard[Input.Key.O] & .RELEASED {
                 // Reset
                 resetResourceMemory(.PER_SCENE);
-                resetAssetManagerAssets();
                 resetBindings(.PER_SCENE);
 
                 // Create per scene resources here...
@@ -330,9 +327,10 @@ petMain :: () {
 
                 // @Cleanup: #GLTF. bindHeart(*heart);
                 bindSkybox(*skybox);
+                bindSponza(*sponza);
 
                 // @Important: Should be after per scene memory commit
-                processRequestedAssets();
+                processAssetManagerCopies();
             }
 
             // Update per frame uniform
@@ -457,7 +455,6 @@ petMain :: () {
             // Submit
             {
                 submitGlobalUploadRingBuffer();
-                submitAssetManager();
                 submitCommandBuffer(*command_buffer);
             }
         }
@@ -483,7 +480,7 @@ for_expansion :: Hash_Table.for_expansion;
 #load "render/device.jai";
 #load "render/global_upload_ring_buffer.jai";
 #load "render/gpu_event.jai";
-#load "render/mesh.jai";
+#load "render/model.jai";
 #load "render/resource_manager.jai";
 #load "render/shader.jai";
 #load "shader_compiler/compiler.jai";
