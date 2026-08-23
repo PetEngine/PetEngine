@@ -464,6 +464,28 @@ copyBufferToTexture :: (
     command_buffer.commands_count[context.pet.render.device.frame_index] += 1;
 }
 
+// @TODO: #GPUEvent. VkPipelineStageFlags
+setGPUEvent :: (command_buffer : CommandBuffer, event : GPUEvent) {
+    assert(command_buffer.recording_commands);
+
+    #if #complete GRAPHICS_API == {
+        case .VULKAN;
+            vk_command_buffer := command_buffer.handles[context.pet.render.device.frame_index];
+            vkCmdSetEvent(vk_command_buffer, cast(VkEvent) event.handle, .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    }
+}
+
+// @TODO: #GPUEvent. VkPipelineStageFlags
+resetGPUEvent :: (command_buffer : CommandBuffer, event : GPUEvent) {
+    assert(command_buffer.recording_commands);
+
+    #if #complete GRAPHICS_API == {
+        case .VULKAN;
+            vk_command_buffer := command_buffer.handles[context.pet.render.device.frame_index];
+            vkCmdResetEvent(vk_command_buffer, cast(VkEvent) event.handle, .VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    }
+}
+
 #scope_file
 
 shaderKindToShaderBindPoint :: inline (kind : Shader.Kind) -> ShaderBindPoint #no_context {
