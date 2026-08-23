@@ -5,6 +5,8 @@ Sponza :: struct {
         mesh_buffer_reference     : u64;
         material_buffer_reference : u64;
         per_view_uniform_index    : u32;
+        sampler_index             : u16;
+        first_texture_index       : u16;
     } #no_padding
 
     shader : *Shader;
@@ -36,7 +38,14 @@ destroySponza :: (sponza : *Sponza) {
 loadSponza :: (sponza : *Sponza) {
     sponza.model = requestModel("Sponza");
 
-    sponza.sampler = createSampler(.{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR }, .PER_SCENE, "Trilinear sampler" );
+    sponza.sampler = createSampler(.{
+        min_filter     = .LINEAR,
+        mag_filter     = .LINEAR,
+        mip_filter     = .LINEAR,
+        address_mode_u = .WRAP,
+        address_mode_v = .WRAP,
+        address_mode_w = .WRAP,
+    }, .PER_SCENE, "Trilinear wrap sampler" );
 
     assert(sponza.model.textures.count <= Sponza.texture_views.count);
     for sponza.model.textures {
@@ -75,6 +84,8 @@ drawSponza :: (command_buffer : *CommandBuffer, sponza : Sponza, per_view_unifor
         mesh_buffer_reference     = sponza.model.mesh_buffer.device_address,
         material_buffer_reference = sponza.model.material_buffer.device_address,
         per_view_uniform_index    = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
+        sampler_index             = sponza.handles.sampler.descriptor,
+        first_texture_index       = sponza.handles.textures[0].descriptor
     }));
 
     for sponza.model.meshes {

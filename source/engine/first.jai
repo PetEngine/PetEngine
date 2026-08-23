@@ -92,11 +92,11 @@ PerViewUniform :: struct {
 
     Data :: struct {
         // camera_pos : v3f = .{ 2.0, 10.0, -17.0 };
-        camera_pos : v3f = .{ x = -10.0, y = 1.0 };
+        camera_pos : v3f = .{ 9.0, 1.0, 0.3 };
         __padding0 : f32;
 
         // camera_dir : v3f = .{ -0.1, -0.2, 0.9 };
-        camera_dir : v3f = .{ x = 1.0 };
+        camera_dir : v3f = .{ x = -1.0 };
         __padding1 : f32;
 
         view_matrix     : m4x4;

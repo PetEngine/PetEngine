@@ -1,0 +1,111 @@
+#ifndef PBR
+#define PBR
+
+#include "math.shader_header"
+
+const float MIN_ROUGHNESS     = 0.005;
+const float SPECULAR_NONMETAL = 0.04;
+
+float fresnelComponent(float value) {
+    const float v = 1.0 - value;
+    return v * v * v * v * v;
+}
+
+vec2 fresnelComponent(vec2 value) {
+    const vec2 v = 1.0 - value;
+    return v * v * v * v * v;
+}
+
+// Frostbite, "Moving Frostbite to Physically Based Rendering 3.0", Burley Diffuse Renormalized (Energy conservative)
+// https://seblagarde.wordpress.com/wp-content/uploads/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
+vec3 diffuseBurley(vec3 diffuse_color, float roughness, float NdotV, float NdotL, float LdotH) {
+    const float energy_bias   = 0.5 * roughness;
+    const float energy_factor = lerp(1.0, 1.0 / 1.51, roughness);
+
+    const float FD90 = energy_bias + 2.0 * roughness * pow2(LdotH);
+    const vec2  FdVL = 1.0 + (FD90 - 1.0) * fresnelComponent(vec2(NdotV, NdotL));
+
+    return diffuse_color * (FdVL.x * FdVL.y) * energy_factor * INV_PI;
+}
+
+// GGX / Trowbridge-Reitz
+// [Walter et al. 2007, "Microfacet models for refraction through rough surfaces"]
+float NDF(float NdotH, float ggx_alpha) {
+    const float ggx_alpha_2 = pow2(ggx_alpha);
+    const float denominator = (ggx_alpha_2 - 1.0) * pow2(NdotH) + 1.0;
+    return ggx_alpha_2 / max(pow2(denominator), EPSILON);
+}
+
+// Appoximation of joint Smith term for GGX
+// [Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"]
+float VF(float NdotL, float NdotV, float ggx_alpha) {
+    const float invAlpha = 1.0 - ggx_alpha;
+    const float lambdaV  = NdotL * (NdotV * invAlpha + ggx_alpha);
+    const float lambdaL  = NdotV * (NdotL * invAlpha + ggx_alpha);
+
+    // Epsilon prevents random sparkles due to zero division
+    return 0.5 / max(lambdaV + lambdaL, EPSILON);
+}
+
+// [Schlick 1994, "An Inexpensive BRDF Model for Physically-Based Rendering"]
+// values less 0.02 is incorrect and pretend to be specular occlusion
+vec3 fresnelSchlick(vec3 specular_color, float LdotH) {
+    const vec3  f0  = specular_color;
+    const float f90 = min(50.0 * dot(f0, vec3(0.33, 0.33, 0.33)), 1.0);
+    return f0 + (f90 - f0) * fresnelComponent(LdotH);
+}
+
+vec3 calculateBRDF(vec3 L, vec3 V, vec3 N, vec3 albedo, float roughness, float metalness) {
+    roughness = max(roughness, MIN_ROUGHNESS);
+
+    const vec3 diffuse_color  = albedo * (1.0 - metalness);
+    const vec3 specular_color = lerp(min(albedo, SPECULAR_NONMETAL), albedo, metalness);
+
+    const vec3 H = safeNormalize(L + V, N);
+
+    const float NdotV = clamp(abs(dot(N, V)), EPSILON, 1.0); // epsilon "avoids artifacts" (c) Frostbite
+    const float NdotL = saturate(dot(N, L));
+    const float NdotH = saturate(dot(N, H));
+    const float LdotH = saturate(dot(L, H));
+
+    const vec3 diffuse = diffuseBurley(diffuse_color, roughness, NdotV, NdotL, LdotH);
+
+    const float ggx_alpha = pow2(roughness);
+    const vec3  specular  = NDF(NdotH, ggx_alpha) * VF(NdotL, NdotV, ggx_alpha) * fresnelSchlick(specular_color, LdotH);
+
+    return (diffuse + specular) * NdotL;
+}
+
+float toneMappingUncharted2(float v) {
+    const float COEFF_A = 0.15;
+    const float COEFF_B = 0.50;
+    const float COEFF_C = 0.10;
+    const float COEFF_D = 0.20;
+    const float COEFF_E = 0.02;
+    const float COEFF_F = 0.30;
+
+    const float COEFF_CB = COEFF_C * COEFF_B;
+    const float COEFF_DE = COEFF_D * COEFF_E;
+    const float COEFF_DF = COEFF_D * COEFF_F;
+    const float COEFF_EF = COEFF_E / COEFF_F;
+
+    return ((v * (COEFF_A * v + COEFF_CB) + COEFF_DE) / (v * (COEFF_A * v + COEFF_B) + COEFF_DF)) - COEFF_EF;
+}
+
+vec3 toneMappingUncharted2(vec3 v) {
+    const float COEFF_A = 0.15;
+    const float COEFF_B = 0.50;
+    const float COEFF_C = 0.10;
+    const float COEFF_D = 0.20;
+    const float COEFF_E = 0.02;
+    const float COEFF_F = 0.30;
+
+    const float COEFF_CB = COEFF_C * COEFF_B;
+    const float COEFF_DE = COEFF_D * COEFF_E;
+    const float COEFF_DF = COEFF_D * COEFF_F;
+    const float COEFF_EF = COEFF_E / COEFF_F;
+
+    return ((v * (COEFF_A * v + COEFF_CB) + COEFF_DE) / (v * (COEFF_A * v + COEFF_B) + COEFF_DF)) - COEFF_EF;
+}
+
+#endif

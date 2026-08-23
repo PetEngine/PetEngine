@@ -1,0 +1,18 @@
+#ifndef MATH
+#define MATH
+
+const float PI     = 3.141592653589793;
+const float INV_PI = 1.0 / PI;
+
+const float EPSILON = 1.e-5; // 0.00001
+
+vec3 safeNormalize(vec3 v, vec3 fallback) {
+    const float l = length(v);
+    return l <= EPSILON ? fallback : v / l;
+}
+
+#define saturate(v)   clamp(v, 0.0, 1.0)
+#define pow2(v)       (v * v)
+#define lerp(a, b, t) mix(a, b, t)
+
+#endif
