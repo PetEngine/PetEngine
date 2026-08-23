@@ -39,11 +39,12 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
     };
 
     render : struct {
-        device           : *Device;
-        resource_manager : *ResourceManager;
-        asset_manager    : *AssetManager;
-        shader_manager   : *ShaderManager;
-        binding_manager  : *BindingManager;
+        device                    : *Device;
+        resource_manager          : *ResourceManager;
+        asset_manager             : *AssetManager;
+        shader_manager            : *ShaderManager;
+        binding_manager           : *BindingManager;
+        global_upload_ring_buffer : *GlobalUploadRingBuffer;
     };
 
     converter : struct {
@@ -220,6 +221,9 @@ petMain :: () {
     createResourceManager();
     defer destroyResourceManager();
 
+    createGlobalUploadRingBuffer();
+    defer destroyGlobalUploadRingBuffer();
+
     createAssetManager();
 
     createShaderManager();
@@ -294,6 +298,7 @@ petMain :: () {
                 // @TODO: #PerFrameResources.
                 resetResourceMemory(.PER_FRAME);
                 resetAssetManager();
+                resetGlobalUploadRingBuffer();
                 resetShaderManager();
                 resetBindings(.PER_FRAME);
                 resetCommandBuffer(*command_buffer);
@@ -451,8 +456,9 @@ petMain :: () {
 
             // Submit
             {
+                submitGlobalUploadRingBuffer();
                 submitAssetManager();
-                submitCommandBuffer(command_buffer);
+                submitCommandBuffer(*command_buffer);
             }
         }
         endFrame();
@@ -475,6 +481,8 @@ for_expansion :: Hash_Table.for_expansion;
 #load "render/binding_manager.jai";
 #load "render/command_buffer.jai";
 #load "render/device.jai";
+#load "render/global_upload_ring_buffer.jai";
+#load "render/gpu_event.jai";
 #load "render/mesh.jai";
 #load "render/resource_manager.jai";
 #load "render/shader.jai";
