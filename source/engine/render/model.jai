@@ -43,6 +43,8 @@ Model :: struct {
     index_buffer    : *Buffer;
     material_buffer : *Buffer;
     mesh_buffer     : *Buffer;
+
+    vertex_format : VertexFormat;
 }
 
 #assert size_of(Model.GPUMesh) & 3 == 0;

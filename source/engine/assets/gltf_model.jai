@@ -56,18 +56,35 @@ convertGLTFModel :: (
     defer if gltf_meshes.data then Basic.array_reset(*gltf_meshes);
     if !success return false;
 
-    vertices:, indices:, meshes:, success = uniteBuffersAndRemapMeshes(buffers, gltf_meshes);
-    defer {
-        if vertices.data then Basic.array_reset(*vertices);
-        if indices.data  then Basic.array_reset(*indices);
-    }
-    if !success return false;
-
-    if !serializeModel(name, textures, materials, meshes, vertices, indices) {
-        return false;
+    contains_tangents : bool;
+    for gltf_meshes {
+        if it.count_by_stream[GLTF_Mesh.Stream.TANGENT] > 0 {
+            contains_tangents = true;
+            break;
+        }
     }
 
-    return true;
+    if contains_tangents {
+        vertices:, indices:, meshes:, success = uniteBuffersAndRemapMeshes(buffers, gltf_meshes, .PNTUV);
+        defer {
+            if vertices.data then Basic.array_reset(*vertices);
+            if indices.data  then Basic.array_reset(*indices);
+        }
+        if !success return false;
+
+        success = serializeModel(name, textures, materials, meshes, vertices, indices);
+    } else {
+        vertices:, indices:, meshes:, success = uniteBuffersAndRemapMeshes(buffers, gltf_meshes, .PNUV);
+        defer {
+            if vertices.data then Basic.array_reset(*vertices);
+            if indices.data  then Basic.array_reset(*indices);
+        }
+        if !success return false;
+
+        success = serializeModel(name, textures, materials, meshes, vertices, indices);
+    }
+
+    return success;
 }
 
 #scope_file
@@ -960,13 +977,16 @@ accessorTypeAndComponentTypeToType :: (accessor_type : string, component_type : 
     return void;
 }
 
-uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_Mesh) -> (
-    vertices : [..] VertexTypes.PNTUV,
+uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_Mesh, $vertex_format : VertexFormat) -> (
+    vertices : [..] $VertexType,
     indices  : [..] u32,
     meshes   : [] ModelFile.Mesh,
     success  : bool
-) {
-    vertices     : [..] VertexTypes.PNTUV;
+) #modify {
+    VertexType = vertexFormatToVertexType(vertex_format);
+    return true;
+} {
+    vertices     : [..] VertexType;
     indices      : [..] u32;
     meshes       : [] ModelFile.Mesh;
     FAILURE_CODE :: #code { `return vertices, indices, meshes, false; };
@@ -1021,11 +1041,12 @@ uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_M
 
         vertices_count := gltf_mesh.count_by_stream[GLTF_Mesh.Stream.POSITION];
         for 0 .. vertices_count - 1 {
-            vertex, success := makePNTUVVertex(buffers, gltf_mesh, it);
+            vertex, success := makeVertex(buffers, gltf_mesh, it, vertex_format);
             if !success return vertices, indices, meshes, false;
 
             Basic.array_add(*vertices, vertex);
 
+            // @TODO: Normal way to generate indices :)
             if gltf_indices_count <= 0 {
                 index := this_mesh_vertices_offset + cast(u32) it;
                 Basic.array_add(*indices, index);
@@ -1036,8 +1057,11 @@ uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_M
     return vertices, indices, meshes, true;
 }
 
-makePNTUVVertex :: (buffers : GLTF_Buffers, mesh : GLTF_Mesh, vertex_index : s64) -> VertexTypes.PNTUV, bool {
-    vertex       : VertexTypes.PNTUV;
+makeVertex :: (buffers : GLTF_Buffers, mesh : GLTF_Mesh, vertex_index : s64, $format : VertexFormat) -> $VertexType, bool #modify {
+    VertexType = vertexFormatToVertexType(format);
+    return true;
+} {
+    vertex       : VertexType;
     FAILURE_CODE :: #code { `return vertex, false; };
 
     count := mesh.count_by_stream[GLTF_Mesh.Stream.POSITION];
@@ -1065,28 +1089,27 @@ makePNTUVVertex :: (buffers : GLTF_Buffers, mesh : GLTF_Mesh, vertex_index : s64
         read_stride := mesh.read_stride_by_stream[STREAM];
         type        := mesh.type_by_stream[STREAM];
 
-        normal := cast(*v3f, *buffer[offset + vertex_index * read_stride]).*;
-
-        assertNormalized(normal);
-        vertex.normal_v.xyz = normal;
+        vertex.normal_v.xyz = cast(*v3f, *buffer[offset + vertex_index * read_stride]).*;
+        assertNormalized(vertex.normal_v.xyz);
     }
 
-    count = mesh.count_by_stream[GLTF_Mesh.Stream.TANGENT];
-    if count > 0 {
-        gltfCheck(vertex_index < count, FAILURE_CODE);
+    #if format == .PNTUV {
+        count = mesh.count_by_stream[GLTF_Mesh.Stream.TANGENT];
+        if count > 0 {
+            gltfCheck(vertex_index < count, FAILURE_CODE);
 
-        STREAM :: GLTF_Mesh.Stream.TANGENT;
+            STREAM :: GLTF_Mesh.Stream.TANGENT;
 
-        buffer      := buffers[mesh.buffer_index_by_stream[STREAM]];
-        offset      := mesh.offset_in_bytes_by_stream[STREAM];
-        read_stride := mesh.read_stride_by_stream[STREAM];
-        type        := mesh.type_by_stream[STREAM];
+            buffer      := buffers[mesh.buffer_index_by_stream[STREAM]];
+            offset      := mesh.offset_in_bytes_by_stream[STREAM];
+            read_stride := mesh.read_stride_by_stream[STREAM];
+            type        := mesh.type_by_stream[STREAM];
 
-        tangent := cast(*v4f, *buffer[offset + vertex_index * read_stride]).*;
+            vertex.tangent = cast(*v4f, *buffer[offset + vertex_index * read_stride]).*;
 
-        assertNormalized(tangent.xyz);
-        assert(tangent.w == 1.0 || tangent.w == -1.0);
-        vertex.tangent = tangent;
+            assertNormalized(vertex.tangent.xyz);
+            assert(vertex.tangent.w == 1.0 || vertex.tangent.w == -1.0);
+        }
     }
 
     count = mesh.count_by_stream[GLTF_Mesh.Stream.TEXCOORD];
@@ -1111,7 +1134,7 @@ makePNTUVVertex :: (buffers : GLTF_Buffers, mesh : GLTF_Mesh, vertex_index : s64
                 vertex.normal_v.w   = floats[1];
 
             case v3f;
-                gltfCheck(false, FAILURE_CODE, "3-dimensional texture coordinates are not fully supported yet");
+                gltfCheck(false, FAILURE_CODE, "3-dimensional texture coordinates are not supported for vertex type %", );
         }
     }
 

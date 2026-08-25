@@ -72,7 +72,7 @@ VertexTypes :: struct {
     PNTUV :: struct {
         position_u : v4f;
         normal_v   : v4f;
-        tangent    : v4f; // xyz - tangent, w - handedness of the tangent basis (-1.0 or 1.0)
+        tangent    : v4f; // xyz - tangent, w - binormal sign
     }
 }
 

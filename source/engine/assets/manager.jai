@@ -55,6 +55,7 @@ processAssetManagerCopies :: () {
     gurb    := context.pet.render.global_upload_ring_buffer;
 
     for manager.buffer_copies {
+        if !it.buffer continue; // We might not have materials, for example.
         copyBufferRegions(*gurb.command_buffer, it.buffer, gurb.buffer, .{ it.regions_count, it.regions.data });
     }
 
@@ -233,7 +234,8 @@ requestModel :: (name : string) -> ModelAsset {
     gurb := context.pet.render.global_upload_ring_buffer;
 
     asset : ModelAsset;
-    asset.ready_event = gurb.done_events[context.pet.render.device.frame_index];
+    asset.vertex_format = header.vertex_format;
+    asset.ready_event   = gurb.done_events[context.pet.render.device.frame_index];
 
     if header.textures_count {
         asset.textures.count = header.textures_count;
@@ -286,7 +288,7 @@ requestModel :: (name : string) -> ModelAsset {
         }
     }
 
-    vertex_stride := getVertexStride(header.vertex_format);
+    vertex_stride := getVertexStride(asset.vertex_format);
     INDEX_STRIDE  :: size_of(u32);
 
     vertices_bytes := cast(u32, header.vertices_count * vertex_stride);
@@ -298,7 +300,6 @@ requestModel :: (name : string) -> ModelAsset {
     assertAligned(indices_bytes, 4);
 
     materials_bytes := cast(u32, gpu_materials.count * size_of(Model.GPUMaterial));
-    assert(materials_bytes); // @TODO: #GLTF. Materials must be optional
     assertAligned(materials_bytes, 4);
 
     meshes_bytes := cast(u32, gpu_meshes.count * size_of(Model.GPUMesh));
@@ -314,10 +315,12 @@ requestModel :: (name : string) -> ModelAsset {
     material_buffer_name := String.join(name, " materials",, allocator = Basic.temp);
     mesh_buffer_name     := String.join(name, " meshes",,    allocator = Basic.temp);
 
-    asset.vertex_buffer   = createBuffer(vertices_bytes,  .PER_SCENE, .DEFAULT, .READ_ONLY, vertex_buffer_name);
-    asset.index_buffer    = createBuffer(indices_bytes,   .PER_SCENE, .DEFAULT, .READ_ONLY, index_buffer_name);
-    asset.material_buffer = createBuffer(materials_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, material_buffer_name);
-    asset.mesh_buffer     = createBuffer(meshes_bytes,    .PER_SCENE, .DEFAULT, .READ_ONLY, mesh_buffer_name);
+    asset.vertex_buffer = createBuffer(vertices_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, vertex_buffer_name);
+    asset.index_buffer  = createBuffer(indices_bytes,  .PER_SCENE, .DEFAULT, .READ_ONLY, index_buffer_name);
+    if materials_bytes {
+        asset.material_buffer = createBuffer(materials_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, material_buffer_name);
+    }
+    asset.mesh_buffer   = createBuffer(meshes_bytes,   .PER_SCENE, .DEFAULT, .READ_ONLY, mesh_buffer_name);
 
     //
     // Read data to upload buffer
@@ -335,10 +338,12 @@ requestModel :: (name : string) -> ModelAsset {
     mesh_buffer_copy     := *manager.buffer_copies[manager.buffer_copies_count + 3];
     manager.buffer_copies_count += 4;
 
-    vertex_buffer_copy.buffer   = asset.vertex_buffer;
-    index_buffer_copy.buffer    = asset.index_buffer;
-    material_buffer_copy.buffer = asset.material_buffer;
-    mesh_buffer_copy.buffer     = asset.mesh_buffer;
+    vertex_buffer_copy.buffer = asset.vertex_buffer;
+    index_buffer_copy.buffer  = asset.index_buffer;
+    if materials_bytes {
+        material_buffer_copy.buffer = asset.material_buffer;
+    }
+    mesh_buffer_copy.buffer   = asset.mesh_buffer;
 
     vertex_offset            : u32;
     remaining_vertices_bytes := vertices_bytes;

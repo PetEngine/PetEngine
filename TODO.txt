@@ -23,9 +23,11 @@ Manager:
     - #SinglePointWait. Make a single point where we wait for all requested assets.
     - Persistent assets
 
-Mesh file:
+Model:
     ? Vertex format for separate position and varying streams.
     - u16 indices.
+    - Generate tangents with MikkTSpace for obj files if normal map is presented
+    - Everything else with #GLTF tag
 
 //
 // Build

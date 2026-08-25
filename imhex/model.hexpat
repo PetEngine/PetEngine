@@ -1,7 +1,8 @@
 import std.string;
 
 enum VertexFormat : u8 {
-    DEFAULT = 0,
+    PNUV  = 0,
+    PNTUV = 1,
 };
 
 struct Header {

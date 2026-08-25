@@ -37,6 +37,7 @@ destroySponza :: (sponza : *Sponza) {
 
 loadSponza :: (sponza : *Sponza) {
     sponza.model = requestModel("Sponza");
+    assert(sponza.model.vertex_format == .PNTUV);
 
     sponza.sampler = createSampler(.{
         min_filter     = .LINEAR,
