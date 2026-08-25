@@ -475,8 +475,8 @@ for_expansion :: Hash_Table.for_expansion;
 
 #import "common"()(DEBUG_BUILD, PRINT_VERBOSE_MESSAGES, xx GRAPHICS_API);
 
-#load "assets/converter.jai";
-#load "assets/manager.jai";
+#load "asset_pipeline/converter.jai";
+#load "asset_pipeline/manager.jai";
 #load "core/input.jai";
 #load "core/settings.jai";
 #load "core/window.jai";
