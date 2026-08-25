@@ -147,15 +147,6 @@ END,
     );
 }
 
-makeRuntimeMeshFilename :: (name : string) -> string { // @Cleanup: #GLTF. Remove
-    capacity := AssetConverter.RUNTIME_MODELS_FOLDER.count + "/".count + name.count + ".mesh".count;
-
-    filename := string.{ data = pushToArena(*context.pet.arenas.per_frame, capacity) };
-    appendToString(*filename, capacity, AssetConverter.RUNTIME_MODELS_FOLDER, "/", name, ".mesh");
-
-    return filename;
-}
-
 makeRuntimeModelFilename :: (name : string) -> string {
     capacity := AssetConverter.RUNTIME_MODELS_FOLDER.count + "/".count + name.count + ".model".count;
 
@@ -174,7 +165,6 @@ makeRuntimeTextureFilename :: (name : string) -> string {
     return filename;
 }
 
-#load "mesh_file.jai";
 #load "model_file.jai";
 #load "texture_file.jai";
 
@@ -249,12 +239,7 @@ convertModelsCallback :: (models_context : *ModelsContext, exchange_file_info : 
         exchange_file_info.path.data
     };
 
-    runtime_filename : string = ---;
-    if extension == "obj" { // @Cleanup: #GLTF.
-        runtime_filename = makeRuntimeMeshFilename(model_name);
-    } else {
-        runtime_filename = makeRuntimeModelFilename(model_name);
-    }
+    runtime_filename := makeRuntimeModelFilename(model_name);
 
     runtime_file_info, error := getFileInfo(runtime_filename);
     assert(error == .NONE || error == .FILE_NOT_FOUND || error == .PATH_NOT_FOUND);
@@ -264,20 +249,11 @@ convertModelsCallback :: (models_context : *ModelsContext, exchange_file_info : 
         assert(error == .NONE);
         defer closeFile(*runtime_file);
 
-        if extension == "obj" { // @Cleanup: #GLTF.
-            header : MeshFile.Header = ---;
-            readFile(runtime_file, *header);
-            if header.version == MeshFile.VERSION {
-                models_context.skipped += 1;
-                return .CONTINUE;
-            }
-        } else {
-            header : ModelFile.Header = ---;
-            readFile(runtime_file, *header);
-            if header.version == ModelFile.VERSION {
-                models_context.skipped += 1;
-                return .CONTINUE;
-            }
+        header : ModelFile.Header = ---;
+        readFile(runtime_file, *header);
+        if header.version == ModelFile.VERSION {
+            models_context.skipped += 1;
+            return .CONTINUE;
         }
     }
 
@@ -289,24 +265,16 @@ convertModelsCallback :: (models_context : *ModelsContext, exchange_file_info : 
     success : bool;
     if extension == {
         case "gltf"; success = convertGLTFModel(exchange_filename, model_name, *models_context.texture_conversion_rules);
-        case "obj";  success = convertObjMesh(exchange_filename, model_name);
+        case "obj";  success = convertObjModel(exchange_filename, model_name);
         case;        notImplemented(true);
     }
     duration := Basic.to_float64_seconds(Basic.current_time_monotonic() - time_begin);
 
     if success {
         models_context.converted += 1;
-        if extension == "obj" { // @Cleanup: #GLTF.
-            infoMessage("\"%1.%2\" has been converted to \"%1.mesh\" for %3 seconds", model_name, extension, duration);
-        } else {
-            infoMessage("\"%1.%2\" has been converted to \"%1.model\" for %3 seconds", model_name, extension, duration);
-        }
+        infoMessage("\"%1.%2\" has been converted to \"%1.model\" in %3 seconds", model_name, extension, duration);
     } else {
-        if extension == "obj" { // @Cleanup: #GLTF.
-            errorMessage("Failed to convert \"%1.%2\" to \"%1.mesh\"", model_name, extension);
-        } else {
-            errorMessage("Failed to convert \"%1.%2\" to \"%1.model\"", model_name, extension);
-        }
+        errorMessage("Failed to convert \"%1.%2\" to \"%1.model\"", model_name, extension);
     }
 
     return .CONTINUE;
@@ -391,9 +359,9 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
     if success {
         textures_context.converted += 1;
         #if TEST_TEXTURES {
-            infoMessage("\"%1.%2\" has been converted to \"%1.dds\" for %3 seconds", texture_name, extension, duration);
+            infoMessage("\"%1.%2\" has been converted to \"%1.dds\" in %3 seconds", texture_name, extension, duration);
         } else {
-            infoMessage("\"%1.%2\" has been converted to \"%1.texture\" for %3 seconds", texture_name, extension, duration);
+            infoMessage("\"%1.%2\" has been converted to \"%1.texture\" in %3 seconds", texture_name, extension, duration);
         }
     } else #if TEST_TEXTURES {
         errorMessage("Failed to convert \"%1.%2\" to \"%1.dds\"", texture_name, extension);
@@ -904,7 +872,7 @@ makeExchangeTextureFilename :: (relative_filename : string) -> string {
 // @Cleanup: #TextureLoader.
 g_contextForOutputHandler : *#Context;
 
-#load "obj_mesh.jai";
+#load "obj_model.jai";
 #load "gltf_model.jai";
 
 #import "nvtt";

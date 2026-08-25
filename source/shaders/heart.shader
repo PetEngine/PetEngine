@@ -2,9 +2,16 @@
 
 #vertex_shader
 
+layout(buffer_reference, buffer_reference_align = 4) readonly buffer MeshRef {
+    mat4x3   model_to_mesh;
+    mat4x3   mesh_to_model;
+    uint16_t material_index;
+};
+
 layout(push_constant) uniform PushConstants {
     Indices32Ref     indices_ref;
     PNUVRef          vertices_ref;
+    MeshRef          mesh_ref;
     uint32_t         per_view_uniform_index;
 } g_vs_push_constants;
 
@@ -12,33 +19,30 @@ out vec2 o_uv;
 
 void main() {
     Indices32Ref index_ref  = g_vs_push_constants.indices_ref[gl_VertexIndex];
-    PNUVRef      vertex_ref = g_vs_push_constants.vertices_ref[gl_BaseInstance + index_ref.index];
+    PNUVRef      vertex_ref = g_vs_push_constants.vertices_ref[index_ref.index];
 
-    f32vec4 position = f32vec4(vertex_ref.position_u.xyz, 1.0);
+    vec3 ws_position = g_vs_push_constants.mesh_ref.mesh_to_model * vec4(vertex_ref.position_u.xyz, 1.0);
 
     // model transform
     {
         // put it upper
-        position.y += 6.0;
-
-        // Make it left hand
-        position.z = -position.z;
+        ws_position.y += 6.0;
 
         // rotate
-        const float32_t angle = g_per_frame_uniform.time;
-        const float32_t s     = sin(angle);
-        const float32_t c     = cos(angle);
-        position.xz = position.xx * f32vec2(c, -s) + position.zz * f32vec2(s, c);
+        const float angle = g_per_frame_uniform.time;
+        const float s     = sin(angle);
+        const float c     = cos(angle);
+        ws_position.xz = vec2(c, -s) * ws_position.xx + vec2(s, c) * ws_position.zz;
     }
 
-    gl_Position = g_per_view_uniforms[g_vs_push_constants.per_view_uniform_index].view_proj_matrix * position;
+    gl_Position = g_per_view_uniforms[g_vs_push_constants.per_view_uniform_index].view_proj_matrix * vec4(ws_position, 1.0);
     o_uv        = vec2(vertex_ref.position_u.w, vertex_ref.normal_v.w);
 }
 
 #fragment_shader
 
 layout(push_constant) uniform PushConstants {
-    layout(offset = 20) uint16_t texture_index;
+    layout(offset = 28) uint16_t texture_index;
     uint16_t sampler_index;
 } g_ps_push_constants;
 

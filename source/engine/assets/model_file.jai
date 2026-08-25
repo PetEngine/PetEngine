@@ -127,8 +127,6 @@ getVertexStride :: (format : VertexFormat) -> s64 {
     }
 }
 
-// @TODO: #GLTF. #scope_file
-
 vertexTypeToVertexFormat :: (vertex_type : Type) -> (VertexFormat, success : bool) #compile_time {
     INFO :: type_info(VertexTypes);
     #assert INFO.type == .STRUCT;

@@ -275,19 +275,24 @@ petMain :: () {
     }
 
     floor  := createFloor(depth_buffer.format);
-    heart  := createHeart(depth_buffer.format);
+    heart  := createHeart(depth_buffer.format);  defer destroyHeart(*heart);
     skybox := createSkybox(depth_buffer.format);
-    sponza := createSponza(depth_buffer.format);
-    defer destroySponza(*sponza);
+    sponza := createSponza(depth_buffer.format); defer destroySponza(*sponza);
 
     command_buffer := createCommandBuffer(.GRAPHICS);
+
+    render_heart_scene : bool;
 
     showWindow(window);
     while processWindowsEvents() {
         resetArena(*context.pet.arenas.per_frame);
         Basic.reset_temporary_storage();
 
-        updateHeart(*heart, window.input);
+        if window.input.keyboard[Input.Key.KEY_1] & .RELEASED {
+            render_heart_scene = true;
+        } else if window.input.keyboard[Input.Key.KEY_2] & .RELEASED {
+            render_heart_scene = false;
+        }
         updateSkybox(*skybox, window.input);
 
         beginFrame();
@@ -318,14 +323,14 @@ petMain :: () {
                 resetBindings(.PER_SCENE);
 
                 // Create per scene resources here...
-                // @Cleanup: #GLTF. loadHeart(*heart);
+                loadHeart(*heart);
                 loadSkybox(*skybox);
                 loadSponza(*sponza);
 
                 // Commit
                 commitResourceMemory(.PER_SCENE);
 
-                // @Cleanup: #GLTF. bindHeart(*heart);
+                bindHeart(*heart);
                 bindSkybox(*skybox);
                 bindSponza(*sponza);
 
@@ -442,7 +447,7 @@ petMain :: () {
                            .[ .{ back_buffer_view, .CLEAR, .STORE } ],
                            *(DepthTargetDesc.{ view = depth_buffer_dsv, depth_load_action = .CLEAR, depth_store_action = .NONE }));
             {
-                #if false { // @Cleanup: #GLTF
+                if render_heart_scene {
                     drawHeart(*command_buffer, heart, per_view_uniform);
                     drawFloor(*command_buffer, floor, per_view_uniform);
                 } else {

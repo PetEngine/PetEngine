@@ -1,41 +1,52 @@
-convertObjMesh :: (exchange_filename : string, name : string) -> bool {
+convertObjModel :: (exchange_filename : string, name : string) -> bool {
     data, error := readEntireFile(exchange_filename);
     assert(error == .NONE);
 
-    obj_mesh : ObjMesh;
-    if !parseObjFile(data, *obj_mesh, name) {
+    obj_model : ObjModel;
+    if !parseObjFile(data, *obj_model, name) {
         return false;
     }
-    defer destroyObjMesh(*obj_mesh);
+    defer destroyObjModel(*obj_model);
 
-    vertices : [Mesh.MAX_SUBMESHES][..] VertexTypes.PNUV;
-    indices  : [Mesh.MAX_SUBMESHES][..] u32;
+    vertices : [..] VertexTypes.PNUV; // Obj files do not support tangents
+    indices  : [..] u32;
     defer {
-        for indices  if it Basic.array_free(it);
-        for vertices if it Basic.array_free(it);
+        if vertices.data then Basic.array_free(vertices);
+        if indices.data  then Basic.array_free(indices);
     }
 
-    submeshes_count : u8 = ---;
-    if obj_mesh.face_groups.count > 0 {
-        submeshes_count = remapTriplets(*obj_mesh, *vertices, *indices);
+    if obj_model.face_groups.count > 0 {
+        vertices, indices = remapTriplets(obj_model);
     } else {
-        submeshes_count = convertVertices(*obj_mesh, *vertices);
+        vertices, indices = convertVertices(obj_model, name);
     }
 
-    if !serializeMesh(*vertices, *indices, submeshes_count, name) {
-        return false;
+    meshes : [1] ModelFile.Mesh = .[
+        .{ indices_count = cast(u32) indices.count },
+    ];
+
+    // #RHtoLH.
+    for * meshes {
+        it.mesh_to_model.e20 *= -1.0;
+        it.mesh_to_model.e21 *= -1.0;
+        it.mesh_to_model.e22 *= -1.0;
+        it.mesh_to_model.e23 *= -1.0;
+
+        it.model_to_mesh.e02 *= -1.0;
+        it.model_to_mesh.e12 *= -1.0;
+        it.model_to_mesh.e22 *= -1.0;
     }
 
-    return true;
+    return serializeModel(name, .{}, .{}, meshes, vertices, indices);
 }
 
 #scope_file
 
-ObjMesh :: struct {
+ObjModel :: struct {
     MAX_ATTRIBUTES :: #run Basic.enum_highest_value(Attribute) + 1;
     INVALID_INDEX  :: 0;
 
-    Triplet :: [MAX_ATTRIBUTES] u32;
+    Triplet :: [MAX_ATTRIBUTES] u32; // indices to attributes
 
     Attribute :: enum u8 {
         POSITION;
@@ -53,29 +64,33 @@ ObjMesh :: struct {
         name     : string;
     }
 
-    vertex_groups : StaticArray(VertexGroup, Mesh.MAX_SUBMESHES);
-    face_groups   : StaticArray(FaceGroup,   Mesh.MAX_SUBMESHES);
+    vertex_groups : [..] VertexGroup;
+    face_groups   : [..] FaceGroup;
 }
 
-destroyObjMesh :: (mesh : *ObjMesh) {
-    for mesh.vertex_groups {
+destroyObjModel :: (model : *ObjModel) {
+    for model.vertex_groups {
         for it.attributes {
-            if it {
+            if it.data {
                 Basic.array_free(it);
             }
         }
     }
-    reset(*mesh.vertex_groups);
+    if model.vertex_groups.data {
+        Basic.array_reset(*model.vertex_groups);
+    }
 
-    for mesh.face_groups {
-        if it.triplets {
+    for model.face_groups {
+        if it.triplets.data {
             Basic.array_free(it.triplets);
         }
     }
-    reset(*mesh.face_groups);
+    if model.face_groups.data {
+        Basic.array_reset(*model.face_groups);
+    }
 }
 
-parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
+parseObjFile :: (stream : string, model : *ObjModel, name : string) -> bool {
     new_group_name : string;
 
     while stream {
@@ -105,7 +120,7 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
                 return false;
             }
 
-            group := getVertexGroup(mesh, new_group_name);
+            group := getVertexGroup(model, new_group_name);
             new_group_name = "";
 
             if !getVertexAttribute(*line, group, .POSITION, name) {
@@ -120,7 +135,7 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
                 return false;
             }
 
-            group := getVertexGroup(mesh, new_group_name);
+            group := getVertexGroup(model, new_group_name);
             new_group_name = "";
 
             if !getVertexAttribute(*line, group, .TEXCOORD, name) {
@@ -135,7 +150,7 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
                 return false;
             }
 
-            group := getVertexGroup(mesh, new_group_name);
+            group := getVertexGroup(model, new_group_name);
             new_group_name = "";
 
             if !getVertexAttribute(*line, group, .NORMAL, name) {
@@ -150,7 +165,7 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
                 return false;
             }
 
-            group := getFaceGroup(mesh, new_group_name);
+            group := getFaceGroup(model, new_group_name);
             new_group_name = "";
 
             if !getTriplets(*line, group, name) {
@@ -165,7 +180,7 @@ parseObjFile :: (stream : string, mesh : *ObjMesh, name : string) -> bool {
         }
     }
 
-    if mesh.vertex_groups.count <= 0 {
+    if model.vertex_groups.count <= 0 {
         errorMessage("\"%.obj\": No vertex data found in file", name);
         return false;
     }
@@ -175,15 +190,15 @@ GROUPS_COUNT_ERROR_STRING :: #string END
     Number of vertex groups: %
     Number of face groups:   %
 END;
-    if mesh.vertex_groups.count != mesh.face_groups.count && mesh.face_groups.count > 0 && mesh.vertex_groups.count > 1 {
-        errorMessage(GROUPS_COUNT_ERROR_STRING, name, mesh.vertex_groups.count, mesh.face_groups.count);
+    if model.vertex_groups.count != model.face_groups.count && model.face_groups.count > 0 && model.vertex_groups.count > 1 {
+        errorMessage(GROUPS_COUNT_ERROR_STRING, name, model.vertex_groups.count, model.face_groups.count);
         return false;
     }
 
-    for mesh.face_groups {
+    for model.face_groups {
         if it.triplets.count % 3 {
             errorMessage("\"%.obj\": Expected triplets count be multiple of 3. Face group '%' (#%), triplets count: %",
-                         it.name,
+                         name,
                          it_index,
                          it.triplets.count);
             return false;
@@ -193,7 +208,7 @@ END;
     return true;
 }
 
-getVertexAttribute :: (line : *string, group : *ObjMesh.VertexGroup, attribute : ObjMesh.Attribute, name : string) -> bool {
+getVertexAttribute :: (line : *string, group : *ObjModel.VertexGroup, attribute : ObjModel.Attribute, name : string) -> bool {
     if !line.* return true;
 
     attribute_data : v3f;
@@ -212,8 +227,8 @@ getVertexAttribute :: (line : *string, group : *ObjMesh.VertexGroup, attribute :
     return true;
 }
 
-getTriplets :: (line : *string, group : *ObjMesh.FaceGroup, name : string) -> bool {
-    triplets       : [4] ObjMesh.Triplet;
+getTriplets :: (line : *string, group : *ObjModel.FaceGroup, name : string) -> bool {
+    triplets       : [4] ObjModel.Triplet;
     triplets_count : u8;
 
     while line.* {
@@ -236,7 +251,7 @@ getTriplets :: (line : *string, group : *ObjMesh.FaceGroup, name : string) -> bo
             }
 
             if line.*[0] == #char "-" {
-                errorMessage("\"%.obj\": We do not support negative indices yet (index for % attribute)", name, cast(ObjMesh.Attribute) it_index);
+                errorMessage("\"%.obj\": We do not support negative indices yet (index for % attribute)", name, cast(ObjModel.Attribute) it_index);
                 return false;
             }
 
@@ -249,7 +264,7 @@ getTriplets :: (line : *string, group : *ObjMesh.FaceGroup, name : string) -> bo
 
                     errorMessage("\"%.obj\": Failed to parse index for % attribute: unexpected character '%', expected digit",
                                  name,
-                                 cast(ObjMesh.Attribute) it_index,
+                                 cast(ObjModel.Attribute) it_index,
                                  string.{ 1, *char });
                     return false;
                 }
@@ -288,97 +303,91 @@ getTriplets :: (line : *string, group : *ObjMesh.FaceGroup, name : string) -> bo
     return true;
 }
 
-getVertexGroup :: (obj_mesh : *ObjMesh, group_name : string) -> *ObjMesh.VertexGroup {
-    if obj_mesh.vertex_groups.count <= 0 {
-        group := pushBack(*obj_mesh.vertex_groups);
+getVertexGroup :: (obj_model : *ObjModel, group_name : string) -> *ObjModel.VertexGroup {
+    if obj_model.vertex_groups.count <= 0 {
+        group := Basic.array_add(*obj_model.vertex_groups);
         group.name = group_name;
 
         return group;
     }
 
     if group_name {
-        for * obj_mesh.vertex_groups {
+        for * obj_model.vertex_groups {
             if it.name == group_name {
                 return it;
             }
         }
 
-        group := pushBack(*obj_mesh.vertex_groups);
+        group := Basic.array_add(*obj_model.vertex_groups);
         group.name = group_name;
 
         return group;
     }
 
-    return *obj_mesh.vertex_groups[obj_mesh.vertex_groups.count - 1];
+    return *obj_model.vertex_groups[obj_model.vertex_groups.count - 1];
 }
 
-getFaceGroup :: (obj_mesh : *ObjMesh, group_name : string) -> *ObjMesh.FaceGroup {
-    if obj_mesh.face_groups.count <= 0 {
-        group := pushBack(*obj_mesh.face_groups);
+getFaceGroup :: (obj_model : *ObjModel, group_name : string) -> *ObjModel.FaceGroup {
+    if obj_model.face_groups.count <= 0 {
+        group := Basic.array_add(*obj_model.face_groups);
         group.name = group_name;
 
         return group;
     }
 
     if group_name {
-        for * obj_mesh.face_groups {
+        for * obj_model.face_groups {
             if it.name == group_name {
                 return it;
             }
         }
 
-        group := pushBack(*obj_mesh.face_groups);
+        group := Basic.array_add(*obj_model.face_groups);
         group.name = group_name;
 
         return group;
     }
 
-    return *obj_mesh.face_groups[obj_mesh.face_groups.count - 1];
+    return *obj_model.face_groups[obj_model.face_groups.count - 1];
 }
 
-remapTriplets :: (
-    obj_mesh : *ObjMesh,
-    vertices : *[Mesh.MAX_SUBMESHES][..] VertexTypes.PNUV,
-    indices  : *[Mesh.MAX_SUBMESHES][..] u32
-) -> u8 {
-    triplet_to_index : Hash_Table.Table(ObjMesh.Triplet, u32, given_compare_function = (a : ObjMesh.Triplet, b : ObjMesh.Triplet) -> bool {
-        return !memcmp(a.data, b.data, size_of(ObjMesh.Triplet));
+remapTriplets :: (obj_model : ObjModel) -> (
+    vertices : [..] VertexTypes.PNUV,
+    indices  : [..] u32
+) {
+    triplet_to_index : Hash_Table.Table(ObjModel.Triplet, u32, given_compare_function = (a : ObjModel.Triplet, b : ObjModel.Triplet) -> bool {
+        return !memcmp(a.data, b.data, size_of(ObjModel.Triplet));
     });
     defer Hash_Table.deinit(*triplet_to_index);
 
-    for face_group, group_index : obj_mesh.face_groups {
+    vertices : [..] VertexTypes.PNUV;
+    indices  : [..] u32;
+
+    Basic.array_reserve(*vertices, 1_000_000);
+    Basic.array_reserve(*indices,  1_000_000);
+
+    for face_group, group_index : obj_model.face_groups {
         assert(face_group.triplets.count > 0);
 
         Hash_Table.table_reset(*triplet_to_index);
 
-        vertex_group := ifx  obj_mesh.vertex_groups.count == 1
-                        then *obj_mesh.vertex_groups[0]
-                        else *obj_mesh.vertex_groups[group_index];
+        vertex_group := ifx  obj_model.vertex_groups.count == 1
+                        then *obj_model.vertex_groups[0]
+                        else *obj_model.vertex_groups[group_index];
 
-        vertex_positions := *vertex_group.attributes[ObjMesh.Attribute.POSITION];
-        vertex_texcoords := *vertex_group.attributes[ObjMesh.Attribute.TEXCOORD];
-        vertex_normals   := *vertex_group.attributes[ObjMesh.Attribute.NORMAL];
-
-        submesh_vertices := *vertices.*[group_index];
-        submesh_indices  := *indices.*[group_index];
-
-        max_vertices := max(vertex_positions.count, vertex_texcoords.count, vertex_normals.count);
-        assert(max_vertices > 0);
-
-        Basic.array_reserve(submesh_vertices, max_vertices);
-        Basic.array_reserve(submesh_indices, face_group.triplets.count);
-
-        next_vertex_index : u32;
+        vertex_positions := *vertex_group.attributes[ObjModel.Attribute.POSITION];
+        vertex_texcoords := *vertex_group.attributes[ObjModel.Attribute.TEXCOORD];
+        vertex_normals   := *vertex_group.attributes[ObjModel.Attribute.NORMAL];
 
         for triplet : face_group.triplets {
             vertex_index_ptr := Hash_Table.table_find_pointer(*triplet_to_index, triplet);
 
             if !vertex_index_ptr {
-                vertex_index_ptr = Hash_Table.table_add(*triplet_to_index, triplet, next_vertex_index);
+                vertex_index_ptr = Hash_Table.table_add(*triplet_to_index, triplet, cast(u32) vertices.count);
 
-                position_index := triplet[ObjMesh.Attribute.POSITION];
-                texcoord_index := triplet[ObjMesh.Attribute.TEXCOORD];
-                normal_index   := triplet[ObjMesh.Attribute.NORMAL];
+                position_index := triplet[ObjModel.Attribute.POSITION];
+                texcoord_index := triplet[ObjModel.Attribute.TEXCOORD];
+                normal_index   := triplet[ObjModel.Attribute.NORMAL];
 
                 assert(position_index > 0, "Obj files store indices starting with 1");
                 assert(texcoord_index > 0, "Obj files store indices starting with 1");
@@ -390,40 +399,45 @@ remapTriplets :: (
 
                 texcoord := vertex_texcoords.*[texcoord_index];
 
-                new_vertex := Basic.array_add(submesh_vertices);
+                new_vertex := Basic.array_add(*vertices);
                 new_vertex.position_u.xyz = vertex_positions.*[position_index];
                 new_vertex.position_u.w   = texcoord.x;
                 new_vertex.normal_v.xyz   = vertex_normals.*[normal_index];
                 new_vertex.normal_v.w     = texcoord.y;
-
-                next_vertex_index += 1;
             }
 
             assert(vertex_index_ptr);
-            Basic.array_add(submesh_indices, vertex_index_ptr.*);
+            Basic.array_add(*indices, vertex_index_ptr.*);
         }
     }
 
-    return cast(u8) obj_mesh.face_groups.count;
+    return vertices, indices;
 }
 
-convertVertices :: (obj_mesh : *ObjMesh, vertices : *[Mesh.MAX_SUBMESHES][..] VertexTypes.PNUV) -> u8 {
-    for obj_mesh.vertex_groups {
-        vertex_positions := *it.attributes[ObjMesh.Attribute.POSITION];
-        vertex_texcoords := *it.attributes[ObjMesh.Attribute.TEXCOORD];
-        vertex_normals   := *it.attributes[ObjMesh.Attribute.NORMAL];
+convertVertices :: (obj_model : ObjModel, name : string) -> (vertices : [..] VertexTypes.PNUV, indices : [..] u32) {
+    vertices : [..] VertexTypes.PNUV;
+    indices  : [..] u32;
 
-        submesh_vertices := *vertices.*[it_index];
+    Basic.array_reserve(*vertices, 1_000_000);
+    Basic.array_reserve(*indices,  1_000_000);
 
-        assert(vertex_positions.count == vertex_texcoords.count && vertex_positions.count == vertex_normals.count);
-
-        Basic.array_reserve(submesh_vertices, vertex_positions.count);
+    for obj_model.vertex_groups {
+        vertex_positions := *it.attributes[ObjModel.Attribute.POSITION];
+        vertex_texcoords := *it.attributes[ObjModel.Attribute.TEXCOORD];
+        vertex_normals   := *it.attributes[ObjModel.Attribute.NORMAL];
 
         vertex_texcoords_it := vertex_texcoords.data;
         vertex_normals_it   := vertex_normals.data;
 
+        assert(vertex_positions.count == vertex_texcoords.count && vertex_positions.count == vertex_normals.count,
+               "\"%.obj\": Number of elements in streams are not the same. Vertex group #%: \"%\"",
+               name, it_index, it.name);
+
         for vertex_positions.* {
-            new_vertex := Basic.array_add(submesh_vertices);
+            // @TODO: #ModelIndices.
+            Basic.array_add(*indices, cast(u32) vertices.count);
+
+            new_vertex := Basic.array_add(*vertices);
             new_vertex.position_u.xyz = it;
             new_vertex.position_u.w   = vertex_texcoords_it.x;
             new_vertex.normal_v.xyz   = vertex_normals_it.*;
@@ -434,5 +448,5 @@ convertVertices :: (obj_mesh : *ObjMesh, vertices : *[Mesh.MAX_SUBMESHES][..] Ve
         }
     }
 
-    return cast(u8) obj_mesh.vertex_groups.count;
+    return vertices, indices;
 }

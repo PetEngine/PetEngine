@@ -1046,7 +1046,7 @@ uniteBuffersAndRemapMeshes :: (buffers : GLTF_Buffers, gltf_meshes : [..] GLTF_M
 
             Basic.array_add(*vertices, vertex);
 
-            // @TODO: Normal way to generate indices :)
+            // @TODO: #ModelIndices.
             if gltf_indices_count <= 0 {
                 index := this_mesh_vertices_offset + cast(u32) it;
                 Basic.array_add(*indices, index);

@@ -26,6 +26,7 @@ Manager:
 Model:
     ? Vertex format for separate position and varying streams.
     - u16 indices.
+    - #ModelIndices. Normal way to generate indices :)
     - Generate tangents with MikkTSpace for obj files if normal map is presented
     - Everything else with #GLTF tag
 

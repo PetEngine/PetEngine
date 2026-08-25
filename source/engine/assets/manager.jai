@@ -21,11 +21,6 @@ AssetManager :: struct {
 #assert maxOf(type_of(AssetManager.buffer_copies_count)) >= AssetManager.buffer_copies.count;
 #assert maxOf(type_of(AssetManager.texture_copies_count)) >= AssetManager.texture_copies.count;
 
-MeshAsset :: struct {
-    #as using mesh : Mesh;
-    using _        : Asset;
-}
-
 ModelAsset :: struct {
     #as using model : Model;
     using _         : Asset;
@@ -84,141 +79,6 @@ isAssetReady :: (asset : *$T/interface Asset) -> bool {
     return asset.cached_ready_state;
 }
 
-requestMesh :: (name : string) -> MeshAsset {
-    assert(resourceMemoryCommitted(.PERSISTENT));
-    assert(!resourceMemoryCommitted(.PER_SCENE));
-
-    file, file_error := openFile(makeRuntimeMeshFilename(name), .READ | .SHARED_READ | .EXISTS | .SEQ);
-    assert(file_error == .NONE);
-    defer closeFile(*file);
-
-    header : MeshFile.Header = ---;
-    readFile(file, *header);
-    assert(header.version == MeshFile.VERSION);
-
-    gurb := context.pet.render.global_upload_ring_buffer;
-
-    asset : MeshAsset;
-    asset.vertex_format   = header.vertex_format;
-    asset.submeshes_count = header.submeshes_count;
-    asset.ready_event     = gurb.done_events[context.pet.render.device.frame_index];
-
-    //
-    // Fill submesh infos, calculate total vertices and indices size in bytes
-    //
-
-    vertex_stride := cast(u32) getVertexStride(asset.vertex_format);
-    INDEX_STRIDE  :: size_of(u32);
-
-    total_vertices_count : u32;
-    total_indices_count  : u32;
-
-    submesh_infos_it := asset.submesh_infos.data;
-    for toView(header.submesh_infos.data, header.submeshes_count) {
-        submesh_infos_it.vertices_skip  = total_vertices_count;
-        submesh_infos_it.vertices_count = it.vertices_count;
-        submesh_infos_it.indices_skip   = total_indices_count;
-        submesh_infos_it.indices_count  = it.indices_count;
-
-        total_vertices_count += it.vertices_count;
-        total_indices_count  += it.indices_count;
-
-        submesh_infos_it += 1;
-    }
-
-    total_vertices_bytes := total_vertices_count * vertex_stride;
-    total_indices_bytes  := total_indices_count  * INDEX_STRIDE;
-
-    assertAligned(total_vertices_bytes, 16);
-    assertAligned(total_indices_bytes, 4);
-
-    //
-    // Create buffers
-    //
-
-    assert(total_vertices_bytes);
-    {
-        vertex_buffer_name := String.join(name, " vertices",, allocator = Basic.temp);
-        asset.vertex_buffer = createBuffer(total_vertices_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, vertex_buffer_name);
-    }
-
-    if total_indices_bytes {
-        index_buffer_name := String.join(name, " indices",, allocator = Basic.temp);
-        asset.index_buffer = createBuffer(total_indices_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, index_buffer_name);
-    }
-
-    //
-    // Read data to upload buffer
-    //
-
-    total_bytes   := total_vertices_bytes + total_indices_bytes;
-    upload_offset := acquireGlobalUploadRingBufferMemory(total_bytes, 16);
-
-    vertex_offset : u32;
-    index_offset  : u32;
-
-    manager := context.pet.render.asset_manager;
-
-    assert(manager.buffer_copies_count + 2 <= AssetManager.buffer_copies.count);
-    vb_copy := *manager.buffer_copies[manager.buffer_copies_count + 0];
-    ib_copy := *manager.buffer_copies[manager.buffer_copies_count + 1];
-    manager.buffer_copies_count += 2;
-
-    vb_copy.buffer = asset.vertex_buffer;
-    ib_copy.buffer = asset.index_buffer;
-
-    for toView(asset.submesh_infos.data, asset.submeshes_count) {
-        assert(getFileCursorPosition(file) == cast(s64) header.submesh_infos[it_index].offset);
-
-        remaining_vertices_bytes := it.vertices_count * vertex_stride;
-        while remaining_vertices_bytes {
-            chunk_bytes := min(remaining_vertices_bytes, gurb.buffer.size - upload_offset);
-
-            destination := gurb.buffer.mapped_memory + upload_offset;
-            readFile(file, destination, chunk_bytes);
-
-            assert(vb_copy.regions_count < AssetManager.BufferCopy.regions.count);
-            region := *vb_copy.regions[vb_copy.regions_count];
-            vb_copy.regions_count += 1;
-
-            region.dest_offset   = vertex_offset;
-            region.source_offset = upload_offset;
-            region.bytes         = chunk_bytes;
-
-            upload_offset             = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
-            vertex_offset            += chunk_bytes;
-            remaining_vertices_bytes -= chunk_bytes;
-        }
-
-        remaining_indices_bytes := it.indices_count * INDEX_STRIDE;
-        while remaining_indices_bytes {
-            chunk_bytes := min(remaining_indices_bytes, gurb.buffer.size - upload_offset);
-
-            destination := gurb.buffer.mapped_memory + upload_offset;
-            readFile(file, destination, chunk_bytes);
-
-            assert(ib_copy.regions_count < AssetManager.BufferCopy.regions.count);
-            region := *ib_copy.regions[ib_copy.regions_count];
-            ib_copy.regions_count += 1;
-
-            region.dest_offset   = index_offset;
-            region.source_offset = upload_offset;
-            region.bytes         = chunk_bytes;
-
-            upload_offset            = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
-            index_offset            += chunk_bytes;
-            remaining_indices_bytes -= chunk_bytes;
-        }
-    }
-
-    return asset;
-}
-
-//
-// @Continue: #GLTF. Rewrite functions below in a similar manner as `requestMesh`
-//
-
-// @TODO: #GLTF. Load textures
 requestModel :: (name : string) -> ModelAsset {
     assert(resourceMemoryCommitted(.PERSISTENT));
     assert(!resourceMemoryCommitted(.PER_SCENE));
@@ -457,7 +317,7 @@ loadTexture :: (name : string) -> *Texture {
 
     header : TextureFile.Header = ---;
     readFile(file, *header);
-    assert(header.version == MeshFile.VERSION);
+    assert(header.version == TextureFile.VERSION);
 
     //
     // Read surface offsets
