@@ -87,9 +87,9 @@ drawHeart :: (command_buffer : *CommandBuffer, heart : Heart, per_view_uniform :
     setShader(command_buffer, heart.shader);
 
     setPushConstants(command_buffer, heart.vs_push_constants_handle, *(Heart.VSPushConstants.{
-        index_buffer_reference  = heart.model.index_buffer.device_address,
-        vertex_buffer_reference = heart.model.vertex_buffer.device_address,
-        mesh_buffer_reference   = heart.model.mesh_buffer.device_address,
+        index_buffer_reference  = heart.model.buffer.device_address + heart.model.indices_offset,
+        vertex_buffer_reference = heart.model.buffer.device_address + heart.model.vertices_offset,
+        mesh_buffer_reference   = heart.model.buffer.device_address + heart.model.meshes_offset,
         per_view_uniform_index  = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
     }));
 

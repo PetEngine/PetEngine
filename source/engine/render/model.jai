@@ -17,11 +17,12 @@ Model :: struct {
     textures : [] *Texture;
     meshes   : [] CPUMesh;
 
-    // @TODO: #GLTF. Make it 1 buffer
-    vertex_buffer   : *Buffer;
-    index_buffer    : *Buffer;
-    material_buffer : *Buffer;
-    mesh_buffer     : *Buffer;
+    vertices_offset  : u32 : 0;
+    indices_offset   : u32;
+    materials_offset : u32;
+    meshes_offset    : u32;
+
+    buffer : *Buffer;
 
     allocator     : Allocator;
     vertex_format : VertexFormat;

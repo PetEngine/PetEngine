@@ -79,10 +79,10 @@ drawSponza :: (command_buffer : *CommandBuffer, sponza : Sponza, per_view_unifor
     setShader(command_buffer, sponza.shader);
 
     setPushConstants(command_buffer, sponza.handles.push_constants, *(Sponza.PushConstants.{
-        index_buffer_reference    = sponza.model.index_buffer.device_address,
-        vertex_buffer_reference   = sponza.model.vertex_buffer.device_address,
-        mesh_buffer_reference     = sponza.model.mesh_buffer.device_address,
-        material_buffer_reference = sponza.model.material_buffer.device_address,
+        index_buffer_reference    = sponza.model.buffer.device_address + sponza.model.indices_offset,
+        vertex_buffer_reference   = sponza.model.buffer.device_address + sponza.model.vertices_offset,
+        mesh_buffer_reference     = sponza.model.buffer.device_address + sponza.model.meshes_offset,
+        material_buffer_reference = sponza.model.buffer.device_address + sponza.model.materials_offset,
         per_view_uniform_index    = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
         sampler_index             = sponza.handles.sampler.descriptor,
         first_texture_index       = sponza.handles.textures[0].descriptor

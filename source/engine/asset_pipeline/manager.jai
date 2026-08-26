@@ -168,45 +168,33 @@ requestModel :: (name : string) -> ModelAsset {
     assertAligned(meshes_bytes, 4);
 
     //
-    // Create buffers
+    // Create buffer
     //
 
-    vertex_buffer_name   := String.join(name, " vertices",,  allocator = Basic.temp);
-    index_buffer_name    := String.join(name, " indices",,   allocator = Basic.temp);
-    material_buffer_name := String.join(name, " materials",, allocator = Basic.temp);
-    mesh_buffer_name     := String.join(name, " meshes",,    allocator = Basic.temp);
+    asset.indices_offset   = vertices_bytes;
+    asset.materials_offset = vertices_bytes + indices_bytes;
+    asset.meshes_offset    = vertices_bytes + indices_bytes + materials_bytes;
 
-    asset.vertex_buffer = createBuffer(vertices_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, vertex_buffer_name);
-    asset.index_buffer  = createBuffer(indices_bytes,  .PER_SCENE, .DEFAULT, .READ_ONLY, index_buffer_name);
-    if materials_bytes {
-        asset.material_buffer = createBuffer(materials_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, material_buffer_name);
-    }
-    asset.mesh_buffer   = createBuffer(meshes_bytes,   .PER_SCENE, .DEFAULT, .READ_ONLY, mesh_buffer_name);
+    total_bytes := vertices_bytes + indices_bytes + materials_bytes + meshes_bytes;
+
+    asset.buffer = createBuffer(total_bytes, .PER_SCENE, .DEFAULT, .READ_ONLY, name);
 
     //
     // Read data to upload buffer
     //
 
-    total_bytes   := vertices_bytes + indices_bytes + materials_bytes + meshes_bytes;
     upload_offset := acquireGlobalUploadRingBufferMemory(total_bytes, 16);
 
     manager := context.pet.render.asset_manager;
 
-    assert(manager.buffer_copies_count + 4 <= AssetManager.buffer_copies.count);
-    vertex_buffer_copy   := *manager.buffer_copies[manager.buffer_copies_count + 0];
-    index_buffer_copy    := *manager.buffer_copies[manager.buffer_copies_count + 1];
-    material_buffer_copy := *manager.buffer_copies[manager.buffer_copies_count + 2];
-    mesh_buffer_copy     := *manager.buffer_copies[manager.buffer_copies_count + 3];
-    manager.buffer_copies_count += 4;
+    assert(manager.buffer_copies_count + 1 <= AssetManager.buffer_copies.count);
+    buffer_copy := *manager.buffer_copies[manager.buffer_copies_count];
+    manager.buffer_copies_count += 1;
 
-    vertex_buffer_copy.buffer = asset.vertex_buffer;
-    index_buffer_copy.buffer  = asset.index_buffer;
-    if materials_bytes {
-        material_buffer_copy.buffer = asset.material_buffer;
-    }
-    mesh_buffer_copy.buffer   = asset.mesh_buffer;
+    buffer_copy.buffer = asset.buffer;
 
-    vertex_offset            : u32;
+    buffer_offset : u32;
+
     remaining_vertices_bytes := vertices_bytes;
     while remaining_vertices_bytes {
         chunk_bytes := min(remaining_vertices_bytes, gurb.buffer.size - upload_offset);
@@ -214,21 +202,20 @@ requestModel :: (name : string) -> ModelAsset {
         destination := gurb.buffer.mapped_memory + upload_offset;
         readFile(file, destination, chunk_bytes);
 
-        assert(vertex_buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
-        region := *vertex_buffer_copy.regions[vertex_buffer_copy.regions_count];
-        vertex_buffer_copy.regions_count += 1;
+        assert(buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
+        region := *buffer_copy.regions[buffer_copy.regions_count];
+        buffer_copy.regions_count += 1;
 
-        region.dest_offset   = vertex_offset;
+        region.dest_offset   = buffer_offset;
         region.source_offset = upload_offset;
         region.bytes         = chunk_bytes;
 
         upload_offset             = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
-        vertex_offset            += chunk_bytes;
+        buffer_offset            += chunk_bytes;
         remaining_vertices_bytes -= chunk_bytes;
     }
 
     assertAligned(upload_offset, 4);
-    index_offset            : u32;
     remaining_indices_bytes := indices_bytes;
     while remaining_indices_bytes {
         chunk_bytes := min(remaining_indices_bytes, gurb.buffer.size - upload_offset);
@@ -236,16 +223,16 @@ requestModel :: (name : string) -> ModelAsset {
         destination := gurb.buffer.mapped_memory + upload_offset;
         readFile(file, destination, chunk_bytes);
 
-        assert(index_buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
-        region := *index_buffer_copy.regions[index_buffer_copy.regions_count];
-        index_buffer_copy.regions_count += 1;
+        assert(buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
+        region := *buffer_copy.regions[buffer_copy.regions_count];
+        buffer_copy.regions_count += 1;
 
-        region.dest_offset   = index_offset;
+        region.dest_offset   = buffer_offset;
         region.source_offset = upload_offset;
         region.bytes         = chunk_bytes;
 
         upload_offset            = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
-        index_offset            += chunk_bytes;
+        buffer_offset           += chunk_bytes;
         remaining_indices_bytes -= chunk_bytes;
     }
 
@@ -258,15 +245,16 @@ requestModel :: (name : string) -> ModelAsset {
         destination := gurb.buffer.mapped_memory + upload_offset;
         memcpy(destination, cast(*void, gpu_materials.data) + material_offset, chunk_bytes);
 
-        assert(material_buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
-        region := *material_buffer_copy.regions[material_buffer_copy.regions_count];
-        material_buffer_copy.regions_count += 1;
+        assert(buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
+        region := *buffer_copy.regions[buffer_copy.regions_count];
+        buffer_copy.regions_count += 1;
 
-        region.dest_offset   = material_offset;
+        region.dest_offset   = buffer_offset;
         region.source_offset = upload_offset;
         region.bytes         = chunk_bytes;
 
         upload_offset              = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
+        buffer_offset             += chunk_bytes;
         material_offset           += chunk_bytes;
         remaining_materials_bytes -= chunk_bytes;
     }
@@ -280,19 +268,21 @@ requestModel :: (name : string) -> ModelAsset {
         destination := gurb.buffer.mapped_memory + upload_offset;
         memcpy(destination, cast(*void, gpu_meshes.data) + mesh_offset, chunk_bytes);
 
-        assert(mesh_buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
-        region := *mesh_buffer_copy.regions[mesh_buffer_copy.regions_count];
-        mesh_buffer_copy.regions_count += 1;
+        assert(buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
+        region := *buffer_copy.regions[buffer_copy.regions_count];
+        buffer_copy.regions_count += 1;
 
-        region.dest_offset   = mesh_offset;
+        region.dest_offset   = buffer_offset;
         region.source_offset = upload_offset;
         region.bytes         = chunk_bytes;
 
         upload_offset           = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
+        buffer_offset          += chunk_bytes;
         mesh_offset            += chunk_bytes;
         remaining_meshes_bytes -= chunk_bytes;
     }
 
+    assert(buffer_offset == total_bytes);
     return asset;
 }
 
