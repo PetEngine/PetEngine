@@ -35,8 +35,7 @@ createHeart :: (depth_format : Texture.Format) -> Heart {
 }
 
 destroyHeart :: (heart : *Heart) {
-    if heart.model.textures.data then Basic.array_free(heart.model.textures);
-    if heart.model.meshes.data   then Basic.array_free(heart.model.meshes);
+    destroyModel(*heart.model);
     heart.* = .{};
 }
 

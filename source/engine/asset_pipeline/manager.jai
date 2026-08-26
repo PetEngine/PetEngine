@@ -96,6 +96,7 @@ requestModel :: (name : string) -> ModelAsset {
     asset : ModelAsset;
     asset.vertex_format = header.vertex_format;
     asset.ready_event   = gurb.done_events[context.pet.render.device.frame_index];
+    asset.allocator     = context.allocator;
 
     if header.textures_count {
         asset.textures.count = header.textures_count;

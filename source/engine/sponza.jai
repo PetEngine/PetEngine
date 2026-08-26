@@ -30,8 +30,7 @@ createSponza :: (depth_format : Texture.Format) -> Sponza {
 }
 
 destroySponza :: (sponza : *Sponza) {
-    if sponza.model.textures.data then Basic.array_free(sponza.model.textures);
-    if sponza.model.meshes.data   then Basic.array_free(sponza.model.meshes);
+    destroyModel(*sponza.model);
     sponza.* = .{};
 }
 

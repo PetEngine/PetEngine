@@ -652,7 +652,7 @@ initRuntimeAndCallEntryPoint :: () {
     context.print_style.default_format_absolute_pointer.digits_per_comma                   = 0;
     context.print_style.default_format_absolute_pointer.comma_string                       = "";
 
-    context.allocator = .{ Allocator.rpmalloc_allocator_proc, null };
+    context.allocator = .{ AllocatorModule.rpmalloc_allocator_proc, null };
 
     context.allocator.proc(.STARTUP, 0, 0, null, context.allocator.data);
     defer context.allocator.proc(.SHUTDOWN, 0, 0, null, context.allocator.data);
@@ -662,10 +662,10 @@ initRuntimeAndCallEntryPoint :: () {
 
     // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
     context.temporary_storage.size = TEMPORARY_STORAGE_SIZE;
-    context.temporary_storage.data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
+    context.temporary_storage.data = AllocatorModule.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
     defer {
         Basic.reset_temporary_storage();
-        Allocator.rpfree(context.temporary_storage.data);
+        AllocatorModule.rpfree(context.temporary_storage.data);
     }
 
     // #TemporaryStorageWorkaround

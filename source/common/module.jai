@@ -97,10 +97,11 @@ isTitghtlyPacked :: ($type : Type) -> bool #compile_time {
     notImplemented();
 }
 
-Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
-                                ENABLE_ASSERTS       = DEBUG_BUILD,
-                                ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
-                                LINUX_FREE_ADVICE    = .FREE);
+// Name collision with Allocator struct in Preload.jai
+AllocatorModule :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
+                                      ENABLE_ASSERTS       = DEBUG_BUILD,
+                                      ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
+                                      LINUX_FREE_ADVICE    = .FREE);
 String    :: #import "String";
 Compiler  :: #import "Compiler";
 
