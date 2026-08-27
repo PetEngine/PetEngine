@@ -23,7 +23,7 @@ void main() {
 
     vec3 ws_position = g_vs_push_constants.mesh_ref.mesh_to_model * vec4(vertex_ref.position_u.xyz, 1.0);
 
-    // model transform
+    // WS transform
     {
         // put it upper
         ws_position.y += 6.0;

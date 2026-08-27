@@ -46,11 +46,13 @@ void main() {
     const vec3 ws_position = mesh_ref.mesh_to_model * vec4(vertex_ref.position_u.xyz, 1.0);
     const vec3 bitangent   = cross(vertex_ref.normal_v.xyz, vertex_ref.tangent.xyz) * vertex_ref.tangent.w;
 
+    const mat3x3 normal_matrix = transpose(mat3x3(mesh_ref.model_to_mesh));
+
     gl_Position      = g_per_view_uniforms[g_push_constants.per_view_uniform_index].view_proj_matrix * vec4(ws_position, 1.0);
     o_position       = ws_position;
-    o_tangent        = normalize(mesh_ref.model_to_mesh * vec4(vertex_ref.tangent.xyz, 0.0));
-    o_normal         = normalize(mesh_ref.model_to_mesh * vec4(vertex_ref.normal_v.xyz, 0.0));
-    o_bitangent      = normalize(mesh_ref.model_to_mesh * vec4(bitangent, 0.0));
+    o_tangent        = normalize(mat3x3(mesh_ref.mesh_to_model) * vertex_ref.tangent.xyz);
+    o_normal         = normalize(normal_matrix * vertex_ref.normal_v.xyz);
+    o_bitangent      = normalize(mat3x3(mesh_ref.mesh_to_model) * bitangent);
     o_uv             = vec2(vertex_ref.position_u.w, vertex_ref.normal_v.w);
     o_material_index = mesh_ref.material_index;
 }
@@ -138,7 +140,6 @@ void main() {
         const float s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_occlusion],
                                           g_per_scene_samplers[g_push_constants.sampler_index]),
                                 i_uv).r;
-
         occlusion = s;
     }
 

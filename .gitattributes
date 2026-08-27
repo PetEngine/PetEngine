@@ -4,5 +4,5 @@ source/assets/**                       binary -text
 source/assets/exchange/models/**.obj  -binary  text eol=lf diff=astextplain
 source/assets/exchange/models/**.gltf -binary  text eol=lf diff=astextplain
 
-source/shaders/**.shader        -binary text eol=lf diff=astextplain
-source/shaders/**.shader_header -binary text eol=lf diff=astextplain
+source/shaders/**.shader        -binary text eol=lf
+source/shaders/**.shader_header -binary text eol=lf
