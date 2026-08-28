@@ -101,9 +101,8 @@ void main() {
                                          g_per_scene_samplers[g_push_constants.sampler_index]),
                                i_uv).gb;
 
-        // @TODO: #GLTF. Do not store metalness and roughness in sRGB
-        roughness *= pow(s.x, 2.2);
-        metalness *= pow(s.y, 2.2);
+        roughness *= s.x;
+        metalness *= s.y;
     }
 
     vec3 emissive = material_ref.factor_emissive;

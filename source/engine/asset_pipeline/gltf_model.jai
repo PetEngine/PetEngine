@@ -35,18 +35,32 @@ convertGLTFModel :: (
 
     // Make texture convertion rules
     for materials {
-        if it.texture_index_normal == ModelFile.INVALID_INDEX {
-            continue;
+        if it.texture_index_normal != ModelFile.INVALID_INDEX {
+            filename := textures[it.texture_index_normal];
+
+            if !Hash_Table.table_contains(texture_conversion_rules, filename) {
+                rule := TextureConversionRule.{ ex_info = .NORMAL };
+                Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
+            }
         }
 
-        filename := textures[it.texture_index_normal];
+        if it.texture_index_albedo != ModelFile.INVALID_INDEX {
+            filename := textures[it.texture_index_albedo];
 
-        if Hash_Table.table_contains(texture_conversion_rules, filename) {
-            continue;
+            if !Hash_Table.table_contains(texture_conversion_rules, filename) {
+                rule := TextureConversionRule.{ ex_info = .SRGB };
+                Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
+            }
         }
 
-        rule := TextureConversionRule.{ normal_map = true };
-        Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
+        if it.texture_index_emissive != ModelFile.INVALID_INDEX {
+            filename := textures[it.texture_index_emissive];
+
+            if !Hash_Table.table_contains(texture_conversion_rules, filename) {
+                rule := TextureConversionRule.{ ex_info = .SRGB };
+                Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
+            }
+        }
     }
 
     buffers:, success = parseBuffers(gltf, exchange_filename);
