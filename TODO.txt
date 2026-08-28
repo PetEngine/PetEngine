@@ -8,6 +8,9 @@ Converter:
     - Materials.
     - Thread pool.
     - Texture arrays.
+    - Pack normal textures into BC5
+    - Pack metallic_roughness textures into BC5
+    - Pack occlusion textures into BC4
     - #ConversionRules. Conversion rules for each texutre:
         - max dimensions
         - min dimensions
@@ -29,6 +32,7 @@ Model:
     - #ModelIndices. Normal way to generate indices :)
     - Generate tangents with MikkTSpace for obj files if normal map is presented
     - Everything else with #GLTF tag
+    - @Continue: Materials must always exist in a file. Meshes that do not have materials in GLTF files must be linked to the default one.
 
 //
 // Build

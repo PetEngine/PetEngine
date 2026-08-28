@@ -13,6 +13,7 @@ TextureConversionRule :: struct {
     ExInfo :: enum u8 { // @TODO: Better name
         SRGB :: 1;
         NORMAL;
+        // @TODO: #GLTF. alphaMode: premultiply or not during mipmap generation
     }
 
     max_texture_width  : u16 = 4096;
