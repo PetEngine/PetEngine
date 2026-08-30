@@ -24,7 +24,7 @@ Sponza :: struct {
 
 createSponza :: (depth_format : Texture.Format) -> Sponza {
     sponza : Sponza;
-    sponza.shader = createShader("model", .[ context.pet.render.device.back_buffer_format ], depth_format );
+    sponza.shader = getOrCreateShader("model", .[ context.pet.render.device.back_buffer_format ], depth_format );
     sponza.handles.push_constants = getPushConstantsHandle(sponza.shader, "g_push_constants");
     return sponza;
 }

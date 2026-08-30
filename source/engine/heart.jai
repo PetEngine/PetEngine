@@ -28,7 +28,7 @@ Heart :: struct {
 
 createHeart :: (depth_format : Texture.Format) -> Heart {
     heart : Heart;
-    heart.shader                   = createShader("heart", .[ context.pet.render.device.back_buffer_format ], depth_format );
+    heart.shader                   = getOrCreateShader("heart", .[ context.pet.render.device.back_buffer_format ], depth_format );
     heart.vs_push_constants_handle = getPushConstantsHandle(heart.shader, "g_vs_push_constants");
     heart.ps_push_constants_handle = getPushConstantsHandle(heart.shader, "g_ps_push_constants");
     return heart;

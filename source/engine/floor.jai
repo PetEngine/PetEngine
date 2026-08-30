@@ -9,7 +9,7 @@ Floor :: struct {
 
 createFloor :: (depth_format : Texture.Format) -> Floor {
     floor : Floor;
-    floor.shader                = createShader("floor", .[ context.pet.render.device.back_buffer_format ], depth_format );
+    floor.shader                = getOrCreateShader("floor", .[ context.pet.render.device.back_buffer_format ], depth_format );
     floor.push_constants_handle = getPushConstantsHandle(floor.shader, "g_push_constants");
     return floor;
 }

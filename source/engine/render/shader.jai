@@ -47,13 +47,19 @@ PushConstantsHandle :: struct {
     index : u8 = INVALID_INDEX;
 }
 
-createShader :: (name : string, color_target_formats : [] Texture.Format, depth_target_format : Texture.Format = .UNKNOWN) -> *Shader {
+getOrCreateShader :: (name : string, color_target_formats : [] Texture.Format, depth_target_format : Texture.Format = .UNKNOWN) -> *Shader {
     assert(color_target_formats.count <= Shader.color_target_formats.capacity);
 
-    #if #complete GRAPHICS_API == {
-        case .VULKAN; shader := pushVulkanShader();
+    shader := findShader(name);
+    if shader {
+        assert(shader.color_target_formats == color_target_formats);
+        assert(shader.depth_target_format == depth_target_format);
+        return shader;
     }
 
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; shader = pushVulkanShader();
+    }
     shader.name = name;
 
     shader_file_data := deserializeShaderFile(shader);
@@ -77,13 +83,10 @@ createShader :: (name : string, color_target_formats : [] Texture.Format, depth_
     return shader;
 }
 
-findShader :: inline (name : string) -> *Shader {
-    #if #complete GRAPHICS_API == {
-        case .VULKAN; return findVulkanShader(name);
-    }
-}
+reloadShader :: (name : string) {
+    shader := findShader(name);
+    if !shader return;
 
-reloadShader :: (shader : *Shader) {
     shader_file_data := deserializeShaderFile(shader);
     if !shader_file_data return;
 
@@ -113,6 +116,12 @@ getPushConstantsHandle :: (shader : *Shader, name : string) -> PushConstantsHand
 }
 
 #scope_file
+
+findShader :: inline (name : string) -> *Shader {
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; return findVulkanShader(name);
+    }
+}
 
 deserializeShaderFile :: (shader : *Shader) -> string {
     shader_file_data, file_error := readEntireFile(makeBinaryShaderFilename(shader.name));

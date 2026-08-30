@@ -25,7 +25,7 @@ Skybox :: struct {
 
 createSkybox :: (depth_format : Texture.Format) -> Skybox {
     skybox : Skybox;
-    skybox.shader                   = createShader("skybox", .[ context.pet.render.device.back_buffer_format ], depth_format );
+    skybox.shader                   = getOrCreateShader("skybox", .[ context.pet.render.device.back_buffer_format ], depth_format );
     skybox.vs_push_constants_handle = getPushConstantsHandle(skybox.shader, "g_vs_push_constants");
     skybox.ps_push_constants_handle = getPushConstantsHandle(skybox.shader, "g_ps_push_constants");
     return skybox;
