@@ -28,17 +28,27 @@ struct v3f_color {
     float x, y, z;
 } [[color(std::format("{:02X}{:02X}{:02X}", u32(x*255), u32(y*255), u32(z*255)))]];
 
+enum AlphaMode : u8 {
+    OPAQUE = 0,
+    MASK   = 1,
+    BLEND  = 2,
+};
+
 struct Material {
     v4f_color factor_albedo;
     v3f_color factor_emissive;
     float factor_metallic;
     float factor_roughness;
 
+    float alpha_cutoff;
+
     u16 texture_index_albedo;
     u16 texture_index_normal;
     u16 texture_index_emissive;
     u16 texture_index_metallic_roughness;
     u16 texture_index_occlusion;
+
+    AlphaMode alpha_mode;
 };
 
 struct m3x4 {

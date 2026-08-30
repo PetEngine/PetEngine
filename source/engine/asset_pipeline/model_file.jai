@@ -9,6 +9,12 @@ ModelFile :: struct {
     VERSION       : u8  : 1;
     INVALID_INDEX : u16 : 0xFFFF;
 
+    AlphaMode :: enum u8 {
+        OPAQUE;
+        MASK;
+        BLEND;
+    }
+
     Header :: struct {
         version         : u8           = VERSION;
         vertex_format   : VertexFormat = .PNTUV;
@@ -30,11 +36,15 @@ ModelFile :: struct {
         factor_metallic  : f32 = 1.0;
         factor_roughness : f32 = 1.0;
 
+        alpha_cutoff : f32 = 0.5;
+
         texture_index_albedo             : u16 = INVALID_INDEX;
         texture_index_normal             : u16 = INVALID_INDEX;
         texture_index_emissive           : u16 = INVALID_INDEX;
         texture_index_metallic_roughness : u16 = INVALID_INDEX;
         texture_index_occlusion          : u16 = INVALID_INDEX;
+
+        alpha_mode : AlphaMode = .OPAQUE;
     } #no_padding
 
     // @TODO: #GLTF. Split to GPUMesh and CPUMesh (see struct Model)

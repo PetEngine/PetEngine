@@ -463,7 +463,7 @@ parseTextures :: (gltf : *JSON_Object, model_name : string) -> [..] string, bool
     return textures, true;
 }
 
-// @TODO: #GLTF. Support alpha stuff
+// @TODO: #GLTF. doubleSided
 // @TODO: #GLTF. Support "texCoord" property in "*Texture" descriptors
 parseMaterials :: (gltf : *JSON_Object) -> [..] ModelFile.Material, bool {
     materials    : [..] ModelFile.Material;
@@ -590,6 +590,31 @@ parseMaterials :: (gltf : *JSON_Object) -> [..] ModelFile.Material, bool {
             } else {
                 gltfCheck(status == .CHILD_NOT_FOUND, FAILURE_CODE);
             }
+        } else {
+            gltfCheck(status == .CHILD_NOT_FOUND, FAILURE_CODE);
+        }
+
+        gltf_alpha_mode:, status = getChild(it.object, "alphaMode", string, true);
+        if status == .SUCCESS {
+            found : bool;
+
+            INFO :: type_info(ModelFile.AlphaMode);
+            for INFO.names {
+                if it == gltf_alpha_mode {
+                    material.alpha_mode = cast(ModelFile.AlphaMode) INFO.values[it_index];
+                    found               = true;
+                    break;
+                }
+            }
+
+            gltfCheck(found, FAILURE_CODE, "Unhandled alphaMode: %", gltf_alpha_mode);
+        } else {
+            gltfCheck(status == .CHILD_NOT_FOUND, FAILURE_CODE);
+        }
+
+        gltf_alpha_cutoff:, status = getChild(it.object, "alphaCutoff", f32, true);
+        if status == .SUCCESS {
+            material.alpha_cutoff = gltf_alpha_cutoff;
         } else {
             gltfCheck(status == .CHILD_NOT_FOUND, FAILURE_CODE);
         }

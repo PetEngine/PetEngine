@@ -6,17 +6,26 @@ layout(buffer_reference, buffer_reference_align = 4) readonly buffer MeshRef {
     uint16_t material_index;
 };
 
+// @Important: Should be synced with ModelFile.AlphaMode in asset_pipeline/model_file.jai
+#define ALPHA_MODE_OPAQUE 0
+#define ALPHA_MODE_MASK   1
+#define ALPHA_MODE_BLEND  2
+
 layout(buffer_reference, buffer_reference_align = 4) readonly buffer MaterialRef {
-    f32vec4 factor_albedo;
-    f32vec3 factor_emissive;
-    float   factor_metallic;
-    float   factor_roughness;
+    f32vec4   factor_albedo;
+    f32vec3   factor_emissive;
+    float32_t factor_metallic;
+    float32_t factor_roughness;
+
+    float32_t alpha_cutoff;
 
     uint16_t texture_index_albedo;
     uint16_t texture_index_normal;
     uint16_t texture_index_emissive;
     uint16_t texture_index_metallic_roughness;
     uint16_t texture_index_occlusion;
+
+    uint8_t alpha_mode;
 };
 
 layout(push_constant) uniform PushConstants {
@@ -81,15 +90,21 @@ out vec4 o_color;
 void main() {
     MaterialRef material_ref = g_push_constants.materials_ref[i_material_index];
 
-    // @TODO: #GLTF. alphaMode
-    vec3 albedo = material_ref.factor_albedo.rgb;
+    vec3  albedo = material_ref.factor_albedo.rgb;
+    float alpha  = material_ref.factor_albedo.a;
     if (material_ref.texture_index_albedo != 0xFFFF)
     {
         // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_basecolortexture
-        const vec3 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_albedo],
+        const vec4 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_albedo],
                                          g_per_scene_samplers[g_push_constants.sampler_index]),
-                               i_uv).rgb;
-        albedo *= s;
+                               i_uv);
+        albedo *= s.rgb;
+        alpha  *= s.a;
+    }
+
+    // ALPHA_MODE_BLEND is not supported in this shader. This shader is for opaque geometry only.
+    if (material_ref.alpha_mode == ALPHA_MODE_MASK && alpha < material_ref.alpha_cutoff) {
+        discard;
     }
 
     float roughness = material_ref.factor_roughness;
