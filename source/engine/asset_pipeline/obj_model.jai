@@ -8,7 +8,7 @@ convertObjModel :: (exchange_filename : string, name : string) -> bool {
     }
     defer destroyObjModel(*obj_model);
 
-    vertices : [..] VertexTypes.PNUV; // Obj files do not support tangents
+    vertices : [..] VertexTypes.PNTUV; // @TODO: #SpecializationConstants.
     indices  : [..] u32;
     defer {
         if vertices.data then Basic.array_free(vertices);
@@ -356,7 +356,7 @@ getFaceGroup :: (obj_model : *ObjModel, group_name : string) -> *ObjModel.FaceGr
 }
 
 remapTriplets :: (obj_model : ObjModel) -> (
-    vertices : [..] VertexTypes.PNUV,
+    vertices : [..] VertexTypes.PNTUV,
     indices  : [..] u32
 ) {
     triplet_to_index : Hash_Table.Table(ObjModel.Triplet, u32, given_compare_function = (a : ObjModel.Triplet, b : ObjModel.Triplet) -> bool {
@@ -364,7 +364,7 @@ remapTriplets :: (obj_model : ObjModel) -> (
     });
     defer Hash_Table.deinit(*triplet_to_index);
 
-    vertices : [..] VertexTypes.PNUV;
+    vertices : [..] VertexTypes.PNTUV;
     indices  : [..] u32;
 
     Basic.array_reserve(*vertices, 1_000_000);
@@ -418,8 +418,8 @@ remapTriplets :: (obj_model : ObjModel) -> (
     return vertices, indices;
 }
 
-convertVertices :: (obj_model : ObjModel, name : string) -> (vertices : [..] VertexTypes.PNUV, indices : [..] u32) {
-    vertices : [..] VertexTypes.PNUV;
+convertVertices :: (obj_model : ObjModel, name : string) -> (vertices : [..] VertexTypes.PNTUV, indices : [..] u32) {
+    vertices : [..] VertexTypes.PNTUV;
     indices  : [..] u32;
 
     Basic.array_reserve(*vertices, 1_000_000);

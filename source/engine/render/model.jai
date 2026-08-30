@@ -7,6 +7,18 @@ Model :: struct {
         using m : ModelFile.Mesh;
     }
 
+    PushConstants :: struct {
+        index_buffer_reference    : u64;
+        vertex_buffer_reference   : u64;
+        mesh_buffer_reference     : u64;
+        material_buffer_reference : u64;
+        model_to_world            : m3x4;
+        world_to_model            : m3x4;
+        per_view_uniform_index    : u32;
+        sampler_index             : u16;
+        first_texture_index       : u16;
+    }
+
     textures  : [] *Texture;
     materials : [] Material;
     meshes    : [] Mesh;
@@ -15,6 +27,9 @@ Model :: struct {
     indices_offset   : u32;
     materials_offset : u32;
     meshes_offset    : u32;
+
+    model_to_world : m3x4 = IDENTITY_3X4;
+    world_to_model : m3x4 = IDENTITY_3X4;
 
     buffer : *Buffer;
 

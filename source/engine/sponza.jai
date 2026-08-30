@@ -1,14 +1,4 @@
 Sponza :: struct {
-    PushConstants :: struct {
-        index_buffer_reference    : u64;
-        vertex_buffer_reference   : u64;
-        mesh_buffer_reference     : u64;
-        material_buffer_reference : u64;
-        per_view_uniform_index    : u32;
-        sampler_index             : u16;
-        first_texture_index       : u16;
-    } #no_padding
-
     shader : *Shader;
 
     model         : ModelAsset;
@@ -24,7 +14,7 @@ Sponza :: struct {
 
 createSponza :: (depth_format : Texture.Format) -> Sponza {
     sponza : Sponza;
-    sponza.shader = getOrCreateShader("model", .[ context.pet.render.device.back_buffer_format ], depth_format );
+    sponza.shader = getOrCreateShader("opaque_model", .[ context.pet.render.device.back_buffer_format ], depth_format );
     sponza.handles.push_constants = getPushConstantsHandle(sponza.shader, "g_push_constants");
     return sponza;
 }
@@ -78,11 +68,13 @@ drawSponza :: (command_buffer : *CommandBuffer, sponza : Sponza, per_view_unifor
 
     setShader(command_buffer, sponza.shader);
 
-    setPushConstants(command_buffer, sponza.handles.push_constants, *(Sponza.PushConstants.{
+    setPushConstants(command_buffer, sponza.handles.push_constants, *(Model.PushConstants.{
         index_buffer_reference    = sponza.model.buffer.device_address + sponza.model.indices_offset,
         vertex_buffer_reference   = sponza.model.buffer.device_address + sponza.model.vertices_offset,
         mesh_buffer_reference     = sponza.model.buffer.device_address + sponza.model.meshes_offset,
         material_buffer_reference = sponza.model.buffer.device_address + sponza.model.materials_offset,
+        model_to_world            = sponza.model.model_to_world,
+        world_to_model            = sponza.model.world_to_model,
         per_view_uniform_index    = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
         sampler_index             = sponza.handles.sampler.descriptor,
         first_texture_index       = sponza.handles.textures[0].descriptor

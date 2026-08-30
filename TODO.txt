@@ -2,8 +2,6 @@
 // Assets
 //
 
-- Move assets out of the engine folder
-
 Converter:
     - Thread pool.
     - Texture arrays.
@@ -23,7 +21,7 @@ Model:
     - #ModelIndices. Normal way to generate indices :)
     - Generate tangents with MikkTSpace if normal map is presented, but there are no normals in vertices
     - Everything else with #GLTF tag
-    - Port Heart to model.shader
+    - OBJ materials
 
 //
 // Build
@@ -139,6 +137,7 @@ Shader Manager:
     ? Split into 2 files: shader_manager.jai and shader.jai.
     - #MTRendering. Thread safety for shaders_storage.
     - Pipeline cache.
+    - #SpecializationConstants.
 
 Texture:
     - Explicit layout setup on high level.
@@ -167,6 +166,7 @@ Compiler:
     - #ShaderCompiler. alphaToCoverageEnable.
     - #ShaderCompiler. alphaToOneEnable.
     - #ShaderCompiler. stencilTestEnable.
+    - #SpecializationConstants.
 
 Hot reload:
     - Thread pool.

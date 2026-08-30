@@ -209,6 +209,24 @@ operator * :: inline (a : m3x3, b : m3x3) -> m3x3 #no_context {
     };
 }
 
+operator * :: inline (a : m3x4, b : m3x3) -> m3x4 #no_context {
+    bt := transpose(b);
+    return .{
+        dot(a.rows[0].xyz, bt.rows[0]), dot(a.rows[0].xyz, bt.rows[1]), dot(a.rows[0].xyz, bt.rows[2]), a.e03,
+        dot(a.rows[1].xyz, bt.rows[0]), dot(a.rows[1].xyz, bt.rows[1]), dot(a.rows[1].xyz, bt.rows[2]), a.e13,
+        dot(a.rows[2].xyz, bt.rows[0]), dot(a.rows[2].xyz, bt.rows[1]), dot(a.rows[2].xyz, bt.rows[2]), a.e23,
+    };
+}
+
+operator * :: inline (a : m3x4, b : m3x4) -> m3x4 #no_context {
+    bt := transpose(b);
+    return .{
+        dot(a.rows[0].xyz, bt.rows[0]), dot(a.rows[0].xyz, bt.rows[1]), dot(a.rows[0].xyz, bt.rows[2]), dot(a.rows[0].xyz, bt.rows[3]) + a.e03,
+        dot(a.rows[1].xyz, bt.rows[0]), dot(a.rows[1].xyz, bt.rows[1]), dot(a.rows[1].xyz, bt.rows[2]), dot(a.rows[1].xyz, bt.rows[3]) + a.e13,
+        dot(a.rows[2].xyz, bt.rows[0]), dot(a.rows[2].xyz, bt.rows[1]), dot(a.rows[2].xyz, bt.rows[2]), dot(a.rows[2].xyz, bt.rows[3]) + a.e23,
+    };
+}
+
 operator * :: inline (a : m3x4, b : m4x3) -> m3x3 #no_context {
     bt := transpose(b);
     return .{
@@ -238,13 +256,20 @@ operator * :: inline (a : m4x4, b : m4x4) -> m4x4 #no_context {
     };
 }
 
-operator *= :: inline (a : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) #no_context { postTransform(a, b); }
+operator *= :: inline (a : *$A/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : $B/Type.[m2x2, m3x3, m3x4, m4x3, m4x4]) #no_context {
+    postTransform(a, b);
+}
 
 operator == :: inline (a : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) -> bool #no_context { return memcmp(*a, *b, size_of(T)) == 0; }
 operator != :: inline (a : $T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) -> bool #no_context { return memcmp(*a, *b, size_of(T)) != 0; }
 
-preTransform  :: inline (a : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) #no_context { a.* = a.* * b; }
-postTransform :: inline (a : *$T/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : T) #no_context { a.* = b * a.*; }
+preTransform  :: inline (a : *$A/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : $B/Type.[m2x2, m3x3, m3x4, m4x3, m4x4]) #no_context {
+    a.* = a.* * b;
+}
+
+postTransform :: inline (a : *$A/Type.[m2x2, m3x3, m3x4, m4x3, m4x4], b : $B/Type.[m2x2, m3x3, m3x4, m4x3, m4x4]) #no_context {
+    a.* = b * a.*;
+}
 
 transpose :: inline (m : m2x2) -> m2x2 #no_context {
     return .{
@@ -548,4 +573,39 @@ rotation :: (around : v3f, angle : f32) -> m3x3 {
         col0.y, col1.y, col2.y,
         col0.z, col1.z, col2.z,
     };
+}
+
+preTranslate :: inline (m : *$T/Type.[m3x4, m4x4], v : v3f) #no_context {
+    m.e03 = dot(m.rows[0].xyz, v) + m.e03;
+    m.e13 = dot(m.rows[1].xyz, v) + m.e13;
+    m.e23 = dot(m.rows[2].xyz, v) + m.e23;
+    #if T.rows.count == 4 {
+        m.e33 = dot(m.rows[3].xyz, v) + m.e33;
+    }
+}
+
+postTranslate :: inline (m : *m3x4, v : v3f) #no_context {
+    m.e03 += v.x;
+    m.e13 += v.y;
+    m.e23 += v.z;
+}
+
+preScale :: inline (m : *$T/Type.[m3x3, m3x4, m4x3, m4x4], v : v3f) #no_context {
+    #if T == m3x4 || T == m4x4 {
+        m.rows[0].xyz *= s;
+        m.rows[1].xyz *= s;
+        m.rows[2].xyz *= s;
+        #if T.rows.count == 4 then m.rows[3].xyz *= s;
+    } else {
+        m.rows[0] *= s;
+        m.rows[1] *= s;
+        m.rows[2] *= s;
+        #if T.rows.count == 4 then m.rows[3] *= s;
+    }
+}
+
+postScale :: inline (m : *$T/Type.[m3x3, m3x4, m4x3, m4x4], v : v3f) #no_context {
+    m.rows[0] *= s.x;
+    m.rows[1] *= s.y;
+    m.rows[2] *= s.z;
 }

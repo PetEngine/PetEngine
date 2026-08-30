@@ -294,6 +294,7 @@ petMain :: () {
             render_heart_scene = false;
         }
         updateSkybox(*skybox, window.input);
+        updateHeart(*heart, per_frame_uniform.data.dtime);
 
         beginFrame();
         {

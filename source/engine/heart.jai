@@ -1,36 +1,22 @@
 Heart :: struct {
-    VSPushConstants :: struct {
-        index_buffer_reference  : u64;
-        vertex_buffer_reference : u64;
-        mesh_buffer_reference   : u64;
-        per_view_uniform_index  : u32;
-    } #no_padding
-
-    PSPushConstants :: struct {
-        texture_index : u16;
-        sampler_index : u16;
-    } #no_padding
-
     shader : *Shader;
 
-    model : ModelAsset;
+    model         : ModelAsset;
+    sampler       : *Sampler;
+    textures      : [10] TextureAsset;
+    texture_views : [textures.count] *TextureView;
 
-    vs_push_constants_handle : PushConstantsHandle;
-    ps_push_constants_handle : PushConstantsHandle;
-
-    sampler                 : *Sampler;
-    sampler_binding_handle  : BindingHandle;
-
-    textures                : [10] TextureAsset;
-    texture_views           : [10] *TextureView;
-    texture_binding_handles : [10] BindingHandle;
+    handles : struct {
+        push_constants : PushConstantsHandle;
+        sampler        : BindingHandle;
+        textures       : [texture_views.count] BindingHandle;
+    };
 }
 
 createHeart :: (depth_format : Texture.Format) -> Heart {
     heart : Heart;
-    heart.shader                   = getOrCreateShader("heart", .[ context.pet.render.device.back_buffer_format ], depth_format );
-    heart.vs_push_constants_handle = getPushConstantsHandle(heart.shader, "g_vs_push_constants");
-    heart.ps_push_constants_handle = getPushConstantsHandle(heart.shader, "g_ps_push_constants");
+    heart.shader = getOrCreateShader("opaque_model", .[ context.pet.render.device.back_buffer_format ], depth_format );
+    heart.handles.push_constants = getPushConstantsHandle(heart.shader, "g_push_constants");
     return heart;
 }
 
@@ -45,7 +31,13 @@ destroyHeart :: (heart : *Heart) {
 loadHeart :: (heart : *Heart) {
     heart.model = requestModel("HumanHeart_OBJ");
 
-    heart.sampler = createSampler(.{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR }, .PER_SCENE, "Trilinear sampler" );
+    // Initial world transform
+    {
+        postTranslate(*heart.model.model_to_world, .{ y =  6.0 });
+        preTranslate(*heart.model.world_to_model,  .{ y = -6.0 });
+    }
+
+    heart.sampler = createSampler(.{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR }, .PER_SCENE, "Trilinear clamp sampler" );
 
     heart.textures[0] = requestTexture("heart/HumanBase___cavity");
     heart.textures[1] = requestTexture("heart/HumanBase__color");
@@ -64,11 +56,19 @@ loadHeart :: (heart : *Heart) {
 }
 
 bindHeart :: (heart : *Heart) {
-    heart.sampler_binding_handle = pushBinding(.PER_SCENE, heart.sampler);
+    heart.handles.sampler = pushBinding(.PER_SCENE, heart.sampler);
 
-    for * heart.texture_binding_handles {
+    for * heart.handles.textures {
         it.* = pushBinding(.PER_SCENE, heart.texture_views[it_index]);
     }
+}
+
+updateHeart :: (heart : *Heart, dt : f32) {
+    rot     := rotationY(dt);
+    inv_rot := transpose(rot);
+
+    postTransform(*heart.model.model_to_world, extend(rot, m3x4));
+    preTransform(*heart.model.world_to_model, extend(inv_rot, m3x4));
 }
 
 drawHeart :: (command_buffer : *CommandBuffer, heart : Heart, per_view_uniform : PerViewUniform) {
@@ -89,16 +89,16 @@ drawHeart :: (command_buffer : *CommandBuffer, heart : Heart, per_view_uniform :
 
     setShader(command_buffer, heart.shader);
 
-    setPushConstants(command_buffer, heart.vs_push_constants_handle, *(Heart.VSPushConstants.{
-        index_buffer_reference  = heart.model.buffer.device_address + heart.model.indices_offset,
-        vertex_buffer_reference = heart.model.buffer.device_address + heart.model.vertices_offset,
-        mesh_buffer_reference   = heart.model.buffer.device_address + heart.model.meshes_offset,
-        per_view_uniform_index  = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
-    }));
-
-    setPushConstants(command_buffer, heart.ps_push_constants_handle, *(Heart.PSPushConstants.{
-        texture_index = heart.texture_binding_handles[1].descriptor,
-        sampler_index = heart.sampler_binding_handle.descriptor,
+    setPushConstants(command_buffer, heart.handles.push_constants, *(Model.PushConstants.{
+        index_buffer_reference    = heart.model.buffer.device_address + heart.model.indices_offset,
+        vertex_buffer_reference   = heart.model.buffer.device_address + heart.model.vertices_offset,
+        mesh_buffer_reference     = heart.model.buffer.device_address + heart.model.meshes_offset,
+        material_buffer_reference = heart.model.buffer.device_address + heart.model.materials_offset,
+        model_to_world            = heart.model.model_to_world,
+        world_to_model            = heart.model.world_to_model,
+        per_view_uniform_index    = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
+        sampler_index             = heart.handles.sampler.descriptor,
+        first_texture_index       = heart.handles.textures[0].descriptor
     }));
 
     assert(heart.model.meshes.count == 1);
