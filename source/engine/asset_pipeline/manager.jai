@@ -1,6 +1,7 @@
 AssetManager :: struct {
     BufferCopy :: struct {
         buffer        : *Buffer;
+        event         : GPUEvent;
         regions_count : u8;
         regions       : [32] CopyRegion;
     }
@@ -8,6 +9,7 @@ AssetManager :: struct {
     // @TODO: #TextureLoader. Add space for array layers
     TextureCopy :: struct {
         texture       : *Texture;
+        event         : GPUEvent;
         regions_count : u8;
         regions       : [Texture.MAX_MIPS_SUPPORTED * 6] BufferToTextureCopyRegion;
     }
@@ -55,11 +57,13 @@ processAssetManagerCopies :: () {
     for buffer_copies_view {
         assert(it.buffer);
         copyBufferRegions(*gurb.command_buffer, it.buffer, gurb.buffer, .{ it.regions_count, it.regions.data });
+        if it.event.handle then setGPUEvent(gurb.command_buffer, it.event);
     }
 
     for texture_copies_view {
         assert(it.texture);
         copyBufferToTexture(*gurb.command_buffer, it.texture, gurb.buffer, .{ it.regions_count, it.regions.data });
+        if it.event.handle then setGPUEvent(gurb.command_buffer, it.event);
     }
 
     memset(manager.buffer_copies.data, 0, manager.buffer_copies_count * size_of(AssetManager.BufferCopy));
@@ -69,18 +73,25 @@ processAssetManagerCopies :: () {
     manager.texture_copies_count = 0;
 }
 
-// @TODO: If I never call isAssetReady during `Device.frame_buffering` frames after request the state of `ready_event` will become invalid.
-// Create GPUEvent for each asset inidividually and submit them in `processAssetManagerCopies`
 isAssetReady :: (asset : *$T/interface Asset) -> bool {
     if  asset.cached_ready_state return true;
     if !asset.ready_event.handle return false;
 
     if isGPUEventSet(asset.ready_event) {
         asset.cached_ready_state = true;
-        asset.ready_event = .{}; // unlink UploadRingBuffer event from asset
+        destroyGPUEvent(*asset.ready_event);
     }
 
     return asset.cached_ready_state;
+}
+
+destroyAsset :: (asset : *$T/interface Asset) {
+    #if T == ModelAsset {
+        destroyModel(*asset.model);
+    }
+    if asset.ready_event.handle {
+        destroyGPUEvent(*asset.ready_event);
+    }
 }
 
 requestModel :: (name : string) -> ModelAsset {
@@ -99,7 +110,7 @@ requestModel :: (name : string) -> ModelAsset {
 
     asset : ModelAsset;
     asset.vertex_format = header.vertex_format;
-    asset.ready_event   = gurb.done_events[context.pet.render.device.frame_index];
+    asset.ready_event   = createGPUEvent("% model is ready", name);
     asset.allocator     = context.allocator;
 
     if header.textures_count {
@@ -115,7 +126,7 @@ requestModel :: (name : string) -> ModelAsset {
             name.data  = pushToArena(*context.pet.arenas.per_frame, texture_name.length);
             readFile(file, name);
 
-            it.* = loadTexture(name);
+            it.* = loadTexture(name, .{});
         }
     }
 
@@ -188,6 +199,7 @@ requestModel :: (name : string) -> ModelAsset {
     manager.buffer_copies_count += 1;
 
     buffer_copy.buffer = asset.buffer;
+    buffer_copy.event  = asset.ready_event;
 
     buffer_offset : u32;
 
@@ -287,15 +299,15 @@ requestTexture :: (name : string) -> TextureAsset {
     assert(!resourceMemoryCommitted(.PER_SCENE));
 
     asset : TextureAsset;
-    asset.texture     = loadTexture(name);
-    asset.ready_event = context.pet.render.global_upload_ring_buffer.done_events[context.pet.render.device.frame_index];
+    asset.ready_event = createGPUEvent("% texture is ready", name);
+    asset.texture     = loadTexture(name, asset.ready_event);
 
     return asset;
 }
 
 #scope_file
 
-loadTexture :: (name : string) -> *Texture {
+loadTexture :: (name : string, event : GPUEvent) -> *Texture {
     autoResetPerFrameArenas();
 
     file, file_error := openFile(makeRuntimeTextureFilename(name), .READ | .SHARED_READ | .EXISTS | .SEQ);
@@ -359,6 +371,7 @@ loadTexture :: (name : string) -> *Texture {
     manager.texture_copies_count += 1;
 
     texture_copy.texture = texture;
+    texture_copy.event   = event;
 
     for face : 0 .. faces_count - 1 {
         for layer : 0 .. array_size - 1 {

@@ -20,7 +20,7 @@ createGlobalUploadRingBuffer :: () {
     gurb.command_buffer = createCommandBuffer(QUEUE_TYPE);
 
     for * gurb.done_events {
-        it.* = createGPUEvent("Upload ring buffer done event #%", it_index);
+        it.* = createGPUEvent("GlobalUploadRingBuffer done #%", it_index);
     }
 
     buffer_capacity := readSetting("global_upload_ring_buffer.capacity");

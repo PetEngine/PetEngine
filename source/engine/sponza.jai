@@ -30,7 +30,7 @@ createSponza :: (depth_format : Texture.Format) -> Sponza {
 }
 
 destroySponza :: (sponza : *Sponza) {
-    destroyModel(*sponza.model);
+    destroyAsset(*sponza.model);
     sponza.* = .{};
 }
 

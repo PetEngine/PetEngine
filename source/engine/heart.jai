@@ -35,7 +35,10 @@ createHeart :: (depth_format : Texture.Format) -> Heart {
 }
 
 destroyHeart :: (heart : *Heart) {
-    destroyModel(*heart.model);
+    destroyAsset(*heart.model);
+    for * heart.textures {
+        destroyAsset(it);
+    }
     heart.* = .{};
 }
 

@@ -276,7 +276,7 @@ petMain :: () {
 
     floor  := createFloor(depth_buffer.format);
     heart  := createHeart(depth_buffer.format);  defer destroyHeart(*heart);
-    skybox := createSkybox(depth_buffer.format);
+    skybox := createSkybox(depth_buffer.format); defer destroySkybox(*skybox);
     sponza := createSponza(depth_buffer.format); defer destroySponza(*sponza);
 
     command_buffer := createCommandBuffer(.GRAPHICS);

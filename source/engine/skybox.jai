@@ -31,6 +31,12 @@ createSkybox :: (depth_format : Texture.Format) -> Skybox {
     return skybox;
 }
 
+destroySkybox :: (skybox : *Skybox) {
+    for * skybox.textures {
+        destroyAsset(it);
+    }
+}
+
 loadSkybox :: (skybox : *Skybox) {
     skybox.sampler = createSampler(.{
         min_filter = .LINEAR,
