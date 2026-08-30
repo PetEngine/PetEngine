@@ -17,7 +17,7 @@ Arena :: struct {
 createArena :: (arena : *Arena, capacity : s64, $format : string, args : ..Any, alignment := DEFAULT_PAGE_SIZE) {
     assert(capacity > 0);
 
-    memory := Allocator.rpaligned_alloc(alignment, capacity);
+    memory := AllocatorModule.rpaligned_alloc(alignment, capacity);
     assert(memory, print_sys_error = true);
 
     createArena(arena, memory, capacity, format, ..args);
@@ -41,7 +41,7 @@ createArena :: (arena : *Arena, memory : *void, capacity : s64, $format : string
 
 destroyArena :: (arena : *Arena) {
     if arena.memory & Arena.MEMORY_IS_ALLOCATED_FLAG {
-        Allocator.rpfree(arena.memory & Arena.MEMORY_ADDRESS_MASK);
+        AllocatorModule.rpfree(arena.memory & Arena.MEMORY_ADDRESS_MASK);
     }
 
     #if DEBUG_BUILD {

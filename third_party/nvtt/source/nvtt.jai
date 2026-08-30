@@ -154,18 +154,70 @@ nvttSurfaceLoadFromMemory :: (
     tc           : *NvttTimingContext = null
 ) -> NvttBoolean #foreign nvtt;
 nvttSurfaceToGPU :: (surface : *NvttSurface, performCopy : NvttBoolean = .True, tc : *NvttTimingContext = null) #foreign nvtt;
+
+/// @brief Resizes this surface to create the next mip in a mipmap chain.
+///
+/// Returns false iff the next mip would have been smaller than
+/// `min_size` (signaling the end of the mipmap chain).
 nvttSurfaceBuildNextMipmapDefaults :: (
     surface  : *NvttSurface,
     filter   : NvttMipmapFilter,
     min_size : s32                = 1,
     tc       : *NvttTimingContext = null
 ) -> NvttBoolean #foreign nvtt;
+
+/// @brief Applies the linear-to-sRGB transfer function to channels 0...2.
+///
+/// This transfer function replaces each value `x` with
+/// ```text
+/// if x is NaN or x <= 0.0f, 0.0f
+/// if x <= 0.0031308f, 12.92f * x
+/// if x <  1.0f, powf(x, 1.0f/2.4f) * 1.055f - 0.055f
+/// otherwise, 1.0f
+/// ```
 nvttSurfaceToSrgb :: (surface : *NvttSurface, tc : *NvttTimingContext = null) #foreign nvtt;
+
+/// @brief Applies the sRGB-to-linear transfer function to channels 0...2.
+///
+/// This transfer function replaces each value `x` with
+/// ```text
+/// if x < 0.0f, 0.0f
+/// if x < 0.04045f, x / 12.92f
+/// if x < 1.0f, powf((x + 0.055f)/1.055f, 2.4f)
+/// otherwise, 1.0f
+/// ```
 nvttSurfaceToLinearFromSrgb :: (surface : *NvttSurface, tc : *NvttTimingContext = null) #foreign nvtt;
+
+/// @brief Swizzles the channels of the surface.
+///
+/// Each argument specifies where the corresponding channel should come
+/// from. For instance, setting r to 2 would mean that the red (0)
+/// channel would be set to the current 2nd channel.
+///
+/// In addition, the special values 4, 5, and 6 represent setting the
+/// channel to a constant value of 1.0f, 0.0f, or -1.0f, respectively.
+nvttSurfaceSwizzle :: (surface : *NvttSurface, r : s32, g : s32, b : s32, a : s32, tc : *NvttTimingContext = null) #foreign nvtt;
+
+/// @brief Converts to premultiplied alpha, replacing `(r, g, b, a)` with `(ar, ag, ab, a)`.
 nvttSurfacePremultiplyAlpha :: (surface : *NvttSurface, tc : *NvttTimingContext = null) #foreign nvtt;
+
+/// @brief Converts from premultiplied to unpremultiplied alpha, with special handling around zero alpha values.
+///
+/// When `abs(a) >= epsilon`, the result is the same as dividing the
+/// RGB channels by the alpha channel. Otherwise, this function divides
+/// the RGB channels by `epsilon * sign(a)`, since the result of
+/// unpremultiplying a fully transparent color is undefined.
 nvttSurfaceDemultiplyAlpha :: (surface : *NvttSurface, epsilon : float32 = 1.0e-12, tc : *NvttTimingContext = null) #foreign nvtt;
+
+/// @brief Packs signed normals in [-1, 1] to an unsigned range [0, 1], using (r, g, b, a) |-> (r/2+1/2, g/2+1/2, b/2+1/2, a).
 nvttSurfacePackNormals :: (surface : *NvttSurface, scale : float32 = 0.5, bias : float32 = 0.5, tc : *NvttTimingContext = null) #foreign nvtt;
+
+/// @brief Expands packed normals in [0, 1] to signed normals in [-1, 1] using (r, g, b, a) |-> (2r-1, 2g-1, 2b-1, a).
 nvttSurfaceExpandNormals :: (surface : *NvttSurface, scale : float32 = 2.0, bias : float32 = -1.0, tc : *NvttTimingContext = null) #foreign nvtt;
+
+/// @brief Renormalizes the elements of a signed normal map, replacing `(r, g, b)` with `normalize(r, g, b)`.
+///
+/// This function is safe to call even for zero vectors.
 nvttSurfaceNormalizeNormalMap :: (surface : *NvttSurface, tc : *NvttTimingContext = null) #foreign nvtt;
 
 NvttCompressionOptions :: struct {

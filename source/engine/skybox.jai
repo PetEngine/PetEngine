@@ -18,16 +18,23 @@ Skybox :: struct {
     sampler                 : *Sampler;
     sampler_binding_handle  : BindingHandle;
 
-    texture_assets          : [3] *TextureAsset;
+    textures                : [3] TextureAsset;
+    texture_views           : [3] *TextureView;
     texture_binding_handles : [3] BindingHandle;
 }
 
 createSkybox :: (depth_format : Texture.Format) -> Skybox {
     skybox : Skybox;
-    skybox.shader                   = createShader("skybox", .[ context.pet.render.device.back_buffer_format ], depth_format );
+    skybox.shader                   = getOrCreateShader("skybox", .[ context.pet.render.device.back_buffer_format ], depth_format );
     skybox.vs_push_constants_handle = getPushConstantsHandle(skybox.shader, "g_vs_push_constants");
     skybox.ps_push_constants_handle = getPushConstantsHandle(skybox.shader, "g_ps_push_constants");
     return skybox;
+}
+
+destroySkybox :: (skybox : *Skybox) {
+    for * skybox.textures {
+        destroyAsset(it);
+    }
 }
 
 loadSkybox :: (skybox : *Skybox) {
@@ -38,16 +45,20 @@ loadSkybox :: (skybox : *Skybox) {
         anisotropy = Sampler.MAX_ANISOTROPY
     }, .PER_SCENE, "Anisotropic sampler" );
 
-    skybox.texture_assets[0] = requestTexture("skybox_night");
-    skybox.texture_assets[1] = requestTexture("skybox_mirror");
-    skybox.texture_assets[2] = requestTexture("skybox_desert");
+    skybox.textures[0] = requestTexture("skybox_night");
+    skybox.textures[1] = requestTexture("skybox_mirror");
+    skybox.textures[2] = requestTexture("skybox_desert");
+
+    for * skybox.texture_views {
+        it.* = createTextureView(skybox.textures[it_index], .SHADER_READ, lifetime = .PER_SCENE);
+    }
 }
 
 bindSkybox :: (skybox : *Skybox) {
     skybox.sampler_binding_handle = pushBinding(.PER_SCENE, skybox.sampler);
 
-    for skybox.texture_assets {
-        skybox.texture_binding_handles[it_index] = pushBinding(.PER_SCENE, it.texture_view);
+    for * skybox.texture_binding_handles {
+        it.* = pushBinding(.PER_SCENE, skybox.texture_views[it_index]);
     }
 }
 
@@ -60,7 +71,7 @@ updateSkybox :: (skybox : *Skybox, input : Input) {
 }
 
 drawSkybox :: (command_buffer : *CommandBuffer, skybox : Skybox, per_view_uniform : PerViewUniform) {
-    if !isTextureReady(skybox.texture_assets[skybox.skybox_index]) return;
+    if !isAssetReady(*skybox.textures[skybox.skybox_index]) return;
 
     render_resolution := context.pet.render.device.render_resolution;
 

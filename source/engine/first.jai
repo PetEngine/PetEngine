@@ -39,11 +39,12 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
     };
 
     render : struct {
-        device           : *Device;
-        resource_manager : *ResourceManager;
-        asset_manager    : *AssetManager;
-        shader_manager   : *ShaderManager;
-        binding_manager  : *BindingManager;
+        device                    : *Device;
+        resource_manager          : *ResourceManager;
+        asset_manager             : *AssetManager;
+        shader_manager            : *ShaderManager;
+        binding_manager           : *BindingManager;
+        global_upload_ring_buffer : *GlobalUploadRingBuffer;
     };
 
     converter : struct {
@@ -90,10 +91,12 @@ PerViewUniform :: struct {
     CAMERA_FOV  :: #run degToRad(60.0);
 
     Data :: struct {
-        camera_pos : v3f = .{ 2.0, 10.0, -17.0 };
+        // camera_pos : v3f = .{ 2.0, 10.0, -17.0 };
+        camera_pos : v3f = .{ 9.0, 1.0, 0.3 };
         __padding0 : f32;
 
-        camera_dir : v3f = .{ -0.1, -0.2, 0.9 };
+        // camera_dir : v3f = .{ -0.1, -0.2, 0.9 };
+        camera_dir : v3f = .{ x = -1.0 };
         __padding1 : f32;
 
         view_matrix     : m4x4;
@@ -218,6 +221,9 @@ petMain :: () {
     createResourceManager();
     defer destroyResourceManager();
 
+    createGlobalUploadRingBuffer();
+    defer destroyGlobalUploadRingBuffer();
+
     createAssetManager();
 
     createShaderManager();
@@ -265,23 +271,30 @@ petMain :: () {
     // @TODO: #Scene.
     defer {
         resetResourceMemory(.PER_SCENE);
-        resetAssetManagerAssets();
         resetBindings(.PER_SCENE);
     }
 
     floor  := createFloor(depth_buffer.format);
-    heart  := createHeart(depth_buffer.format);
-    skybox := createSkybox(depth_buffer.format);
+    heart  := createHeart(depth_buffer.format);  defer destroyHeart(*heart);
+    skybox := createSkybox(depth_buffer.format); defer destroySkybox(*skybox);
+    sponza := createSponza(depth_buffer.format); defer destroySponza(*sponza);
 
     command_buffer := createCommandBuffer(.GRAPHICS);
+
+    render_heart_scene : bool;
 
     showWindow(window);
     while processWindowsEvents() {
         resetArena(*context.pet.arenas.per_frame);
         Basic.reset_temporary_storage();
 
-        updateHeart(*heart, window.input);
+        if window.input.keyboard[Input.Key.KEY_1] & .RELEASED {
+            render_heart_scene = true;
+        } else if window.input.keyboard[Input.Key.KEY_2] & .RELEASED {
+            render_heart_scene = false;
+        }
         updateSkybox(*skybox, window.input);
+        updateHeart(*heart, per_frame_uniform.data.dtime);
 
         beginFrame();
         {
@@ -289,7 +302,7 @@ petMain :: () {
             {
                 // @TODO: #PerFrameResources.
                 resetResourceMemory(.PER_FRAME);
-                resetAssetManager();
+                resetGlobalUploadRingBuffer();
                 resetShaderManager();
                 resetBindings(.PER_FRAME);
                 resetCommandBuffer(*command_buffer);
@@ -308,21 +321,22 @@ petMain :: () {
             if window.input.keyboard[Input.Key.O] & .RELEASED {
                 // Reset
                 resetResourceMemory(.PER_SCENE);
-                resetAssetManagerAssets();
                 resetBindings(.PER_SCENE);
 
                 // Create per scene resources here...
                 loadHeart(*heart);
                 loadSkybox(*skybox);
+                loadSponza(*sponza);
 
                 // Commit
                 commitResourceMemory(.PER_SCENE);
 
                 bindHeart(*heart);
                 bindSkybox(*skybox);
+                bindSponza(*sponza);
 
                 // @Important: Should be after per scene memory commit
-                processRequestedAssets();
+                processAssetManagerCopies();
             }
 
             // Update per frame uniform
@@ -397,7 +411,7 @@ petMain :: () {
                 if angleXY.y then postTransform(*camera_rotation, rotationX(angleXY.y));
 
                 camera_dir = camera_rotation[Z_AXIS];
-                assertNormalized(camera_dir);
+                camera_dir = maybeNormalize(camera_dir);
 
                 if isNonZero(move) {
                     x_axis := camera_rotation[X_AXIS];
@@ -434,16 +448,20 @@ petMain :: () {
                            .[ .{ back_buffer_view, .CLEAR, .STORE } ],
                            *(DepthTargetDesc.{ view = depth_buffer_dsv, depth_load_action = .CLEAR, depth_store_action = .NONE }));
             {
-                drawHeart(*command_buffer, heart, per_view_uniform);
-                drawFloor(*command_buffer, floor, per_view_uniform);
+                if render_heart_scene {
+                    drawHeart(*command_buffer, heart, per_view_uniform);
+                    drawFloor(*command_buffer, floor, per_view_uniform);
+                } else {
+                    drawSponza(*command_buffer, sponza, per_view_uniform);
+                }
                 drawSkybox(*command_buffer, skybox, per_view_uniform);
             }
             endRendering(*command_buffer);
 
             // Submit
             {
-                submitAssetManager();
-                submitCommandBuffer(command_buffer);
+                submitGlobalUploadRingBuffer();
+                submitCommandBuffer(*command_buffer);
             }
         }
         endFrame();
@@ -452,20 +470,23 @@ petMain :: () {
     waitDeviceIdle();
 }
 
-operator -  :: Basic.operator -;
-operator >= :: Basic.operator >=;
+operator -    :: Basic.operator -;
+operator >=   :: Basic.operator >=;
+for_expansion :: Hash_Table.for_expansion;
 
 #import "common"()(DEBUG_BUILD, PRINT_VERBOSE_MESSAGES, xx GRAPHICS_API);
 
-#load "assets/converter.jai";
-#load "assets/manager.jai";
+#load "asset_pipeline/converter.jai";
+#load "asset_pipeline/manager.jai";
 #load "core/input.jai";
 #load "core/settings.jai";
 #load "core/window.jai";
 #load "render/binding_manager.jai";
 #load "render/command_buffer.jai";
 #load "render/device.jai";
-#load "render/mesh.jai";
+#load "render/global_upload_ring_buffer.jai";
+#load "render/gpu_event.jai";
+#load "render/model.jai";
 #load "render/resource_manager.jai";
 #load "render/shader.jai";
 #load "shader_compiler/compiler.jai";
@@ -473,10 +494,12 @@ operator >= :: Basic.operator >=;
 #load "floor.jai";
 #load "heart.jai";
 #load "skybox.jai";
+#load "sponza.jai";
 
 Basic      :: #import "Basic"()(ENABLE_ASSERT = DEBUG_BUILD, TEMP_ALLOCATOR_OVERWRITE_MEMORY = DEBUG_BUILD);
 Reflection :: #import "Reflection";
 Atomics    :: #import "Atomics";
+Hash_Table :: #import "Hash_Table";
 #if CPU == .X64 {
     Machine_X64 :: #import "Machine_X64";
 }
@@ -630,7 +653,7 @@ initRuntimeAndCallEntryPoint :: () {
     context.print_style.default_format_absolute_pointer.digits_per_comma                   = 0;
     context.print_style.default_format_absolute_pointer.comma_string                       = "";
 
-    context.allocator = .{ Allocator.rpmalloc_allocator_proc, null };
+    context.allocator = .{ AllocatorModule.rpmalloc_allocator_proc, null };
 
     context.allocator.proc(.STARTUP, 0, 0, null, context.allocator.data);
     defer context.allocator.proc(.SHUTDOWN, 0, 0, null, context.allocator.data);
@@ -640,10 +663,10 @@ initRuntimeAndCallEntryPoint :: () {
 
     // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
     context.temporary_storage.size = TEMPORARY_STORAGE_SIZE;
-    context.temporary_storage.data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
+    context.temporary_storage.data = AllocatorModule.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
     defer {
         Basic.reset_temporary_storage();
-        Allocator.rpfree(context.temporary_storage.data);
+        AllocatorModule.rpfree(context.temporary_storage.data);
     }
 
     // #TemporaryStorageWorkaround

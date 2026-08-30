@@ -157,6 +157,15 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
                           location = location);
         }
     }
+
+    assertAligned :: (expression : Code, $$alignment : $T) #expand #no_debug {
+        assert(isPowerOfTwo(alignment));
+        aligned := !((#insert expression) & (alignment - 1));
+        if !aligned {
+            STR_EXPRESSION :: #run codeToString(expression);
+            assertMessage("% is not aligned to %", STR_EXPRESSION, alignment);
+        }
+    }
 } else {
     assert :: (
         #discard expression      : Code,
@@ -209,6 +218,9 @@ assertMessage  :: #bake_arguments message(priority = .ASSERT);
         #discard epsilon    := DEFAULT_F32_EPSILON,
         #discard location   := #caller_location
     ) #expand #no_debug {
+    }
+
+    assertAligned :: (#discard expression : Code, #discard alignment : $T) #expand #no_debug {
     }
 }
 
@@ -652,7 +664,7 @@ createUnhandledExceptionHandler :: () {
 
         // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
         context.temporary_storage.size = TEMPORARY_STORAGE_SIZE;
-        context.temporary_storage.data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
+        context.temporary_storage.data = AllocatorModule.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
 
         // #TemporaryStorageWorkaround
         {
@@ -684,7 +696,7 @@ destroyUnhandledExceptionHandler :: () {
 
     push_context g_exception_handler_context.jai_context {
         Basic.reset_temporary_storage();
-        Allocator.rpfree(context.temporary_storage.data);
+        AllocatorModule.rpfree(context.temporary_storage.data);
 
         context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
     }

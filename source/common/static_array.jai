@@ -83,8 +83,10 @@ pushBack :: inline (array : *StaticArray, data : [] array.T) #no_context {
     array.count += data.count;
 }
 
-reset :: inline (array : *StaticArray) #no_context {
-    memset(array.data.data, 0, array.count * size_of(array.T));
+reset :: inline (array : *StaticArray, $zero_memory := true) #no_context {
+    #if zero_memory {
+        memset(array.data.data, 0, array.count * size_of(array.T));
+    }
     array.count = 0;
 }
 
@@ -106,4 +108,44 @@ for_expansion :: (array : *StaticArray, body : Code, flags : For_Flags) #expand 
 
         #insert(remove = #assert false "Remove statement is not supported for StaticArray") body;
     }
+}
+
+operator == :: (left : StaticArray, right : StaticArray(left.T, left.capacity)) -> bool #no_context {
+    if left.count != right.count {
+        return false;
+    }
+
+    left_it  := left.data.data;
+    left_end := left.data.data + left.count;
+    right_it := right.data.data;
+    while left_it < left_end {
+        if left_it.* != right_it.* {
+            return false;
+        }
+
+        left_it  += 1;
+        right_it += 1;
+    }
+
+    return true;
+}
+
+operator == :: (left : StaticArray, right : [] left.T) -> bool #no_context #symmetric {
+    if left.count != right.count {
+        return false;
+    }
+
+    left_it  := left.data.data;
+    left_end := left.data.data + left.count;
+    right_it := right.data;
+    while left_it < left_end {
+        if left_it.* != right_it.* {
+            return false;
+        }
+
+        left_it  += 1;
+        right_it += 1;
+    }
+
+    return true;
 }

@@ -1,0 +1,49 @@
+#ifndef MATH
+#define MATH
+
+const float PI     = 3.141592653589793;
+const float INV_PI = 1.0 / PI;
+
+const float EPSILON = 1.e-5; // 0.00001
+
+vec3 safeNormalize(vec3 v, vec3 fallback) {
+    const float l = length(v);
+    return l <= EPSILON ? fallback : v / l;
+}
+
+#define saturate(v)   clamp(v, 0.0, 1.0)
+#define pow2(v)       (v * v)
+#define lerp(a, b, t) mix(a, b, t)
+
+vec3 unpackBumpNormal(vec2 packed) {
+    vec3 normal;
+    normal.xy = packed * 2.0 - 254.0 / 255.0; // https://www.ludicon.com/castano/blog/2026/02/normal-map-compression-revisited
+    normal.z  = sqrt(1.0 - pow2(normal.x) - pow2(normal.y));
+    return normal;
+}
+
+mat4x3 buildMeshToWorldMatrix(mat4x3 mesh_to_model, mat4x3 model_to_world) {
+    const mat3x4 at = transpose(model_to_world);
+    const mat4x3 b  = mesh_to_model;
+
+    return mat4x3(
+        dot(at[0].xyz, b[0]),           dot(at[1].xyz, b[0]),           dot(at[2].xyz, b[0]),
+        dot(at[0].xyz, b[1]),           dot(at[1].xyz, b[1]),           dot(at[2].xyz, b[1]),
+        dot(at[0].xyz, b[2]),           dot(at[1].xyz, b[2]),           dot(at[2].xyz, b[2]),
+        dot(at[0].xyz, b[3]) + at[0].w, dot(at[1].xyz, b[3]) + at[1].w, dot(at[2].xyz, b[3]) + at[2].w
+    );
+}
+
+mat4x3 buildWorldToMeshMatrix(mat4x3 model_to_mesh, mat4x3 world_to_model) {
+    const mat3x4 at = transpose(model_to_mesh);
+    const mat4x3 b  = world_to_model;
+
+    return mat4x3(
+        dot(at[0].xyz, b[0]),           dot(at[1].xyz, b[0]),           dot(at[2].xyz, b[0]),
+        dot(at[0].xyz, b[1]),           dot(at[1].xyz, b[1]),           dot(at[2].xyz, b[1]),
+        dot(at[0].xyz, b[2]),           dot(at[1].xyz, b[2]),           dot(at[2].xyz, b[2]),
+        dot(at[0].xyz, b[3]) + at[0].w, dot(at[1].xyz, b[3]) + at[1].w, dot(at[2].xyz, b[3]) + at[2].w
+    );
+}
+
+#endif

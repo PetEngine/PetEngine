@@ -113,7 +113,7 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
                     // interested in it.
                     if info.FileSize.QuadPart {
                         filename := UTF16ToUTF8(.{ info.FileNameLength / size_of(WCHAR), info.FileName.data });
-                        reloadShader(filename);
+                        hotReloadShader(filename);
                     }
 
                     if !info.NextEntryOffset break;
@@ -129,7 +129,7 @@ destroyShadersHotReload :: (hot_reload : *ShadersHotReload) {
     notImplemented();
 }
 
-reloadShader :: (filename : string) {
+hotReloadShader :: (filename : string) {
     if String.path_extension(filename) != "shader" {
         return;
     }
@@ -141,10 +141,7 @@ reloadShader :: (filename : string) {
     };
 
     if compileShader(name) {
-        shader := findShader(name);
-        if shader {
-            reloadShader(shader);
-        }
+        reloadShader(name);
     }
 }
 

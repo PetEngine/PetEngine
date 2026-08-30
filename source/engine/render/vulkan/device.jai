@@ -135,7 +135,7 @@ destroyVulkanDevice :: () {
             Basic.array_reset(*device.message_hashes);
 
             Basic.reset_temporary_storage();
-            Allocator.rpfree(context.temporary_storage.data);
+            AllocatorModule.rpfree(context.temporary_storage.data);
 
             context.allocator.proc(.THREAD_STOP, 0, 0, null, context.allocator.data);
         }
@@ -824,9 +824,12 @@ messengerCallback :: (
 
             should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
         case .MESSAGE_HASH;
-            hash := Hash.get_hash(message);
+            should_be_printed := String.contains(message, "vkCreateShaderModule");
+            if !should_be_printed {
+                hash              := Hash.get_hash(message);
+                should_be_printed  = Basic.array_add_if_unique(*device.message_hashes, hash);
+            }
 
-            should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
         case;
             should_be_printed :: true;
     }
@@ -903,7 +906,7 @@ initMessengerCallback :: () {
 
             // TEMPORARY_STORAGE_SIZE is defined by the compiler based on Build_Options.temporary_storage_size
             context.temporary_storage.size = TEMPORARY_STORAGE_SIZE;
-            context.temporary_storage.data = Allocator.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
+            context.temporary_storage.data = AllocatorModule.rpaligned_alloc(DEFAULT_CACHE_LINE_SIZE, context.temporary_storage.size);
 
             // #TemporaryStorageWorkaround
             {
@@ -1313,28 +1316,21 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
 
         vkGetPhysicalDeviceFeatures2(device.physical_device, *available_features);
 
-        // Image cube array support
         assert(available_features.features.imageCubeArray == VK_TRUE);
-        // Anisotropy filtering support
         assert(available_features.features.samplerAnisotropy == VK_TRUE);
-        // UAV support
-        assert(available_features.features.vertexPipelineStoresAndAtomics == VK_TRUE);
-        assert(available_features.features.fragmentStoresAndAtomics       == VK_TRUE);
-        assert(available_features.features.shaderStorageImageMultisample  == VK_TRUE);
-        // GL_EXT_shader_explicit_arithmetic_types support
-        assert(available_features.features.shaderInt64 == VK_TRUE);
-        assert(available_features.features.shaderInt16 == VK_TRUE);
-        // Dynamic rendering support
+        assert(available_features.features.vertexPipelineStoresAndAtomics == VK_TRUE); // UAV support
+        assert(available_features.features.fragmentStoresAndAtomics       == VK_TRUE); // UAV support
+        assert(available_features.features.shaderStorageImageMultisample  == VK_TRUE); // UAV support, @Cleanup: Reconsider
+        assert(available_features.features.shaderInt64 == VK_TRUE); // GL_EXT_shader_explicit_arithmetic_types support
+        assert(available_features.features.shaderInt16 == VK_TRUE); // GL_EXT_shader_explicit_arithmetic_types support
         assert(available_dynamic_rendering_features.dynamicRendering == VK_TRUE);
-        // Descriptor buffer support
-        device.descriptor_buffers_supported &= available_descriptor_buffer_features.descriptorBuffer == VK_TRUE;
-        // Device address support
+        device.descriptor_buffers_supported &= available_descriptor_buffer_features.descriptorBuffer == VK_TRUE; // Descriptor buffer support
+        assert(available_features_1_2.storageBuffer8BitAccess == VK_TRUE);
+        assert(available_features_1_2.scalarBlockLayout == VK_TRUE);
         assert(available_features_1_2.bufferDeviceAddress == VK_TRUE);
-        // 16-bit types in push constants
+        assert(available_features_1_1.storageBuffer16BitAccess == VK_TRUE);
         assert(available_features_1_1.storagePushConstant16 == VK_TRUE);
-        // gl_BaseInstance etc support
-        assert(available_features_1_1.shaderDrawParameters == VK_TRUE);
-        // VK_EXT_swapchain_maintenance1
+        assert(available_features_1_1.shaderDrawParameters == VK_TRUE); // gl_BaseInstance etc support
         assert(available_swapchain_maintenance1_features.swapchainMaintenance1 == VK_TRUE);
     }
 
@@ -1352,13 +1348,16 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
         dynamicRendering = VK_TRUE,
     };
     features_1_2_to_enable := VkPhysicalDeviceVulkan12Features.{
-        pNext               = *dynamic_rendering_features_to_enable,
-        bufferDeviceAddress = VK_TRUE,
+        pNext                   = *dynamic_rendering_features_to_enable,
+        storageBuffer8BitAccess = VK_TRUE,
+        scalarBlockLayout       = VK_TRUE,
+        bufferDeviceAddress     = VK_TRUE,
     };
     features_1_1_to_enable := VkPhysicalDeviceVulkan11Features.{
-        pNext                 = *features_1_2_to_enable,
-        storagePushConstant16 = VK_TRUE,
-        shaderDrawParameters  = VK_TRUE,
+        pNext                    = *features_1_2_to_enable,
+        storageBuffer16BitAccess = VK_TRUE,
+        storagePushConstant16    = VK_TRUE,
+        shaderDrawParameters     = VK_TRUE,
     };
     features_to_enable := VkPhysicalDeviceFeatures2.{
         pNext                                   = *features_1_1_to_enable,

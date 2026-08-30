@@ -6,8 +6,8 @@ Settings :: struct {
         per_frame_capacity  : s64 = #run megaBytes(64);
     } @read_only;
 
-    asset_manager : struct {
-        upload_ring_buffer_capacity : u32 = #run megaBytes(512);
+    global_upload_ring_buffer : struct {
+        capacity : u32 = #run megaBytes(512);
     } @read_only;
 
     render : struct {

@@ -3,8 +3,8 @@
 PI : f32 : Math.PI;
 
 // Interval machine epsilons
-DEFAULT_F32_EPSILON : f32 : 0.00001;
-DEFAULT_F64_EPSILON : f64 : 0.0000001;
+DEFAULT_F32_EPSILON : f32 : 1.e-5; // 0.00001
+DEFAULT_F64_EPSILON : f64 : 1.e-7; // 0.0000001
 
 Resolution :: struct {
     width  : u16;
@@ -65,22 +65,63 @@ maxOf :: inline ($type : Type) -> type #no_context {
     }
 }
 
+isNan :: inline (value : f32) -> bool #no_context {
+    uf := cast(*u32, *value).*;
+    unbiased_exponent := (uf >> 23) & 0xFF;
+    if unbiased_exponent == 0xFF {
+        raw_mantissa := uf & 0x7F_FFFF;
+        return raw_mantissa != 0;
+    }
+    return false;
+}
+
+isInf :: inline (value : f32) -> bool #no_context {
+    uf := cast(*u32, *value).*;
+    unbiased_exponent := (uf >> 23) & 0xFF;
+    if unbiased_exponent == 0xFF {
+        raw_mantissa := uf & 0x7F_FFFF;
+        return raw_mantissa == 0;
+    }
+    return false;
+}
+
+isFinite :: (value : f32) -> bool #no_context {
+    uf := cast(*u32, *value).*;
+    unbiased_exponent := (uf >> 23) & 0xFF;
+    return unbiased_exponent != 0xFF;
+}
+
 isPowerOfTwo :: inline (value : $T) -> bool #no_context {
     #assert isAnyOf(T, .INTEGER, .ENUM, .POINTER);
 
     return value && !(value & (value - 1));
 }
 
-alignDownWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T {
-    #assert isAnyOf(T, .INTEGER, .ENUM, .POINTER);
+alignDownWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T #modify { return !isAnyOf(T, .POINTER); } {
+    #assert isAnyOf(T, .INTEGER, .ENUM);
+    #assert isAnyOf(U, .INTEGER, .ENUM);
+    assert(isPowerOfTwo(alignment));
+
+    return value & ~cast(T, alignment - 1);
+}
+
+alignDownWithPowerOfTwo :: inline (value : *$T, alignment : $U) -> *T {
     #assert isAnyOf(U, .INTEGER, .ENUM);
     assert(isPowerOfTwo(alignment));
 
     return value & ~(alignment - 1);
 }
 
-alignUpWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T {
-    #assert isAnyOf(T, .INTEGER, .ENUM, .POINTER);
+alignUpWithPowerOfTwo :: inline (value : $T, alignment : $U) -> T #modify { return !isAnyOf(T, .POINTER); } {
+    #assert isAnyOf(T, .INTEGER, .ENUM);
+    #assert isAnyOf(U, .INTEGER, .ENUM);
+    assert(isPowerOfTwo(alignment));
+
+    mask := cast(T, alignment - 1);
+    return (value + mask) & ~mask;
+}
+
+alignUpWithPowerOfTwo :: inline (value : *$T, alignment : $U) -> *T {
     #assert isAnyOf(U, .INTEGER, .ENUM);
     assert(isPowerOfTwo(alignment));
 
@@ -130,7 +171,7 @@ kiloBytes :: inline (value : $T/Type.[s16, u16, s32, u32, s64, u64]) -> T #no_co
 }
 
 kiloBytes :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
-    return value * 1024.0;
+    return value * 1024.0; // 2^10
 }
 
 megaBytes :: inline (value : $T/Type.[s32, u32, s64, u64]) -> T #no_context {
@@ -138,7 +179,7 @@ megaBytes :: inline (value : $T/Type.[s32, u32, s64, u64]) -> T #no_context {
 }
 
 megaBytes :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
-    return value * 1_048_576.0;
+    return value * 1_048_576.0; // 2^20
 }
 
 gigaBytes :: inline (value : $T/Type.[s32, u32, s64, u64]) -> T #no_context {
@@ -146,7 +187,7 @@ gigaBytes :: inline (value : $T/Type.[s32, u32, s64, u64]) -> T #no_context {
 }
 
 gigaBytes :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
-    return value * 1_073_741_824.0;
+    return value * 1_073_741_824.0; // 2^30
 }
 
 teraBytes :: inline (value : $T/Type.[s64, u64]) -> T #no_context {
@@ -154,23 +195,23 @@ teraBytes :: inline (value : $T/Type.[s64, u64]) -> T #no_context {
 }
 
 teraBytes :: inline (value : $T/Type.[f32, f64]) -> T #no_context {
-    return value * 1_099_511_627_776.0;
+    return value * 1_099_511_627_776.0; // 2^40
 }
 
 bytesToKiloBytes :: inline (value : $T, $R := f32) -> R #no_context {
-    return cast(R) (value / 1024.0);
+    return cast(R, value * 0h3F50000000000000); // 1 / 2^10
 }
 
 bytesToMegaBytes :: inline (value : $T, $R := f32) -> R #no_context {
-    return cast(R) (value / 1_048_576.0);
+    return cast(R, value * 0h3EB0000000000000); // 1 / 2^20
 }
 
 bytesToGigaBytes :: inline (value : $T, $R := f32) -> R #no_context {
-    return cast(R) (value / 1_073_741_824.0);
+    return cast(R, value * 0h3E10000000000000); // 1 / 2^30
 }
 
 bytesToTeraBytes :: inline (value : $T, $R := f32) -> R #no_context {
-    return cast(R) (value / 1_099_511_627_776.0);
+    return cast(R, value * 0h3D70000000000000); // 1 / 2^40
 }
 
 sign :: inline (value : $T/Type.[s8, s16, s32, s64, f32, f64], $no_zero := false) -> T #no_context {

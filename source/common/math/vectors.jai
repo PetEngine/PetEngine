@@ -58,7 +58,7 @@ v4u :: v4(u32);
 #assert size_of(v4s) == 16;
 #assert size_of(v4u) == 16;
 
-operator [] :: inline (v : $V/.[v2, v3, v4], index : int) -> V.T #no_context {
+operator [] :: inline (v : *$V/.[v2, v3, v4], index : int) -> V.T #no_context {
     return v.e[index];
 }
 
@@ -130,6 +130,14 @@ normalize :: inline (v : $V/.[v2f, v3f, v4f], $epsilon := DEFAULT_F32_EPSILON, f
 
 normalized :: inline (v : $V/.[v2f, v3f, v4f], $epsilon := DEFAULT_F32_EPSILON) -> bool #no_context {
     return almostEquals(dot(v, v), 1.0, epsilon);
+}
+
+maybeNormalize :: inline (v : $V/.[v2f, v3f, v4f], $epsilon := DEFAULT_F32_EPSILON, fallback := V.{}) -> V {
+    d := dot(v, v);
+    if almostEquals(d, 1.0, epsilon) return v;
+
+    l := sqrt(d);
+    return ifx l <= epsilon then fallback else v / l;
 }
 
 cross :: inline (a : v3f, b : v3f) -> v3f #no_context { return .{ a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }

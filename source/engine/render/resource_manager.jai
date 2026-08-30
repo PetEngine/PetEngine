@@ -1,7 +1,7 @@
 ResourceManager :: struct {
     // For each lifetime
     MAX_BUFFERS       :: 64;
-    MAX_TEXTURES      :: 64;
+    MAX_TEXTURES      :: 128;
     MAX_TEXTURE_VIEWS :: 32 * MAX_TEXTURES;
     MAX_SAMPLERS      :: 64;
 

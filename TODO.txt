@@ -2,30 +2,26 @@
 // Assets
 //
 
-- Move assets out of the engine folder
-
 Converter:
-    - Materials.
     - Thread pool.
     - Texture arrays.
     - #ConversionRules. Conversion rules for each texutre:
-        - max dimensions
-        - min dimensions
-        - generate mips
         ? format
-        ? combine some textures into texture array
 
 Manager:
     - Possible owners for resource
     - Transfer command buffer
     - Pipeline barriers before and after copies
-    - @Cleanup vulkan stuff
     - #SinglePointWait. Make a single point where we wait for all requested assets.
     - Persistent assets
 
-Mesh file:
+Model:
     ? Vertex format for separate position and varying streams.
     - u16 indices.
+    - #ModelIndices. Normal way to generate indices :)
+    - Generate tangents with MikkTSpace if normal map is presented, but there are no normals in vertices
+    - Everything else with #GLTF tag
+    - OBJ materials
 
 //
 // Build
@@ -39,6 +35,7 @@ Mesh file:
 
 - #Atomics. Implement atomics
 - Write our own version of Basic.builder_to_string that uses Arena
+- Make context.print_style.struct_printer for our types
 
 Debug:
     - Find out how Visual Studio handles inline procedures.
@@ -105,6 +102,7 @@ Command Buffers:
     - beginVulkanRendering: VkPhysicalDeviceLimits.maxColorAttachments, VkPhysicalDeviceLimits.maxFramebufferWidth, VkPhysicalDeviceLimits.maxFramebufferHeight.
     - beginVulkanRendering: MSAA: resolveAttachments.
     - VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_NONE_EXT, VkAttachmentLoadOp.VK_ATTACHMENT_STORE_OP_NONE.
+    - Name command buffers upon create
 
 Device:
     - Revisit submits and post frame job.
@@ -139,6 +137,7 @@ Shader Manager:
     ? Split into 2 files: shader_manager.jai and shader.jai.
     - #MTRendering. Thread safety for shaders_storage.
     - Pipeline cache.
+    - #SpecializationConstants.
 
 Texture:
     - Explicit layout setup on high level.
@@ -167,6 +166,7 @@ Compiler:
     - #ShaderCompiler. alphaToCoverageEnable.
     - #ShaderCompiler. alphaToOneEnable.
     - #ShaderCompiler. stencilTestEnable.
+    - #SpecializationConstants.
 
 Hot reload:
     - Thread pool.

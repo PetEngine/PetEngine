@@ -3,6 +3,7 @@
 
 #extension GL_EXT_shader_explicit_arithmetic_types : require
 #extension GL_EXT_buffer_reference2                : require
+#extension GL_EXT_scalar_block_layout              : require
 
 // @Important: Should be synced with MAX_FRAME_BUFFERING constant in render/device.jai
 #define MAX_FRAME_BUFFERING 3
@@ -28,10 +29,15 @@
 #define MAX_IMAGES            512
 
 //
-// Uniforms
+// Row major
 //
 
 layout(row_major) uniform;
+layout(row_major, scalar) buffer;
+
+//
+// Uniforms
+//
 
 layout(set = PER_FRAME_SET, binding = UNIFORM_SLOT) uniform PerFrame {
     uint32_t frame;
@@ -253,9 +259,15 @@ layout(set = PERSISTENT_SET, binding = IMAGES_SLOT) uniform writeonly uimage2DMS
 // Buffers
 //
 
-layout(buffer_reference) readonly buffer DefaultVertexRef {
+layout(buffer_reference, buffer_reference_align = 16) readonly buffer PNUVRef {
     f32vec4 position_u;
     f32vec4 normal_v;
+};
+
+layout(buffer_reference, buffer_reference_align = 16) readonly buffer PNTUVRef {
+    f32vec4 position_u;
+    f32vec4 normal_v;
+    f32vec4 tangent; // xyz - tangent, w - bitangent sign
 };
 
 layout(buffer_reference, buffer_reference_align = 4) readonly buffer Indices32Ref {
@@ -264,6 +276,36 @@ layout(buffer_reference, buffer_reference_align = 4) readonly buffer Indices32Re
 
 layout(buffer_reference, buffer_reference_align = 2) readonly buffer Indices16Ref {
     uint16_t index;
+};
+
+layout(buffer_reference, buffer_reference_align = 4) readonly buffer MeshRef {
+    uint32_t  indices_start;
+    uint32_t  indices_count;
+    f32mat4x3 mesh_to_model;
+    f32mat4x3 model_to_mesh;
+    uint16_t  material_index;
+};
+
+// @Important: Should be synced with ModelFile.AlphaMode in asset_pipeline/model_file.jai
+#define ALPHA_MODE_OPAQUE 0
+#define ALPHA_MODE_MASK   1
+#define ALPHA_MODE_BLEND  2
+
+layout(buffer_reference, buffer_reference_align = 4) readonly buffer MaterialRef {
+    f32vec4   factor_albedo;
+    f32vec3   factor_emissive;
+    float32_t factor_metallic;
+    float32_t factor_roughness;
+
+    float32_t alpha_cutoff;
+
+    uint16_t texture_index_albedo;
+    uint16_t texture_index_normal;
+    uint16_t texture_index_emissive;
+    uint16_t texture_index_metallic_roughness;
+    uint16_t texture_index_occlusion;
+
+    uint8_t alpha_mode;
 };
 
 #endif

@@ -23,26 +23,22 @@ toView :: inline (data : *void, count : s64, $type : Type) -> [] type #no_contex
     return result;
 }
 
-formatHex :: inline (value : $T, minimum_digits := 1) -> Basic.FormatInt {
-    #assert type_info(T).type == .INTEGER;
-
-    return .{
-        value            = value,
-        base             = 16,
-        minimum_digits   = minimum_digits,
-        digits_per_comma = 4,
-        comma_string     = "'",
-    };
+formatHex :: inline (value : Any, minimum_digits := 1) -> Basic.FormatInt {
+    assert(value.type.type == .INTEGER);
+    format := context.print_style.default_format_int;
+    format.value            = value;
+    format.base             = 16;
+    format.minimum_digits   = minimum_digits;
+    format.digits_per_comma = 4;
+    return format;
 }
 
-formatInline :: inline (value : $T) -> Basic.FormatStruct {
-    INFO :: type_info(T);
-    #assert INFO.type == .STRUCT;
-
-    return .{
-        value = value,
-        use_long_form_if_more_than_this_many_members = INFO.members.count
-    };
+formatInline :: inline (value : Any) -> Basic.FormatStruct {
+    assert(value.type.type == .STRUCT);
+    format := context.print_style.default_format_struct;
+    format.value                                        = value;
+    format.use_long_form_if_more_than_this_many_members = maxOf(type_of(Basic.FormatStruct.use_long_form_if_more_than_this_many_members));
+    return format;
 }
 
 reset :: inline (array : *[] $T, $zero_memory := true) #no_context {
@@ -54,6 +50,30 @@ reset :: inline (array : *[] $T, $zero_memory := true) #no_context {
 
 reset :: inline (array : *[$capacity] $T) #no_context {
     memset(array.data, 0, array.count * size_of(T));
+}
+
+isTitghtlyPacked :: ($type : Type) -> bool #compile_time {
+    INFO :: type_info(type);
+    #assert INFO.type == .STRUCT;
+
+    expected_offset : s64;
+    for INFO.members {
+        if it.flags & (.CONSTANT | .OVERLAY) continue;
+
+        if expected_offset != it.offset_in_bytes {
+            errorMessage("%.%: expected offset (%) != real offset (%)", type, it.name, expected_offset, it.offset_in_bytes);
+            return false;
+        }
+
+        expected_offset += it.type.runtime_size;
+    }
+
+    if expected_offset != size_of(type) {
+        errorMessage("%: expected size (%) != real size (%)", type, expected_offset, size_of(type));
+        return false;
+    }
+
+    return true;
 }
 
 #load "arena.jai";
@@ -77,10 +97,11 @@ reset :: inline (array : *[$capacity] $T) #no_context {
     notImplemented();
 }
 
-Allocator :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
-                                ENABLE_ASSERTS       = DEBUG_BUILD,
-                                ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
-                                LINUX_FREE_ADVICE    = .FREE);
+// Name collision with Allocator struct in Preload.jai
+AllocatorModule :: #import "rpmalloc"(ENABLE_STATISTICS    = DEBUG_BUILD,
+                                      ENABLE_ASSERTS       = DEBUG_BUILD,
+                                      ENABLE_VALIDATE_ARGS = DEBUG_BUILD,
+                                      LINUX_FREE_ADVICE    = .FREE);
 String    :: #import "String";
 Compiler  :: #import "Compiler";
 

@@ -40,7 +40,26 @@ vkGetEventStatus :: (
 ) -> VkResult #foreign vulkan;
 
 // Provided by VK_VERSION_1_0
+vkSetEvent :: (
+    device : VkDevice,
+    event  : VkEvent
+) -> VkResult #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkResetEvent :: (
+    device : VkDevice,
+    event  : VkEvent
+) -> VkResult #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
 vkCmdSetEvent :: (
+    commandBuffer : VkCommandBuffer,
+    event         : VkEvent,
+    stageMask     : VkPipelineStageFlags
+) #foreign vulkan;
+
+// Provided by VK_VERSION_1_0
+vkCmdResetEvent :: (
     commandBuffer : VkCommandBuffer,
     event         : VkEvent,
     stageMask     : VkPipelineStageFlags

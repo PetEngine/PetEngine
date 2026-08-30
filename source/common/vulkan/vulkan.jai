@@ -416,12 +416,10 @@ VkMemoryRequirements2 :: struct {
     memoryRequirements : VkMemoryRequirements;
 }
 
-// @Cleanup: Move to their own files
 VK_ATTACHMENT_UNUSED : u32          : 0xFFFF_FFFF;
 VK_SUBPASS_EXTERNAL  : u32          : 0xFFFF_FFFF;
 VK_WHOLE_SIZE        : VkDeviceSize : 0xFFFF_FFFF_FFFF_FFFF;
 
-// @Cleanup: Move to their own files
 VkRenderPass  :: *VkRenderPass_T;  VkRenderPass_T  :: struct {}
 VkFramebuffer :: *VkFramebuffer_T; VkFramebuffer_T :: struct {}
 
