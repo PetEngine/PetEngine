@@ -472,11 +472,9 @@ convertTextureNVTT :: (
 
     nvtt_compression_options := nvttCreateCompressionOptions();
     defer nvttDestroyCompressionOptions(nvtt_compression_options);
-    if rule.flags & .NORMAL_MAP {
-        texture_file_header.format = .BC5_SNORM;
-        nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC5S);
-        nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
-    } else if rule.flags & .MR_MAP {
+    if rule.flags & (.NORMAL_MAP | .MR_MAP) {
+        // Converting normals from UNORM to SNORM introduces an extra quantization step which results in noticeable precision loss.
+        // So we preserve them in UNORM format.
         texture_file_header.format = .BC5_UNORM;
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC5);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
@@ -549,7 +547,7 @@ convertTextureNVTT :: (
 
     if rule.flags & .NORMAL_MAP {
         for surface_info_array {
-            nvttSurfaceTransformNormals(it.surface, .Orthographic);
+            nvttSurfacePackNormals(it.surface);
         }
     } else if !(rule.flags & (.OCCLUSION_MAP | .MR_MAP)) {
         for surface_info_array {
@@ -625,7 +623,7 @@ generateMips :: (
     surface_info_array      : *SurfaceInfoArray
 ) -> bool {
     if rule.flags & .NORMAL_MAP {
-        nvttSurfaceExpandNormals(nvtt_surface);
+        nvttSurfaceExpandNormals(nvtt_surface, 2.0, -254.0 / 255.0); // https://www.ludicon.com/castano/blog/2026/02/normal-map-compression-revisited
         nvttSurfaceNormalizeNormalMap(nvtt_surface);
     } else if rule.flags & .MR_MAP {
         // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture

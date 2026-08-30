@@ -109,18 +109,14 @@ void main() {
     vec3 N = normalize(i_normal);
     if (material_ref.texture_index_normal != 0xFFFF)
     {
-        vec2 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_normal],
-                                   g_per_scene_samplers[g_push_constants.sampler_index]),
-                         i_uv).xy;
-
-        vec3 bump;
-        bump.xy = s.xy;
-        bump.z  = sqrt(1.0 - pow2(bump.x) - pow2(bump.y));
-
-        bump = normalize(bump);
+        const vec2 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_normal],
+                                         g_per_scene_samplers[g_push_constants.sampler_index]),
+                               i_uv).xy;
 
         const vec3 T = normalize(i_tangent);
         const vec3 B = normalize(i_bitangent);
+
+        const vec3 bump = unpackBumpNormal(s);
 
         N = mat3x3(T, B, N) * bump;
         N = normalize(N);
@@ -157,7 +153,6 @@ void main() {
     }
 
     const vec3 L = -SUN_DIR;
-    // const vec3 L = normalize(vec3(0, 0.01, 0) - i_position);
     const vec3 V = normalize(g_per_view_uniforms[g_push_constants.per_view_uniform_index].camera_position - i_position);
 
     const vec3 direct   = calculateBRDF(L, V, N, albedo, metalness, roughness) * SUN_COLOR;

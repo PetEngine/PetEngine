@@ -137,24 +137,6 @@ NvttMipmapFilter :: enum s32 {
 	Max;
 }
 
-/// @brief Specifies a normal transformation, used to store 3D (x, y, z) normals in 2D (x, y).
-///
-/// We define these in terms of their 2D -> 3D reconstructions, since their
-/// transformations are the inverse of the reconstructions. Most require
-/// z >= 0.0f.
-NvttNormalTransform :: enum s32 {
-    /// Reconstructs the z component using `z = sqrt(1 - x^2 + y^2)`.
-	Orthographic;
-	/// Stereographic projection (like looking from the bottom of the sphere
-	/// of normals and projecting points onto a plane at z = 1).
-	/// Reconstructed using `d = 2/(1 + min(x^2 + y^2, 1)); return (x*d, y*d, d-1)`.
-	Stereographic;
-	/// Reconstructed using `normalize(x, y, 1 - min(x^2 + y^2, 1))`.
-	Paraboloid;
-	/// Reconstructed using `normalize(x, y, (1-x^2)(1-y^2))`.
-	Quartic;
-}
-
 nvttCreateSurface :: () -> *NvttSurface #foreign nvtt;
 nvttDestroySurface :: (surface : *NvttSurface) #foreign nvtt;
 nvttSurfaceClone :: (surface : *NvttSurface) -> *NvttSurface #foreign nvtt;
@@ -237,9 +219,6 @@ nvttSurfaceExpandNormals :: (surface : *NvttSurface, scale : float32 = 2.0, bias
 ///
 /// This function is safe to call even for zero vectors.
 nvttSurfaceNormalizeNormalMap :: (surface : *NvttSurface, tc : *NvttTimingContext = null) #foreign nvtt;
-
-/// @brief Applies a 3D->2D normal transformation, setting the z (blue) channel to 0.
-nvttSurfaceTransformNormals :: (surface : *NvttSurface, xform : NvttNormalTransform, tc : *NvttTimingContext = null) #foreign nvtt;
 
 NvttCompressionOptions :: struct {
     pimpl : *void;
