@@ -39,7 +39,7 @@ convertGLTFModel :: (
             filename := textures[it.texture_index_normal];
 
             if !Hash_Table.table_contains(texture_conversion_rules, filename) {
-                rule := TextureConversionRule.{ ex_info = .NORMAL };
+                rule := TextureConversionRule.{ flags = .NORMAL_MAP };
                 Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
             }
         }
@@ -48,7 +48,9 @@ convertGLTFModel :: (
             filename := textures[it.texture_index_albedo];
 
             if !Hash_Table.table_contains(texture_conversion_rules, filename) {
-                rule := TextureConversionRule.{ ex_info = .SRGB };
+                rule := TextureConversionRule.{ flags = .SOURCE_SRGB | .DEST_SRGB };
+                if it.alpha_mode == .BLEND then rule.flags |= .ALPHA_BLEND;
+
                 Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
             }
         }
@@ -57,7 +59,7 @@ convertGLTFModel :: (
             filename := textures[it.texture_index_emissive];
 
             if !Hash_Table.table_contains(texture_conversion_rules, filename) {
-                rule := TextureConversionRule.{ ex_info = .SRGB };
+                rule := TextureConversionRule.{ flags = .SOURCE_SRGB | .DEST_SRGB };
                 Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
             }
         }

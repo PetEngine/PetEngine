@@ -10,10 +10,16 @@ AssetConverter :: struct {
 
 // @TODO: #ConversionRules.
 TextureConversionRule :: struct {
-    ExInfo :: enum u8 { // @TODO: Better name
-        SRGB :: 1;
-        NORMAL;
-        // @TODO: #GLTF. alphaMode: premultiply or not during mipmap generation
+    Flags :: enum_flags u8 {
+        SOURCE_SRGB; // Cannot be combined with NORMAL_MAP
+        DEST_SRGB;   // Cannot be combined with NORMAL_MAP
+
+        SOURCE_HDR;  // Cannot be combined with NORMAL_MAP and ALPHA_BLEND. Must be used with DEST_HDR.
+        DEST_HDR;    // Cannot be combined with NORMAL_MAP and ALPHA_BLEND
+
+        NORMAL_MAP;  // Cannot be combined with SOURCE_SRGB, DEST_SRGB, SOURCE_HDR, DEST_HDR and ALPHA_BLEND
+
+        ALPHA_BLEND; // Cannot be combined with NORMAL_MAP, SOURCE_HDR and DEST_HDR
     }
 
     max_texture_width  : u16 = 4096;
@@ -24,7 +30,7 @@ TextureConversionRule :: struct {
     min_texture_height : u16 = 4;
     min_texture_depth  : u16 = 2;
 
-    ex_info : ExInfo;
+    flags : Flags;
 }
 
 convertExchangeAssetsToRuntime :: () {
@@ -200,12 +206,6 @@ Statistics :: struct {
     total     : u64;
 }
 
-ExchangeTextureFlags :: enum_flags u8 {
-    SRGB;
-    HDR;
-    NORMAL_MAP;
-}
-
 SurfaceInfo :: struct {
     surface     : *NvttSurface;
     array_layer : u16;
@@ -354,12 +354,15 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
 
     exchange_filename := makeExchangeTextureFilename(exchange_file_info.path);
 
-    DEFAULT_RULE : TextureConversionRule : .{};
-    rule := Hash_Table.table_find_pointer(textures_context.conversion_rules, texture_name);
-    if !rule then rule = *DEFAULT_RULE;
+    rule := TextureConversionRule.{};
+    {
+        ptr := Hash_Table.table_find_pointer(textures_context.conversion_rules, texture_name);
+        if ptr then rule = ptr.*;
+    }
+    validateRule(rule);
 
     time_begin := Basic.current_time_monotonic();
-    success := convertTextureNVTT(textures_context.*, rule, exchange_filename, texture_name, extension);
+    success := convertTextureNVTT(textures_context.*, *rule, exchange_filename, texture_name, extension);
     duration := Basic.to_float64_seconds(Basic.current_time_monotonic() - time_begin);
 
     if success {
@@ -380,7 +383,7 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
 
 convertTextureNVTT :: (
     textures_context  : TexturesContext,
-    rule              : TextureConversionRule,
+    rule              : *TextureConversionRule,
     exchange_filename : string,
     name              : string,
     extension         : string
@@ -388,7 +391,7 @@ convertTextureNVTT :: (
     file_data, error := readEntireFile(exchange_filename);
     assert(error == .NONE);
 
-    exchange_texture_flags, array_size := getExchangeTextureFlags(file_data, name, extension, rule);
+    array_size := adjustRuleFlags(file_data, name, extension, rule);
     if array_size {
         errorMessage("NVTT 3.0 has no support for texture arrays, so they are not supported yet");
         return false;
@@ -458,23 +461,24 @@ convertTextureNVTT :: (
 
     min_texture_width  := min(source_width,  rule.min_texture_width);
     min_texture_height := min(source_height, rule.min_texture_height);
+    min_texture_depth  := min(source_depth,  rule.min_texture_depth);
 
-    tail_mips_count_to_drop := maxMipsCount(min_texture_width, min_texture_height, min(source_depth, rule.min_texture_depth)) - 1;
+    tail_mips_count_to_drop := maxMipsCount(min_texture_width, min_texture_height, min_texture_depth) - 1;
 
     texture_file_header.mips_count = maxMipsCount(texture_file_header.width, texture_file_header.height, texture_file_header.depth);
     texture_file_header.mips_count = max(texture_file_header.mips_count - tail_mips_count_to_drop, 1);
 
     nvtt_compression_options := nvttCreateCompressionOptions();
     defer nvttDestroyCompressionOptions(nvtt_compression_options);
-    if exchange_texture_flags & .HDR {
+    if rule.flags & .DEST_HDR {
         texture_file_header.format = .BC6H_UFLOAT;
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC6U);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
     } else {
-        if (exchange_texture_flags & .NORMAL_MAP) && (has_alpha == .True) {
+        if has_alpha == .True && (rule.flags & .NORMAL_MAP) {
             warningMessage("Normal map \"%\" contains alpha channel. Is it intended?", name);
         }
-        texture_file_header.format = ifx exchange_texture_flags & .SRGB then .BC7_SRGB else .BC7_UNORM;
+        texture_file_header.format = ifx rule.flags & .DEST_SRGB then .BC7_SRGB else .BC7_UNORM;
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC7);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
     }
@@ -503,44 +507,46 @@ convertTextureNVTT :: (
     assert(source_mips_count >= texture_file_header.mips_count);
     head_mips_count_to_drop := source_mips_count - texture_file_header.mips_count;
 
-    min_texture_wh := min(min_texture_width, min_texture_height);
+    min_texture_dimension := min(min_texture_width, min_texture_height, min_texture_depth);
 
     if texture_file_header.flags & .CUBE {
         for 0 .. 5 {
             face := nvttCubeSurfaceFace(nvtt_cube_surface, cast(s32) it);
             if !generateMips(face,
-                                cast(u8) it,
-                                exchange_texture_flags,
-                                has_alpha,
-                                head_mips_count_to_drop,
-                                texture_file_header.mips_count,
-                                min_texture_wh,
-                                *surface_info_array) {
+                             cast(u8) it,
+                             rule.*,
+                             has_alpha,
+                             head_mips_count_to_drop,
+                             texture_file_header.mips_count,
+                             min_texture_dimension,
+                             *surface_info_array) {
                 return false;
             }
         }
     } else {
         if !generateMips(nvtt_surface,
-                            0,
-                            exchange_texture_flags,
-                            has_alpha,
-                            head_mips_count_to_drop,
-                            texture_file_header.mips_count,
-                            min_texture_wh,
-                            *surface_info_array) {
+                         0,
+                         rule.*,
+                         has_alpha,
+                         head_mips_count_to_drop,
+                         texture_file_header.mips_count,
+                         min_texture_dimension,
+                         *surface_info_array) {
             return false;
         }
     }
 
     for surface_info_array {
-        if has_alpha == .True {
-            nvttSurfaceDemultiplyAlpha(it.surface);
-        }
-
-        if exchange_texture_flags & .NORMAL_MAP {
+        if rule.flags & .NORMAL_MAP {
             nvttSurfacePackNormals(it.surface);
-        } else if exchange_texture_flags & .SRGB {
-            nvttSurfaceToSrgb(it.surface);
+        } else {
+            if has_alpha == .True && (rule.flags & .ALPHA_BLEND) {
+                nvttSurfaceDemultiplyAlpha(it.surface);
+            }
+
+            if rule.flags & .DEST_SRGB {
+                nvttSurfaceToSrgb(it.surface);
+            }
         }
     }
 
@@ -560,8 +566,8 @@ convertTextureNVTT :: (
     //
 
     #if TEST_TEXTURES {
-        nvttSetSurfaceNormalMap(nvtt_surface,                              ifx exchange_texture_flags & .NORMAL_MAP then .True else .False);
-        nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, ifx exchange_texture_flags & .SRGB       then .True else .False);
+        nvttSetSurfaceNormalMap(nvtt_surface,                              ifx rule.flags & .NORMAL_MAP then .True else .False);
+        nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, ifx rule.flags & .DEST_SRGB  then .True else .False);
 
         if texture_file_header.flags & .CUBE {
             nvttContextOutputHeaderCube(textures_context.nvtt_context,
@@ -598,32 +604,34 @@ convertTextureNVTT :: (
 generateMips :: (
     nvtt_surface            : *NvttSurface,
     face_index              : u8,
-    exchange_texture_flags  : ExchangeTextureFlags,
+    rule                    : TextureConversionRule,
     has_alpha               : NvttBoolean,
     head_mips_count_to_drop : u8,
     mips_count_to_generate  : u8,
-    min_texture_wh          : u16,
+    min_texture_dimension   : u16,
     surface_info_array      : *SurfaceInfoArray
 ) -> bool {
-    if exchange_texture_flags & .SRGB {
-        nvttSurfaceToLinearFromSrgb(nvtt_surface);
-    } else if exchange_texture_flags & .NORMAL_MAP {
+    if rule.flags & .NORMAL_MAP {
         nvttSurfaceExpandNormals(nvtt_surface);
         nvttSurfaceNormalizeNormalMap(nvtt_surface);
-    }
+    } else {
+        if rule.flags & .SOURCE_SRGB {
+            nvttSurfaceToLinearFromSrgb(nvtt_surface);
+        }
 
-    if has_alpha == .True {
-        nvttSurfacePremultiplyAlpha(nvtt_surface);
+        if has_alpha == .True && (rule.flags & .ALPHA_BLEND) {
+            nvttSurfacePremultiplyAlpha(nvtt_surface);
+        }
     }
 
     for 1 .. head_mips_count_to_drop {
-        nvtt_success := nvttSurfaceBuildNextMipmapDefaults(nvtt_surface, .Kaiser, min_texture_wh);
+        nvtt_success := nvttSurfaceBuildNextMipmapDefaults(nvtt_surface, .Kaiser, min_texture_dimension);
         if nvtt_success == .False {
             errorMessage("nvttSurfaceBuildNextMipmapDefaults has failed");
             return false;
         }
 
-        if exchange_texture_flags & .NORMAL_MAP {
+        if rule.flags & .NORMAL_MAP {
             nvttSurfaceNormalizeNormalMap(nvtt_surface);
         }
     }
@@ -642,13 +650,13 @@ generateMips :: (
         surface_info.face    = face_index;
         surface_info.mip     = it;
 
-        nvtt_success := nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, min_texture_wh);
+        nvtt_success := nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, min_texture_dimension);
         if nvtt_success == .False {
             errorMessage("nvttSurfaceBuildNextMipmapDefaults has failed");
             return false;
         }
 
-        if exchange_texture_flags & .NORMAL_MAP {
+        if rule.flags & .NORMAL_MAP {
             nvttSurfaceNormalizeNormalMap(nvtt_surface_copy);
         }
     }
@@ -740,17 +748,8 @@ NVTT_FOURCC  : u32 : #char "N" | (#char "V" << 8) | (#char "T" << 16) | (#char "
 DDPF_SRGB    : u32 : 0x4000_0000;
 DDPF_NORMAL  : u32 : 0x8000_0000;
 
-getExchangeTextureFlags :: (file_data : string, name : string, extension : string, rule : TextureConversionRule) -> (
-    flags      : ExchangeTextureFlags,
-    array_size : u16
-) {
-    flags      : ExchangeTextureFlags;
+adjustRuleFlags :: (file_data : string, name : string, extension : string, rule : *TextureConversionRule) -> (array_size : u16) {
     array_size : u16;
-
-    if #complete rule.ex_info == {
-        case .SRGB;   flags |= .SRGB;
-        case .NORMAL; flags |= .NORMAL_MAP;
-    }
 
     if extension == "dds" {
         assert((cast(*u32) file_data.data).* == DDS_MAGIC);
@@ -760,14 +759,14 @@ getExchangeTextureFlags :: (file_data : string, name : string, extension : strin
         assert(dds_header.ddspf.dwSize == size_of(DDS_PIXELFORMAT));
 
         if dds_header.dwReserved1[9] == NVTT_FOURCC {
-            if dds_header.ddspf.dwFlags & DDPF_SRGB   then flags |= .SRGB;
-            if dds_header.ddspf.dwFlags & DDPF_NORMAL then flags |= .NORMAL_MAP;
+            if dds_header.ddspf.dwFlags & DDPF_SRGB   then rule.flags |= .SOURCE_SRGB;
+            if dds_header.ddspf.dwFlags & DDPF_NORMAL then rule.flags |= .NORMAL_MAP;
         }
 
         if dds_header.ddspf.dwFourCC == DXT10_FOURCC {
             dxt10_header := cast(*DDS_HEADER_DXT10) (dds_header + 1);
 
-            if !(flags & .SRGB) {
+            if !(rule.flags & .SOURCE_SRGB) {
                 if dxt10_header.dxgiFormat == {
                     case .R8G8B8A8_UNORM_SRGB; #through;
                     case .BC1_UNORM_SRGB;      #through;
@@ -776,7 +775,7 @@ getExchangeTextureFlags :: (file_data : string, name : string, extension : strin
                     case .B8G8R8A8_UNORM_SRGB; #through;
                     case .B8G8R8X8_UNORM_SRGB; #through;
                     case .BC7_UNORM_SRGB;
-                        flags |= .SRGB;
+                        rule.flags |= .SOURCE_SRGB;
 
                     case .R32G32B32A32_FLOAT;       #through;
                     case .R32G32B32_FLOAT;          #through;
@@ -791,7 +790,7 @@ getExchangeTextureFlags :: (file_data : string, name : string, extension : strin
                     case .BC6H_TYPELESS;            #through;
                     case .BC6H_UF16;                #through;
                     case .BC6H_SF16;
-                        flags |= .HDR;
+                        rule.flags |= .SOURCE_HDR;
                 }
             }
 
@@ -802,29 +801,43 @@ getExchangeTextureFlags :: (file_data : string, name : string, extension : strin
     }
 
     // heuristics
-    if !(flags & .NORMAL_MAP) {
+    if !(rule.flags & .NORMAL_MAP) {
         if String.ends_with(name, "_n")
         || String.ends_with(name, "_norm")
         || String.ends_with(name, "_normal")
         || String.ends_with(name, "_normals") {
-            flags |= .NORMAL_MAP;
+            rule.flags |= .NORMAL_MAP;
         }
     }
 
     // heuristics
-    if !(flags & (.SRGB | .HDR)) {
+    if !(rule.flags & (.SOURCE_SRGB | .SOURCE_HDR)) {
         if String.ends_with(name, "_color")
-        || String.ends_with(name, "_albedo")
-        || String.ends_with(name, "_emissive") {
-            flags |= .SRGB;
+        || String.ends_with(name, "_a") || String.ends_with(name, "_albedo")
+        || String.ends_with(name, "_e") || String.ends_with(name, "_emissive") {
+            rule.flags |= .SOURCE_SRGB;
         }
     }
 
-    assert(flags & (.NORMAL_MAP | .HDR) != (.NORMAL_MAP | .HDR), "Normals cannot be stored in HDR format");
-    assert(flags & (.NORMAL_MAP | .SRGB) != (.NORMAL_MAP | .SRGB), "Normals cannot be stored in sRGB format");
-    assert(flags & (.SRGB | .HDR) != (.SRGB | .HDR), "Texture cannot be stored in HDR and sRGB formats at the same time");
+    validateRule(rule.*);
     assert(!array_size || extension == "dds", "It is expected that only DDS files support texture arrays");
-    return flags, array_size;
+    return array_size;
+}
+
+validateRule :: (rule : TextureConversionRule) {
+    assert(rule.flags & (.NORMAL_MAP | .SOURCE_SRGB) != (.NORMAL_MAP | .SOURCE_SRGB));
+    assert(rule.flags & (.NORMAL_MAP | .DEST_SRGB) != (.NORMAL_MAP | .DEST_SRGB));
+    assert(rule.flags & (.NORMAL_MAP | .SOURCE_HDR) != (.NORMAL_MAP | .SOURCE_HDR));
+    assert(rule.flags & (.NORMAL_MAP | .DEST_HDR) != (.NORMAL_MAP | .DEST_HDR));
+    assert(rule.flags & (.NORMAL_MAP | .ALPHA_BLEND) != (.NORMAL_MAP | .ALPHA_BLEND));
+
+    assert(rule.flags & (.SOURCE_SRGB | .SOURCE_HDR) != (.SOURCE_SRGB | .SOURCE_HDR));
+    assert(rule.flags & (.DEST_SRGB | .DEST_HDR) != (.DEST_SRGB | .DEST_HDR));
+
+    assert(rule.flags & (.ALPHA_BLEND | .SOURCE_HDR) != (.ALPHA_BLEND | .SOURCE_HDR));
+    assert(rule.flags & (.ALPHA_BLEND | .DEST_HDR) != (.ALPHA_BLEND | .DEST_HDR));
+
+    assert((rule.flags & .DEST_HDR) || !(rule.flags & .SOURCE_HDR));
 }
 
 //
