@@ -49,12 +49,16 @@ processAssetManagerCopies :: () {
     manager := context.pet.render.asset_manager;
     gurb    := context.pet.render.global_upload_ring_buffer;
 
-    for manager.buffer_copies {
-        if !it.buffer continue; // We might not have materials, for example.
+    buffer_copies_view  := toView(manager.buffer_copies.data, manager.buffer_copies_count);
+    texture_copies_view := toView(manager.texture_copies.data, manager.texture_copies_count);
+
+    for buffer_copies_view {
+        assert(it.buffer);
         copyBufferRegions(*gurb.command_buffer, it.buffer, gurb.buffer, .{ it.regions_count, it.regions.data });
     }
 
-    for manager.texture_copies {
+    for texture_copies_view {
+        assert(it.texture);
         copyBufferToTexture(*gurb.command_buffer, it.texture, gurb.buffer, .{ it.regions_count, it.regions.data });
     }
 
@@ -161,6 +165,7 @@ requestModel :: (name : string) -> ModelAsset {
     assertAligned(indices_bytes, 4);
 
     materials_bytes := cast(u32, gpu_materials.count * size_of(Model.GPUMaterial));
+    assert(materials_bytes, "At least 1 default material must be presented");
     assertAligned(materials_bytes, 4);
 
     meshes_bytes := cast(u32, gpu_meshes.count * size_of(Model.GPUMesh));
@@ -237,13 +242,13 @@ requestModel :: (name : string) -> ModelAsset {
     }
 
     assertAligned(upload_offset, 4);
-    material_offset : u32;
+    materials_offset : u32;
     remaining_materials_bytes := materials_bytes;
     while remaining_materials_bytes {
         chunk_bytes := min(remaining_materials_bytes, gurb.buffer.size - upload_offset);
 
         destination := gurb.buffer.mapped_memory + upload_offset;
-        memcpy(destination, cast(*void, gpu_materials.data) + material_offset, chunk_bytes);
+        memcpy(destination, cast(*void, gpu_materials.data) + materials_offset, chunk_bytes);
 
         assert(buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
         region := *buffer_copy.regions[buffer_copy.regions_count];
@@ -255,18 +260,18 @@ requestModel :: (name : string) -> ModelAsset {
 
         upload_offset              = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
         buffer_offset             += chunk_bytes;
-        material_offset           += chunk_bytes;
+        materials_offset          += chunk_bytes;
         remaining_materials_bytes -= chunk_bytes;
     }
 
     assertAligned(upload_offset, 4);
-    mesh_offset : u32;
+    meshes_offset : u32;
     remaining_meshes_bytes := meshes_bytes;
     while remaining_meshes_bytes {
         chunk_bytes := min(remaining_meshes_bytes, gurb.buffer.size - upload_offset);
 
         destination := gurb.buffer.mapped_memory + upload_offset;
-        memcpy(destination, cast(*void, gpu_meshes.data) + mesh_offset, chunk_bytes);
+        memcpy(destination, cast(*void, gpu_meshes.data) + meshes_offset, chunk_bytes);
 
         assert(buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
         region := *buffer_copy.regions[buffer_copy.regions_count];
@@ -278,7 +283,7 @@ requestModel :: (name : string) -> ModelAsset {
 
         upload_offset           = (upload_offset + chunk_bytes) & (gurb.buffer.size - 1);
         buffer_offset          += chunk_bytes;
-        mesh_offset            += chunk_bytes;
+        meshes_offset          += chunk_bytes;
         remaining_meshes_bytes -= chunk_bytes;
     }
 

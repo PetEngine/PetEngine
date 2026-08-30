@@ -21,8 +21,12 @@ convertObjModel :: (exchange_filename : string, name : string) -> bool {
         vertices, indices = convertVertices(obj_model, name);
     }
 
+    materials : [1] ModelFile.Material = .[
+        .{}
+    ];
+
     meshes : [1] ModelFile.Mesh = .[
-        .{ indices_count = cast(u32) indices.count },
+        .{ indices_count = cast(u32) indices.count, material_index = 0 },
     ];
 
     // #RHtoLH.
@@ -37,7 +41,7 @@ convertObjModel :: (exchange_filename : string, name : string) -> bool {
         it.model_to_mesh.e22 *= -1.0;
     }
 
-    return serializeModel(name, .{}, .{}, meshes, vertices, indices);
+    return serializeModel(name, .{}, materials, meshes, vertices, indices);
 }
 
 #scope_file

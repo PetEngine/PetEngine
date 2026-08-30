@@ -29,7 +29,7 @@ Model:
     - #ModelIndices. Normal way to generate indices :)
     - Generate tangents with MikkTSpace for obj files if normal map is presented
     - Everything else with #GLTF tag
-    - Materials must always exist in a file. Meshes that do not have materials in GLTF files must be linked to the default one.
+    - Port Heart to model.shader
 
 //
 // Build

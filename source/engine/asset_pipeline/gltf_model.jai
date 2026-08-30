@@ -90,6 +90,22 @@ convertGLTFModel :: (
     defer if gltf_meshes.data then Basic.array_reset(*gltf_meshes);
     if !success return false;
 
+    // Insert default material for meshes that are not linked to any
+    {
+        default_material_added : bool;
+        for * gltf_meshes {
+            if it.material_index != ModelFile.INVALID_INDEX continue;
+
+            if !default_material_added {
+                Basic.array_add(*materials, ModelFile.Material.{});
+                default_material_added = true;
+            }
+
+            it.material_index = cast(u16) materials.count;
+            assert(it.material_index != ModelFile.INVALID_INDEX);
+        }
+    }
+
     contains_tangents : bool;
     for gltf_meshes {
         if it.count_by_stream[GLTF_Mesh.Stream.TANGENT] > 0 {
@@ -106,7 +122,7 @@ convertGLTFModel :: (
         }
         if !success return false;
 
-        success = serializeModel(name, textures, materials, meshes, vertices, indices);
+        return serializeModel(name, textures, materials, meshes, vertices, indices);
     } else {
         vertices:, indices:, meshes:, success = uniteBuffersAndRemapMeshes(buffers, gltf_meshes, .PNUV);
         defer {
@@ -115,10 +131,8 @@ convertGLTFModel :: (
         }
         if !success return false;
 
-        success = serializeModel(name, textures, materials, meshes, vertices, indices);
+        return serializeModel(name, textures, materials, meshes, vertices, indices);
     }
-
-    return success;
 }
 
 #scope_file
