@@ -5,21 +5,15 @@
 - Move assets out of the engine folder
 
 Converter:
-    - Materials.
     - Thread pool.
     - Texture arrays.
     - #ConversionRules. Conversion rules for each texutre:
-        - max dimensions
-        - min dimensions
-        - generate mips
         ? format
-        ? combine some textures into texture array
 
 Manager:
     - Possible owners for resource
     - Transfer command buffer
     - Pipeline barriers before and after copies
-    - @Cleanup vulkan stuff
     - #SinglePointWait. Make a single point where we wait for all requested assets.
     - Persistent assets
 
@@ -27,7 +21,7 @@ Model:
     ? Vertex format for separate position and varying streams.
     - u16 indices.
     - #ModelIndices. Normal way to generate indices :)
-    - Generate tangents with MikkTSpace for obj files if normal map is presented
+    - Generate tangents with MikkTSpace if normal map is presented, but there are no normals in vertices
     - Everything else with #GLTF tag
     - Port Heart to model.shader
 

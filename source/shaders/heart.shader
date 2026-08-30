@@ -2,12 +2,6 @@
 
 #vertex_shader
 
-layout(buffer_reference, buffer_reference_align = 4) readonly buffer MeshRef {
-    mat4x3   model_to_mesh;
-    mat4x3   mesh_to_model;
-    uint16_t material_index;
-};
-
 layout(push_constant) uniform PushConstants {
     Indices32Ref     indices_ref;
     PNUVRef          vertices_ref;

@@ -47,7 +47,6 @@ ModelFile :: struct {
         alpha_mode : AlphaMode = .OPAQUE;
     } #no_padding
 
-    // @TODO: #GLTF. Split to GPUMesh and CPUMesh (see struct Model)
     Mesh :: struct {
         indices_start  : u32;
         indices_count  : u32;
@@ -82,7 +81,7 @@ VertexTypes :: struct {
     PNTUV :: struct {
         position_u : v4f;
         normal_v   : v4f;
-        tangent    : v4f; // xyz - tangent, w - binormal sign
+        tangent    : v4f; // xyz - tangent, w - bitangent sign
     }
 }
 

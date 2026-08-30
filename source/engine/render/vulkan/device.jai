@@ -1323,6 +1323,7 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
         assert(available_dynamic_rendering_features.dynamicRendering == VK_TRUE);
         device.descriptor_buffers_supported &= available_descriptor_buffer_features.descriptorBuffer == VK_TRUE; // Descriptor buffer support
         assert(available_features_1_2.storageBuffer8BitAccess == VK_TRUE);
+        assert(available_features_1_2.scalarBlockLayout == VK_TRUE);
         assert(available_features_1_2.bufferDeviceAddress == VK_TRUE);
         assert(available_features_1_1.storageBuffer16BitAccess == VK_TRUE);
         assert(available_features_1_1.storagePushConstant16 == VK_TRUE);
@@ -1346,6 +1347,7 @@ createVirtualDevice :: (enabled_device_extensions : *[..] string) {
     features_1_2_to_enable := VkPhysicalDeviceVulkan12Features.{
         pNext                   = *dynamic_rendering_features_to_enable,
         storageBuffer8BitAccess = VK_TRUE,
+        scalarBlockLayout       = VK_TRUE,
         bufferDeviceAddress     = VK_TRUE,
     };
     features_1_1_to_enable := VkPhysicalDeviceVulkan11Features.{

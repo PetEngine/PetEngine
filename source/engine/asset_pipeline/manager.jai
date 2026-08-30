@@ -119,37 +119,28 @@ requestModel :: (name : string) -> ModelAsset {
         }
     }
 
-    gpu_materials : [] Model.GPUMaterial;
-    if header.materials_count {
-        gpu_materials.count = header.materials_count;
-        gpu_materials.data  = pushToArena(*context.pet.arenas.per_frame, Model.GPUMaterial, header.materials_count);
+    assert(header.materials_count);
+    {
+        asset.materials.count = header.materials_count;
+        asset.materials.data  = Basic.alloc(size_of(Model.Material) * header.materials_count);
 
-        for * gpu_materials {
-            material : ModelFile.Material = ---;
-            readFile(file, *material);
-            it.m = material;
+        for * asset.materials {
+            tightly_packed_material : ModelFile.Material = ---;
+            readFile(file, *tightly_packed_material);
+            it.m = tightly_packed_material;
         }
     }
 
-    gpu_meshes : [] Model.GPUMesh = ---;
     assert(header.meshes_count);
     {
         asset.meshes.count = header.meshes_count;
-        gpu_meshes.count   = header.meshes_count;
+        asset.meshes.data  = Basic.alloc(size_of(Model.Mesh) * header.meshes_count);
 
-        asset.meshes.data = Basic.alloc(size_of(Model.CPUMesh) * header.meshes_count);
-        gpu_meshes.data   = pushToArena(*context.pet.arenas.per_frame, Model.GPUMesh, header.meshes_count);
+        for * asset.meshes {
+            tightly_packed_mesh : ModelFile.Mesh = ---;
+            readFile(file, *tightly_packed_mesh);
 
-        for * gpu_meshes {
-            mesh : ModelFile.Mesh = ---;
-            readFile(file, *mesh);
-
-            asset.meshes[it_index].indices_start = mesh.indices_start;
-            asset.meshes[it_index].indices_count = mesh.indices_count;
-
-            it.model_to_mesh  = mesh.model_to_mesh;
-            it.mesh_to_model  = mesh.mesh_to_model;
-            it.material_index = mesh.material_index;
+            it.m = tightly_packed_mesh;
         }
     }
 
@@ -164,11 +155,11 @@ requestModel :: (name : string) -> ModelAsset {
     assert(indices_bytes, "Our models always have indices");
     assertAligned(indices_bytes, 4);
 
-    materials_bytes := cast(u32, gpu_materials.count * size_of(Model.GPUMaterial));
+    materials_bytes := cast(u32, header.materials_count * size_of(Model.Material));
     assert(materials_bytes, "At least 1 default material must be presented");
     assertAligned(materials_bytes, 4);
 
-    meshes_bytes := cast(u32, gpu_meshes.count * size_of(Model.GPUMesh));
+    meshes_bytes := cast(u32, header.meshes_count * size_of(Model.Mesh));
     assert(meshes_bytes);
     assertAligned(meshes_bytes, 4);
 
@@ -248,7 +239,7 @@ requestModel :: (name : string) -> ModelAsset {
         chunk_bytes := min(remaining_materials_bytes, gurb.buffer.size - upload_offset);
 
         destination := gurb.buffer.mapped_memory + upload_offset;
-        memcpy(destination, cast(*void, gpu_materials.data) + materials_offset, chunk_bytes);
+        memcpy(destination, cast(*void, asset.materials.data) + materials_offset, chunk_bytes);
 
         assert(buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
         region := *buffer_copy.regions[buffer_copy.regions_count];
@@ -271,7 +262,7 @@ requestModel :: (name : string) -> ModelAsset {
         chunk_bytes := min(remaining_meshes_bytes, gurb.buffer.size - upload_offset);
 
         destination := gurb.buffer.mapped_memory + upload_offset;
-        memcpy(destination, cast(*void, gpu_meshes.data) + meshes_offset, chunk_bytes);
+        memcpy(destination, cast(*void, asset.meshes.data) + meshes_offset, chunk_bytes);
 
         assert(buffer_copy.regions_count < AssetManager.BufferCopy.regions.count);
         region := *buffer_copy.regions[buffer_copy.regions_count];

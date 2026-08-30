@@ -1,33 +1,5 @@
 #include "graphics_bindings.shader_header"
 
-layout(buffer_reference, buffer_reference_align = 4) readonly buffer MeshRef {
-    mat4x3   model_to_mesh;
-    mat4x3   mesh_to_model;
-    uint16_t material_index;
-};
-
-// @Important: Should be synced with ModelFile.AlphaMode in asset_pipeline/model_file.jai
-#define ALPHA_MODE_OPAQUE 0
-#define ALPHA_MODE_MASK   1
-#define ALPHA_MODE_BLEND  2
-
-layout(buffer_reference, buffer_reference_align = 4) readonly buffer MaterialRef {
-    f32vec4   factor_albedo;
-    f32vec3   factor_emissive;
-    float32_t factor_metallic;
-    float32_t factor_roughness;
-
-    float32_t alpha_cutoff;
-
-    uint16_t texture_index_albedo;
-    uint16_t texture_index_normal;
-    uint16_t texture_index_emissive;
-    uint16_t texture_index_metallic_roughness;
-    uint16_t texture_index_occlusion;
-
-    uint8_t alpha_mode;
-};
-
 layout(push_constant) uniform PushConstants {
     Indices32Ref indices_ref;
     PNTUVRef     vertices_ref;
