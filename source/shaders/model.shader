@@ -94,7 +94,6 @@ void main() {
     float alpha  = material_ref.factor_albedo.a;
     if (material_ref.texture_index_albedo != 0xFFFF)
     {
-        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_basecolortexture
         const vec4 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_albedo],
                                          g_per_scene_samplers[g_push_constants.sampler_index]),
                                i_uv);
@@ -107,50 +106,50 @@ void main() {
         discard;
     }
 
-    float roughness = material_ref.factor_roughness;
+    vec3 N = normalize(i_normal);
+    if (material_ref.texture_index_normal != 0xFFFF)
+    {
+        vec2 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_normal],
+                                   g_per_scene_samplers[g_push_constants.sampler_index]),
+                         i_uv).xy;
+
+        vec3 bump;
+        bump.xy = s.xy;
+        bump.z  = sqrt(1.0 - pow2(bump.x) - pow2(bump.y));
+
+        bump = normalize(bump);
+
+        const vec3 T = normalize(i_tangent);
+        const vec3 B = normalize(i_bitangent);
+
+        N = mat3x3(T, B, N) * bump;
+        N = normalize(N);
+    }
+
     float metalness = material_ref.factor_metallic;
+    float roughness = material_ref.factor_roughness;
     if (material_ref.texture_index_metallic_roughness != 0xFFFF)
     {
-        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
         const vec2 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_metallic_roughness],
                                          g_per_scene_samplers[g_push_constants.sampler_index]),
-                               i_uv).gb;
+                               i_uv).rg;
 
-        roughness *= s.x;
-        metalness *= s.y;
+        metalness *= s.r;
+        roughness *= s.g;
     }
 
     vec3 emissive = material_ref.factor_emissive;
     if (material_ref.texture_index_emissive != 0xFFFF)
     {
-        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_emissivetexture
         const vec3 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_emissive],
                                          g_per_scene_samplers[g_push_constants.sampler_index]),
                                i_uv).rgb;
         emissive *= s;
     }
 
-    vec3 N = normalize(i_normal);
-    if (material_ref.texture_index_normal != 0xFFFF)
-    {
-        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_normaltexture
-        vec3 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_normal],
-                                   g_per_scene_samplers[g_push_constants.sampler_index]),
-                         i_uv).xyz;
-        s = s * 2.0 - 1.0;
-        s = normalize(s);
-
-        const vec3 T = normalize(i_tangent);
-        const vec3 B = normalize(i_bitangent);
-
-        N = mat3x3(T, B, N) * s;
-        N = normalize(N);
-    }
-
     float occlusion = 1.0;
     if (material_ref.texture_index_occlusion != 0xFFFF)
     {
-        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_occlusiontexture
         const float s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_occlusion],
                                           g_per_scene_samplers[g_push_constants.sampler_index]),
                                 i_uv).r;
@@ -158,9 +157,10 @@ void main() {
     }
 
     const vec3 L = -SUN_DIR;
+    // const vec3 L = normalize(vec3(0, 0.01, 0) - i_position);
     const vec3 V = normalize(g_per_view_uniforms[g_push_constants.per_view_uniform_index].camera_position - i_position);
 
-    const vec3 direct   = calculateBRDF(L, V, N, albedo, roughness, metalness) * SUN_COLOR;
+    const vec3 direct   = calculateBRDF(L, V, N, albedo, metalness, roughness) * SUN_COLOR;
     const vec3 indirect = lerp(DOWN, UP, N.y * 0.5 + 0.5) * albedo * (1.0 - metalness);
 
     const float shadow = 1.0;

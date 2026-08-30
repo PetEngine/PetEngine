@@ -35,15 +35,6 @@ convertGLTFModel :: (
 
     // Make texture convertion rules
     for materials {
-        if it.texture_index_normal != ModelFile.INVALID_INDEX {
-            filename := textures[it.texture_index_normal];
-
-            if !Hash_Table.table_contains(texture_conversion_rules, filename) {
-                rule := TextureConversionRule.{ flags = .NORMAL_MAP };
-                Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
-            }
-        }
-
         if it.texture_index_albedo != ModelFile.INVALID_INDEX {
             filename := textures[it.texture_index_albedo];
 
@@ -55,11 +46,38 @@ convertGLTFModel :: (
             }
         }
 
+        if it.texture_index_normal != ModelFile.INVALID_INDEX {
+            filename := textures[it.texture_index_normal];
+
+            if !Hash_Table.table_contains(texture_conversion_rules, filename) {
+                rule := TextureConversionRule.{ flags = .NORMAL_MAP };
+                Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
+            }
+        }
+
         if it.texture_index_emissive != ModelFile.INVALID_INDEX {
             filename := textures[it.texture_index_emissive];
 
             if !Hash_Table.table_contains(texture_conversion_rules, filename) {
                 rule := TextureConversionRule.{ flags = .SOURCE_SRGB | .DEST_SRGB };
+                Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
+            }
+        }
+
+        if it.texture_index_metallic_roughness != ModelFile.INVALID_INDEX {
+            filename := textures[it.texture_index_metallic_roughness];
+
+            if !Hash_Table.table_contains(texture_conversion_rules, filename) {
+                rule := TextureConversionRule.{ flags = .MR_MAP };
+                Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
+            }
+        }
+
+        if it.texture_index_occlusion != ModelFile.INVALID_INDEX {
+            filename := textures[it.texture_index_occlusion];
+
+            if !Hash_Table.table_contains(texture_conversion_rules, filename) {
+                rule := TextureConversionRule.{ flags = .OCCLUSION_MAP };
                 Hash_Table.table_add(texture_conversion_rules, Basic.copy_string(filename), rule);
             }
         }

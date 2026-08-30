@@ -11,15 +11,17 @@ AssetConverter :: struct {
 // @TODO: #ConversionRules.
 TextureConversionRule :: struct {
     Flags :: enum_flags u8 {
-        SOURCE_SRGB; // Cannot be combined with NORMAL_MAP
-        DEST_SRGB;   // Cannot be combined with NORMAL_MAP
+        SOURCE_SRGB;   // Cannot be combined with NORMAL_MAP, MR_MAP, OCCLUSION_MAP
+        DEST_SRGB;     // Cannot be combined with NORMAL_MAP, MR_MAP, OCCLUSION_MAP
 
-        SOURCE_HDR;  // Cannot be combined with NORMAL_MAP and ALPHA_BLEND. Must be used with DEST_HDR.
-        DEST_HDR;    // Cannot be combined with NORMAL_MAP and ALPHA_BLEND
+        SOURCE_HDR;    // Cannot be combined with NORMAL_MAP, MR_MAP, OCCLUSION_MAP, ALPHA_BLEND. Must be used with DEST_HDR.
+        DEST_HDR;      // Cannot be combined with NORMAL_MAP, MR_MAP, OCCLUSION_MAP, ALPHA_BLEND
 
-        NORMAL_MAP;  // Cannot be combined with SOURCE_SRGB, DEST_SRGB, SOURCE_HDR, DEST_HDR and ALPHA_BLEND
+        NORMAL_MAP;    // Cannot be combined with SOURCE_SRGB, DEST_SRGB, SOURCE_HDR, DEST_HDR, ALPHA_BLEND
+        MR_MAP;        // Cannot be combined with SOURCE_SRGB, DEST_SRGB, SOURCE_HDR, DEST_HDR, ALPHA_BLEND, NORMAL_MAP, OCCLUSION_MAP
+        OCCLUSION_MAP; // Cannot be combined with SOURCE_SRGB, DEST_SRGB, SOURCE_HDR, DEST_HDR, ALPHA_BLEND, NORMAL_MAP, MR_MAP
 
-        ALPHA_BLEND; // Cannot be combined with NORMAL_MAP, SOURCE_HDR and DEST_HDR
+        ALPHA_BLEND;   // Cannot be combined with NORMAL_MAP, MR_MAP, OCCLUSION_MAP, SOURCE_HDR, DEST_HDR
     }
 
     max_texture_width  : u16 = 4096;
@@ -470,14 +472,23 @@ convertTextureNVTT :: (
 
     nvtt_compression_options := nvttCreateCompressionOptions();
     defer nvttDestroyCompressionOptions(nvtt_compression_options);
-    if rule.flags & .DEST_HDR {
+    if rule.flags & .NORMAL_MAP {
+        texture_file_header.format = .BC5_SNORM;
+        nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC5S);
+        nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
+    } else if rule.flags & .MR_MAP {
+        texture_file_header.format = .BC5_UNORM;
+        nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC5);
+        nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
+    } else if rule.flags & .OCCLUSION_MAP {
+        texture_file_header.format = .BC4_UNORM;
+        nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC4);
+        nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
+    } else if rule.flags & .DEST_HDR {
         texture_file_header.format = .BC6H_UFLOAT;
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC6U);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
     } else {
-        if has_alpha == .True && (rule.flags & .NORMAL_MAP) {
-            warningMessage("Normal map \"%\" contains alpha channel. Is it intended?", name);
-        }
         texture_file_header.format = ifx rule.flags & .DEST_SRGB then .BC7_SRGB else .BC7_UNORM;
         nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC7);
         nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
@@ -536,10 +547,12 @@ convertTextureNVTT :: (
         }
     }
 
-    for surface_info_array {
-        if rule.flags & .NORMAL_MAP {
-            nvttSurfacePackNormals(it.surface);
-        } else {
+    if rule.flags & .NORMAL_MAP {
+        for surface_info_array {
+            nvttSurfaceTransformNormals(it.surface, .Orthographic);
+        }
+    } else if !(rule.flags & (.OCCLUSION_MAP | .MR_MAP)) {
+        for surface_info_array {
             if has_alpha == .True && (rule.flags & .ALPHA_BLEND) {
                 nvttSurfaceDemultiplyAlpha(it.surface);
             }
@@ -614,7 +627,21 @@ generateMips :: (
     if rule.flags & .NORMAL_MAP {
         nvttSurfaceExpandNormals(nvtt_surface);
         nvttSurfaceNormalizeNormalMap(nvtt_surface);
-    } else {
+    } else if rule.flags & .MR_MAP {
+        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
+        //
+        // Swizzle:
+        //     - metalness: B -> R
+        //     - roughness: G -> G
+        RED     :: 0;
+        GREEN   :: 1;
+        BLUE    :: 2;
+        ALPHA   :: 3;
+        ONE     :: 4;
+        ZERO    :: 5;
+        NEG_ONE :: 6;
+        nvttSurfaceSwizzle(nvtt_surface, BLUE, GREEN, ZERO, ZERO);
+    } else if !(rule.flags & .OCCLUSION_MAP) {
         if rule.flags & .SOURCE_SRGB {
             nvttSurfaceToLinearFromSrgb(nvtt_surface);
         }
@@ -825,17 +852,36 @@ adjustRuleFlags :: (file_data : string, name : string, extension : string, rule 
 }
 
 validateRule :: (rule : TextureConversionRule) {
-    assert(rule.flags & (.NORMAL_MAP | .SOURCE_SRGB) != (.NORMAL_MAP | .SOURCE_SRGB));
-    assert(rule.flags & (.NORMAL_MAP | .DEST_SRGB) != (.NORMAL_MAP | .DEST_SRGB));
-    assert(rule.flags & (.NORMAL_MAP | .SOURCE_HDR) != (.NORMAL_MAP | .SOURCE_HDR));
-    assert(rule.flags & (.NORMAL_MAP | .DEST_HDR) != (.NORMAL_MAP | .DEST_HDR));
-    assert(rule.flags & (.NORMAL_MAP | .ALPHA_BLEND) != (.NORMAL_MAP | .ALPHA_BLEND));
+    notSetTogether :: inline (flags : TextureConversionRule.Flags, subflags : TextureConversionRule.Flags) -> bool #no_context {
+        return (flags & subflags) != subflags;
+    }
 
-    assert(rule.flags & (.SOURCE_SRGB | .SOURCE_HDR) != (.SOURCE_SRGB | .SOURCE_HDR));
-    assert(rule.flags & (.DEST_SRGB | .DEST_HDR) != (.DEST_SRGB | .DEST_HDR));
+    assert(notSetTogether(rule.flags, .NORMAL_MAP | .SOURCE_SRGB));
+    assert(notSetTogether(rule.flags, .NORMAL_MAP | .DEST_SRGB));
+    assert(notSetTogether(rule.flags, .NORMAL_MAP | .SOURCE_HDR));
+    assert(notSetTogether(rule.flags, .NORMAL_MAP | .DEST_HDR));
+    assert(notSetTogether(rule.flags, .NORMAL_MAP | .MR_MAP));
+    assert(notSetTogether(rule.flags, .NORMAL_MAP | .OCCLUSION_MAP));
+    assert(notSetTogether(rule.flags, .NORMAL_MAP | .ALPHA_BLEND));
 
-    assert(rule.flags & (.ALPHA_BLEND | .SOURCE_HDR) != (.ALPHA_BLEND | .SOURCE_HDR));
-    assert(rule.flags & (.ALPHA_BLEND | .DEST_HDR) != (.ALPHA_BLEND | .DEST_HDR));
+    assert(notSetTogether(rule.flags, .MR_MAP | .SOURCE_SRGB));
+    assert(notSetTogether(rule.flags, .MR_MAP | .DEST_SRGB));
+    assert(notSetTogether(rule.flags, .MR_MAP | .SOURCE_HDR));
+    assert(notSetTogether(rule.flags, .MR_MAP | .DEST_HDR));
+    assert(notSetTogether(rule.flags, .MR_MAP | .OCCLUSION_MAP));
+    assert(notSetTogether(rule.flags, .MR_MAP | .ALPHA_BLEND));
+
+    assert(notSetTogether(rule.flags, .OCCLUSION_MAP | .SOURCE_SRGB));
+    assert(notSetTogether(rule.flags, .OCCLUSION_MAP | .DEST_SRGB));
+    assert(notSetTogether(rule.flags, .OCCLUSION_MAP | .SOURCE_HDR));
+    assert(notSetTogether(rule.flags, .OCCLUSION_MAP | .DEST_HDR));
+    assert(notSetTogether(rule.flags, .OCCLUSION_MAP | .ALPHA_BLEND));
+
+    assert(notSetTogether(rule.flags, .SOURCE_SRGB | .SOURCE_HDR));
+    assert(notSetTogether(rule.flags, .DEST_SRGB | .DEST_HDR));
+
+    assert(notSetTogether(rule.flags, .ALPHA_BLEND | .SOURCE_HDR));
+    assert(notSetTogether(rule.flags, .ALPHA_BLEND | .DEST_HDR));
 
     assert((rule.flags & .DEST_HDR) || !(rule.flags & .SOURCE_HDR));
 }

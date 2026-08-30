@@ -55,7 +55,7 @@ vec3 fresnelSchlick(vec3 specular_color, float LdotH) {
     return f0 + (f90 - f0) * fresnelComponent(LdotH);
 }
 
-vec3 calculateBRDF(vec3 L, vec3 V, vec3 N, vec3 albedo, float roughness, float metalness) {
+vec3 calculateBRDF(vec3 L, vec3 V, vec3 N, vec3 albedo, float metalness, float roughness) {
     roughness = max(roughness, MIN_ROUGHNESS);
 
     const vec3 diffuse_color  = albedo * (1.0 - metalness);
