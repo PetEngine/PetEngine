@@ -824,9 +824,12 @@ messengerCallback :: (
 
             should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
         case .MESSAGE_HASH;
-            hash := Hash.get_hash(message);
+            should_be_printed := String.contains(message, "vkCreateShaderModule");
+            if !should_be_printed {
+                hash              := Hash.get_hash(message);
+                should_be_printed  = Basic.array_add_if_unique(*device.message_hashes, hash);
+            }
 
-            should_be_printed := Basic.array_add_if_unique(*device.message_hashes, hash);
         case;
             should_be_printed :: true;
     }
