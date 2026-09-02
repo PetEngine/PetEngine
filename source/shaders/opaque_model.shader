@@ -29,8 +29,8 @@ void main() {
     MeshRef      mesh_ref   = g_push_constants.meshes_ref[gl_BaseInstance];
 
     // @TODO: Must be done in a separate shader or on C++ side
-    const mat4x3 mesh_to_world = buildMeshToWorldMatrix(mesh_ref.mesh_to_model, g_push_constants.model_to_world);
-    const mat4x3 world_to_mesh = buildWorldToMeshMatrix(mesh_ref.model_to_mesh, g_push_constants.world_to_model);
+    const mat4x3 mesh_to_world = mul(g_push_constants.model_to_world, mesh_ref.mesh_to_model);
+    const mat4x3 world_to_mesh = mul(mesh_ref.model_to_mesh, g_push_constants.world_to_model);
     const mat3x3 normal_matrix = transpose(mat3x3(world_to_mesh));
 
     const vec3 ws_position = mesh_to_world * vec4(vertex_ref.position_u.xyz, 1.0);

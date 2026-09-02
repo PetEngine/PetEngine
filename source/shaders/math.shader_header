@@ -22,22 +22,9 @@ vec3 unpackBumpNormal(vec2 packed) {
     return normal;
 }
 
-mat4x3 buildMeshToWorldMatrix(mat4x3 mesh_to_model, mat4x3 model_to_world) {
-    const mat3x4 at = transpose(model_to_world);
-    const mat4x3 b  = mesh_to_model;
-
-    return mat4x3(
-        dot(at[0].xyz, b[0]),           dot(at[1].xyz, b[0]),           dot(at[2].xyz, b[0]),
-        dot(at[0].xyz, b[1]),           dot(at[1].xyz, b[1]),           dot(at[2].xyz, b[1]),
-        dot(at[0].xyz, b[2]),           dot(at[1].xyz, b[2]),           dot(at[2].xyz, b[2]),
-        dot(at[0].xyz, b[3]) + at[0].w, dot(at[1].xyz, b[3]) + at[1].w, dot(at[2].xyz, b[3]) + at[2].w
-    );
-}
-
-mat4x3 buildWorldToMeshMatrix(mat4x3 model_to_mesh, mat4x3 world_to_model) {
-    const mat3x4 at = transpose(model_to_mesh);
-    const mat4x3 b  = world_to_model;
-
+// multiplication of two 4x4 matrices extended to identity
+mat4x3 mul(mat4x3 a, mat4x3 b) {
+    const mat3x4 at = transpose(a);
     return mat4x3(
         dot(at[0].xyz, b[0]),           dot(at[1].xyz, b[0]),           dot(at[2].xyz, b[0]),
         dot(at[0].xyz, b[1]),           dot(at[1].xyz, b[1]),           dot(at[2].xyz, b[1]),

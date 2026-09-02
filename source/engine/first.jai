@@ -99,8 +99,8 @@ PerViewUniform :: struct {
         camera_dir : v3f = .{ x = -1.0 };
         __padding1 : f32;
 
-        view_matrix     : m4x4;
-        inv_view_matrix : m4x4;
+        view_matrix     : m3x4;
+        inv_view_matrix : m3x4;
 
         proj_matrix     : m4x4;
         inv_proj_matrix : m4x4;
@@ -382,6 +382,8 @@ petMain :: () {
                 if process_input_from_keyboard {
                     if window.input.keyboard[Input.Key.LEFT_SHIFT] & .DOWN {
                         speed *= 4.0;
+                    } else if window.input.keyboard[Input.Key.LEFT_ALT] & .DOWN {
+                        speed *= 0.25;
                     }
 
                     if window.input.keyboard[Input.Key.W] & .DOWN then move.z =  speed;
@@ -407,8 +409,8 @@ petMain :: () {
                     rows[1] = view_matrix[1].xyz,
                     rows[2] = view_matrix[2].xyz,
                 };
-                if angleXY.x then preTransform(*camera_rotation, rotationY(angleXY.x));
-                if angleXY.y then postTransform(*camera_rotation, rotationX(angleXY.y));
+                if angleXY.x then preRotateY(*camera_rotation, angleXY.x);
+                if angleXY.y then postRotateX(*camera_rotation, angleXY.y);
 
                 camera_dir = camera_rotation[Z_AXIS];
                 camera_dir = maybeNormalize(camera_dir);
@@ -426,21 +428,21 @@ petMain :: () {
                 }
 
                 // negate camera_pos because we want to move all objects oposite to camera move direction
-                view_matrix = extend(camera_rotation, m4x4) * extend(translation(-camera_pos));
+                view_matrix = mul(camera_rotation, translation(-camera_pos));
 
                 inv_view_matrix = .{
-                    view_matrix[0].x, view_matrix[1].x, view_matrix[2].x, camera_pos.x,
-                    view_matrix[0].y, view_matrix[1].y, view_matrix[2].y, camera_pos.y,
-                    view_matrix[0].z, view_matrix[1].z, view_matrix[2].z, camera_pos.z,
-                                 0.0,              0.0,              0.0,          1.0
+                    view_matrix.e00, view_matrix.e10, view_matrix.e20, camera_pos.x,
+                    view_matrix.e01, view_matrix.e11, view_matrix.e21, camera_pos.y,
+                    view_matrix.e02, view_matrix.e12, view_matrix.e22, camera_pos.z,
                 };
 
                 proj_matrix, inv_proj_matrix = perspectiveProjectionMatrixFromFovAndItsInverse(cast(f32) back_buffer.width / cast(f32) back_buffer.height,
                                                                                                PerViewUniform.CAMERA_FOV,
                                                                                                PerViewUniform.CAMERA_NEAR,
                                                                                                PerViewUniform.CAMERA_FAR);
-                view_proj_matrix     = proj_matrix     * view_matrix;
-                inv_view_proj_matrix = inv_view_matrix * inv_proj_matrix;
+
+                view_proj_matrix     = mul(proj_matrix, view_matrix);
+                inv_view_proj_matrix = mul(inv_view_matrix, inv_proj_matrix);
             }
             commitPerViewUniform(*per_view_uniform);
 

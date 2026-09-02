@@ -14,7 +14,7 @@ void main() {
     gl_Position.z = 0.0;
     gl_Position.w = 1.0;
 
-    const mat4x4 inv_view = g_per_view_uniforms[g_vs_push_constants.per_view_uniform_index].inv_view_matrix;
+    const mat4x3 inv_view = g_per_view_uniforms[g_vs_push_constants.per_view_uniform_index].inv_view_matrix;
     const mat4x4 inv_proj = g_per_view_uniforms[g_vs_push_constants.per_view_uniform_index].inv_proj_matrix;
 
     o_view = (inv_proj * gl_Position).xyz;

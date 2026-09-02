@@ -365,15 +365,6 @@ getAs :: (child : JSON_Value, $type : Type) -> type, bool {
         // Matrices are stored as arrays in column-major order
         //
 
-        case m2x2;
-            gltfCheck(child.type == .ARRAY, FAILURE_CODE);
-            gltfCheck(child.array.count == result.flat.count, FAILURE_CODE);
-            for child.array { gltfCheck(it.type == .NUMBER, FAILURE_CODE); }
-            result.e00 = cast(f32) child.array[0].number;
-            result.e10 = cast(f32) child.array[1].number;
-            result.e01 = cast(f32) child.array[2].number;
-            result.e11 = cast(f32) child.array[3].number;
-
         case m3x3;
             gltfCheck(child.type == .ARRAY, FAILURE_CODE);
             gltfCheck(child.array.count == result.flat.count, FAILURE_CODE);
@@ -387,40 +378,6 @@ getAs :: (child : JSON_Value, $type : Type) -> type, bool {
             result.e02 = cast(f32) child.array[6].number;
             result.e12 = cast(f32) child.array[7].number;
             result.e22 = cast(f32) child.array[8].number;
-
-        case m3x4;
-            gltfCheck(child.type == .ARRAY, FAILURE_CODE);
-            gltfCheck(child.array.count == result.flat.count, FAILURE_CODE);
-            for child.array { gltfCheck(it.type == .NUMBER, FAILURE_CODE); }
-            result.e00 = cast(f32) child.array[ 0].number;
-            result.e10 = cast(f32) child.array[ 1].number;
-            result.e20 = cast(f32) child.array[ 2].number;
-            result.e01 = cast(f32) child.array[ 3].number;
-            result.e11 = cast(f32) child.array[ 4].number;
-            result.e21 = cast(f32) child.array[ 5].number;
-            result.e02 = cast(f32) child.array[ 6].number;
-            result.e12 = cast(f32) child.array[ 7].number;
-            result.e22 = cast(f32) child.array[ 8].number;
-            result.e03 = cast(f32) child.array[ 9].number;
-            result.e13 = cast(f32) child.array[10].number;
-            result.e23 = cast(f32) child.array[11].number;
-
-        case m4x3;
-            gltfCheck(child.type == .ARRAY, FAILURE_CODE);
-            gltfCheck(child.array.count == result.flat.count, FAILURE_CODE);
-            for child.array { gltfCheck(it.type == .NUMBER, FAILURE_CODE); }
-            result.e00 = cast(f32) child.array[ 0].number;
-            result.e10 = cast(f32) child.array[ 1].number;
-            result.e20 = cast(f32) child.array[ 2].number;
-            result.e30 = cast(f32) child.array[ 3].number;
-            result.e01 = cast(f32) child.array[ 4].number;
-            result.e11 = cast(f32) child.array[ 5].number;
-            result.e21 = cast(f32) child.array[ 6].number;
-            result.e31 = cast(f32) child.array[ 7].number;
-            result.e02 = cast(f32) child.array[ 8].number;
-            result.e12 = cast(f32) child.array[ 9].number;
-            result.e22 = cast(f32) child.array[10].number;
-            result.e32 = cast(f32) child.array[11].number;
 
         case m4x4;
             gltfCheck(child.type == .ARRAY, FAILURE_CODE);
@@ -1033,7 +990,7 @@ accessorTypeAndComponentTypeToType :: (accessor_type : string, component_type : 
 
         case "MAT2";
             gltfCheck(component_type == GL_FLOAT, FAILURE_CODE, "Unhandled componentType value: 0x%", formatHex(component_type));
-            return m2x2;
+            return [2][2] f32;
 
         case "MAT3";
             gltfCheck(component_type == GL_FLOAT, FAILURE_CODE, "Unhandled componentType value: 0x%", formatHex(component_type));

@@ -352,7 +352,6 @@ ceil :: inline (value : $T) -> T {
     return inline Math.ceil(value);
 }
 
-
 #scope_file
 
 rejectVectors :: inline (T : Type) -> bool #compile_time {
@@ -362,7 +361,10 @@ rejectVectors :: inline (T : Type) -> bool #compile_time {
 }
 
 rejectMatrices :: inline (T : Type) -> bool #compile_time {
-    return T != m2x2 && T != m3x3 && T != m3x4 && T != m4x3 && T != m4x4;
+    for ALL_MATRIX_TYPES {
+        if it == T return false;
+    }
+    return true;;
 }
 
 isAnyOf :: (type : Type, types : ..Type_Info_Tag) -> bool #compile_time {

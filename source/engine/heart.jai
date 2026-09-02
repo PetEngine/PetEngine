@@ -67,8 +67,8 @@ updateHeart :: (heart : *Heart, dt : f32) {
     rot     := rotationY(dt);
     inv_rot := transpose(rot);
 
-    postTransform(*heart.model.model_to_world, extend(rot, m3x4));
-    preTransform(*heart.model.world_to_model, extend(inv_rot, m3x4));
+    postTransform(*heart.model.model_to_world, rot);
+    preTransform(*heart.model.world_to_model, inv_rot);
 }
 
 drawHeart :: (command_buffer : *CommandBuffer, heart : Heart, per_view_uniform : PerViewUniform) {
