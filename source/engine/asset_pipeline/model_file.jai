@@ -60,10 +60,10 @@ ModelFile :: struct {
     }
 }
 
-#assert isTitghtlyPacked(ModelFile.Header);
-#assert isTitghtlyPacked(ModelFile.TextureName);
-#assert isTitghtlyPacked(ModelFile.Material);
-#assert isTitghtlyPacked(ModelFile.Mesh);
+#assert isTightlyPacked(ModelFile.Header);
+#assert isTightlyPacked(ModelFile.TextureName);
+#assert isTightlyPacked(ModelFile.Material);
+#assert isTightlyPacked(ModelFile.Mesh);
 
 #assert size_of(ModelFile.TextureName) == size_of(u16);
 

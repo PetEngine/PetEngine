@@ -52,7 +52,7 @@ reset :: inline (array : *[$capacity] $T) #no_context {
     memset(array.data, 0, array.count * size_of(T));
 }
 
-isTitghtlyPacked :: ($type : Type) -> bool #compile_time {
+isTightlyPacked :: ($type : Type) -> bool #compile_time {
     INFO :: type_info(type);
     #assert INFO.type == .STRUCT;
 
