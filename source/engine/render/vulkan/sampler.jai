@@ -1,25 +1,12 @@
 VulkanSampler :: struct {
-    #as using public_data : Sampler;
-
     sampler : VkSampler;
 }
 
-pushVulkanSampler :: (lifetime : ResourceManager.Lifetime) -> *Sampler {
-    manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
-
-    sampler : *VulkanSampler;
-    if #complete lifetime == {
-        case .PERSISTENT; sampler = pushBack(*manager.samplers.persistent.resources);
-        case .PER_SCENE;  sampler = pushBack(*manager.samplers.per_scene.resources);
-        case .PER_FRAME;  sampler = pushBack(*manager.samplers.per_frame[context.pet.render.device.frame_index].resources);
-    }
-    return sampler;
-}
-
-createVulkanSampler :: (sampler_ : *Sampler, state : *SamplerState, name : string) {
+createVulkanSampler :: (state : SamplerState, name : string) {
     device  := cast(*VulkanDevice)          context.pet.render.device;
     manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
-    sampler := cast(*VulkanSampler)         sampler_;
+
+    sampler := pushBack(*manager.samplers);
 
     create_info := VkSamplerCreateInfo.{
         magFilter    = samplerFilterToVkFilter(state.mag_filter),
@@ -30,7 +17,7 @@ createVulkanSampler :: (sampler_ : *Sampler, state : *SamplerState, name : strin
         addressModeW = samplerAddressModeToVkSamplerAddressMode(state.address_mode_w),
         mipLodBias   = state.lod_bias,
         minLod       = cast(f32) state.min_lod,
-        maxLod       = ifx state.max_lod == Sampler.MAX_LOD_NONE then VK_LOD_CLAMP_NONE else cast(f32) state.max_lod,
+        maxLod       = ifx state.max_lod == SamplerState.MAX_LOD_NONE then VK_LOD_CLAMP_NONE else cast(f32) state.max_lod,
         borderColor  = samplerBorderColorToVkBorderColor(state.border_color),
     };
 
@@ -39,7 +26,7 @@ createVulkanSampler :: (sampler_ : *Sampler, state : *SamplerState, name : strin
             create_info.anisotropyEnable = VK_FALSE;
             create_info.maxAnisotropy    = 1.0;
 
-        case Sampler.MAX_ANISOTROPY;
+        case SamplerState.MAX_ANISOTROPY;
             create_info.anisotropyEnable = VK_TRUE;
             create_info.maxAnisotropy    = device.limits.maxSamplerAnisotropy;
 
@@ -56,7 +43,7 @@ createVulkanSampler :: (sampler_ : *Sampler, state : *SamplerState, name : strin
             }
     }
 
-    if state.compare_op == Sampler.CompareOp.OFF {
+    if state.compare_op == SamplerState.CompareOp.OFF {
         create_info.compareEnable = VK_FALSE;
         create_info.compareOp     = .VK_COMPARE_OP_ALWAYS;
     } else {
@@ -73,39 +60,12 @@ createVulkanSampler :: (sampler_ : *Sampler, state : *SamplerState, name : strin
     }
 
     debugCheckVK(vkCreateSampler(device.device, *create_info, null, *sampler.sampler));
-
-    if #complete sampler.lifetime == {
-        case .PERSISTENT; composeVulkanSamplerName(sampler, *manager.samplers.persistent,                    name);
-        case .PER_SCENE;  composeVulkanSamplerName(sampler, *manager.samplers.per_scene,                     name);
-        case .PER_FRAME;  composeVulkanSamplerName(sampler, *manager.samplers.per_frame[device.frame_index], name);
-    }
-
-    setVulkanObjectName(sampler.sampler, sampler.name);
+    setVulkanObjectName(sampler.sampler, "Sampler/%", name);
 }
 
 #scope_file
 
-// "Sampler/<lifetime>/<name>"
-composeVulkanSamplerName :: (sampler : *VulkanSampler, memory_pool : *VulkanResourceManager.MemorylessPool, name : string) {
-    lifetime_name := Reflection.enum_value_to_name(sampler.lifetime);
-    assert(lifetime_name);
-
-    full_name_length := "Sampler/".count
-                      + lifetime_name.count + "/".count
-                      + name.count;
-
-    assert(full_name_length <= ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH,
-           "Sampler full name length (%) > ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH (%)",
-           full_name_length,
-           ResourceManager.MAX_RESOURCE_FULL_NAME_LENGTH);
-
-    sampler.name.data = pushToArena(*memory_pool.names_subarena, full_name_length);
-
-    appendToString(*sampler.name, full_name_length, "Sampler/", lifetime_name, "/", name);
-    assert(sampler.name.count == full_name_length);
-}
-
-samplerFilterToVkFilter :: inline (filter : Sampler.Filter) -> VkFilter {
+samplerFilterToVkFilter :: inline (filter : SamplerState.Filter) -> VkFilter {
     if #complete filter == {
         case .POINT;  return .VK_FILTER_NEAREST;
         case .LINEAR; return .VK_FILTER_LINEAR;
@@ -113,7 +73,7 @@ samplerFilterToVkFilter :: inline (filter : Sampler.Filter) -> VkFilter {
     return .VK_FILTER_NEAREST;
 }
 
-samplerFilterToVkSamplerMipmapMode :: inline (filter : Sampler.Filter) -> VkSamplerMipmapMode {
+samplerFilterToVkSamplerMipmapMode :: inline (filter : SamplerState.Filter) -> VkSamplerMipmapMode {
     if #complete filter == {
         case .POINT;  return .VK_SAMPLER_MIPMAP_MODE_NEAREST;
         case .LINEAR; return .VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -121,7 +81,7 @@ samplerFilterToVkSamplerMipmapMode :: inline (filter : Sampler.Filter) -> VkSamp
     return .VK_SAMPLER_MIPMAP_MODE_NEAREST;
 }
 
-samplerAddressModeToVkSamplerAddressMode :: inline (address_mode : Sampler.AddressMode) -> VkSamplerAddressMode {
+samplerAddressModeToVkSamplerAddressMode :: inline (address_mode : SamplerState.AddressMode) -> VkSamplerAddressMode {
     if #complete address_mode == {
         case .CLAMP;  return .VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         case .WRAP;   return .VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -131,7 +91,7 @@ samplerAddressModeToVkSamplerAddressMode :: inline (address_mode : Sampler.Addre
     return .VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 }
 
-samplerCompareOpToVkCompareOp :: inline (compare_op : Sampler.CompareOp) -> VkCompareOp {
+samplerCompareOpToVkCompareOp :: inline (compare_op : SamplerState.CompareOp) -> VkCompareOp {
     if #complete compare_op == {
         case .OFF;              return .VK_COMPARE_OP_ALWAYS;
         case .NEVER;            return .VK_COMPARE_OP_NEVER;
@@ -146,7 +106,7 @@ samplerCompareOpToVkCompareOp :: inline (compare_op : Sampler.CompareOp) -> VkCo
     return .VK_COMPARE_OP_ALWAYS;
 }
 
-samplerBorderColorToVkBorderColor :: inline (border_color : Sampler.BorderColor) -> VkBorderColor {
+samplerBorderColorToVkBorderColor :: inline (border_color : SamplerState.BorderColor) -> VkBorderColor {
     if #complete border_color == {
         case .NONE;        return .VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
         case .TRANSPARENT; return .VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;

@@ -2,13 +2,11 @@ Heart :: struct {
     shader : *Shader;
 
     model         : ModelAsset;
-    sampler       : *Sampler;
     textures      : [10] TextureAsset;
     texture_views : [textures.count] *TextureView;
 
     handles : struct {
         push_constants : PushConstantsHandle;
-        sampler        : BindingHandle;
         textures       : [texture_views.count] BindingHandle;
     };
 }
@@ -37,8 +35,6 @@ loadHeart :: (heart : *Heart) {
         preTranslate(*heart.model.world_to_model,  .{ y = -6.0 });
     }
 
-    heart.sampler = createSampler(.{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR }, .PER_SCENE, "Trilinear clamp sampler" );
-
     heart.textures[0] = requestTexture("heart/HumanBase___cavity");
     heart.textures[1] = requestTexture("heart/HumanBase__color");
     heart.textures[2] = requestTexture("heart/HumanBase__normals");
@@ -56,8 +52,6 @@ loadHeart :: (heart : *Heart) {
 }
 
 bindHeart :: (heart : *Heart) {
-    heart.handles.sampler = pushBinding(.PER_SCENE, heart.sampler);
-
     for * heart.handles.textures {
         it.* = pushBinding(.PER_SCENE, heart.texture_views[it_index]);
     }
@@ -97,7 +91,6 @@ drawHeart :: (command_buffer : *CommandBuffer, heart : Heart, per_view_uniform :
         model_to_world            = heart.model.model_to_world,
         world_to_model            = heart.model.world_to_model,
         per_view_uniform_index    = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
-        sampler_index             = heart.handles.sampler.descriptor,
         first_texture_index       = heart.handles.textures[0].descriptor
     }));
 

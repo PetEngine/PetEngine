@@ -131,7 +131,6 @@ Resource Manager:
     - Do not free memory on every reset.
     - Robust buffer and image access.
     - #MTRendering. Thread safety for memory pools and name arenas.
-    - Add cache for samplers.
 
 Shader Manager:
     ? Split into 2 files: shader_manager.jai and shader.jai.

@@ -4,7 +4,6 @@ BindingManager :: struct {
 
     // @Important: Should be synced with defines in graphics_bindings.shader_header
     MAX_PER_VIEW_UNIFORMS :: Device.MAX_FRAME_BUFFERING * PerViewUniform.MAX_VERSIONS;
-    MAX_SAMPLERS          :: 64;
     MAX_TEXTURES          :: 1024;
     MAX_IMAGES            :: 512;
 
@@ -82,22 +81,25 @@ pushBinding :: ($descriptor_set : DescriptorSet, buffer : *Buffer, offset : u32 
     }
 }
 
-pushBinding :: ($descriptor_set : DescriptorSet, resource : *$Resource/Type.[TextureView, Sampler]) -> BindingHandle {
+pushBinding :: ($descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle {
     assert(resourceMemoryCommitted(resource.lifetime),
            "All % bindings should be pushed after % resource memory is commited",
            descriptor_set,
            resource.lifetime);
 
-    #if Resource == {
-        case TextureView;
-            #if #complete GRAPHICS_API == {
-                case .VULKAN; return pushVulkanTextureBinding(descriptor_set, resource);
-            }
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; return pushVulkanTextureBinding(descriptor_set, resource);
+    }
+}
 
-        case Sampler;
-            #if #complete GRAPHICS_API == {
-                case .VULKAN; return pushVulkanSamplerBinding(descriptor_set, resource);
-            }
+bindSamplers :: () {
+    assertThreadKind(.MAIN);
+    assert(resourceMemoryCommitted(.PERSISTENT), "All % bindings should be pushed after % resource memory is commited",
+           DescriptorSet.PERSISTENT,
+           ResourceManager.Lifetime.PERSISTENT);
+
+    #if #complete GRAPHICS_API == {
+        case .VULKAN; bindVulkanSamplers();
     }
 }
 

@@ -141,8 +141,8 @@ END;
 
     manager.per_frame_bindings.count = cast,no_check(s64) device.frame_buffering;
 
-    createVulkanDescriptorSetLayout(.PER_FRAME,  .[ .UNIFORM, .SAMPLERS, .TEXTURES, .IMAGES ]);
-    createVulkanDescriptorSetLayout(.PER_SCENE,  .[ .SAMPLERS, .TEXTURES, .IMAGES ]);
+    createVulkanDescriptorSetLayout(.PER_FRAME,  .[ .UNIFORM, .TEXTURES, .IMAGES ]);
+    createVulkanDescriptorSetLayout(.PER_SCENE,  .[ .TEXTURES, .IMAGES ]);
     createVulkanDescriptorSetLayout(.PERSISTENT, .[ .UNIFORM, .SAMPLERS, .TEXTURES, .IMAGES ]);
 
     for * manager.per_frame_bindings createVulkanDescriptorSetBindings(it, .PER_FRAME, Basic.tprint("Frame #%", it_index));
@@ -352,63 +352,52 @@ pushVulkanTextureBinding :: (descriptor_set : DescriptorSet, resource : *Texture
     };
 }
 
-pushVulkanSamplerBinding :: (descriptor_set : DescriptorSet, resource : *Sampler) -> BindingHandle {
-    device  := cast(*VulkanDevice)         context.pet.render.device;
-    manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
-    sampler := cast(*VulkanSampler)        resource;
+bindVulkanSamplers :: () {
+    assertThreadKind(.MAIN);
 
-    bindings : *VulkanBindingManager.DescriptorSetBindings;
-    if #complete descriptor_set == {
-        case .PER_FRAME;  bindings = *manager.per_frame_bindings[device.frame_index];
-        case .PER_SCENE;  bindings = *manager.per_scene_bindings;
-        case .PERSISTENT; bindings = *manager.persistent_bindings;
-    }
-    assert(bindings);
+    device           := cast(*VulkanDevice)          context.pet.render.device;
+    manager          := cast(*VulkanBindingManager)  context.pet.render.binding_manager;
+    resource_manager := cast(*VulkanResourceManager) context.pet.render.resource_manager;
 
-    MAX_DESCRIPTORS  :: BindingManager.MAX_SAMPLERS;
-    descriptor_index := Atomics.atomic_add(*bindings.descriptors_pushed[DescriptorSetSlot.SAMPLERS], 1);
-    assert(descriptor_index < MAX_DESCRIPTORS, "Too much samplers for % descriptor set. Max: %", descriptor_set, MAX_DESCRIPTORS);
+    assert(manager.persistent_bindings.descriptors_pushed[DescriptorSetSlot.SAMPLERS] == 0, "Samplers were already bound");
+    assert(resource_manager.samplers.count == ResourceManager.MAX_SAMPLERS);
+    manager.persistent_bindings.descriptors_pushed[DescriptorSetSlot.SAMPLERS] += cast(u16) resource_manager.samplers.count;
 
     if device.descriptor_buffers_supported {
-        layout := *manager.descriptor_set_layouts[descriptor_set];
+        layout := *manager.descriptor_set_layouts[DescriptorSet.PERSISTENT];
         assert(layout.slot_offsets[DescriptorSetSlot.SAMPLERS] != VulkanBindingManager.DescriptorSetLayout.INVALID_OFFSET,
                "There are no any slots for samplers in % descriptor set",
-               descriptor_set);
+               DescriptorSet.PERSISTENT);
 
-        descriptor_info := VkDescriptorGetInfoEXT.{
-            type          = .VK_DESCRIPTOR_TYPE_SAMPLER,
-            data.pSampler = *sampler.sampler,
-        };
+        descriptor_info   := VkDescriptorGetInfoEXT.{ type = .VK_DESCRIPTOR_TYPE_SAMPLER };
+        descriptor_size   := device.descriptor_buffer_properties.samplerDescriptorSize;
+        descriptor_memory := manager.persistent_bindings.descriptor_buffer.mapped_memory
+                           + cast(u64) layout.slot_offsets[DescriptorSetSlot.SAMPLERS];
 
-        descriptor_size := device.descriptor_buffer_properties.samplerDescriptorSize;
-
-        descriptor_memory := bindings.descriptor_buffer.mapped_memory
-                           + cast(u64) layout.slot_offsets[DescriptorSetSlot.SAMPLERS]
-                           + descriptor_index * descriptor_size;
-
-        device.loader.extensions.device.optional.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
+        for resource_manager.samplers {
+            descriptor_info.data.pSampler = *it.sampler;
+            device.loader.extensions.device.optional.vkGetDescriptorEXT(device.device, *descriptor_info, descriptor_size, descriptor_memory);
+            descriptor_memory += descriptor_size;
+        }
     } else {
-        sampler_info := VkDescriptorImageInfo.{
-            sampler = sampler.sampler,
-        };
+        sampler_infos : [ResourceManager.MAX_SAMPLERS] VkDescriptorImageInfo = ---;
+        assert(sampler_infos.count == resource_manager.samplers.count);
+
+        for resource_manager.samplers {
+            sampler_infos[it_index].sampler = it.sampler;
+        }
 
         write_descriptor_set := VkWriteDescriptorSet.{
-            dstSet          = bindings.descriptor_set,
+            dstSet          = manager.persistent_bindings.descriptor_set,
             dstBinding      = cast(u32) DescriptorSetSlot.SAMPLERS,
-            dstArrayElement = descriptor_index,
-            descriptorCount = 1,
+            dstArrayElement = 0,
+            descriptorCount = sampler_infos.count,
             descriptorType  = .VK_DESCRIPTOR_TYPE_SAMPLER,
-            pImageInfo      = *sampler_info,
+            pImageInfo      = sampler_infos.data,
         };
 
         vkUpdateDescriptorSets(device.device, 1, *write_descriptor_set, 0, null);
     }
-
-    return .{
-        set        = descriptor_set,
-        slot       = DescriptorSetSlot.SAMPLERS,
-        descriptor = descriptor_index,
-    };
 }
 
 #scope_file
@@ -481,7 +470,7 @@ createVulkanDescriptorSetLayout :: (set : DescriptorSet, slots : [] DescriptorSe
                 layout.usage |= .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
 
             case .SAMPLERS;
-                pushBindingLayout(.VK_DESCRIPTOR_TYPE_SAMPLER, BindingManager.MAX_SAMPLERS);
+                pushBindingLayout(.VK_DESCRIPTOR_TYPE_SAMPLER, ResourceManager.MAX_SAMPLERS);
                 layout.usage |= .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
 
             case .TEXTURES;
@@ -535,7 +524,7 @@ createVulkanDescriptorSetLayout :: (set : DescriptorSet, slots : [] DescriptorSe
 
                 case .SAMPLERS;
                     descriptor_pool_sizes_it.type            = .VK_DESCRIPTOR_TYPE_SAMPLER;
-                    descriptor_pool_sizes_it.descriptorCount = BindingManager.MAX_SAMPLERS;
+                    descriptor_pool_sizes_it.descriptorCount = ResourceManager.MAX_SAMPLERS;
 
                 case .TEXTURES;
                     descriptor_pool_sizes_it.type            = .VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;

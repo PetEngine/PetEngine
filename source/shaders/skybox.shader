@@ -26,7 +26,7 @@ void main() {
 
 layout(push_constant) uniform PushConstants {
     layout(offset = 4) uint16_t texture_index;
-    uint16_t sampler_index;
+    uint16_t _padding;
 } g_ps_push_constants;
 
 const vec2 g_sub_pixel_offsets[] = {
@@ -41,7 +41,7 @@ out vec4 o_color;
 
 void main() {
     o_color = texture(samplerCube(g_per_scene_textures_cube[g_ps_push_constants.texture_index],
-                                  g_per_scene_samplers[g_ps_push_constants.sampler_index]),
+                                  g_samplers[ANISOTROPIC_MAX_CLAMP]),
                       i_view);
 }
 

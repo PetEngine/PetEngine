@@ -258,6 +258,8 @@ petMain :: () {
 
     depth_buffer_dsv := createTextureView(depth_buffer, .DEPTH_TARGET, lifetime = .PERSISTENT);
 
+    createSamplers();
+
     // Create persistent buffers and textures here...
 
     commitResourceMemory(.PERSISTENT);
@@ -265,6 +267,8 @@ petMain :: () {
 
     // All persistent bindings should be pushed after persistent resource memory commit
     bindPerViewUniform(*per_view_uniform);
+
+    bindSamplers();
 
     defer resetBindings(.PERSISTENT);
 

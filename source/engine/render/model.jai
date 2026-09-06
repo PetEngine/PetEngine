@@ -15,7 +15,6 @@ Model :: struct {
         model_to_world            : m3x4;
         world_to_model            : m3x4;
         per_view_uniform_index    : u32;
-        sampler_index             : u16;
         first_texture_index       : u16;
     }
 
@@ -39,6 +38,7 @@ Model :: struct {
 
 #assert size_of(Model.Material) & 3 == 0;
 #assert size_of(Model.Mesh) & 3 == 0;
+#assert size_of(Model.PushConstants) & 3 == 0 "https://docs.vulkan.org/spec/latest/chapters/descriptorsets.html#VUID-VkPushConstantRange-size-00297";
 
 destroyModel :: (model : *Model) {
     assert(model.allocator.proc || (!model.textures.data && !model.meshes.data && !model.materials.data));

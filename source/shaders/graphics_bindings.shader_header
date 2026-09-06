@@ -24,9 +24,15 @@
 
 // @Important: Should be synced with constants in BindingManager in render/binding_manager.jai
 #define MAX_PER_VIEW_UNIFORMS (MAX_FRAME_BUFFERING * MAX_PER_VIEW_UNIFORM_VERSIONS)
-#define MAX_SAMPLERS          64
 #define MAX_TEXTURES          1024
 #define MAX_IMAGES            512
+
+// @Important: Should be synced with Sampler enum
+#define TRILINEAR_CLAMP       0
+#define TRILINEAR_WRAP        1
+#define ANISOTROPIC_MAX_CLAMP 2
+#define ANISOTROPIC_MAX_WRAP  3
+#define MAX_SAMPLERS          4
 
 //
 // Row major
@@ -63,9 +69,7 @@ layout(set = PERSISTENT_SET, binding = UNIFORM_SLOT) uniform PerView {
 // Samplers
 //
 
-layout(set = PER_FRAME_SET,  binding = SAMPLERS_SLOT) uniform sampler g_per_frame_samplers [MAX_SAMPLERS];
-layout(set = PER_SCENE_SET,  binding = SAMPLERS_SLOT) uniform sampler g_per_scene_samplers [MAX_SAMPLERS];
-layout(set = PERSISTENT_SET, binding = SAMPLERS_SLOT) uniform sampler g_persistent_samplers[MAX_SAMPLERS];
+layout(set = PERSISTENT_SET, binding = SAMPLERS_SLOT) uniform sampler g_samplers[MAX_SAMPLERS];
 
 //
 // Textures

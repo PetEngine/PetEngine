@@ -8,8 +8,8 @@ layout(push_constant) uniform PushConstants {
     f32mat4x3    model_to_world;
     f32mat4x3    world_to_model;
     uint32_t     per_view_uniform_index;
-    uint16_t     sampler_index;
     uint16_t     first_texture_index;
+    uint16_t     _padding;
 } g_push_constants;
 
 #vertex_shader
@@ -74,7 +74,7 @@ void main() {
     if (material_ref.texture_index_albedo != 0xFFFF)
     {
         const vec4 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_albedo],
-                                         g_per_scene_samplers[g_push_constants.sampler_index]),
+                                         g_samplers[ANISOTROPIC_MAX_WRAP]),
                                i_uv);
         albedo *= s.rgb;
         alpha  *= s.a;
@@ -89,7 +89,7 @@ void main() {
     if (material_ref.texture_index_normal != 0xFFFF)
     {
         const vec2 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_normal],
-                                         g_per_scene_samplers[g_push_constants.sampler_index]),
+                                         g_samplers[ANISOTROPIC_MAX_WRAP]),
                                i_uv).xy;
 
         const vec3 T = normalize(i_tangent);
@@ -106,7 +106,7 @@ void main() {
     if (material_ref.texture_index_metallic_roughness != 0xFFFF)
     {
         const vec2 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_metallic_roughness],
-                                         g_per_scene_samplers[g_push_constants.sampler_index]),
+                                         g_samplers[ANISOTROPIC_MAX_WRAP]),
                                i_uv).rg;
 
         metalness *= s.r;
@@ -117,7 +117,7 @@ void main() {
     if (material_ref.texture_index_emissive != 0xFFFF)
     {
         const vec3 s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_emissive],
-                                         g_per_scene_samplers[g_push_constants.sampler_index]),
+                                         g_samplers[ANISOTROPIC_MAX_WRAP]),
                                i_uv).rgb;
         emissive *= s;
     }
@@ -126,7 +126,7 @@ void main() {
     if (material_ref.texture_index_occlusion != 0xFFFF)
     {
         const float s = texture(sampler2D(g_per_scene_textures_2d[g_push_constants.first_texture_index + material_ref.texture_index_occlusion],
-                                          g_per_scene_samplers[g_push_constants.sampler_index]),
+                                          g_samplers[ANISOTROPIC_MAX_WRAP]),
                                 i_uv).r;
         occlusion = s;
     }

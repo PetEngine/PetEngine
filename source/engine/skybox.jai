@@ -1,33 +1,35 @@
 Skybox :: struct {
     VSPushConstants :: struct {
         per_view_uniform_index : u32;
-    } #no_padding
+    }
 
     PSPushConstants :: struct {
         texture_index : u16;
-        sampler_index : u16;
-    } #no_padding
+        __padding     : u16;
+    }
 
     shader : *Shader;
 
     skybox_index : u8;
 
-    vs_push_constants_handle : PushConstantsHandle;
-    ps_push_constants_handle : PushConstantsHandle;
+    textures      : [3] TextureAsset;
+    texture_views : [textures.count] *TextureView;
 
-    sampler                 : *Sampler;
-    sampler_binding_handle  : BindingHandle;
-
-    textures                : [3] TextureAsset;
-    texture_views           : [3] *TextureView;
-    texture_binding_handles : [3] BindingHandle;
+    handles : struct {
+        vs_push_constants : PushConstantsHandle;
+        ps_push_constants : PushConstantsHandle;
+        textures          : [texture_views.count] BindingHandle;
+    };
 }
+
+#assert size_of(Skybox.VSPushConstants) & 3 == 0 "https://docs.vulkan.org/spec/latest/chapters/descriptorsets.html#VUID-VkPushConstantRange-size-00297";
+#assert size_of(Skybox.PSPushConstants) & 3 == 0 "https://docs.vulkan.org/spec/latest/chapters/descriptorsets.html#VUID-VkPushConstantRange-size-00297";
 
 createSkybox :: (depth_format : Texture.Format) -> Skybox {
     skybox : Skybox;
-    skybox.shader                   = getOrCreateShader("skybox", .[ context.pet.render.device.back_buffer_format ], depth_format );
-    skybox.vs_push_constants_handle = getPushConstantsHandle(skybox.shader, "g_vs_push_constants");
-    skybox.ps_push_constants_handle = getPushConstantsHandle(skybox.shader, "g_ps_push_constants");
+    skybox.shader                    = getOrCreateShader("skybox", .[ context.pet.render.device.back_buffer_format ], depth_format );
+    skybox.handles.vs_push_constants = getPushConstantsHandle(skybox.shader, "g_vs_push_constants");
+    skybox.handles.ps_push_constants = getPushConstantsHandle(skybox.shader, "g_ps_push_constants");
     return skybox;
 }
 
@@ -35,16 +37,10 @@ destroySkybox :: (skybox : *Skybox) {
     for * skybox.textures {
         destroyAsset(it);
     }
+    skybox.* = .{};
 }
 
 loadSkybox :: (skybox : *Skybox) {
-    skybox.sampler = createSampler(.{
-        min_filter = .LINEAR,
-        mag_filter = .LINEAR,
-        mip_filter = .LINEAR,
-        anisotropy = Sampler.MAX_ANISOTROPY
-    }, .PER_SCENE, "Anisotropic sampler" );
-
     skybox.textures[0] = requestTexture("skybox_night");
     skybox.textures[1] = requestTexture("skybox_mirror");
     skybox.textures[2] = requestTexture("skybox_desert");
@@ -55,9 +51,7 @@ loadSkybox :: (skybox : *Skybox) {
 }
 
 bindSkybox :: (skybox : *Skybox) {
-    skybox.sampler_binding_handle = pushBinding(.PER_SCENE, skybox.sampler);
-
-    for * skybox.texture_binding_handles {
+    for * skybox.handles.textures {
         it.* = pushBinding(.PER_SCENE, skybox.texture_views[it_index]);
     }
 }
@@ -87,13 +81,12 @@ drawSkybox :: (command_buffer : *CommandBuffer, skybox : Skybox, per_view_unifor
 
     setShader(command_buffer, skybox.shader);
 
-    setPushConstants(command_buffer, skybox.vs_push_constants_handle, *(Skybox.VSPushConstants.{
+    setPushConstants(command_buffer, skybox.handles.vs_push_constants, *(Skybox.VSPushConstants.{
         per_view_uniform_index = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
     }));
 
-    setPushConstants(command_buffer, skybox.ps_push_constants_handle, *(Skybox.PSPushConstants.{
-        texture_index = skybox.texture_binding_handles[skybox.skybox_index].descriptor,
-        sampler_index = skybox.sampler_binding_handle.descriptor,
+    setPushConstants(command_buffer, skybox.handles.ps_push_constants, *(Skybox.PSPushConstants.{
+        texture_index = skybox.handles.textures[skybox.skybox_index].descriptor
     }));
 
     drawPrimitives(command_buffer, 4);

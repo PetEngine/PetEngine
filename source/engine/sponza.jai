@@ -2,12 +2,10 @@ Sponza :: struct {
     shader : *Shader;
 
     model         : ModelAsset;
-    sampler       : *Sampler;
     texture_views : [69] *TextureView;
 
     handles : struct {
         push_constants : PushConstantsHandle;
-        sampler        : BindingHandle;
         textures       : [texture_views.count] BindingHandle;
     };
 }
@@ -28,15 +26,6 @@ loadSponza :: (sponza : *Sponza) {
     sponza.model = requestModel("Sponza");
     assert(sponza.model.vertex_format == .PNTUV);
 
-    sponza.sampler = createSampler(.{
-        min_filter     = .LINEAR,
-        mag_filter     = .LINEAR,
-        mip_filter     = .LINEAR,
-        address_mode_u = .WRAP,
-        address_mode_v = .WRAP,
-        address_mode_w = .WRAP,
-    }, .PER_SCENE, "Trilinear wrap sampler" );
-
     assert(sponza.model.textures.count <= Sponza.texture_views.count);
     for sponza.model.textures {
         sponza.texture_views[it_index] = createTextureView(it, .SHADER_READ, lifetime = .PER_SCENE);
@@ -44,8 +33,6 @@ loadSponza :: (sponza : *Sponza) {
 }
 
 bindSponza :: (sponza : *Sponza) {
-    sponza.handles.sampler = pushBinding(.PER_SCENE, sponza.sampler);
-
     for sponza.model.textures {
         sponza.handles.textures[it_index] = pushBinding(.PER_SCENE, sponza.texture_views[it_index]);
     }
@@ -76,7 +63,6 @@ drawSponza :: (command_buffer : *CommandBuffer, sponza : Sponza, per_view_unifor
         model_to_world            = sponza.model.model_to_world,
         world_to_model            = sponza.model.world_to_model,
         per_view_uniform_index    = per_view_uniform.handles[context.pet.render.device.frame_index][per_view_uniform.version].descriptor,
-        sampler_index             = sponza.handles.sampler.descriptor,
         first_texture_index       = sponza.handles.textures[0].descriptor
     }));
 

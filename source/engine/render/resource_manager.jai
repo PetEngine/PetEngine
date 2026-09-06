@@ -3,7 +3,7 @@ ResourceManager :: struct {
     MAX_BUFFERS       :: 64;
     MAX_TEXTURES      :: 128;
     MAX_TEXTURE_VIEWS :: 32 * MAX_TEXTURES;
-    MAX_SAMPLERS      :: 64;
+    MAX_SAMPLERS      :: #run Basic.enum_highest_value(Sampler) + 1;
 
     MAX_RESOURCE_NAME_LENGTH      :: 512;
     MAX_RESOURCE_FULL_NAME_LENGTH :: 2 * MAX_RESOURCE_NAME_LENGTH;

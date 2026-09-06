@@ -803,6 +803,24 @@ reflectPushConstants :: (binding_table : *BindingTable, stage_modules : [] SpvRe
             push_constant_binding.offset      = push_constant_block.offset;
             push_constant_binding.bytes       = push_constant_block.size - push_constant_block.offset;
 
+            if push_constant_binding.offset & 3 {
+                errorMessage("Push constants block offset (%) must be multiple of 4: https://docs.vulkan.org/spec/latest/chapters/descriptorsets.html#VUID-VkPushConstantRange-offset-00295",
+                             push_constant_binding.offset);
+                return false;
+            }
+
+            if !push_constant_binding.bytes {
+                errorMessage("Push constants block size (%) must be greater than 0: https://docs.vulkan.org/spec/latest/chapters/descriptorsets.html#VUID-VkPushConstantRange-size-00296",
+                             push_constant_binding.bytes);
+                return false;
+            }
+
+            if push_constant_binding.bytes & 3 {
+                errorMessage("Push constants block size (%) must be multiple of 4: https://docs.vulkan.org/spec/latest/chapters/descriptorsets.html#VUID-VkPushConstantRange-size-00297",
+                             push_constant_binding.bytes);
+                return false;
+            }
+
             assert(push_constant_block.name,
                    "A name for push constants instance #%, stage: % is null for some reason. It can be 0 length, but have to be non-null",
                    it_index,

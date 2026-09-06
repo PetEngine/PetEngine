@@ -1,4 +1,12 @@
-Sampler :: struct {
+// @Important: Should be synced with defines in graphics_bindings.shader_header
+Sampler :: enum u8 {
+    TRILINEAR_CLAMP;
+    TRILINEAR_WRAP;
+    ANISOTROPIC_MAX_CLAMP;
+    ANISOTROPIC_MAX_WRAP;
+};
+
+SamplerState :: struct {
     MAX_ANISOTROPY : u8 : 0xFF;
     MAX_LOD_NONE   : u8 : 0xFF;
 
@@ -33,52 +41,55 @@ Sampler :: struct {
         WHITE;
     }
 
-    lifetime : ResourceManager.Lifetime;
-    name     : string;
-}
+    min_filter := Filter.POINT;
+    mag_filter := Filter.POINT;
+    mip_filter := Filter.POINT;
 
-SamplerState :: struct {
-    min_filter := Sampler.Filter.POINT;
-    mag_filter := Sampler.Filter.POINT;
-    mip_filter := Sampler.Filter.POINT;
-
-    address_mode_u := Sampler.AddressMode.CLAMP;
-    address_mode_v := Sampler.AddressMode.CLAMP;
-    address_mode_w := Sampler.AddressMode.CLAMP;
+    address_mode_u := AddressMode.CLAMP;
+    address_mode_v := AddressMode.CLAMP;
+    address_mode_w := AddressMode.CLAMP;
 
     min_lod  : u8;
-    max_lod  : u8 = Sampler.MAX_LOD_NONE;
+    max_lod  : u8 = MAX_LOD_NONE;
     lod_bias : f32;
 
     anisotropy : u8;
 
-    compare_op := Sampler.CompareOp.OFF;
+    compare_op := CompareOp.OFF;
 
-    border_color := Sampler.BorderColor.NONE;
+    border_color := BorderColor.NONE;
 
-    #overlay(min_filter) _alignment : [16] u8;
+    #overlay(min_filter) _alignment : [2] u64;
 }
 #assert size_of(SamplerState) == 16;
 
-createSampler :: (state : SamplerState = .{}, lifetime : ResourceManager.Lifetime, name : string) -> *Sampler {
-    assert(!resourceMemoryCommitted(lifetime), "You cannot create %1 sampler after %1 memory is committed", lifetime);
+createSamplers :: () {
+    assert(!resourceMemoryCommitted(.PERSISTENT),
+           "You cannot create %1 sampler after %1 memory is committed",
+           ResourceManager.Lifetime.PERSISTENT);
 
-    assert(state.min_lod <= state.max_lod);
-    assert(state.anisotropy <= 2
-        || state.anisotropy == 4
-        || state.anisotropy == 8
-        || state.anisotropy == 16
-        || state.anisotropy == Sampler.MAX_ANISOTROPY);
+    SAMPLER_MAP :: SamplerState.[
+        .{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR                                                                                                                   },
+        .{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR, address_mode_u = .WRAP, address_mode_v = .WRAP, address_mode_w = .WRAP                                           },
+        .{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR,                                                                         anisotropy = SamplerState.MAX_ANISOTROPY },
+        .{ min_filter = .LINEAR, mag_filter = .LINEAR, mip_filter = .LINEAR, address_mode_u = .WRAP, address_mode_v = .WRAP, address_mode_w = .WRAP, anisotropy = SamplerState.MAX_ANISOTROPY },
+    ];
+    #assert SAMPLER_MAP.count == ResourceManager.MAX_SAMPLERS;
 
-    #if #complete GRAPHICS_API == {
-        case .VULKAN; sampler := pushVulkanSampler(lifetime);
+    #run {
+        for SAMPLER_MAP {
+            assert(it.min_lod <= it.max_lod);
+            assert(it.anisotropy <= 2
+                || it.anisotropy == 4
+                || it.anisotropy == 8
+                || it.anisotropy == 16
+                || it.anisotropy == SamplerState.MAX_ANISOTROPY);
+        }
     }
 
-    sampler.lifetime = lifetime;
-
-    #if #complete GRAPHICS_API == {
-        case .VULKAN; createVulkanSampler(sampler, *state, name);
+    for SAMPLER_MAP {
+        #if #complete GRAPHICS_API == {
+            case .VULKAN; createVulkanSampler(it, type_info(Sampler).names[it_index]);
+        }
     }
-
-    return sampler;
 }
