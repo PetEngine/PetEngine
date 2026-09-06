@@ -144,8 +144,9 @@ createGraphicsVulkanShader :: (shader_ : *Shader, shader_file_data : string) {
         binding_manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
 
         descriptor_set_layouts : [BindingManager.MAX_DESCRIPTOR_SETS] VkDescriptorSetLayout;
-        for binding_manager.descriptor_set_layouts {
-            descriptor_set_layouts[it_index] = it.layout;
+        descriptor_set_layouts[DescriptorSet.SAMPLERS] = binding_manager.sampler_descriptor_set_layout.layout;
+        for binding_manager.resource_descriptor_set_layouts {
+            descriptor_set_layouts[it_index + 1] = it.layout;
         }
 
         ranges : [ShaderCompiler.MAX_PUSH_CONSTANTS] VkPushConstantRange;

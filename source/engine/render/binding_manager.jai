@@ -12,15 +12,15 @@ BindingManager :: struct {
 
 // @Important: Should be synced with defines in graphics_bindings.shader_header
 DescriptorSet :: enum u8 {
-    PER_FRAME;
-    PER_SCENE;
+    SAMPLERS;
     PERSISTENT;
+    PER_SCENE;
+    PER_FRAME;
 }
 
 // @Important: Should be synced with defines in graphics_bindings.shader_header
 DescriptorSetSlot :: enum u8 {
-    UNIFORM;
-    SAMPLERS;
+    UNIFORMS;
     TEXTURES;
     IMAGES;
 }
@@ -50,13 +50,15 @@ destroyBindingManager :: () {
     }
 }
 
-resetBindings :: (descriptor_set : DescriptorSet) {
+resetBindings :: ($descriptor_set : DescriptorSet) {
     #if #complete GRAPHICS_API == {
         case .VULKAN; resetVulkanBindings(descriptor_set);
     }
 }
 
 pushBinding :: ($descriptor_set : DescriptorSet, buffer : *Buffer, offset : u32 = 0, size : u32 = CopyRegion.REMAINING_BYTES) -> BindingHandle {
+    #assert descriptor_set != .SAMPLERS "Samplers are bound using bindSamplers function";
+
     assert(resourceMemoryCommitted(buffer.lifetime),
            "All % bindings should be pushed after % resource memory is commited",
            descriptor_set,
@@ -76,12 +78,21 @@ pushBinding :: ($descriptor_set : DescriptorSet, buffer : *Buffer, offset : u32 
         assert(size <= buffer.size - offset);
     }
 
+    binding := BindingHandle.{
+        set  = descriptor_set,
+        slot = .UNIFORMS,
+    };
+
     #if #complete GRAPHICS_API == {
-        case .VULKAN; return pushVulkanBufferBinding(descriptor_set, buffer, offset, size);
+        case .VULKAN; binding.descriptor = pushVulkanBufferDescriptor(descriptor_set, buffer, offset, size);
     }
+
+    return binding;
 }
 
 pushBinding :: ($descriptor_set : DescriptorSet, resource : *TextureView) -> BindingHandle {
+    #assert descriptor_set != .SAMPLERS "Samplers are bound using bindSamplers function";
+
     assert(resourceMemoryCommitted(resource.lifetime),
            "All % bindings should be pushed after % resource memory is commited",
            descriptor_set,
@@ -93,9 +104,8 @@ pushBinding :: ($descriptor_set : DescriptorSet, resource : *TextureView) -> Bin
 }
 
 bindSamplers :: () {
-    assertThreadKind(.MAIN);
     assert(resourceMemoryCommitted(.PERSISTENT), "All % bindings should be pushed after % resource memory is commited",
-           DescriptorSet.PERSISTENT,
+           DescriptorSet.SAMPLERS,
            ResourceManager.Lifetime.PERSISTENT);
 
     #if #complete GRAPHICS_API == {

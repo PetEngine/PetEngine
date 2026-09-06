@@ -38,19 +38,22 @@ submitVulkanCommandBuffer :: (command_buffer : CommandBuffer) {
 }
 
 rebindVulkanDescriptorBuffers :: (command_buffer : VkCommandBuffer) {
-    device          := cast(*VulkanDevice)         context.pet.render.device;
+    device := cast(*VulkanDevice) context.pet.render.device;
+    if !device.descriptor_buffers_supported return;
+
+    binding_infos : [BindingManager.MAX_DESCRIPTOR_SETS] VkDescriptorBufferBindingInfoEXT;
+    binding_infos[DescriptorSet.SAMPLERS].usage   = .VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
+    binding_infos[DescriptorSet.PERSISTENT].usage = .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+    binding_infos[DescriptorSet.PER_SCENE].usage  = .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+    binding_infos[DescriptorSet.PER_FRAME].usage  = .VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+
     binding_manager := cast(*VulkanBindingManager) context.pet.render.binding_manager;
+    binding_infos[DescriptorSet.SAMPLERS].address   = cast(VkDeviceAddress) binding_manager.samplers_bindings.descriptor_buffer.device_address;
+    binding_infos[DescriptorSet.PERSISTENT].address = cast(VkDeviceAddress) binding_manager.persistent_bindings.descriptor_buffer.device_address;
+    binding_infos[DescriptorSet.PER_SCENE].address  = cast(VkDeviceAddress) binding_manager.per_scene_bindings.descriptor_buffer.device_address;
+    binding_infos[DescriptorSet.PER_FRAME].address  = cast(VkDeviceAddress) binding_manager.per_frame_bindings[device.frame_index].descriptor_buffer.device_address;
 
-    if device.descriptor_buffers_supported {
-        binding_infos : [BindingManager.MAX_DESCRIPTOR_SETS] VkDescriptorBufferBindingInfoEXT;
-        for * binding_infos { it.usage = binding_manager.descriptor_set_layouts[it_index].usage; }
-
-        binding_infos[DescriptorSet.PER_FRAME].address  = cast(VkDeviceAddress) binding_manager.per_frame_bindings[device.frame_index].descriptor_buffer.device_address;
-        binding_infos[DescriptorSet.PER_SCENE].address  = cast(VkDeviceAddress) binding_manager.per_scene_bindings.descriptor_buffer.device_address;
-        binding_infos[DescriptorSet.PERSISTENT].address = cast(VkDeviceAddress) binding_manager.persistent_bindings.descriptor_buffer.device_address;
-
-        device.loader.extensions.device.optional.vkCmdBindDescriptorBuffersEXT(command_buffer, binding_infos.count, binding_infos.data);
-    }
+    device.loader.extensions.device.optional.vkCmdBindDescriptorBuffersEXT(command_buffer, binding_infos.count, binding_infos.data);
 }
 
 clearVulkanTexture :: (command_buffer : VkCommandBuffer, texture : *VulkanTexture) {

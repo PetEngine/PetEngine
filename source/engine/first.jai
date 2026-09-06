@@ -270,7 +270,10 @@ petMain :: () {
 
     bindSamplers();
 
-    defer resetBindings(.PERSISTENT);
+    defer {
+        resetBindings(.PERSISTENT);
+        resetBindings(.SAMPLERS);
+    }
 
     // @TODO: #Scene.
     defer {
