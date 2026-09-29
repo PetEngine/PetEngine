@@ -1,0 +1,98 @@
+/*
+https://www.jcgt.org/published/0003/02/03/paper.pdf
+- isotropic equations: 71, 72
+- anisotropic equations: 80, 85, 86
+- equations: 29, 99, 125
+
+https://www.graphics.cornell.edu/~bjw/microfacetbsdf.pdf
+- equations 33, 34
+*/
+
+
+                D * VF * Fresnel
+BRDF_specular = -----------------
+                4 * NdotL * NdotV
+
+
+                       ggx_alpha^2
+D = ---------------------------------------------------
+    PI * NdotH^4 * (ggx_alpha^2 + tan(acos(NdotH))^2)^2
+
+                           ggx_alpha^2
+D = --------------------------------------------------------
+    PI * NdotH^4 * (ggx_alpha^2 + (1 - NdotH^2) / NdotH^2)^2
+
+                    ggx_alpha^2
+D = --------------------------------------------
+    PI * (NdotH^2 * ggx_alpha^2 + 1 - NdotH^2)^2
+
+                  ggx_alpha^2
+D = ----------------------------------------
+    PI * (NdotH^2 * (ggx_alpha^2 - 1) + 1)^2
+
+
+              1
+VF = ---------------------
+     1 + lambdaV + lambdaL
+
+         -1 + sqrt(1 + 1/a^2)
+lambda = -------------------- = -0.5 * (1 - sqrt(1 + 1/a^2))
+                  2
+
+             1
+a = ----------------------
+    ggx_alpha * tan(theta)
+
+lambda = -0.5 * (1 - sqrt(1 + (ggx_alpha * tan(theta))^2))
+lambda = -0.5 * (1 - sqrt(1 + ggx_alpha^2 * tan(theta)^2))
+
+lambdaV = -0.5 * (1 - sqrt(1 + ggx_alpha^2 * tan(acos(NdotV))^2))
+
+                 1 - x^2
+tan(acos(x))^2 = -------
+                   x^2
+
+lambdaV = -0.5 * (1 - sqrt(1 + ggx_alpha^2 * (1 - NdotV^2) / NdotV^2))
+lambdaV = -0.5 * (1 - sqrt(1 + ggx_alpha^2 * (1 / NdotV^2 - 1)))
+
+lambdaL = -0.5 * (1 - sqrt(1 + ggx_alpha^2 * (1 / NdotL^2 - 1)))
+
+                           1
+VF+ = -------------------------------------------
+      4 * NdotL * NdotV * (1 + lambdaV + lambdaL)
+
+                                                                          1
+VF+ = ---------------------------------------------------------------------------------------------------------------------------------------
+      4 * NdotL * NdotV * (1 - 0.5 * (1 - sqrt(1 + ggx_alpha^2 * (1 / NdotV^2 - 1))) - 0.5 * (1 - sqrt(1 + ggx_alpha^2 * (1 / NdotL^2 - 1))))
+
+
+4 * NdotL * NdotV * (1 - 0.5 * (1 - sqrt(1 + ggx_alpha^2 * (1 / NdotV^2 - 1))) - 0.5 * (1 - sqrt(1 + ggx_alpha^2 * (1 / NdotL^2 - 1))))
+2 * NdotL * NdotV * (2 - (1 - sqrt(1 + ggx_alpha^2 * (1 / NdotV^2 - 1))) - (1 - sqrt(1 + ggx_alpha^2 * (1 / NdotL^2 - 1))))
+2 * NdotL * NdotV * (2 - 1 + sqrt(1 + ggx_alpha^2 * (1 / NdotV^2 - 1)) - 1 + sqrt(1 + ggx_alpha^2 * (1 / NdotL^2 - 1)))
+2 * NdotL * NdotV * (sqrt(1 + ggx_alpha^2 * (1 / NdotV^2 - 1)) + sqrt(1 + ggx_alpha^2 * (1 / NdotL^2 - 1)))
+
+                                                      1
+VF+ = -----------------------------------------------------------------------------------------------------------
+      2 * NdotL * NdotV * (sqrt(1 + ggx_alpha^2 * (1 / NdotV^2 - 1)) + sqrt(1 + ggx_alpha^2 * (1 / NdotL^2 - 1)))
+
+                                                  0.5
+VF+ = -------------------------------------------------------------------------------------------------------
+      NdotL * NdotV * (sqrt(1 + ggx_alpha^2 * (1 / NdotV^2 - 1)) + sqrt(1 + ggx_alpha^2 * (1 / NdotL^2 - 1)))
+
+                                                               0.5
+VF+ = ---------------------------------------------------------------------------------------------------------------------
+      NdotL * NdotV * sqrt(1 + ggx_alpha^2 * (1 / NdotV^2 - 1)) + NdotL * NdotV * sqrt(1 + ggx_alpha^2 * (1 / NdotL^2 - 1))
+
+NdotL * NdotV * sqrt(1 + ggx_alpha^2 * (1 / NdotV^2 - 1))
+NdotL * sqrt(NdotV^2 * (1 + ggx_alpha^2 * (1 / NdotV^2 - 1)))
+NdotL * sqrt(NdotV^2 + NdotV^2 * ggx_alpha^2 * (1 / NdotV^2 - 1))
+NdotL * sqrt(NdotV^2 + NdotV^2 * ggx_alpha^2 / NdotV^2 - NdotV^2 * ggx_alpha^2)
+NdotL * sqrt(NdotV^2 - NdotV^2 * ggx_alpha^2 + ggx_alpha^2)
+NdotL * sqrt(NdotV^2 * (1 - ggx_alpha^2) + ggx_alpha^2)
+
+                                                         0.5
+VF+ = -----------------------------------------------------------------------------------------------------------------
+      NdotL * sqrt(NdotV^2 * (1 - ggx_alpha^2) + ggx_alpha^2) + NdotV * sqrt(NdotL^2 * (1 - ggx_alpha^2) + ggx_alpha^2)
+
+
+BRDF_specular = D * VF+ * Fresnel

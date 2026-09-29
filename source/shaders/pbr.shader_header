@@ -10,31 +10,34 @@ const float SPECULAR_NONMETAL = 0.04;
 
 // https://seblagarde.wordpress.com/wp-content/uploads/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 vec3 diffuseBurley(vec3 diffuse_color, float roughness, float NdotV, float NdotL, float LdotH) {
-    const float energy_bias   = 0.5 * roughness;
+    const float energy_bias = 0.5 * roughness;
+    const float f0          = 1.0;
+    const float fd90        = energy_bias + 2.0 * pow2(LdotH) * roughness;
+
+    const vec2  scatterLV     = f0 + (fd90 - f0) * fresnelComponent(vec2(NdotL, NdotV));
     const float energy_factor = lerp(1.0, 1.0 / 1.51, roughness);
 
-    const float FD90 = energy_bias + 2.0 * roughness * pow2(LdotH);
-    const vec2  FdVL = 1.0 + (FD90 - 1.0) * fresnelComponent(vec2(NdotV, NdotL));
-
-    return diffuse_color * (FdVL.x * FdVL.y) * energy_factor * INV_PI;
+    // Division by PI is done later
+    return diffuse_color * scatterLV.x * scatterLV.y * energy_factor;
 }
 
 // https://www.jcgt.org/published/0003/02/03/paper.pdf
 // https://www.graphics.cornell.edu/~bjw/microfacetbsdf.pdf
-float NDF(float NdotH, float ggx_alpha) {
-    const float ggx_alpha_2 = pow2(ggx_alpha);
-    const float denominator = (ggx_alpha_2 - 1.0) * pow2(NdotH) + 1.0;
+float NDF(float NdotH, float ggx_alpha_sq) {
+    const float denominator = pow2(NdotH) * (ggx_alpha_sq - 1.0) + 1.0;
 
+    // Division by PI is done later
     // Epsilon prevents random sparkles due to zero or "near-zero" division
-    return ggx_alpha_2 / max(pow2(denominator), BRDF_EPSILON);
+    return ggx_alpha_sq / max(pow2(denominator), BRDF_EPSILON);
 }
 
 // https://www.jcgt.org/published/0003/02/03/paper.pdf
 // https://www.graphics.cornell.edu/~bjw/microfacetbsdf.pdf
-float VF(float NdotL, float NdotV, float ggx_alpha) {
-    const float invAlpha = 1.0 - ggx_alpha;
-    const float lambdaV  = NdotL * (NdotV * invAlpha + ggx_alpha);
-    const float lambdaL  = NdotV * (NdotL * invAlpha + ggx_alpha);
+float VF(float NdotL, float NdotV, float ggx_alpha_sq) {
+    const float inv_alpha_sq = 1.0 - ggx_alpha_sq;
+
+    const float lambdaV = NdotL * sqrt(pow2(NdotV) * inv_alpha_sq + ggx_alpha_sq);
+    const float lambdaL = NdotV * sqrt(pow2(NdotL) * inv_alpha_sq + ggx_alpha_sq);
 
     // Epsilon prevents random sparkles due to zero or "near-zero" division
     return 0.5 / max(lambdaV + lambdaL, BRDF_EPSILON);
@@ -62,10 +65,10 @@ vec3 calculateBRDF(vec3 L, vec3 V, vec3 N, vec3 albedo, float metalness, float r
 
     const vec3 diffuse = diffuseBurley(diffuse_color, roughness, NdotV, NdotL, LdotH);
 
-    const float ggx_alpha = pow2(roughness);
-    const vec3  specular  = NDF(NdotH, ggx_alpha) * VF(NdotL, NdotV, ggx_alpha) * fresnelSchlick(specular_color, LdotH);
+    const float ggx_alpha_sq = pow4(roughness);
+    const vec3  specular     = NDF(NdotH, ggx_alpha_sq) * VF(NdotL, NdotV, ggx_alpha_sq) * fresnelSchlick(specular_color, LdotH);
 
-    return (diffuse + specular) * NdotL;
+    return (diffuse + specular) * INV_PI * NdotL;
 }
 
 float toneMappingUncharted2(float v) {
