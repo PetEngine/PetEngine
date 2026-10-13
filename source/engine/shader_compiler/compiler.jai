@@ -273,21 +273,19 @@ compileShader :: (name : string) -> bool {
     shaderc_options := shaderc_compile_options_initialize();
     defer shaderc_compile_options_release(shaderc_options);
 
-    shaderc_compile_options_set_source_language(shaderc_options, .shaderc_source_language_glsl);
+    shaderc_compile_options_set_source_language(shaderc_options, .glsl);
     // @Important: Always generate debug info otherwise we won't have push constants' names
     shaderc_compile_options_set_generate_debug_info(shaderc_options);
     #if DEBUG_BUILD {
         shaderc_compile_options_add_macro_definition(shaderc_options, "DEBUG_BUILD".data, "DEBUG_BUILD".count, "1".data, "1".count);
-        shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_zero);
+        shaderc_compile_options_set_optimization_level(shaderc_options, .zero);
     } else {
         shaderc_compile_options_add_macro_definition(shaderc_options, "DEBUG_BUILD".data, "DEBUG_BUILD".count, "0".data, "0".count);
-        shaderc_compile_options_set_optimization_level(shaderc_options, .shaderc_optimization_level_performance);
+        shaderc_compile_options_set_optimization_level(shaderc_options, .performance);
     }
-    shaderc_compile_options_set_forced_version_profile(shaderc_options, 460, .shaderc_profile_none);
-    shaderc_compile_options_set_target_env(shaderc_options,
-                                           .shaderc_target_env_vulkan,
-                                           cast(u32) shaderc_env_version.shaderc_env_version_vulkan_1_3);
-    shaderc_compile_options_set_target_spirv(shaderc_options, .shaderc_spirv_version_1_6);
+    shaderc_compile_options_set_forced_version_profile(shaderc_options, 460, .none);
+    shaderc_compile_options_set_target_env(shaderc_options, .vulkan, cast(u32) shaderc_env_version.vulkan_1_3);
+    shaderc_compile_options_set_target_spirv(shaderc_options, ._1_6);
     shaderc_compile_options_set_auto_bind_uniforms(shaderc_options, false);
     shaderc_compile_options_set_auto_map_locations(shaderc_options, true);
     shaderc_compile_options_set_include_callbacks(shaderc_options, resolveIncludeCallback, releaseIncludeResult, *context);
@@ -322,7 +320,7 @@ compileShader :: (name : string) -> bool {
 
         result := shaderc_compile_into_spv(shaderc_compiler,
                                            code.data,
-                                           cast(size_t) code.count,
+                                           cast(u64) code.count,
                                            shaderStageToShadercShaderKind(cast(ShaderStage) it_index),
                                            nt_name.data,
                                            "main".data,
@@ -330,7 +328,7 @@ compileShader :: (name : string) -> bool {
         defer shaderc_result_release(result);
 
         status := shaderc_result_get_compilation_status(result);
-        if status != .shaderc_compilation_status_success {
+        if status != .success {
             errorMessage("% shader compilation is failed with % error(s): %\n%",
                          cast(ShaderStage) it_index,
                          shaderc_result_get_num_errors(result),
@@ -451,7 +449,7 @@ makeBinaryShaderFilename :: inline (name : string) -> string {
 
 #scope_file
 
-#import "shaderc"()(DEBUG_BUILD);
+#import "shaderc";
 #import "spirv_reflect"()(DEBUG_BUILD);
 
 using ShaderCompiler;
@@ -764,10 +762,10 @@ getColorTargetIndex :: (line : *string) -> u8 {
 
 shaderStageToShadercShaderKind :: inline (stage : ShaderStage) -> shaderc_shader_kind {
     if #complete stage == {
-        case .VERTEX;   return .shaderc_vertex_shader;
-        case .FRAGMENT; return .shaderc_fragment_shader;
+        case .VERTEX;   return .vertex_shader;
+        case .FRAGMENT; return .fragment_shader;
     }
-    return .shaderc_glsl_infer_from_source;
+    return .glsl_infer_from_source;
 }
 
 debugCheckSpvReflect :: (code : Code) #expand #no_debug {
@@ -912,9 +910,9 @@ END,
 resolveIncludeCallback :: (
     user_data         : *void,
     requested_source  : *u8,
-    type              : shaderc_include_type,
+    type              : s32,
     requesting_source : *u8,
-    include_depth     : size_t
+    include_depth     : u64
 ) -> *shaderc_include_result #c_call {
     push_context,defer_pop cast(*#Context) user_data;
 
@@ -928,21 +926,21 @@ resolveIncludeCallback :: (
             absolute_include_filename := getAbsolutePath(include_filename);
 
             include_result.source_name        = absolute_include_filename.data;
-            include_result.source_name_length = cast(size_t) absolute_include_filename.count;
+            include_result.source_name_length = cast(u64) absolute_include_filename.count;
 
             include_result.content        = content.data;
-            include_result.content_length = cast(size_t) content.count;
+            include_result.content_length = cast(u64) content.count;
 
         case .FILE_NOT_FOUND; #through;
         case .PATH_NOT_FOUND;
             error_message := Basic.tprint("File \"%\" does not exist. There is a requirement that a path in #include should be specified relative to root shaders folder, maybe you violated it", include_filename);
             include_result.content        = error_message.data;
-            include_result.content_length = cast(size_t) error_message.count;
+            include_result.content_length = cast(u64) error_message.count;
 
         case;
             error_message := Basic.tprint("There was an error in opening \"%\" file. Look at previous error messages to see what went wrong", include_filename);
             include_result.content        = error_message.data;
-            include_result.content_length = cast(size_t) error_message.count;
+            include_result.content_length = cast(u64) error_message.count;
     }
 
     return include_result;
