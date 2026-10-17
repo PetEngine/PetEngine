@@ -358,10 +358,7 @@ compileShader :: (name : string) -> bool {
     stage_modules : [MAX_STAGES] SpvReflectShaderModule = ---;
 
     for stage_spirvs {
-        debugCheckSpvReflect(spvReflectCreateShaderModule2(.SPV_REFLECT_MODULE_FLAG_NO_COPY,
-                                                           cast(u64) it.count,
-                                                           it.data,
-                                                           *stage_modules[it_index]));
+        debugCheckSpvReflect(spvReflectCreateShaderModule2(.NO_COPY, cast(u64) it.count, it.data, *stage_modules[it_index]));
     }
     defer for * stage_modules {
         spvReflectDestroyShaderModule(it);
@@ -450,7 +447,7 @@ makeBinaryShaderFilename :: inline (name : string) -> string {
 #scope_file
 
 #import "shaderc";
-#import "spirv_reflect"()(DEBUG_BUILD);
+#import "spirv_reflect";
 
 using ShaderCompiler;
 
@@ -771,7 +768,7 @@ shaderStageToShadercShaderKind :: inline (stage : ShaderStage) -> shaderc_shader
 debugCheckSpvReflect :: (code : Code) #expand #no_debug {
     #if DEBUG_BUILD {
         result := #insert code;
-        assert(result == .SPV_REFLECT_RESULT_SUCCESS, "% returned %", #run codeToString(code), result);
+        assert(result == .SUCCESS, "% returned %", #run codeToString(code), result);
     } else {
         #insert code;
     }
