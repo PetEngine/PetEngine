@@ -3503,8 +3503,6 @@ spvReflectCreateShaderModule :: (size: u64, p_code: *void, p_module: *SpvReflect
 */
 spvReflectCreateShaderModule2 :: (flags: SpvReflectModuleFlags, size: u64, p_code: *void, p_module: *SpvReflectShaderModule) -> SpvReflectResult #foreign spirv_reflect;
 
-spvReflectGetShaderModule :: (size: u64, p_code: *void, p_module: *SpvReflectShaderModule) -> SpvReflectResult #foreign spirv_reflect;
-
 /*! @fn spvReflectDestroyShaderModule
 
 @param  p_module  Pointer to an instance of SpvReflectShaderModule.
@@ -3778,8 +3776,6 @@ failure.
 */
 spvReflectEnumeratePushConstantBlocks :: (p_module: *SpvReflectShaderModule, p_count: *u32, pp_blocks: **SpvReflectBlockVariable) -> SpvReflectResult #foreign spirv_reflect;
 
-spvReflectEnumeratePushConstants :: (p_module: *SpvReflectShaderModule, p_count: *u32, pp_blocks: **SpvReflectBlockVariable) -> SpvReflectResult #foreign spirv_reflect;
-
 /*! @fn spvReflectEnumerateEntryPointPushConstantBlocks
 @brief  Enumerate the push constant blocks used in the static call tree of a
 given entry point.
@@ -3927,8 +3923,6 @@ error results are written to *pResult.
 */
 spvReflectGetInputVariableByLocation :: (p_module: *SpvReflectShaderModule, location: u32, p_result: *SpvReflectResult) -> *SpvReflectInterfaceVariable #foreign spirv_reflect;
 
-spvReflectGetInputVariable :: (p_module: *SpvReflectShaderModule, location: u32, p_result: *SpvReflectResult) -> *SpvReflectInterfaceVariable #foreign spirv_reflect;
-
 /* @fn spvReflectGetEntryPointInputVariableByLocation
 
 @param  p_module    Pointer to an instance of SpvReflectShaderModule.
@@ -4021,8 +4015,6 @@ error results are written to *pResult.
 */
 spvReflectGetOutputVariableByLocation :: (p_module: *SpvReflectShaderModule, location: u32, p_result: *SpvReflectResult) -> *SpvReflectInterfaceVariable #foreign spirv_reflect;
 
-spvReflectGetOutputVariable :: (p_module: *SpvReflectShaderModule, location: u32, p_result: *SpvReflectResult) -> *SpvReflectInterfaceVariable #foreign spirv_reflect;
-
 /* @fn spvReflectGetEntryPointOutputVariableByLocation
 
 @param  p_module     Pointer to an instance of SpvReflectShaderModule.
@@ -4112,8 +4104,6 @@ error results are written to *pResult.
 */
 spvReflectGetPushConstantBlock :: (p_module: *SpvReflectShaderModule, index: u32, p_result: *SpvReflectResult) -> *SpvReflectBlockVariable #foreign spirv_reflect;
 
-spvReflectGetPushConstant :: (p_module: *SpvReflectShaderModule, index: u32, p_result: *SpvReflectResult) -> *SpvReflectBlockVariable #foreign spirv_reflect;
-
 /*! @fn spvReflectGetEntryPointPushConstantBlock
 @brief  Get the push constant block corresponding to the given entry point.
 As by the Vulkan specification there can be no more than one push
@@ -4159,8 +4149,6 @@ Otherwise, the error code indicates the cause of
 the failure.
 */
 spvReflectChangeDescriptorBindingNumbers :: (p_module: *SpvReflectShaderModule, p_binding: *SpvReflectDescriptorBinding, new_binding_number: u32, new_set_number: u32) -> SpvReflectResult #foreign spirv_reflect;
-
-spvReflectChangeDescriptorBindingNumber :: (p_module: *SpvReflectShaderModule, p_descriptor_binding: *SpvReflectDescriptorBinding, new_binding_number: u32, optional_new_set_number: u32) -> SpvReflectResult #foreign spirv_reflect;
 
 /*! @fn spvReflectChangeDescriptorSetNumber
 @brief  Assign a new set number to an entire descriptor set (including
