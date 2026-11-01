@@ -43,7 +43,7 @@ operator []= :: inline (array : *StaticArray, index : s64, value : array.T) #no_
     array.data[index] = value;
 }
 
-pushBack :: inline (array : *StaticArray) -> *array.T #no_context {
+pushBack :: inline (array : *StaticArray, $zero_memory := true) -> *array.T #no_context {
     #if DEBUG_BUILD {
         if array.count >= array.capacity {
             write_string("[ASSERT]: StaticArray overflow\n", true);
@@ -53,6 +53,14 @@ pushBack :: inline (array : *StaticArray) -> *array.T #no_context {
     }
 
     new := *array.data[array.count];
+
+    init :: initializer_of(array.T);
+    #if init {
+        init(new);
+    } else #if zero_memory {
+        memset(new, 0, size_of(array.T));
+    }
+
     array.count += 1;
     return new;
 }
@@ -81,6 +89,28 @@ pushBack :: inline (array : *StaticArray, data : [] array.T) #no_context {
 
     memcpy(array.data.data + array.count, data.data, data.count * size_of(array.T));
     array.count += data.count;
+}
+
+pushBack :: inline (array : *StaticArray, count : s64, $zero_memory := true) -> [] array.T #no_context {
+    #if DEBUG_BUILD {
+        if array.count + count > array.capacity {
+            write_string("[ASSERT]: StaticArray overflow\n", true);
+            debugBreakIfDebugging();
+            exitProcess(1);
+        }
+    }
+
+    view : [] array.T = .{ count, array.data.data + array.count };
+
+    init :: initializer_of(array.T);
+    #if init {
+        for * view { init(it); }
+    } else #if zero_memory {
+        memset(view.data, 0, view.count * size_of(array.T));
+    }
+
+    array.count += count;
+    return view;
 }
 
 reset :: inline (array : *StaticArray, $zero_memory := true) #no_context {

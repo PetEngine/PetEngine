@@ -47,10 +47,6 @@ makeEngineVersion :: inline (major : u32, minor : u32, patch : u32) -> u32 {
         global_upload_ring_buffer : *GlobalUploadRingBuffer;
     };
 
-    converter : struct {
-        texture_file : *TextureFile;
-    }
-
     initGlobals :: (new_context : *#Context) {
         #insert -> string {
             builder := Basic.String_Builder.{ allocator = Basic.temp };
