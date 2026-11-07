@@ -201,13 +201,8 @@ BuildArguments :: struct {
     // Post-build copies
     //
 
-    if build_arguments.optimized {
-        copy_file("../third_party/shaderc/bin/shaderc_shared.dll",
-                  join(output_path, "/shaderc_shared.dll",, allocator = temp));
-    } else {
-        copy_file("../third_party/shaderc/bin/shaderc_sharedd.dll",
-                  join(output_path, "/shaderc_sharedd.dll",, allocator = temp));
-    }
+    copy_file("../third_party/shaderc/bin/shaderc_shared.dll",
+              join(output_path, "/shaderc_shared.dll",, allocator = temp));
     copy_file("../third_party/nvtt/bin/nvtt30205.dll",
               join(output_path, "/nvtt30205.dll",, allocator = temp));
 

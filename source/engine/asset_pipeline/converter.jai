@@ -66,7 +66,7 @@ convertExchangeAssetsToRuntime :: () {
         textures_begin := Basic.current_time_monotonic();
         defer textures_context.duration = Basic.to_float64_seconds(Basic.current_time_monotonic() - textures_begin);
 
-        messageCallback :: (severity : NvttSeverity, error : NvttError, message : *u8, userData : *void) #c_call {
+        messageCallback :: (severity : nvtt.Severity, error : nvtt.Error, message : *u8, userData : *void) #c_call {
             push_context,defer_pop cast(*#Context) userData;
 
             if severity == {
@@ -75,36 +75,36 @@ convertExchangeAssetsToRuntime :: () {
                 case .Error;   errorMessage("NVTT: %", to_string(message));
             }
         }
+        debugCheck(nvtt.setMessageCallback(messageCallback, *context));
 
-        nvtt_success := nvttSetMessageCallback(messageCallback, *context);
-        assert(nvtt_success == .True);
+        nvtt.OutputOptions.Constructor(*textures_context.nvtt_output_options);
+        defer nvtt.OutputOptions.Destructor(*textures_context.nvtt_output_options);
 
-        nvtt_output_options := nvttCreateOutputOptions();
-        defer nvttDestroyOutputOptions(nvtt_output_options);
+        nvtt_error_handler := PetNvttErrorHandler.{
+            vtable      = *PET_NVTT_ERROR_HANDLER_VTABLE,
+            jai_context = *context,
+        };
+        nvtt.OutputOptions.setErrorHandler(*textures_context.nvtt_output_options, *nvtt_error_handler);
 
-        #if TEST_TEXTURES {
-            nvttSetOutputOptionsOutputHeader(nvtt_output_options, .True);
-        } else {
-            nvttSetOutputOptionsOutputHandler(nvtt_output_options, null, outputHandler, null);
-            nvttSetOutputOptionsOutputHeader(nvtt_output_options, .False);
+        nvtt.OutputOptions.setOutputHeader(*textures_context.nvtt_output_options, TEST_TEXTURES);
+
+        #if !TEST_TEXTURES {
+            textures_context.nvtt_output_handler = PetNvttOutputHandler.{
+                vtable      = *PET_NVTT_OUTPUT_HANDLER_VTABLE,
+                jai_context = *context,
+            };
+            nvtt.OutputOptions.setOutputHandler(*textures_context.nvtt_output_options, *textures_context.nvtt_output_handler);
         }
 
-        cuda_supported := nvttIsCudaSupported();
-        if cuda_supported == .False {
+        textures_context.cuda_supported = nvtt.isCudaSupported();
+        if !textures_context.cuda_supported {
             warningMessage("CUDA is not supported. Conversion will take much more time since it will be done on CPU.");
         }
 
-        nvtt_context := nvttCreateContext();
-        defer nvttDestroyContext(nvtt_context);
-        nvttSetContextCudaAcceleration(nvtt_context, cuda_supported);
+        nvtt.Context.Constructor(*textures_context.nvtt_context, textures_context.cuda_supported);
+        defer nvtt.Context.Destructor(*textures_context.nvtt_context);
 
-        if cuda_supported == .True {
-            assert(nvttContextIsCudaAccelerationEnabled(nvtt_context) == .True);
-        }
-
-        textures_context.nvtt_context        = nvtt_context;
-        textures_context.nvtt_output_options = nvtt_output_options;
-        textures_context.cuda_supported      = cuda_supported;
+        assert(!textures_context.cuda_supported || nvtt.Context.isCudaAccelerationEnabled(*textures_context.nvtt_context));
 
         error := enumerateFiles(AssetConverter.EXCHANGE_TEXTURES_FOLDER, convertTexturesCallback, *textures_context, recursively = true);
         if error == {
@@ -187,9 +187,12 @@ makeRuntimeTextureFilename :: (name : string) -> string {
 TEST_TEXTURES :: false;
 
 TexturesContext :: struct {
-    nvtt_context        : *NvttContext;
-    nvtt_output_options : *NvttOutputOptions;
-    cuda_supported      : NvttBoolean;
+    nvtt_context        : nvtt.Context;
+    nvtt_output_options : nvtt.OutputOptions;
+    #if !TEST_TEXTURES {
+        nvtt_output_handler : PetNvttOutputHandler;
+    }
+    cuda_supported      : bool;
 
     conversion_rules : *Hash_Table.Table(string, TextureConversionRule);
 
@@ -209,7 +212,7 @@ Statistics :: struct {
 }
 
 SurfaceInfo :: struct {
-    surface     : *NvttSurface;
+    surface     : nvtt.Surface;
     array_layer : u16;
     face        : u8;
     mip         : u8;
@@ -351,7 +354,7 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
     textures_context.total += 1;
 
     #if TEST_TEXTURES {
-        nvttSetOutputOptionsFileName(textures_context.nvtt_output_options, test_filename.data);
+        nvtt.OutputOptions.setFileName(*textures_context.nvtt_output_options, test_filename.data);
     }
 
     exchange_filename := makeExchangeTextureFilename(exchange_file_info.path);
@@ -364,7 +367,7 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
     validateRule(rule);
 
     time_begin := Basic.current_time_monotonic();
-    success := convertTextureNVTT(textures_context.*, *rule, exchange_filename, texture_name, extension);
+    success := convertTextureNVTT(textures_context, *rule, exchange_filename, texture_name, extension);
     duration := Basic.to_float64_seconds(Basic.current_time_monotonic() - time_begin);
 
     if success {
@@ -384,7 +387,7 @@ convertTexturesCallback :: (textures_context : *TexturesContext, exchange_file_i
 }
 
 convertTextureNVTT :: (
-    textures_context  : TexturesContext,
+    textures_context  : *TexturesContext,
     rule              : *TextureConversionRule,
     exchange_filename : string,
     name              : string,
@@ -401,49 +404,41 @@ convertTextureNVTT :: (
 
     texture_file_header : TextureFile.Header;
 
-    nvtt_surface := nvttCreateSurface();
-    // Do not defer nvttDestroySurface for regular textures,
-    // all the surfaces will be destroyed in the defered loop below
-    defer if texture_file_header.flags & .CUBE {
-        nvttDestroySurface(nvtt_surface);
-    }
+    nvtt_surface : nvtt.Surface = ---;
+    nvtt.Surface.Constructor(*nvtt_surface);
+    defer nvtt.Surface.Destructor(*nvtt_surface);
 
-    has_alpha : NvttBoolean;
-    nvtt_success := nvttSurfaceLoadFromMemory(nvtt_surface,
-                                              file_data.data,
-                                              cast(u64) file_data.count,
-                                              *has_alpha);
-    if nvtt_success == .False {
-        errorMessage("nvttSurfaceLoadFromMemory has failed");
+    has_alpha : bool = ---;
+    if !nvtt.Surface.loadFromMemory(*nvtt_surface, file_data.data, cast(u64) file_data.count, *has_alpha) {
+        errorMessage("nvtt.Surface.loadFromMemory has failed");
         return false;
     }
 
     if textures_context.cuda_supported {
-        nvttSurfaceToGPU(nvtt_surface);
+        nvtt.Surface.ToGPU(*nvtt_surface);
     }
 
-    nvtt_cube_surface : *NvttCubeSurface;
-    defer if nvtt_cube_surface {
-        nvttDestroyCubeSurface(nvtt_cube_surface);
-    }
+    nvtt_cube_surface : nvtt.CubeSurface = ---;
+    nvtt.CubeSurface.Constructor(*nvtt_cube_surface);
+    defer nvtt.CubeSurface.Destructor(*nvtt_cube_surface);
 
     source_width  : u16;
     source_height : u16;
     source_depth  : u16;
 
     force_cube : bool; // @Cleanup: #ConversionRules.
-    if nvttSurfaceType(nvtt_surface) == {
+    if nvtt.Surface.type(*nvtt_surface) == {
         case ._2D;
-            source_width  = cast(u16) nvttSurfaceWidth(nvtt_surface);
-            source_height = cast(u16) nvttSurfaceHeight(nvtt_surface);
+            source_width  = cast(u16) nvtt.Surface.width(*nvtt_surface);
+            source_height = cast(u16) nvtt.Surface.height(*nvtt_surface);
 
             force_cube = String.starts_with(name, "skybox");
 
-        case ._Cube;
+        case .Cube;
             force_cube = true;
 
         case ._3D;
-            source_depth = cast(u16) nvttSurfaceDepth(nvtt_surface);
+            source_depth = cast(u16) nvtt.Surface.depth(*nvtt_surface);
             texture_file_header.depth = min(source_depth, rule.max_texture_depth);
             assert(!array_size, "Texture arrays cannot contain 3D textures");
     }
@@ -451,10 +446,9 @@ convertTextureNVTT :: (
     if force_cube {
         texture_file_header.flags = .CUBE;
 
-        nvtt_cube_surface = nvttCreateCubeSurface();
-        nvttCubeSurfaceFold(nvtt_cube_surface, nvtt_surface, .HorizontalCross);
+        nvtt.CubeSurface.fold(*nvtt_cube_surface, *nvtt_surface, .HorizontalCross);
 
-        source_width  = cast(u16) nvttCubeSurfaceEdgeLength(nvtt_cube_surface);
+        source_width  = cast(u16) nvtt.CubeSurface.edgeLength(*nvtt_cube_surface);
         source_height = source_width;
     }
 
@@ -470,40 +464,34 @@ convertTextureNVTT :: (
     texture_file_header.mips_count = maxMipsCount(texture_file_header.width, texture_file_header.height, texture_file_header.depth);
     texture_file_header.mips_count = max(texture_file_header.mips_count - tail_mips_count_to_drop, 1);
 
-    nvtt_compression_options := nvttCreateCompressionOptions();
-    defer nvttDestroyCompressionOptions(nvtt_compression_options);
+    nvtt_compression_options : nvtt.CompressionOptions = ---;
+    nvtt.CompressionOptions.Constructor(*nvtt_compression_options);
+    defer nvtt.CompressionOptions.Destructor(*nvtt_compression_options);
+
     if rule.flags & (.NORMAL_MAP | .MR_MAP) {
         // Converting normals from UNORM to SNORM introduces an extra quantization step which results in noticeable precision loss.
         // So we preserve them in UNORM format.
         texture_file_header.format = .BC5_UNORM;
-        nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC5);
-        nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
+        nvtt.CompressionOptions.setFormat(*nvtt_compression_options, .BC5);
+        nvtt.CompressionOptions.setQuality(*nvtt_compression_options, .Normal);
     } else if rule.flags & .OCCLUSION_MAP {
         texture_file_header.format = .BC4_UNORM;
-        nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC4);
-        nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
+        nvtt.CompressionOptions.setFormat(*nvtt_compression_options, .BC4);
+        nvtt.CompressionOptions.setQuality(*nvtt_compression_options, .Normal);
     } else if rule.flags & .DEST_HDR {
         texture_file_header.format = .BC6H_UFLOAT;
-        nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC6U);
-        nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
+        nvtt.CompressionOptions.setFormat(*nvtt_compression_options, .BC6U);
+        nvtt.CompressionOptions.setQuality(*nvtt_compression_options, .Normal);
     } else {
         texture_file_header.format = ifx rule.flags & .DEST_SRGB then .BC7_SRGB else .BC7_UNORM;
-        nvttSetCompressionOptionsFormat(nvtt_compression_options, .BC7);
-        nvttSetCompressionOptionsQuality(nvtt_compression_options, .Normal);
+        nvtt.CompressionOptions.setFormat(*nvtt_compression_options, .BC7);
+        nvtt.CompressionOptions.setQuality(*nvtt_compression_options, .Normal);
     }
     assert(texture_file_header.format != .UNKNOWN);
 
     surface_info_array : SurfaceInfoArray;
-    defer {
-        if texture_file_header.flags & .CUBE {
-            for surface_info_array {
-                if it.mip > 0 then nvttDestroySurface(it.surface);
-            }
-        } else {
-            for surface_info_array {
-                nvttDestroySurface(it.surface);
-            }
-        }
+    defer for * surface_info_array {
+        nvtt.Surface.Destructor(*it.surface);
     }
 
     //
@@ -520,7 +508,9 @@ convertTextureNVTT :: (
 
     if texture_file_header.flags & .CUBE {
         for 0 .. 5 {
-            face := nvttCubeSurfaceFace(nvtt_cube_surface, cast(s32) it);
+            face := nvtt.CubeSurface.face(*nvtt_cube_surface, cast(s32) it);
+            assert(face);
+
             if !generateMips(face,
                              cast(u8) it,
                              rule.*,
@@ -533,7 +523,7 @@ convertTextureNVTT :: (
             }
         }
     } else {
-        if !generateMips(nvtt_surface,
+        if !generateMips(*nvtt_surface,
                          0,
                          rule.*,
                          has_alpha,
@@ -546,17 +536,17 @@ convertTextureNVTT :: (
     }
 
     if rule.flags & .NORMAL_MAP {
-        for surface_info_array {
-            nvttSurfacePackNormals(it.surface);
+        for * surface_info_array {
+            nvtt.Surface.packNormals(*it.surface);
         }
     } else if !(rule.flags & (.OCCLUSION_MAP | .MR_MAP)) {
-        for surface_info_array {
-            if has_alpha == .True && (rule.flags & .ALPHA_BLEND) {
-                nvttSurfaceDemultiplyAlpha(it.surface);
+        for * surface_info_array {
+            if has_alpha && (rule.flags & .ALPHA_BLEND) {
+                nvtt.Surface.demultiplyAlpha(*it.surface);
             }
 
             if rule.flags & .DEST_SRGB {
-                nvttSurfaceToSrgb(it.surface);
+                nvtt.Surface.toSrgb(*it.surface);
             }
         }
     }
@@ -565,11 +555,12 @@ convertTextureNVTT :: (
     // Fill batch list
     //
 
-    batch_list := nvttCreateBatchList();
-    defer nvttDestroyBatchList(batch_list);
+    nvtt_batch_list : nvtt.BatchList = ---;
+    nvtt.BatchList.Constructor(*nvtt_batch_list);
+    defer nvtt.BatchList.Destructor(*nvtt_batch_list);
 
-    for surface_info_array {
-        nvttBatchListAppend(batch_list, it.surface, it.face, it.mip, textures_context.nvtt_output_options);
+    for * surface_info_array {
+        nvtt.BatchList.Append(*nvtt_batch_list, *it.surface, it.face, it.mip, *textures_context.nvtt_output_options);
     }
 
     //
@@ -577,35 +568,39 @@ convertTextureNVTT :: (
     //
 
     #if TEST_TEXTURES {
-        nvttSetSurfaceNormalMap(nvtt_surface,                              ifx rule.flags & .NORMAL_MAP then .True else .False);
-        nvttSetOutputOptionsSrgbFlag(textures_context.nvtt_output_options, ifx rule.flags & .DEST_SRGB  then .True else .False);
+        nvtt.Surface.setNormalMap(*nvtt_surface,                              rule.flags & .NORMAL_MAP);
+        nvtt.OutputOptions.setSrgbFlag(*textures_context.nvtt_output_options, rule.flags & .DEST_SRGB);
 
         if texture_file_header.flags & .CUBE {
-            nvttContextOutputHeaderCube(textures_context.nvtt_context,
-                                        nvtt_cube_surface,
-                                        texture_file_header.mips_count,
-                                        nvtt_compression_options,
-                                        textures_context.nvtt_output_options);
+            if !nvtt.Context.outputHeader(*textures_context.nvtt_context,
+                                          *nvtt_cube_surface,
+                                          texture_file_header.mips_count,
+                                          *nvtt_compression_options,
+                                          *textures_context.nvtt_output_options) {
+                errorMessage("nvtt.Context.outputHeader(CUBE) has failed");
+                return false;
+            }
         } else {
-            nvttContextOutputHeader(textures_context.nvtt_context,
-                                    surface_info_array[0].surface,
-                                    texture_file_header.mips_count,
-                                    nvtt_compression_options,
-                                    textures_context.nvtt_output_options);
+            if !nvtt.Context.outputHeader(*textures_context.nvtt_context,
+                                          surface_info_array[0].surface,
+                                          texture_file_header.mips_count,
+                                          *nvtt_compression_options,
+                                          *textures_context.nvtt_output_options) {
+                errorMessage("nvtt.Context.outputHeader has failed");
+                return false;
+            }
         }
     } else {
-        texture_file := beginTextureFileSerialization(name);
-        defer endTextureFileSerialization(*texture_file);
-        writeTextureFileHeader(*texture_file, texture_file_header);
+        success : bool = ---;
+        textures_context.nvtt_output_handler.texture_file, success = beginTextureFileSerialization(name);
+        if !success return false;
+        defer endTextureFileSerialization(*textures_context.nvtt_output_handler.texture_file);
 
-        context.pet.converter.texture_file = *texture_file;
-        defer context.pet.converter = .{};
-        g_contextForOutputHandler = *context;
+        writeTextureFileHeader(*textures_context.nvtt_output_handler.texture_file, texture_file_header);
     }
 
-    nvtt_success = nvttContextCompressBatch(textures_context.nvtt_context, batch_list, nvtt_compression_options);
-    if nvtt_success == .False {
-        errorMessage("nvttContextCompressBatch has failed");
+    if !nvtt.Context.compress(*textures_context.nvtt_context, *nvtt_batch_list, *nvtt_compression_options) {
+        errorMessage("nvtt.Context.compress(BatchList) has failed");
         return false;
     }
 
@@ -613,18 +608,18 @@ convertTextureNVTT :: (
 }
 
 generateMips :: (
-    nvtt_surface            : *NvttSurface,
+    nvtt_surface            : *nvtt.Surface,
     face_index              : u8,
     rule                    : TextureConversionRule,
-    has_alpha               : NvttBoolean,
+    has_alpha               : bool,
     head_mips_count_to_drop : u8,
     mips_count_to_generate  : u8,
     min_texture_dimension   : u16,
     surface_info_array      : *SurfaceInfoArray
 ) -> bool {
     if rule.flags & .NORMAL_MAP {
-        nvttSurfaceExpandNormals(nvtt_surface, 2.0, -254.0 / 255.0); // https://www.ludicon.com/castano/blog/2026/02/normal-map-compression-revisited
-        nvttSurfaceNormalizeNormalMap(nvtt_surface);
+        nvtt.Surface.expandNormals(nvtt_surface, 2.0, -254.0 / 255.0); // https://www.ludicon.com/castano/blog/2026/02/normal-map-compression-revisited
+        nvtt.Surface.normalizeNormalMap(nvtt_surface);
     } else if rule.flags & .MR_MAP {
         // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
         //
@@ -638,51 +633,52 @@ generateMips :: (
         ONE     :: 4;
         ZERO    :: 5;
         NEG_ONE :: 6;
-        nvttSurfaceSwizzle(nvtt_surface, BLUE, GREEN, ZERO, ZERO);
+        nvtt.Surface.swizzle(nvtt_surface, BLUE, GREEN, ZERO, ZERO);
     } else if !(rule.flags & .OCCLUSION_MAP) {
         if rule.flags & .SOURCE_SRGB {
-            nvttSurfaceToLinearFromSrgb(nvtt_surface);
+            nvtt.Surface.toLinearFromSrgb(nvtt_surface);
         }
 
-        if has_alpha == .True && (rule.flags & .ALPHA_BLEND) {
-            nvttSurfacePremultiplyAlpha(nvtt_surface);
+        if has_alpha && (rule.flags & .ALPHA_BLEND) {
+            nvtt.Surface.premultiplyAlpha(nvtt_surface);
         }
     }
 
     for 1 .. head_mips_count_to_drop {
-        nvtt_success := nvttSurfaceBuildNextMipmapDefaults(nvtt_surface, .Kaiser, min_texture_dimension);
-        if nvtt_success == .False {
-            errorMessage("nvttSurfaceBuildNextMipmapDefaults has failed");
+        if !nvtt.Surface.buildNextMipmap(nvtt_surface, .Kaiser, min_texture_dimension) {
+            errorMessage("nvtt.Surface.buildNextMipmap has failed");
             return false;
         }
 
         if rule.flags & .NORMAL_MAP {
-            nvttSurfaceNormalizeNormalMap(nvtt_surface);
+            nvtt.Surface.normalizeNormalMap(nvtt_surface);
         }
     }
 
+    view := pushBack(surface_info_array, mips_count_to_generate);
     {
-        surface_info := pushBack(surface_info_array);
-        surface_info.surface = nvtt_surface;
-        surface_info.face    = face_index;
+        nvtt.Surface.CopyConstructor(*view[0].surface, nvtt_surface);
+        view[0].face = face_index;
     }
 
-    for 1 .. mips_count_to_generate - 1 {
-        nvtt_surface_copy := nvttSurfaceClone(surface_info_array.*[surface_info_array.count - 1].surface);
+    for * toView(view.data + 1, view.count - 1) {
+        it.face = face_index;
+        it.mip  = cast(u8) (it_index + 1);
 
-        surface_info := pushBack(surface_info_array);
-        surface_info.surface = nvtt_surface_copy;
-        surface_info.face    = face_index;
-        surface_info.mip     = it;
+        {
+            cloned_prev_surface := nvtt.Surface.clone(*it[-1].surface);
+            defer nvtt.Surface.Destructor(*cloned_prev_surface);
 
-        nvtt_success := nvttSurfaceBuildNextMipmapDefaults(nvtt_surface_copy, .Kaiser, min_texture_dimension);
-        if nvtt_success == .False {
-            errorMessage("nvttSurfaceBuildNextMipmapDefaults has failed");
+            nvtt.Surface.CopyConstructor(*it.surface, *cloned_prev_surface);
+        }
+
+        if !nvtt.Surface.buildNextMipmap(*it.surface, .Kaiser, min_texture_dimension) {
+            errorMessage("nvtt.Surface.buildNextMipmap has failed");
             return false;
         }
 
         if rule.flags & .NORMAL_MAP {
-            nvttSurfaceNormalizeNormalMap(nvtt_surface_copy);
+            nvtt.Surface.normalizeNormalMap(*it.surface);
         }
     }
 
@@ -690,12 +686,46 @@ generateMips :: (
 }
 
 #if !TEST_TEXTURES {
-    outputHandler :: (data : *void, size : s32) -> NvttBoolean #c_call {
-        push_context, defer_pop g_contextForOutputHandler;
-        appendTextureFileData(context.pet.converter.texture_file, .{ count = size, data = data });
-        return .True;
+    PetNvttOutputHandler :: struct {
+        #as using base : nvtt.OutputHandler;
+        jai_context    : *#Context;
+        texture_file   : TextureFile;
     }
+
+    PET_NVTT_OUTPUT_HANDLER_VTABLE :: nvtt.OutputHandler_VTable.{
+        Destructor = (this : *nvtt.OutputHandler, flags : Msvc_Destructor_Flags = .NONE) #cpp_method {
+        },
+
+        beginImage = (this : *nvtt.OutputHandler, size : s32, width : s32, height : s32, depth : s32, face : s32, miplevel : s32) #cpp_method {
+        },
+
+        writeData = (this : *nvtt.OutputHandler, data : *void, size : s32) -> bool #cpp_method {
+            handler := cast(*PetNvttOutputHandler, this);
+            push_context,defer_pop handler.jai_context;
+            appendTextureFileData(*handler.texture_file, .{ count = size, data = data });
+            return true;
+        },
+
+        endImage = (this : *nvtt.OutputHandler) #cpp_method {
+        },
+    };
 }
+
+PetNvttErrorHandler :: struct {
+    #as using base : nvtt.ErrorHandler;
+    jai_context    : *#Context;
+}
+
+PET_NVTT_ERROR_HANDLER_VTABLE :: nvtt.ErrorHandler_VTable.{
+    Destructor = (this : *nvtt.ErrorHandler, flags : Msvc_Destructor_Flags = .NONE) #cpp_method {
+    },
+
+    error = (this : *nvtt.ErrorHandler, e : nvtt.Error) #cpp_method {
+        push_context,defer_pop cast(*PetNvttErrorHandler, this).jai_context;
+        c_str := nvtt.errorString(e);
+        errorMessage("%", to_string(c_str));
+    },
+};
 
 DDS_HEADER :: struct {
     dwSize              : u32;
@@ -919,10 +949,10 @@ makeExchangeTextureFilename :: (relative_filename : string) -> string {
     return filename;
 }
 
-// @Cleanup: #TextureLoader.
-g_contextForOutputHandler : *#Context;
-
 #load "obj_model.jai";
 #load "gltf_model.jai";
 
-#import "nvtt";
+nvtt :: #import "nvtt";
+#if !TEST_TEXTURES {
+    using,only(Msvc_Destructor_Flags) Windows :: #import "Windows";
+}
